@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neony"
+version = "0.0.1"
+description = ""
+readme = "readme.md"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.11"
+authors = [
+    { name = "HarcicYang" },
+]
+dependencies = [
+    "lumiview",
+    "pydantic>=2.13.4",
+    "wryview",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["euleronebot*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+# [tool.ruff.lint.per-file-ignores]
+
+[tool.pyrefly.errors]
+bad-override-mutable-attribute = false
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.1",
+    "pyrefly>=0.60.0",
+]
