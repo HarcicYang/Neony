@@ -8,8 +8,8 @@
 
 ### `NeonApplication`
 
-应用对象 — 持有窗口、桥接、主题与共享状态。用 `Config` 构造,
-组装 `Page`,然后 `run()`。
+应用对象 — 持有窗口、桥接、主题与共享状态。用 `Config` 构造，
+组装 `Page`，然后 `run()`。
 
 ```python
 from neony.application import Config, NeonApplication, Page, WebViewConfig, WindowConfig
@@ -28,16 +28,16 @@ def main() -> None:
     app.run(page)
 ```
 
-**属性:** `config`, `state`, `theme`, `ready_handler`
+**属性:** `config`， `state`， `theme`， `ready_handler`
 
 **窗口方法**(全部异步):
-`set_title(title)`, `set_size(w, h)`, `minimize()`, `toggle_maximize()`,
-`is_maximized()`, `set_fullscreen(f)`, `start_dragging()`, `close()`,
-`apply_blur(color?)`, `apply_acrylic(color?)`, `apply_mica()`,
-`clear_effect(effect)`, `eval_js(script)`
+`set_title(title)`， `set_size(w, h)`， `minimize()`， `toggle_maximize()`，
+`is_maximized()`， `set_fullscreen(f)`， `start_dragging()`， `close()`，
+`apply_blur(color?)`， `apply_acrylic(color?)`， `apply_mica()`，
+`clear_effect(effect)`， `eval_js(script)`
 
 **主题与渲染:**
-`sync_theme()`, `set_background(url)`, `render()`
+`sync_theme()`， `set_background(url)`， `render()`
 
 ### `launch()`
 
@@ -49,15 +49,15 @@ from neony.application import Page, launch
 launch(page, title="Demo", width=480, height=360, devtools=True)
 ```
 
-接受全部 `WindowConfig` / `WebViewConfig` 字段,
+接受全部 `WindowConfig` / `WebViewConfig` 字段，
 以及 `mount_selector` 和 `auto_render`。
 
-### `Config`, `WindowConfig`, `WebViewConfig`
+### `Config`， `WindowConfig`， `WebViewConfig`
 
 Pydantic 配置模型。`WindowConfig` 负责几何与外观
-(`title`, `width`, `height`, `decorations`, `transparent`,
-`always_on_top`, `resizable` …)。`WebViewConfig` 负责运行时
-(`devtools`, `incognito`, `user_agent`, `javascript` …)。
+(`title`， `width`， `height`， `decorations`， `transparent`，
+`always_on_top`， `resizable` …)。`WebViewConfig` 负责运行时
+(`devtools`， `incognito`， `user_agent`， `javascript` …)。
 
 ### `Page`
 
@@ -68,16 +68,16 @@ Page(gap="16px", padding="24px", max_width="720px")
 Page(fill=True, radius="12px")  # 装饰性布局
 ```
 
-**参数:** `direction`, `gap`, `padding`, `align`, `justify`,
-`width`, `max_width`, `glass`, `fill`, `radius`
+**参数:** `direction`， `gap`， `padding`， `align`， `justify`，
+`width`， `max_width`， `glass`， `fill`， `radius`
 
 `fill=True` 撑满窗口高度。`radius` 圆角窗口边框(用于透明无边框窗口)。
 
-**方法:** `add(child)`(链式), `build()` → DOMElement
+**方法:** `add(child)`(链式)， `build()` → DOMElement
 
 ### 多窗口
 
-`run()` 接受多个页面,每个页面打开一个窗口。所有窗口共享同一事件循环
+`run()` 接受多个页面，每个页面打开一个窗口。所有窗口共享同一事件循环
 与 `app.state` 命名空间;事件处理器只重渲染事件来源窗口。
 
 ```python
@@ -179,13 +179,13 @@ titlebar.on_close(lambda e: print("bye"))  # 附加回调
 titlebar.override_close(confirm_close)  # 完全接管关闭
 ```
 
-**参数:** `title`, `show_minimize`, `show_maximize`, `show_close`, `height`
+**参数:** `title`， `show_minimize`， `show_maximize`， `show_close`， `height`
 
 标题栏即拖拽区域(双击最大化);控制按钮通过 WindowControls 桥接自动路由。
 
 ### `Sidebar` & `SidebarItem`
 
-垂直导航,与 `TitleBar` 同款玻璃。
+垂直导航，与 `TitleBar` 同款玻璃。
 
 ```python
 sidebar = Sidebar(
@@ -197,14 +197,14 @@ sidebar.on_change(lambda e: switch(e.value))  # value = item key
 sidebar.active_key = "settings"  # 编程切换,不触发回调
 ```
 
-**参数:** `Sidebar(width, glass, corner_radius)`,
+**参数:** `Sidebar(width, glass, corner_radius)`，
 `SidebarItem(label, key, icon, active)`
 
 ---
 
 ## 主题
 
-三套预设 — `DARK`, `LIGHT`, `DEEP_BLUE` — 以 CSS 自定义属性暴露。
+三套预设 — `DARK`， `LIGHT`， `DEEP_BLUE` — 以 CSS 自定义属性暴露。
 
 ```python
 app.theme.set_mode("dark")  # dark | light | deep-blue
@@ -212,12 +212,12 @@ app.theme.toggle()  # 循环切换
 await app.sync_theme()  # 重新注入变量
 ```
 
-令牌族: `--color-bg`, `--color-surface`,
-`--color-text-primary` / `--color-text-secondary`, `--color-accent`,
-`--color-danger`, `--color-success`, `--color-border`,
+令牌族: `--color-bg`， `--color-surface`，
+`--color-text-primary` / `--color-text-secondary`， `--color-accent`，
+`--color-danger`， `--color-success`， `--color-border`，
 `--color-*-glass*`(磨砂变体)。
 
-组件通过 `Color(var="--color-*")` 引用令牌,切换主题零 DOM diff 重绘。
+组件通过 `Color(var="--color-*")` 引用令牌，切换主题零 DOM diff 重绘。
 
 自定义主题:
 
@@ -276,8 +276,8 @@ async def handler(event: DomEvent) -> None:
 
 ### 原始元素
 
-每个 HTML 元素都是类:`Div`, `Span`, `Body`, `H1`–`H6`,
-`Input`, `Button`, `Form`, `Table` … 共享链式事件 API,
+每个 HTML 元素都是类:`Div`， `Span`， `Body`， `H1`–`H6`，
+`Input`， `Button`， `Form`， `Table` … 共享链式事件 API，
 支持 `build()`(HTML 字符串)和 `to_node()`(响应式快照)。
 
 ```python
