@@ -20,7 +20,7 @@ Example::
     print(tree.build())
 """
 
-from .base import Color, DOMElement, NodeDescriptor, Styles
+from .base import Color, DOMElement, DomEvent, NodeDescriptor, Styles
 from .bridge import (
     CreatePatch,
     DiffEngine,
@@ -139,6 +139,7 @@ __all__ = [
     "Details",
     "DiffEngine",
     "Div",
+    "DomEvent",
     "Em",
     "Fieldset",
     "Figcaption",

@@ -2,11 +2,22 @@
 
 Each class maps to an HTML tag.  Void (self-closing) elements like ``<img>``
 have ``_void = True`` and render as ``<img ... />``.
+
+Common HTML attributes are declared as typed fields with
+``json_schema_extra={"html_attr": True}`` so they render into the
+``<tag ...>`` attribute list and serialize into ``NodeDescriptor.attrs``.
+Anything not covered can still go through the generic ``args`` dict.
 """
+
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import Field
 
 from .base import DOMElement
 
-# ---- Document structure ----
+# ---- document structure ----
 
 
 class Html(DOMElement):
@@ -25,7 +36,7 @@ class Body(DOMElement):
     _tag: str = "body"
 
 
-# ---- Content grouping ----
+# ---- content grouping ----
 
 
 class Div(DOMElement):
@@ -48,7 +59,7 @@ class Blockquote(DOMElement):
     _tag: str = "blockquote"
 
 
-# ---- Headings ----
+# ---- headings ----
 
 
 class H1(DOMElement):
@@ -75,11 +86,20 @@ class H6(DOMElement):
     _tag: str = "h6"
 
 
-# ---- Inline text semantics ----
+# ---- inline text semantics ----
 
 
 class Anchor(DOMElement):
+    """Hyperlink with typed ``href`` / ``target`` / ``rel`` attributes."""
+
     _tag: str = "a"
+
+    href: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    target: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    rel: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    download: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    hreflang: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    referrerpolicy: str | None = Field(default=None, json_schema_extra={"html_attr": True})
 
 
 class Strong(DOMElement):
@@ -122,7 +142,7 @@ class Sup(DOMElement):
     _tag: str = "sup"
 
 
-# ---- Lists ----
+# ---- lists ----
 
 
 class UnorderedList(DOMElement):
@@ -137,7 +157,7 @@ class ListItem(DOMElement):
     _tag: str = "li"
 
 
-# ---- Tables ----
+# ---- tables ----
 
 
 class Table(DOMElement):
@@ -168,42 +188,95 @@ class TableData(DOMElement):
     _tag: str = "td"
 
 
-# ---- Forms ----
+# ---- forms ----
 
 
 class Form(DOMElement):
     _tag: str = "form"
 
+    action: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    method: Literal["get", "post", "dialog"] | None = Field(default=None, json_schema_extra={"html_attr": True})
+    enctype: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    target: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    name: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    novalidate: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    autocomplete: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+
 
 class Label(DOMElement):
     _tag: str = "label"
+
+    for_: str | None = Field(default=None, alias="for", json_schema_extra={"html_attr": True})
 
 
 class Button(DOMElement):
     _tag: str = "button"
 
+    type: Literal["submit", "reset", "button"] | None = Field(default=None, json_schema_extra={"html_attr": True})
+    name: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    value: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    disabled: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    autofocus: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    form: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    formaction: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+
 
 class Select(DOMElement):
     _tag: str = "select"
+
+    name: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    multiple: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    size: int | None = Field(default=None, json_schema_extra={"html_attr": True})
+    disabled: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    required: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    autofocus: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
 
 
 class Option(DOMElement):
     _tag: str = "option"
 
+    value: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    label: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    selected: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    disabled: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+
 
 class Textarea(DOMElement):
+    """Multiline text input.
+
+    ``value`` is a Python-side state record only — textarea content is
+    rendered via ``container``, and the live value is read back from the
+    DOM through events. It is deliberately NOT an HTML attribute.
+    """
+
     _tag: str = "textarea"
+
+    value: str | None = Field(default=None)
+    placeholder: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    name: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    rows: int | None = Field(default=None, json_schema_extra={"html_attr": True})
+    cols: int | None = Field(default=None, json_schema_extra={"html_attr": True})
+    maxlength: int | None = Field(default=None, json_schema_extra={"html_attr": True})
+    disabled: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    readonly: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    required: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    autofocus: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    spellcheck: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
 
 
 class Fieldset(DOMElement):
     _tag: str = "fieldset"
+
+    disabled: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    name: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    form: str | None = Field(default=None, json_schema_extra={"html_attr": True})
 
 
 class Legend(DOMElement):
     _tag: str = "legend"
 
 
-# ---- Semantic sections ----
+# ---- semantic sections ----
 
 
 class Header(DOMElement):
@@ -245,12 +318,14 @@ class Figcaption(DOMElement):
 class Details(DOMElement):
     _tag: str = "details"
 
+    open: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+
 
 class Summary(DOMElement):
     _tag: str = "summary"
 
 
-# ---- Void (self-closing) elements ----
+# ---- void (self-closing) elements ----
 
 
 class Br(DOMElement):
@@ -264,52 +339,144 @@ class Hr(DOMElement):
 
 
 class Img(DOMElement):
+    """Image with typed ``src`` / ``alt`` / ``width`` / ``height``."""
+
     _tag: str = "img"
     _void: bool = True
 
+    src: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    alt: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    width: int | str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    height: int | str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    loading: Literal["lazy", "eager"] | None = Field(default=None, json_schema_extra={"html_attr": True})
+    decoding: Literal["sync", "async", "auto"] | None = Field(default=None, json_schema_extra={"html_attr": True})
+    crossorigin: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    referrerpolicy: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+
 
 class Input(DOMElement):
+    """Form input with typed attributes.
+
+    Boolean ``checked`` / ``disabled`` / ``readonly`` render as bare
+    attributes when ``True`` and are omitted when ``False``/``None``.
+    """
+
     _tag: str = "input"
     _void: bool = True
+
+    type: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    placeholder: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    value: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    name: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    checked: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    disabled: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    readonly: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    required: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    autofocus: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    autocomplete: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    maxlength: int | None = Field(default=None, json_schema_extra={"html_attr": True})
+    min: str | int | float | None = Field(default=None, json_schema_extra={"html_attr": True})
+    max: str | int | float | None = Field(default=None, json_schema_extra={"html_attr": True})
+    step: str | int | float | None = Field(default=None, json_schema_extra={"html_attr": True})
+    accept: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    form: str | None = Field(default=None, json_schema_extra={"html_attr": True})
 
 
 class Link(DOMElement):
     _tag: str = "link"
     _void: bool = True
 
+    rel: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    href: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    type: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    media: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    sizes: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    integrity: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    crossorigin: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+
 
 class Meta(DOMElement):
     _tag: str = "meta"
     _void: bool = True
+
+    charset: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    name: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    content: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    http_equiv: str | None = Field(default=None, alias="http-equiv", json_schema_extra={"html_attr": True})
 
 
 class Source(DOMElement):
     _tag: str = "source"
     _void: bool = True
 
+    src: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    srcset: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    type: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    media: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    sizes: str | None = Field(default=None, json_schema_extra={"html_attr": True})
 
-# ---- Other ----
+
+# ---- other ----
 
 
 class IFrame(DOMElement):
     _tag: str = "iframe"
 
+    src: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    width: int | str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    height: int | str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    title: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    allow: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    sandbox: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    loading: Literal["lazy", "eager"] | None = Field(default=None, json_schema_extra={"html_attr": True})
+    allowfullscreen: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+
 
 class Video(DOMElement):
     _tag: str = "video"
+
+    src: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    poster: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    controls: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    autoplay: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    loop: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    muted: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    preload: Literal["none", "metadata", "auto"] | None = Field(default=None, json_schema_extra={"html_attr": True})
+    width: int | str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    height: int | str | None = Field(default=None, json_schema_extra={"html_attr": True})
 
 
 class Audio(DOMElement):
     _tag: str = "audio"
 
+    src: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    controls: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    autoplay: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    loop: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    muted: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    preload: Literal["none", "metadata", "auto"] | None = Field(default=None, json_schema_extra={"html_attr": True})
+
 
 class Canvas(DOMElement):
     _tag: str = "canvas"
+
+    width: int | None = Field(default=None, json_schema_extra={"html_attr": True})
+    height: int | None = Field(default=None, json_schema_extra={"html_attr": True})
 
 
 class Script(DOMElement):
     _tag: str = "script"
 
+    src: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    type: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    defer: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
+    async_: bool | None = Field(default=None, alias="async", json_schema_extra={"html_attr": True})
+    integrity: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    crossorigin: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+
 
 class Style(DOMElement):
     _tag: str = "style"
+
+    media: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    type: str | None = Field(default=None, json_schema_extra={"html_attr": True})

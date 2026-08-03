@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from typing import Any, Literal
 
-from pydantic import BaseModel, model_serializer
+from pydantic import BaseModel, PrivateAttr, model_serializer
 from pydantic.fields import Field
 
 
@@ -236,6 +237,20 @@ class Styles(BaseModel):
     z_index: int | None = Field(default=None)
 
 
+class DomEvent(BaseModel):
+    """Event payload forwarded from JavaScript to a Python handler.
+
+    *key* is the identity of the element that received the event,
+    *type* is the DOM event name (``"click"``, ``"input"``, ...),
+    and *value* is element-specific data (``el.value`` for inputs,
+    ``el.checked`` for checkboxes, ``None`` otherwise).
+    """
+
+    key: str
+    type: str
+    value: Any = None
+
+
 class NodeDescriptor(BaseModel):
     """JSON-safe snapshot of one DOM element for diffing and transmission.
 
@@ -267,13 +282,63 @@ class DOMElement(BaseModel):
     # Pass explicitly to preserve an element across rebuilt trees.
     key: str = Field(default_factory=_new_key)
 
-    # Convenience attributes for the most common HTML attributes
-    id_: str | None = Field(default=None, alias="id")
-    class_: str | None = Field(default=None, alias="class")
+    # Convenience attributes for the most common HTML attributes.
+    # Subclasses declare more with Field(json_schema_extra={"html_attr": True}).
+    id_: str | None = Field(default=None, alias="id", json_schema_extra={"html_attr": True})
+    class_: str | None = Field(default=None, alias="class", json_schema_extra={"html_attr": True})
 
     container: list[DOMElement | str] = Field(default_factory=list)
     styles: Styles = Field(default_factory=Styles)
     args: dict[str, Any] = Field(default_factory=dict)
+
+    # Handlers attached via the fluent .on_xxx() API. Stored as a
+    # PrivateAttr so callables are never serialized.
+    _handlers: dict[str, list[Callable[..., Any]]] = PrivateAttr(default_factory=dict)
+
+    # ---- fluent event API ----
+
+    def on(self, event_type: str, fn: Callable[..., Any]) -> DOMElement:
+        """Register *fn* for *event_type* and return self for chaining.
+
+        The handler is called with a :class:`DomEvent` when the element
+        receives a matching DOM event. Collect handlers are wired up by
+        :class:`~neony.application.NeonApplication`.
+        """
+        self._handlers.setdefault(event_type, []).append(fn)
+        return self
+
+    def on_click(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("click", fn)
+
+    def on_dblclick(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("dblclick", fn)
+
+    def on_input(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("input", fn)
+
+    def on_change(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("change", fn)
+
+    def on_submit(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("submit", fn)
+
+    def on_keydown(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("keydown", fn)
+
+    def on_keyup(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("keyup", fn)
+
+    def on_focus(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("focus", fn)
+
+    def on_blur(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("blur", fn)
+
+    def on_mouseover(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("mouseover", fn)
+
+    def on_mouseout(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("mouseout", fn)
 
     # ---- internal helpers ----
 
@@ -294,6 +359,25 @@ class DOMElement(BaseModel):
             return ""
         return 'style="' + "; ".join(declarations) + '"'
 
+    def _collect_attr_items(self) -> list[tuple[str, Any]]:
+        """Collect all HTML attributes as ``(html_name, value)`` pairs.
+
+        Typed fields declared with ``json_schema_extra={"html_attr": True}``
+        come first (in declaration order), then raw ``args`` — so ``args``
+        can still override a typed field if the user really wants to.
+        """
+        items: list[tuple[str, Any]] = []
+        for name, field in type(self).model_fields.items():
+            extra = field.json_schema_extra
+            if isinstance(extra, dict) and extra.get("html_attr"):
+                value = getattr(self, name)
+                if value is not None:
+                    html_name = field.alias or name
+                    items.append((html_name, value))
+        for k, v in self.args.items():
+            items.append((k, v))
+        return items
+
     def _build_attrs(self) -> list[str]:
         """Collect all HTML attribute segments into a list.
 
@@ -304,19 +388,12 @@ class DOMElement(BaseModel):
         # data-neony-key for DOM identity (always rendered)
         attrs.append(f'data-neony-key="{self.key}"')
 
-        # id / class convenience fields (rendered before args so args can
-        # override them if the user really wants to)
-        if self.id_ is not None:
-            attrs.append(f'id="{self.id_}"')
-        if self.class_ is not None:
-            attrs.append(f'class="{self.class_}"')
-
-        for k, v in self.args.items():
-            if isinstance(v, bool):
-                if v:
-                    attrs.append(k)  # bare boolean attribute
+        for name, value in self._collect_attr_items():
+            if isinstance(value, bool):
+                if value:
+                    attrs.append(name)  # bare boolean attribute
             else:
-                attrs.append(f'{k}="{v}"')
+                attrs.append(f'{name}="{value}"')
 
         return attrs
 
@@ -373,18 +450,14 @@ class DOMElement(BaseModel):
             if v is not None:
                 styles[self._to_kebab(k)] = str(v)
 
-        # Attrs: merge id_/class_ + args with same precedence as _build_attrs
+        # Attrs: same precedence as _build_attrs (typed fields, then args)
         attrs: dict[str, str] = {}
-        if self.id_ is not None:
-            attrs["id"] = self.id_
-        if self.class_ is not None:
-            attrs["class"] = self.class_
-        for k, v in self.args.items():
-            if isinstance(v, bool):
-                if v:
-                    attrs[k] = ""  # boolean attribute presence
+        for name, value in self._collect_attr_items():
+            if isinstance(value, bool):
+                if value:
+                    attrs[name] = ""  # boolean attribute presence
             else:
-                attrs[k] = str(v)
+                attrs[name] = str(value)
 
         # Children: recurse, handle text-vs-element rules
         text: str | None = None
