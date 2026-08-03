@@ -77,6 +77,28 @@ window frame (for transparent frameless windows).
 
 **Methods:** `add(child)` (chainable), `build()` → DOMElement
 
+### Multi-window
+
+`run()` accepts several pages — each opens its own window. All windows
+share one event loop and the app's `state` namespace; an event handler
+only re-renders the window it came from.
+
+```python
+app = NeonApplication(Config(...))
+app.run(page_one, page_two)
+
+
+async def on_ready() -> None:
+    await app.set_title("Counter", window_index=0)
+    await app.set_title("Display", window_index=1)
+
+
+app.ready_handler = on_ready
+```
+
+Every window-control method takes `window_index` (default 0).
+`launch([page_one, page_two], ...)` accepts a list too.
+
 ---
 
 ## Components

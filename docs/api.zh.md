@@ -75,6 +75,27 @@ Page(fill=True, radius="12px")  # 装饰性布局
 
 **方法:** `add(child)`(链式), `build()` → DOMElement
 
+### 多窗口
+
+`run()` 接受多个页面,每个页面打开一个窗口。所有窗口共享同一事件循环
+与 `app.state` 命名空间;事件处理器只重渲染事件来源窗口。
+
+```python
+app = NeonApplication(Config(...))
+app.run(page_one, page_two)
+
+
+async def on_ready() -> None:
+    await app.set_title("Counter", window_index=0)
+    await app.set_title("Display", window_index=1)
+
+
+app.ready_handler = on_ready
+```
+
+每个窗口控制方法都接受 `window_index`(默认 0)。
+`launch([page_one, page_two], ...)` 也接受列表。
+
 ---
 
 ## 组件
