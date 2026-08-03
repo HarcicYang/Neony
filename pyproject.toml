@@ -20,7 +20,10 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["euleronebot*"]
+include = ["neony*"]
+
+[tool.setuptools.package-data]
+neony = ["javascript/*.js"]
 
 [tool.ruff]
 target-version = "py311"

@@ -23,6 +23,7 @@ async def main():
                                 display="flex",
                                 justify_content="center",
                                 align_items="center",
+                                border_radius="50px",
                             ),
                         )
                     ],

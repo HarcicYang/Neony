@@ -20,7 +20,20 @@ Example::
     print(tree.build())
 """
 
-from .base import Color, DOMElement, Styles
+from .base import Color, DOMElement, NodeDescriptor, Styles
+from .bridge import (
+    CreatePatch,
+    DiffEngine,
+    MovePatch,
+    Neony,
+    PatchMessage,
+    RemovePatch,
+    ReorderPatch,
+    ReplacePatch,
+    SetTextPatch,
+    UpdateAttrsPatch,
+    UpdateStylesPatch,
+)
 from .elems import (
     # Headings
     H1,
@@ -103,14 +116,12 @@ from .elems import (
 )
 
 __all__ = [
-    # Headings
     "H1",
     "H2",
     "H3",
     "H4",
     "H5",
     "H6",
-    # Inline
     "Anchor",
     "Article",
     "Aside",
@@ -118,31 +129,26 @@ __all__ = [
     "Blockquote",
     "Body",
     "Bold",
-    # Void
     "Br",
     "Button",
     "Canvas",
     "Code",
-    # Base
     "Color",
+    "CreatePatch",
     "DOMElement",
     "Details",
-    # Content
+    "DiffEngine",
     "Div",
     "Em",
     "Fieldset",
     "Figcaption",
     "Figure",
     "Footer",
-    # Forms
     "Form",
     "Head",
-    # Semantic
     "Header",
     "Hr",
-    # Document
     "Html",
-    # Other
     "IFrame",
     "Img",
     "Input",
@@ -154,14 +160,22 @@ __all__ = [
     "Main",
     "Mark",
     "Meta",
+    "MovePatch",
     "Nav",
+    "Neony",
+    "NodeDescriptor",
     "Option",
     "OrderedList",
     "Paragraph",
+    "PatchMessage",
     "Pre",
+    "RemovePatch",
+    "ReorderPatch",
+    "ReplacePatch",
     "Script",
     "Section",
     "Select",
+    "SetTextPatch",
     "Small",
     "Source",
     "Span",
@@ -171,7 +185,6 @@ __all__ = [
     "Sub",
     "Summary",
     "Sup",
-    # Tables
     "Table",
     "TableBody",
     "TableData",
@@ -182,7 +195,8 @@ __all__ = [
     "Textarea",
     "Title",
     "Underline",
-    # Lists
     "UnorderedList",
+    "UpdateAttrsPatch",
+    "UpdateStylesPatch",
     "Video",
 ]

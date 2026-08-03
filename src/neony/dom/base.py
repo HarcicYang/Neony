@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any, Literal
 
 from pydantic import BaseModel, model_serializer
 from pydantic.fields import Field
+
+
+def _new_key() -> str:
+    """Generate a unique hex key for DOM element identity tracking."""
+    return uuid.uuid4().hex
 
 
 class Color(BaseModel):
@@ -230,6 +236,21 @@ class Styles(BaseModel):
     z_index: int | None = Field(default=None)
 
 
+class NodeDescriptor(BaseModel):
+    """JSON-safe snapshot of one DOM element for diffing and transmission.
+
+    Used by the reactive bridge to serialize DOM state, compute patches,
+    and send tree descriptions to the JavaScript engine.
+    """
+
+    key: str
+    tag: str
+    attrs: dict[str, str] = Field(default_factory=dict)
+    styles: dict[str, str] = Field(default_factory=dict)
+    text: str | None = None
+    children: list[NodeDescriptor] = Field(default_factory=list)
+
+
 class DOMElement(BaseModel):
     """Base class for all DOM elements.
 
@@ -241,6 +262,10 @@ class DOMElement(BaseModel):
 
     _tag: str = ""
     _void: bool = False
+
+    # Stable identity for diff tracking — auto-generated once per instance.
+    # Pass explicitly to preserve an element across rebuilt trees.
+    key: str = Field(default_factory=_new_key)
 
     # Convenience attributes for the most common HTML attributes
     id_: str | None = Field(default=None, alias="id")
@@ -275,6 +300,9 @@ class DOMElement(BaseModel):
         Returns a list of ``key="value"`` (or bare ``key`` for boolean True) strings.
         """
         attrs: list[str] = []
+
+        # data-neony-key for DOM identity (always rendered)
+        attrs.append(f'data-neony-key="{self.key}"')
 
         # id / class convenience fields (rendered before args so args can
         # override them if the user really wants to)
@@ -321,3 +349,77 @@ class DOMElement(BaseModel):
             return f"<{opening} />"
 
         return f"<{opening}>{''.join(children)}</{self._tag}>"
+
+    # ---- serialization for reactive bridge ----
+
+    def to_node(self) -> NodeDescriptor:
+        """Serialize this element and all descendants to a JSON-safe NodeDescriptor.
+
+        Raises ValueError if duplicate keys are found anywhere in the tree,
+        or if ``container`` mixes strings and elements.
+        """
+        seen_keys: set[str] = set()
+        node = self._to_node_impl(seen_keys)
+        return node
+
+    def _to_node_impl(self, seen_keys: set[str]) -> NodeDescriptor:
+        if self.key in seen_keys:
+            raise ValueError(f"Duplicate key {self.key!r} in DOM tree. Each element must have a unique key.")
+        seen_keys.add(self.key)
+
+        # Styles: kebab-case keys, string values, skip None
+        styles: dict[str, str] = {}
+        for k, v in self.styles.model_dump().items():
+            if v is not None:
+                styles[self._to_kebab(k)] = str(v)
+
+        # Attrs: merge id_/class_ + args with same precedence as _build_attrs
+        attrs: dict[str, str] = {}
+        if self.id_ is not None:
+            attrs["id"] = self.id_
+        if self.class_ is not None:
+            attrs["class"] = self.class_
+        for k, v in self.args.items():
+            if isinstance(v, bool):
+                if v:
+                    attrs[k] = ""  # boolean attribute presence
+            else:
+                attrs[k] = str(v)
+
+        # Children: recurse, handle text-vs-element rules
+        text: str | None = None
+        children: list[NodeDescriptor] = []
+
+        has_strings = False
+        has_elements = False
+        for item in self.container:
+            if isinstance(item, DOMElement):
+                has_elements = True
+            else:
+                has_strings = True
+
+        if has_strings and has_elements:
+            raise ValueError(
+                f"Element {self.key!r} ({self._tag}): mixed string and element "
+                f"children are not supported in reactive mode. "
+                f"Use text-only or element-only children."
+            )
+
+        if self._void:
+            # Void elements have no children
+            pass
+        elif has_strings:
+            text = "".join(str(item) for item in self.container)
+        else:
+            for item in self.container:
+                if isinstance(item, DOMElement):
+                    children.append(item._to_node_impl(seen_keys))
+
+        return NodeDescriptor(
+            key=self.key,
+            tag=self._tag,
+            attrs=attrs,
+            styles=styles,
+            text=text,
+            children=children,
+        )
