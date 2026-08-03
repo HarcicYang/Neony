@@ -43,6 +43,7 @@
     var DELEGATED_EVENTS = [
         "click", "dblclick", "input", "change", "submit",
         "keydown", "keyup", "focus", "blur", "contextmenu",
+        "mouseover", "mouseout", "mousedown", "mouseup",
     ];
 
     function captureValue(el, event) {

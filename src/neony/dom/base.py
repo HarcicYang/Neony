@@ -17,16 +17,25 @@ class Color(BaseModel):
     """Represent a CSS color value in one of several formats.
 
     Serializes to the appropriate CSS string representation.
+
+    - ``name`` — CSS keyword (``"red"``, ``"white"``, ...)
+    - ``hex`` — ``#RRGGBB`` / ``#RRGGBBAA`` string only
+    - ``rgb`` / ``rgba`` — numeric channels
+    - ``var`` — a CSS custom property reference (``"--color-surface"``),
+      serialized as ``var(--color-surface)`` for themed styling
     """
 
     name: str | None = Field(default=None)
     rgb: tuple[int, int, int] | None = Field(default=None)
     rgba: tuple[int, int, int, float] | None = Field(default=None)
     hex: str | None = Field(default=None)
+    var: str | None = Field(default=None)
 
     @model_serializer
     def to_text(self) -> str:
-        if self.name:
+        if self.var:
+            return f"var({self.var})"
+        elif self.name:
             return self.name
         elif self.rgb:
             r, g, b = self.rgb
@@ -37,7 +46,7 @@ class Color(BaseModel):
         elif self.hex:
             return self.hex
         else:
-            raise NotImplementedError("At least one of name, rgb, rgba, or hex must be set")
+            raise NotImplementedError("At least one of name, rgb, rgba, hex, or var must be set")
 
 
 class Styles(BaseModel):
@@ -107,6 +116,9 @@ class Styles(BaseModel):
         | None
     ) = Field(default=None)
     flex_wrap: Literal["nowrap", "wrap", "wrap-reverse"] | None = Field(default=None)
+    flex_grow: str | None = Field(default=None)
+    flex_shrink: str | None = Field(default=None)
+    flex_basis: str | None = Field(default=None)
     gap: str | None = Field(default=None)
 
     # --- Spacing ---
@@ -193,6 +205,9 @@ class Styles(BaseModel):
     # --- Visual ---
     opacity: float | None = Field(default=None)
     box_shadow: str | None = Field(default=None)
+    # Frosted-glass effect. Rendered as both backdrop-filter and
+    # -webkit-backdrop-filter for WebKitGTK compatibility.
+    backdrop_filter: str | None = Field(default=None)
     overflow: (
         Literal[
             "visible",
@@ -244,11 +259,16 @@ class DomEvent(BaseModel):
     *type* is the DOM event name (``"click"``, ``"input"``, ...),
     and *value* is element-specific data (``el.value`` for inputs,
     ``el.checked`` for checkboxes, ``None`` otherwise).
+
+    *source* distinguishes real user interaction (``"user"``) from
+    programmatic value changes (``"program"``) — the latter must not
+    fire user callbacks.
     """
 
     key: str
     type: str
     value: Any = None
+    source: Literal["user", "program"] = "program"
 
 
 class NodeDescriptor(BaseModel):
@@ -354,6 +374,9 @@ class DOMElement(BaseModel):
             if v is not None:
                 css_property = self._to_kebab(k)
                 declarations.append(f"{css_property}: {v}")
+                # WebKitGTK needs the prefixed variant of backdrop-filter
+                if css_property == "backdrop-filter":
+                    declarations.append(f"-webkit-backdrop-filter: {v}")
 
         if not declarations:
             return ""
@@ -448,7 +471,11 @@ class DOMElement(BaseModel):
         styles: dict[str, str] = {}
         for k, v in self.styles.model_dump().items():
             if v is not None:
-                styles[self._to_kebab(k)] = str(v)
+                css_property = self._to_kebab(k)
+                styles[css_property] = str(v)
+                # WebKitGTK needs the prefixed variant of backdrop-filter
+                if css_property == "backdrop-filter":
+                    styles["-webkit-backdrop-filter"] = str(v)
 
         # Attrs: same precedence as _build_attrs (typed fields, then args)
         attrs: dict[str, str] = {}

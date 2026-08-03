@@ -91,7 +91,8 @@ class NeonyEngine {
         if (msg.rev > this.lastRev + 1) {
             // Gap detected — ask Python for a full resync
             if (window.lumiview && window.lumiview.invoke) {
-                window.lumiview.invoke("neony.resync", { rev: this.lastRev });
+                window.lumiview.invoke("neony.resync", { rev: this.lastRev })
+                    .catch(function () {});
             }
             return;
         }
@@ -162,11 +163,14 @@ class NeonyEngine {
 
         const setAttrs = op.set || {};
         for (const [name, value] of Object.entries(setAttrs)) {
-            // Direct property assignment for `checked` — once a
-            // checkbox has been clicked by the user its IDL property
-            // no longer tracks the content attribute reliably.
+            // Direct property assignment for `checked` and `value` —
+            // once an input has been interacted with, its IDL property
+            // no longer tracks the content attribute reliably, and
+            // setAttribute("value") can refire `input` in WebKitGTK.
             if (name === "checked" && (el.type === "checkbox" || el.type === "radio")) {
                 el.checked = true;
+            } else if (name === "value" && el.tagName === "INPUT") {
+                if (el.value !== value) el.value = value;
             } else {
                 el.setAttribute(name, value);
             }
@@ -175,6 +179,8 @@ class NeonyEngine {
         for (const name of removeAttrs) {
             if (name === "checked" && (el.type === "checkbox" || el.type === "radio")) {
                 el.checked = false;
+            } else if (name === "value" && el.tagName === "INPUT") {
+                el.value = "";
             } else {
                 el.removeAttribute(name);
             }
@@ -188,10 +194,17 @@ class NeonyEngine {
         const setStyles = op.set || {};
         for (const [prop, value] of Object.entries(setStyles)) {
             el.style.setProperty(prop, value);
+            // WebKitGTK needs the prefixed variant of backdrop-filter
+            if (prop === "backdrop-filter") {
+                el.style.setProperty("-webkit-backdrop-filter", value);
+            }
         }
         const removeStyles = op.remove || [];
         for (const prop of removeStyles) {
             el.style.removeProperty(prop);
+            if (prop === "backdrop-filter") {
+                el.style.removeProperty("-webkit-backdrop-filter");
+            }
         }
     }
 

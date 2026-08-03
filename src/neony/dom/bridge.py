@@ -295,13 +295,23 @@ class Neony(Scope):
     # ---- JS → Python commands (called via lumiview.invoke) ----
 
     async def _on_event(self, ctx: BridgeContext, key: str, event_type: str, value: Any = None) -> None:
-        """Handle a DOM event forwarded from JavaScript."""
+        """Handle a DOM event forwarded from JavaScript.
+
+        One handler raising must not break the rest of the chain —
+        each handler runs independently.
+        """
+        import logging
+
         from lumiview._task import _run_async
 
+        log = logging.getLogger("neony.bridge")
         for (ekey, etype), fns in self._handlers.items():
             if etype == event_type and (ekey is None or ekey == key):
                 for fn in fns:
-                    await _run_async(fn, key=key, event_type=event_type, value=value)
+                    try:
+                        await _run_async(fn, key=key, event_type=event_type, value=value)
+                    except Exception:
+                        log.exception(f"Event handler for {event_type} on {key} failed")
 
     async def _on_resync(self, ctx: BridgeContext, rev: int) -> None:
         """JS detected a revision gap — re-send the full mount."""
@@ -335,14 +345,21 @@ class Neony(Scope):
         if fn in handlers:
             handlers.remove(fn)
 
-    async def render(self, element: DOMElement) -> PatchMessage:
+    async def render(self, element: DOMElement) -> PatchMessage | None:
         """Render (or update) a DOM tree in the browser.
 
         On the first call the entire tree is mounted via ``eval_js``.
         Subsequent calls diff against the previous snapshot and send
         only changed patches via ``emit``.
 
-        Returns the :class:`PatchMessage` that was sent.
+        *rev* increments ONLY when a message is actually sent, so the
+        JavaScript engine's ``lastRev`` stays in lockstep with the
+        browser — an unchanged re-render (e.g. a ``change`` event after
+        the state was already rendered) must not create a revision gap
+        that would trigger an unnecessary full resync.
+
+        Returns the :class:`PatchMessage` that was sent, or ``None``
+        when there was nothing to send.
         """
         async with self._lock:
             if self._win is None:
@@ -352,10 +369,11 @@ class Neony(Scope):
                 )
 
             new_node = element.to_node()
-            self._rev += 1
+            msg: PatchMessage | None = None
 
             if self._snapshot is None:
                 # First render: full mount
+                self._rev += 1
                 msg = PatchMessage(
                     rev=self._rev,
                     ops=[CreatePatch(key=new_node.key, node=new_node)],
@@ -363,8 +381,9 @@ class Neony(Scope):
                 await self._win.eval_js(f"window.neony.mount({msg.model_dump_json()})")
             else:
                 ops = DiffEngine.diff(self._snapshot, new_node)
-                msg = PatchMessage(rev=self._rev, ops=ops)
                 if ops:
+                    self._rev += 1
+                    msg = PatchMessage(rev=self._rev, ops=ops)
                     await self._win.emit("neony:patch", msg.model_dump(mode="json"))
 
             self._snapshot = new_node
