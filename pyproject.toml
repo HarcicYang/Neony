@@ -4,18 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neony"
-version = "0.0.1"
-description = ""
+version = "0.1.0"
+description = "Reactive desktop UI framework for Python — built on LumiView, a pythonic webview desktop app framework"
 readme = "readme.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.11"
 authors = [
     { name = "HarcicYang" },
 ]
+keywords = ["desktop", "gui", "webview", "reactive", "ui-framework"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: User Interfaces",
+]
 dependencies = [
     "lumiview",
     "pydantic>=2.13.4",
-    "wryview",
 ]
 
 [tool.setuptools.packages.find]

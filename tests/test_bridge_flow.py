@@ -11,8 +11,10 @@ import asyncio
 from typing import Any, cast
 
 from neony.application import Config, NeonApplication
+from neony.application.app import _Entry
 from neony.application.elements import Input, Text, VStack
 from neony.dom import DomEvent
+from neony.dom.bridge import Neony
 
 
 class FakeWindow:
@@ -31,27 +33,31 @@ class FakeWindow:
         self.patches.append(payload)
 
 
-def _mount(app: NeonApplication, fake: FakeWindow) -> None:
-    """Wire the fake window into the bridge (bypasses type checks)."""
-    app._neony._win = cast(Any, fake)
+def _setup_entry(app: NeonApplication, tree, fake: FakeWindow) -> Neony:
+    """Simulate run()'s per-window setup without starting LumiView."""
+    neony = Neony(name="neony", mount_selector=app.config.mount_selector)
+    entry = _Entry(neony, tree)
+    entry.window = cast(Any, fake)  # render() gates on entry.window
+    app._entries.append(entry)
+    neony._win = cast(Any, fake)  # wire the fake window into the bridge
+    app._collect_handlers(neony, tree, 0)
+    return neony
 
 
 async def _fire(app: NeonApplication, key: str, event_type: str, value: Any = None) -> None:
-    await app._neony._on_event(cast(Any, None), key=key, event_type=event_type, value=value)
+    await app._entries[0].neony._on_event(cast(Any, None), key=key, event_type=event_type, value=value)
 
 
 def _build_app() -> tuple[NeonApplication, FakeWindow, dict]:
     app = NeonApplication(Config(auto_render=True))
     fake = FakeWindow()
-    _mount(app, fake)
 
     inp = Input(placeholder="name")
     echo = Text("")
     inp.on_input(lambda e: setattr(echo, "text", f"hi {e.value}"))
     tree = VStack(inp, echo).build()
 
-    app._tree = tree
-    app._collect_handlers(tree)
+    _setup_entry(app, tree, fake)
     return app, fake, {"input": inp, "echo": echo}
 
 
@@ -97,7 +103,6 @@ class TestRevContinuity:
         """Typing in a second input after an empty re-render stays continuous."""
         app = NeonApplication(Config(auto_render=True))
         fake = FakeWindow()
-        _mount(app, fake)
 
         a = Input(placeholder="a")
         b = Input(placeholder="b")
@@ -107,8 +112,7 @@ class TestRevContinuity:
         b.on_input(lambda e: setattr(echo_b, "text", f"B{e.value}"))
         tree = VStack(a, echo_a, b, echo_b).build()
 
-        app._tree = tree
-        app._collect_handlers(tree)
+        _setup_entry(app, tree, fake)
 
         async def run() -> list[int]:
             await app.render()  # mount rev 1
@@ -134,7 +138,6 @@ class TestHandlerIsolation:
     def test_failing_handler_does_not_block_others(self):
         app = NeonApplication(Config(auto_render=True))
         fake = FakeWindow()
-        _mount(app, fake)
 
         calls: list[str] = []
 
@@ -148,9 +151,7 @@ class TestHandlerIsolation:
 
         div = Div()
         div._handlers["click"] = [bad, good]
-        tree = div
-        app._tree = tree
-        app._collect_handlers(tree)
+        _setup_entry(app, div, fake)
 
         asyncio.run(_fire(app, div.key, "click"))
         assert calls == ["good"]

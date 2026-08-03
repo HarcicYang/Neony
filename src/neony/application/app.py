@@ -39,6 +39,17 @@ _INITIAL_HTML = (
 )
 
 
+class _Entry:
+    """Per-window runtime state: bridge scope, window, and DOM tree."""
+
+    __slots__ = ("neony", "tree", "window")
+
+    def __init__(self, neony: Neony, tree: DOMElement) -> None:
+        self.neony = neony
+        self.window: Window | None = None
+        self.tree = tree
+
+
 class NeonApplication:
     """Reactive desktop application built on LumiView + Neony DOM.
 
@@ -61,54 +72,58 @@ class NeonApplication:
 
     def __init__(self, config: Config | None = None) -> None:
         self.config = config or Config()
-        self._neony = Neony(name="neony", mount_selector=self.config.mount_selector)
-        self._tree: DOMElement | None = None
-        self._window: Window | None = None
+        self._entries: list[_Entry] = []
         self.state: SimpleNamespace = SimpleNamespace()
         self.theme: Theme = Theme()
-        self.ready_handler: Any = None  # optional async callable, run after window ready
+        self.ready_handler: Any = None  # optional async callable, run after windows ready
 
     # ---- lifecycle ----
 
-    def run(self, page: Page | DOMElement) -> None:
+    def run(self, *pages: Page | DOMElement) -> None:
         """Blocking entry point.
 
-        Accepts a :class:`~neony.application.Page` (built internally) or
-        a raw :class:`DOMElement` tree. Walks the tree, collects all
-        fluent-event handlers, injects the theme, then starts LumiView.
+        Each *page* opens its own window. All windows share the same
+        LumiView event loop and this app's ``state`` namespace — handlers
+        from any window read/write the same ``app.state``.
         """
-        self._tree = page.build() if isinstance(page, Page) else page
-        self._collect_handlers(self._tree)
+        for page in pages:
+            tree = page.build() if isinstance(page, Page) else page
+            neony = Neony(name="neony", mount_selector=self.config.mount_selector)
+            idx = len(self._entries)
+            self._entries.append(_Entry(neony, tree))
+            self._collect_handlers(neony, tree, idx)
         app = App(name=self.config.window.title.replace(" ", ""))
         app.run(self._main)
 
     async def _main(self) -> None:
         kwargs = self.config.to_window_kwargs()
-        # Frameless windows get the WindowControls scope: it injects the
-        # ``lumiview.window.*`` JS API plus drag/resize region handlers
-        # (all Bridge commands, no raw JS in user code).
-        includes: list = [self._neony]
-        if not self.config.window.decorations:
-            from lumiview.plugins.window_controls import WindowControls
+        title = kwargs.pop("title", "Neony")
+        for i, entry in enumerate(self._entries):
+            # Frameless windows get the WindowControls scope: it injects
+            # the ``lumiview.window.*`` JS API plus drag/resize region
+            # handlers (all Bridge commands, no raw JS in user code).
+            includes: list = [entry.neony]
+            if not self.config.window.decorations:
+                from lumiview.plugins.window_controls import WindowControls
 
-            includes.append(WindowControls())
-        self._window = await Window.create(
-            title=kwargs.pop("title", "Neony"),
-            html=_INITIAL_HTML,
-            bridge=Bridge(includes=includes),
-            **kwargs,
-        )
-        # Give the WebView a moment to settle before mounting
-        await asyncio.sleep(0.5)
-        await self.sync_theme()
-        await self.render()
+                includes.append(WindowControls())
+            entry.window = await Window.create(
+                title=title if i == 0 else f"{title} {i + 1}",
+                html=_INITIAL_HTML,
+                bridge=Bridge(includes=includes),
+                **kwargs,
+            )
+            # Give the WebView a moment to settle before mounting
+            await asyncio.sleep(0.5)
+            await self._inject_theme(entry)
+            await self.render(window_index=i)
         if self.ready_handler is not None:
             await self.ready_handler()
 
     # ---- theme ----
 
     async def sync_theme(self) -> None:
-        """Inject the current theme's ``:root`` CSS variables into the page.
+        """Inject the current theme's ``:root`` CSS variables into every page.
 
         Switching ``app.theme.mode`` and calling this re-injects the
         block — every ``var(--color-*)`` redraws with zero DOM diff.
@@ -118,8 +133,13 @@ class NeonApplication:
         image's tint layer (from :meth:`set_background`) references
         ``var(--color-bg)`` too, so it re-tints on the same injection.
         """
-        if self._window is None:
-            return
+        for entry in self._entries:
+            if entry.window is not None:
+                await self._inject_theme(entry)
+
+    async def _inject_theme(self, entry: _Entry) -> None:
+        """Inject theme CSS variables into one window's page."""
+        assert entry.window is not None
         css = self.theme.to_css()
         # NOTE: the trailing ``})()`` closes the IIFE — a stray extra
         # brace here makes the whole script a SyntaxError and kills
@@ -138,7 +158,7 @@ class NeonApplication:
         )
         # The background tint layer references var(--color-bg) directly —
         # the injection above re-tints it; no extra JS needed here.
-        await self._window.eval_js(js)
+        await entry.window.eval_js(js)
 
     # ---- background image ----
 
@@ -197,133 +217,150 @@ class NeonApplication:
         through their translucent surfaces. The tint follows theme
         switches automatically — no re-injection needed.
         """
-        if self._window is None:
-            return
         self._background_url = url
-        await self._window.eval_js(self._background_js())
+        for entry in self._entries:
+            if entry.window is not None:
+                await entry.window.eval_js(self._background_js())
 
     # ---- rendering ----
 
-    async def render(self) -> None:
-        """Render (or update) the DOM tree in the browser.
+    async def render(self, window_index: int | None = None) -> None:
+        """Render (or update) the DOM tree(s) in the browser.
 
         The first call mounts the full tree; subsequent calls diff
         against the previous snapshot and send minimal patches.
 
-        Once the window starts closing (minimize/maximize/close racing
+        Without *window_index* every window renders; a specific index
+        renders only that window (the auto-render after an event handler
+        does this — only the originating window re-renders).
+
+        Once a window starts closing (minimize/maximize/close racing
         with in-flight events, or an actual close), WebKitGTK tears down
         the WebView and ``emit`` raises "WebView is not initialized" —
         those patches are dropped silently.
         """
-        if self._tree is None:
+        if not self._entries:
             raise RuntimeError("NeonApplication: run() must be called first")
-        try:
-            await self._neony.render(self._tree)
-        except RuntimeError as exc:
-            if "WebView is not initialized" in str(exc):
-                return  # window closing — drop the patch
-            raise
+        indices = range(len(self._entries)) if window_index is None else (window_index,)
+        for i in indices:
+            entry = self._entries[i]
+            if entry.window is None:
+                continue
+            try:
+                await entry.neony.render(entry.tree)
+            except RuntimeError as exc:
+                if "WebView is not initialized" in str(exc):
+                    return  # window closing — drop the patch
+                raise
 
     # ---- handler collection ----
 
-    def _collect_handlers(self, element: DOMElement) -> None:
-        """Walk the tree and register element handlers with the bridge."""
+    def _collect_handlers(self, neony: Neony, element: DOMElement, idx: int) -> None:
+        """Walk the tree and register element handlers on one window's bridge."""
         for event_type, fns in element._handlers.items():
             for fn in fns:
-                self._neony.on(event_type, key=element.key)(self._make_wrapper(fn, element))
+                neony.on(event_type, key=element.key)(self._make_wrapper(fn, element, idx))
         for child in element.container:
             if isinstance(child, DOMElement):
-                self._collect_handlers(child)
+                self._collect_handlers(neony, child, idx)
 
-    def _make_wrapper(self, fn: Any, element: DOMElement) -> Any:
-        """Wrap a user handler: build DomEvent, call fn, auto-render."""
+    def _make_wrapper(self, fn: Any, element: DOMElement, idx: int) -> Any:
+        """Wrap a user handler: build DomEvent, call fn, auto-render
+        only the window the event came from."""
 
         async def wrapper(key: str, event_type: str, value: Any = None) -> None:
             evt = DomEvent(key=key, type=event_type, value=value)
             await fn(evt)
             if self.config.auto_render:
-                await self.render()
+                await self.render(window_index=idx)
 
         return wrapper
 
     # ---- window control ----
 
-    def _require_window(self) -> Window:
-        if self._window is None:
+    def _require_window(self, window_index: int = 0) -> Window:
+        try:
+            window = self._entries[window_index].window
+        except IndexError:
+            raise RuntimeError("NeonApplication: window not created yet") from None
+        if window is None:
             raise RuntimeError("NeonApplication: window not created yet")
-        return self._window
+        return window
 
-    async def set_title(self, title: str) -> None:
-        """Change the window title (OS taskbar/dock label)."""
-        if self._window is None:
-            raise RuntimeError("NeonApplication: window not created yet")
+    async def set_title(self, title: str, window_index: int = 0) -> None:
+        """Change a window's title (OS taskbar/dock label)."""
+        window = self._require_window(window_index)
         self.config.window.title = title
-        if self._window._tao is not None:
-            await App.get().call_on_main(self._window._tao.set_title, title)
-        await self._window.eval_js(f"document.title = {title!r}")
+        if window._tao is not None:
+            await App.get().call_on_main(window._tao.set_title, title)
+        await window.eval_js(f"document.title = {title!r}")
 
-    async def set_size(self, width: int, height: int) -> None:
-        """Resize the window."""
-        await App.get().call_on_main(self._require_window().set_size, float(width), float(height))
+    async def set_size(self, width: int, height: int, window_index: int = 0) -> None:
+        """Resize a window."""
+        await App.get().call_on_main(self._require_window(window_index).set_size, float(width), float(height))
 
-    async def minimize(self) -> None:
-        """Minimize the window."""
-        await App.get().call_on_main(self._require_window().minimize)
+    async def minimize(self, window_index: int = 0) -> None:
+        """Minimize a window."""
+        await App.get().call_on_main(self._require_window(window_index).minimize)
 
-    async def toggle_maximize(self) -> bool:
+    async def toggle_maximize(self, window_index: int = 0) -> bool:
         """Toggle maximize state; returns the new state."""
         # pyrefly doesn't unwrap lumiview's Task[T] via __await__; cast
         # restores the declared type.
-        return cast(bool, await App.get().call_on_main(self._require_window().toggle_maximize))
+        return cast(bool, await App.get().call_on_main(self._require_window(window_index).toggle_maximize))
 
-    async def is_maximized(self) -> bool:
-        """True when the window is currently maximized."""
-        return cast(bool, await App.get().call_on_main(self._require_window().is_maximized))
+    async def is_maximized(self, window_index: int = 0) -> bool:
+        """True when a window is currently maximized."""
+        return cast(bool, await App.get().call_on_main(self._require_window(window_index).is_maximized))
 
-    async def set_fullscreen(self, fullscreen: bool) -> None:
+    async def set_fullscreen(self, fullscreen: bool, window_index: int = 0) -> None:
         """Enter (or exit) fullscreen mode."""
-        await App.get().call_on_main(self._require_window().set_fullscreen, fullscreen)
+        await App.get().call_on_main(self._require_window(window_index).set_fullscreen, fullscreen)
 
-    async def start_dragging(self) -> None:
+    async def start_dragging(self, window_index: int = 0) -> None:
         """Begin an interactive window drag (custom titlebars)."""
-        await App.get().call_on_main(self._require_window().start_dragging)
+        await App.get().call_on_main(self._require_window(window_index).start_dragging)
 
-    async def close(self) -> None:
-        """Request window close, honouring the configured close behavior."""
-        await App.get().call_on_main(self._require_window().request_close)
+    async def close(self, window_index: int = 0) -> None:
+        """Request a window close, honouring the configured close behavior."""
+        await App.get().call_on_main(self._require_window(window_index).request_close)
 
-    async def apply_blur(self, color: tuple[int, int, int, int] | None = None) -> None:
-        """Apply a native blur material behind the window (macOS/Windows)."""
-        await App.get().call_on_main(self._require_window().apply_effect, WindowEffect.Blur, color)
+    async def apply_blur(self, color: tuple[int, int, int, int] | None = None, window_index: int = 0) -> None:
+        """Apply a native blur material behind a window (macOS/Windows)."""
+        await App.get().call_on_main(self._require_window(window_index).apply_effect, WindowEffect.Blur, color)
 
-    async def apply_acrylic(self, color: tuple[int, int, int, int] | None = None) -> None:
+    async def apply_acrylic(self, color: tuple[int, int, int, int] | None = None, window_index: int = 0) -> None:
         """Apply the acrylic material (Windows 11 frosted look)."""
-        await App.get().call_on_main(self._require_window().apply_effect, WindowEffect.Acrylic, color)
+        await App.get().call_on_main(self._require_window(window_index).apply_effect, WindowEffect.Acrylic, color)
 
-    async def apply_mica(self) -> None:
+    async def apply_mica(self, window_index: int = 0) -> None:
         """Apply the mica material (Windows 11)."""
-        await App.get().call_on_main(self._require_window().apply_effect, WindowEffect.Mica, None)
+        await App.get().call_on_main(self._require_window(window_index).apply_effect, WindowEffect.Mica, None)
 
-    async def clear_effect(self, effect: WindowEffect) -> None:
+    async def clear_effect(self, effect: WindowEffect, window_index: int = 0) -> None:
         """Remove a native material previously applied."""
-        await App.get().call_on_main(self._require_window().clear_effect, effect)
+        await App.get().call_on_main(self._require_window(window_index).clear_effect, effect)
 
-    async def eval_js(self, script: str) -> str:
-        """Execute *script* in the page; returns the result string."""
-        return await self._require_window().eval_js(script)
+    async def eval_js(self, script: str, window_index: int = 0) -> str:
+        """Execute *script* in a page; returns the result string."""
+        return await self._require_window(window_index).eval_js(script)
 
 
-def launch(page: Page | DOMElement, **config_kwargs: Any) -> None:
+def launch(page: Page | DOMElement | list[Page | DOMElement], **config_kwargs: Any) -> None:
     """Convenience: build a Config from kwargs and run *page*.
 
     Example::
 
         launch(page, title="Demo", width=480, height=640, devtools=True)
+        launch([page_one, page_two], title="Multi", ...)  # two windows
 
+    Pass a list of pages to open multiple windows sharing one app state.
     Recognised kwargs mirror :class:`WindowConfig` / :class:`WebViewConfig`
     fields plus ``mount_selector`` and ``auto_render``.
     """
     from neony.application.config import WebViewConfig, WindowConfig
+
+    pages = page if isinstance(page, list) else [page]
 
     window_cfg = {k: v for k, v in config_kwargs.items() if k in WindowConfig.model_fields}
     webview_cfg = {k: v for k, v in config_kwargs.items() if k in WebViewConfig.model_fields}
@@ -334,4 +371,4 @@ def launch(page: Page | DOMElement, **config_kwargs: Any) -> None:
         webview=WebViewConfig(**webview_cfg),
         **top_cfg,
     )
-    NeonApplication(config).run(page)
+    NeonApplication(config).run(*pages)
