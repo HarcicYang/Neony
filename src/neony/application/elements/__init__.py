@@ -10,8 +10,10 @@ from neony.application.elements.checkbox import Checkbox
 from neony.application.elements.heading import Heading
 from neony.application.elements.input import Input
 from neony.application.elements.layout import Flex, GlassPanel, HStack, Separator, Spacer, VStack
+from neony.application.elements.sidebar import Sidebar, SidebarItem
 from neony.application.elements.tabs import Tabs
 from neony.application.elements.text import Text
+from neony.application.elements.titlebar import TitleBar
 
 __all__ = [
     "Button",
@@ -23,8 +25,11 @@ __all__ = [
     "Heading",
     "Input",
     "Separator",
+    "Sidebar",
+    "SidebarItem",
     "Spacer",
     "Tabs",
     "Text",
+    "TitleBar",
     "VStack",
 ]

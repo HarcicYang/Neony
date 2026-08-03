@@ -23,7 +23,7 @@ _DEEP_BLUE = {
     "surface": "#252540",
     "surface_raised": "#2e2e4a",
     "text_primary": "#ffffff",
-    "text_secondary": "#8888aa",
+    "text_secondary": "#8080a0",
     "accent": "#4a90d9",
     "accent_dim": "#3a7bc8",
     "danger": "#ff6b6b",
@@ -32,13 +32,16 @@ _DEEP_BLUE = {
     "shadow": "0 8px 32px rgba(0, 0, 0, 0.12)",
     "bg_overlay": "rgba(26, 26, 46, 0.7)",
     # --- glass (per-theme, tinted with the surface colour) ---
-    "surface_glass": "rgba(58, 62, 96, 0.92)",
-    "surface_raised_glass": "rgba(68, 72, 106, 0.92)",
+    # Deep-blue keeps a distinctly blue tint so it reads apart from
+    # dark's neutral charcoal glass.
+    "surface_glass": "rgba(54, 54, 92, 0.92)",
+    "surface_raised_glass": "rgba(64, 64, 104, 0.92)",
     "border_glass": "rgba(255, 255, 255, 0.08)",
     "accent_glass": "rgba(74, 144, 217, 0.25)",
     "danger_glass": "rgba(255, 107, 107, 0.25)",
     "success_glass": "rgba(78, 205, 196, 0.25)",
-    "surface_glass_bg": "rgba(37, 37, 64, 0.60)",
+    "surface_glass_bg": "rgba(34, 34, 74, 0.60)",
+    "surface_panel_glass_bg": "rgba(34, 34, 74, 0.85)",
     "accent_glass_bg": "rgba(74, 144, 217, 0.60)",
     "danger_glass_bg": "rgba(255, 107, 107, 0.60)",
 }
@@ -57,13 +60,16 @@ _DARK = {
     "shadow": "0 8px 32px rgba(0, 0, 0, 0.25)",
     "bg_overlay": "rgba(13, 13, 18, 0.7)",
     # --- glass (per-theme, tinted with the surface colour) ---
-    "surface_glass": "rgba(50, 54, 76, 0.92)",
-    "surface_raised_glass": "rgba(60, 64, 88, 0.92)",
+    # Neutral charcoal — deliberately low blue/purple so it reads as
+    # "glass", distinct from deep-blue's tinted glass.
+    "surface_glass": "rgba(52, 52, 56, 0.92)",
+    "surface_raised_glass": "rgba(60, 60, 64, 0.92)",
     "border_glass": "rgba(255, 255, 255, 0.08)",
     "accent_glass": "rgba(108, 140, 255, 0.25)",
     "danger_glass": "rgba(255, 107, 107, 0.25)",
     "success_glass": "rgba(78, 205, 196, 0.25)",
-    "surface_glass_bg": "rgba(37, 37, 64, 0.60)",
+    "surface_glass_bg": "rgba(40, 40, 44, 0.60)",
+    "surface_panel_glass_bg": "rgba(40, 40, 44, 0.85)",
     "accent_glass_bg": "rgba(74, 144, 217, 0.60)",
     "danger_glass_bg": "rgba(255, 107, 107, 0.60)",
 }
@@ -89,6 +95,7 @@ _LIGHT = {
     "danger_glass": "rgba(217, 83, 79, 0.2)",
     "success_glass": "rgba(47, 168, 154, 0.2)",
     "surface_glass_bg": "rgba(255, 255, 255, 0.60)",
+    "surface_panel_glass_bg": "rgba(255, 255, 255, 0.85)",
     "accent_glass_bg": "rgba(58, 123, 200, 0.60)",
     "danger_glass_bg": "rgba(217, 83, 79, 0.60)",
 }
@@ -127,6 +134,7 @@ class Theme(BaseModel):
     danger_glass: str = Field(default=_DARK["danger_glass"])
     success_glass: str = Field(default=_DARK["success_glass"])
     surface_glass_bg: str = Field(default=_DARK["surface_glass_bg"])
+    surface_panel_glass_bg: str = Field(default=_DARK["surface_panel_glass_bg"])
     accent_glass_bg: str = Field(default=_DARK["accent_glass_bg"])
     danger_glass_bg: str = Field(default=_DARK["danger_glass_bg"])
 

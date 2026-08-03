@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-"""Neony component gallery — every component in one app.
+"""Neony component gallery — every component with docs and code samples.
 
-Showcases: Page, VStack/HStack/Flex/Spacer/Separator, Heading, Text,
-Button (all variants + hover/press), Input, Checkbox, Tabs, GlassPanel,
-and the 3-way theme toggle (Dark / Light / Deep Blue).
+Each tab pairs a live component demo with a short description and the
+Python snippet that produced it, so the gallery doubles as a reference.
 
-The "Glass" tab sets a background image behind the UI so the frosted
-surfaces (backdrop-filter) are clearly visible.
+Showcases: Button variants, Input types, Checkbox state, layout
+primitives (HStack/Flex/Spacer), typography roles, and the frosted
+glass look (GlassPanel + glass=True components).
 """
 
 from neony.application import Config, NeonApplication, Page, WebViewConfig, WindowConfig
 from neony.application.elements import (
     Button,
     Checkbox,
+    Component,
     Flex,
     GlassPanel,
     Heading,
@@ -22,18 +23,62 @@ from neony.application.elements import (
     Spacer,
     Tabs,
     Text,
+    TitleBar,
     VStack,
 )
-from neony.dom import Color, DomEvent, Styles
+from neony.dom import Color, Div, DOMElement, DomEvent, Styles
 
+# Frameless + transparent: the gallery gets its own glass TitleBar, and
+# the desktop shows through the frosted chrome.
 app = NeonApplication(
     Config(
-        window=WindowConfig(title="Neony — Component Gallery", width=520, height=680),
+        window=WindowConfig(
+            title="Neony — Component Gallery",
+            width=560,
+            height=720,
+            decorations=False,
+            transparent=True,
+        ),
         webview=WebViewConfig(devtools=True),
     )
 )
 
 _BACKGROUND_URL = "https://harcic.is-a.dev/resource/backgrounds/8.webp"
+
+_MONO = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+
+
+def CodeBlock(code: str) -> DOMElement:
+    """Render *code* as a monospace, surface-toned block."""
+    return Div(
+        styles=Styles(
+            background_color=Color(var="--color-surface"),
+            border_radius="8px",
+            padding="12px 16px",
+            border="1px solid var(--color-border)",
+            font_family=_MONO,
+            font_size="12px",
+            line_height="1.6",
+            white_space="pre",
+            overflow="auto",
+            color=Color(var="--color-text-secondary"),
+        ),
+        container=[code],
+    )
+
+
+def Section(title: str, blurb: str, code: str, *demos: Component | DOMElement) -> VStack:
+    """One gallery section: heading, description, code sample, live demo."""
+    return VStack(
+        Heading(title, level=3),
+        Text(blurb, role="secondary"),
+        CodeBlock(code),
+        Separator(),
+        *demos,
+        gap="12px",
+        align="stretch",
+    )
+
 
 # ── header (shared across tabs) ──────────────────────────────────
 
@@ -52,7 +97,7 @@ theme_btn.on_click(on_theme_click)
 
 header = VStack(
     Heading("Neony Component Gallery", level=1),
-    Text("Every component, one page", role="secondary"),
+    Text("Every component, one page — with docs and code samples", role="secondary"),
     HStack(Spacer(), theme_btn, gap="8px"),
     Separator(),
     gap="12px",
@@ -79,14 +124,22 @@ custom_btn = Button("Custom").reset_styles(
     )
 )
 
-buttons_panel = VStack(
+buttons_panel = Section(
+    "Buttons",
+    "Three variants (primary, ghost, danger) with hover / press feedback; "
+    "disabled dims. reset_styles() replaces the base look while keeping "
+    "the feedback.",
+    """Button("Primary Action")
+Button("Ghost Button", variant="ghost")
+Button("Delete", variant="danger")
+Button("Disabled", disabled=True)
+Button("Custom").reset_styles(
+    Styles(background_color=Color(hex="#2fa89a"), ...))""",
     primary_btn,
     ghost_btn,
     danger_btn,
     disabled_btn,
     custom_btn,
-    gap="12px",
-    align="stretch",
 )
 
 # ── tab: inputs ──────────────────────────────────────────────────
@@ -117,7 +170,21 @@ text_input.on_input(on_text_input)
 password_input.on_input(on_password_input)
 email_input.on_input(on_email_input)
 
-inputs_panel = VStack(text_input, text_echo, password_input, password_echo, email_input, email_echo, gap="10px")
+inputs_panel = Section(
+    "Inputs",
+    "Text, password and email fields. The on_input event carries the live "
+    "value; echoing it back is the standard pattern.",
+    """inp = Input(placeholder="Your name…")
+async def on_text_input(event: DomEvent) -> None:
+    text_echo.text = f"Hello, {event.value}!"
+inp.on_input(on_text_input)""",
+    text_input,
+    text_echo,
+    password_input,
+    password_echo,
+    email_input,
+    email_echo,
+)
 
 # ── tab: checks ──────────────────────────────────────────────────
 
@@ -145,7 +212,17 @@ async def on_check_all(event: DomEvent) -> None:
 
 check_all.on_change(on_check_all)
 
-checks_panel = VStack(check_all, *food_checks, check_status, gap="10px")
+checks_panel = Section(
+    "Checkboxes",
+    "Custom-styled toggles with a change event. Setting .checked "
+    "programmatically updates the view but never fires callbacks.",
+    """cb = Checkbox("Pizza")
+cb.checked = True  # programmatic — no callback fires
+cb.on_change(lambda e: print(e.value))""",
+    check_all,
+    *food_checks,
+    check_status,
+)
 
 # ── tab: layout ──────────────────────────────────────────────────
 
@@ -165,30 +242,34 @@ wrap_example = Flex(
     gap="8px",
 )
 
-layout_panel = VStack(
-    Heading("HStack + Spacer", level=4),
+layout_panel = Section(
+    "Layout",
+    "HStack rows with Spacer pushing content; Flex gives full control, including wrapping.",
+    """HStack(Text("Title"), Spacer(), Button("Edit"), gap="8px")
+Flex(*items, direction="row", wrap="wrap", gap="8px")""",
     row_example,
-    Separator(),
-    Heading("Flex (wrapping)", level=4),
     wrap_example,
-    gap="12px",
 )
 
 # ── tab: typography ──────────────────────────────────────────────
 
-typography_panel = VStack(
+typography_panel = Section(
+    "Typography",
+    "Six heading levels plus semantic text roles that follow the theme.",
+    """Heading("Title", level=1)
+Text("Body copy")
+Text("Muted copy", role="secondary")
+Text("Danger", role="danger")""",
     Heading("Heading 1", level=1),
     Heading("Heading 2", level=2),
     Heading("Heading 3", level=3),
     Heading("Heading 4", level=4),
     Heading("Heading 5", level=5),
     Heading("Heading 6", level=6),
-    Separator(),
     Text("Primary text — the default body copy."),
     Text("Secondary text — muted, less important.", role="secondary"),
     Text("Danger text — errors and destructive emphasis.", role="danger"),
     Text("Success text — confirmations.", role="success"),
-    gap="8px",
 )
 
 # ── tab: glass ───────────────────────────────────────────────────
@@ -206,13 +287,12 @@ glass_input.on_input(on_glass_input)
 # One frosted stage carries the background image; the glass components
 # inside it (glass=True, no background of their own) blur it through
 # their translucent, theme-tinted surfaces.
-glass_panel = GlassPanel(
-    Heading("Frosted Glass", level=3),
+glass_demo = GlassPanel(
+    Heading("Frosted Stage", level=4),
     Text(
-        "The stage blurs the background image; components keep their theme colours while gaining the frosted look.",
+        "Components inside keep their theme colours while gaining the frosted look.",
         role="secondary",
     ),
-    Separator(),
     HStack(
         Button("Primary", glass=True),
         Button("Ghost", variant="ghost", glass=True),
@@ -222,9 +302,18 @@ glass_panel = GlassPanel(
     glass_input,
     glass_input_echo,
     Checkbox("Glass checkbox", glass=True),
-    Checkbox("Select all (glass)", glass=True),
     gap="16px",
     background=_BACKGROUND_URL,
+)
+
+glass_panel = Section(
+    "Frosted Glass",
+    "GlassPanel blurs the background image; components with glass=True "
+    "keep their theme colours while gaining the frosted surface.",
+    """GlassPanel(Heading("Frosted"), background=url)
+Button("Primary", glass=True)
+Checkbox("Glass", glass=True)""",
+    glass_demo,
 )
 
 # ── assemble ─────────────────────────────────────────────────────
@@ -237,9 +326,27 @@ tabs.add("Layout", layout_panel)
 tabs.add("Type", typography_panel)
 tabs.add("Glass", glass_panel)
 
-page = Page(gap="16px", max_width="720px")
-page.add(header)
-page.add(tabs)
+# ── assemble: transparent TitleBar over a solid content stage ─────
+
+titlebar = TitleBar("Neony — Component Gallery")
+
+# The content stage uses the plain theme background — only the titlebar
+# above it stays transparent, so the desktop shows through the chrome
+# while the docs/text get a solid, readable backdrop.
+content = Div(
+    styles=Styles(
+        flex_grow="1",
+        min_height="0",
+        overflow="auto",
+        background_color=Color(var="--color-bg"),
+    ),
+    container=[VStack(header, tabs, gap="16px", padding="24px").build()],
+)
+
+page = Page(gap="0px", padding="0px", max_width="100%", fill=True, radius="12px")
+# grow=1 makes the chrome stack fill the window; the content stage then
+# grows to fill the space below the titlebar.
+page.add(VStack(titlebar, content, gap="0px", align="stretch", grow=1))
 
 
 def main() -> None:

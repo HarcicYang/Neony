@@ -61,6 +61,18 @@
         var el = event.target.closest("[data-neony-key]");
         if (!el) return;
 
+        // Window-control buttons (e.g. TitleBar): on *click* only, route
+        // the action through the WindowControls bridge scope so
+        // `lumiview.window.*` executes the native operation, then still
+        // dispatch the normal Neony event so user callbacks run too.
+        // Restricted to clicks — this handler receives every delegated
+        // event type, and a plain hover must never close a window.
+        var winAction = el.getAttribute("data-window-action");
+        if (winAction && event.type === "click" && window.lumiview.window) {
+            var action = window.lumiview.window[winAction];
+            if (action) action();
+        }
+
         var key = el.getAttribute("data-neony-key");
         var value = captureValue(el, event);
 

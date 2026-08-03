@@ -50,6 +50,11 @@ class Flex(Component):
                 padding=padding,
                 width=width,
                 flex_grow=str(grow),
+                # Allow the container to shrink below its content height
+                # inside a parent flex column — otherwise min-height:auto
+                # stretches it to the content and overflow:auto scrolls
+                # never engage (content spills out instead).
+                min_height="0",
             ),
             container=self._build_children(children),
         )
@@ -70,6 +75,7 @@ class VStack(Flex):
         justify: _Justify = "flex-start",
         padding: str = "0px",
         width: str | None = None,
+        grow: int = 0,
     ) -> None:
         super().__init__(
             *children,
@@ -79,6 +85,7 @@ class VStack(Flex):
             justify=justify,
             padding=padding,
             width=width,
+            grow=grow,
         )
 
 
@@ -93,6 +100,7 @@ class HStack(Flex):
         justify: _Justify = "flex-start",
         padding: str = "0px",
         width: str | None = None,
+        grow: int = 0,
     ) -> None:
         super().__init__(
             *children,
@@ -102,6 +110,7 @@ class HStack(Flex):
             justify=justify,
             padding=padding,
             width=width,
+            grow=grow,
         )
 
 
@@ -158,25 +167,34 @@ class GlassPanel(Component):
         padding: str = "24px",
         role: str = "neutral",
         background: str | None = None,
+        grow: bool = False,
+        radius: str | None = None,
     ) -> None:
         super().__init__()
         from neony.application.theme import Theme
 
+        # Default 12px; pass "0px" (or any radius) to override.
+        radius = radius if radius is not None else "12px"
         glass_styles = Styles(
             position="relative",
             display="flex",
             flex_direction="column",
             gap=gap,
             padding=padding,
-            border_radius="12px",
+            border_radius=radius,
             border=f"1px solid {Theme.glass_border(role)}",
-            # Theme-tinted glass (the surface colour at ~85%), not the
-            # neutral glass token — the panel stays in family with the
-            # palette.
-            background_color=Color(var="--color-surface-glass-bg"),
+            # Content panels use the denser glass token (0.85) — text
+            # needs a stable, dark backdrop to stay readable over the
+            # background image, unlike the chrome bars which stay
+            # aggressively transparent.
+            background_color=Color(var="--color-surface-panel-glass-bg"),
             backdrop_filter="blur(16px)",
             box_shadow=("0 8px 32px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.04)"),
         )
+        if grow:
+            # Fill the parent content region: the panel (and its frosted
+            # surface / backdrop) stretches to the full available height.
+            glass_styles = glass_styles.model_copy(update={"flex_grow": "1", "height": "100%"})
 
         children_el = Flex._build_children(children)
         if background:
@@ -190,7 +208,7 @@ class GlassPanel(Component):
                     left="0",
                     right="0",
                     bottom="0",
-                    border_radius="12px",
+                    border_radius=radius,
                     background_image=(
                         f"linear-gradient(var(--color-bg-overlay), var(--color-bg-overlay)), url('{background}')"
                     ),
@@ -199,8 +217,11 @@ class GlassPanel(Component):
                     background_repeat="no-repeat, no-repeat",
                 )
             )
+            root_styles = Styles(position="relative", display="flex", flex_direction="column")
+            if grow:
+                root_styles = root_styles.model_copy(update={"height": "100%"})
             self._root = Div(
-                styles=Styles(position="relative", display="flex", flex_direction="column"),
+                styles=root_styles,
                 container=[backdrop, Div(styles=glass_styles, container=children_el)],
             )
         else:

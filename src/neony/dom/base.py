@@ -205,6 +205,11 @@ class Styles(BaseModel):
     border_right: str | None = Field(default=None)
     border_bottom: str | None = Field(default=None)
     border_left: str | None = Field(default=None)
+    # Corner-specific radii (for joining rounded chrome pieces).
+    border_top_left_radius: str | None = Field(default=None)
+    border_top_right_radius: str | None = Field(default=None)
+    border_bottom_left_radius: str | None = Field(default=None)
+    border_bottom_right_radius: str | None = Field(default=None)
 
     # --- Visual ---
     opacity: float | None = Field(default=None)

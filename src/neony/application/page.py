@@ -41,6 +41,8 @@ class Page:
         width: str = "100%",
         max_width: str = "600px",
         glass: bool = False,
+        fill: bool = False,
+        radius: str | None = None,
     ) -> None:
         self._children: list[Component | DOMElement] = []
         self._direction = direction
@@ -51,6 +53,8 @@ class Page:
         self._width = width
         self._max_width = max_width
         self._glass = glass
+        self._fill = fill
+        self._radius = radius
 
     # ---- public API ----
 
@@ -89,6 +93,22 @@ class Page:
             max_width=self._max_width,
             margin="0 auto",
         )
+
+        if self._fill:
+            # fill=True: the inner column stretches to the full window
+            # height so chrome layouts (TitleBar + Sidebar) cover the
+            # whole window.  Uses the html/body/#neony-root height:100%
+            # chain (set by _INITIAL_HTML) — percentage heights track the
+            # real window size, unlike vh which can lag when a tiling WM
+            # stretches the window after creation.
+            outer = outer.model_copy(update={"display": "flex", "height": "100%", "min_height": None})
+            inner = inner.model_copy(update={"flex_grow": "1"})
+
+        if self._radius is not None:
+            # Window-level rounded corners: the outer layer clips the
+            # whole chrome stack. With a transparent window the rounded
+            # corners show the desktop around the frame.
+            outer = outer.model_copy(update={"border_radius": self._radius, "overflow": "hidden"})
 
         container: list[DOMElement | str] = []
         for child in self._children:
