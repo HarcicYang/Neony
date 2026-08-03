@@ -4,12 +4,15 @@
 
 [![License: LGPL-3.0](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#)
 
-> [English README](readme.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md)
+> [English README](readme.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md) · [贡献指南](CONTRIBUTING.zh.md)
 
 ---
 
 ## 概览
+
+> **状态:alpha** — API 仍在演进中。欢迎反馈与贡献。
 
 Neony 在原生窗口中渲染响应式 DOM。你完全用 Python 对象——组件、布局、样式——
 拼装界面,Neony 自动对浏览器 DOM 做增量更新。不需要写 HTML、JavaScript
@@ -34,7 +37,8 @@ pip install neony
 ```
 
 需要 Python 3.11+,以及对应平台的 WebView 运行时(Linux 为 WebKitGTK,
-Windows 为 WebView2,macOS 为 WKWebView)。
+Windows 为 WebView2,macOS 为 WKWebView)。不支持 X11 — 见
+[路线图](#路线图)。
 
 ---
 
@@ -132,6 +136,41 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 ```bash
 uv run test_gallery.py
 ```
+
+---
+
+## 路线图
+
+计划中的工作,大致按优先级排列。
+
+### 性能优化
+
+- [ ] **输入节流** — 合并高频 `on_input` 渲染
+- [ ] **悬停降噪** — `mouseover`/`mouseout` 不应触发全树渲染
+- [ ] **脏子树 diff** — 只重新 diff 状态变化的组件
+- [ ] **样式直通补丁** — 纯样式变化绕过全树 diff
+- [ ] **快照复用** — 未变化的子树跳过 `to_node()`
+
+### 组件
+
+- [ ] **表单控件** — Radio、Switch、Select/ComboBox、Slider、Progress
+- [ ] **浮层** — Dialog/Modal、Tooltip、Dropdown、Menu
+- [ ] **数据视图** — DataTable、List、Tree
+- [ ] **内容** — Card、Avatar、Badge、Image
+
+### 动画
+
+- [ ] **`Styles` 支持 CSS `transition`**
+- [ ] **内置动画容器**
+- [ ] **状态切换过渡**
+
+### 平台验证
+
+- [ ] **Windows(WebView2)**
+- [ ] **macOS(WKWebView)**
+- [ ] **hyprland 之外的 Linux 桌面**
+- [ ] **HiDPI / 混合 DPI 缩放**
+-  x  ~~X11~~ — **不计划支持**
 
 ---
 

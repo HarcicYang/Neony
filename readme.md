@@ -4,12 +4,16 @@ Reactive desktop UI framework for Python, built on [LumiView](https://lumiview.d
 
 [![License: LGPL-3.0](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#)
 
-> [中文文档](readme.zh.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md)
+> [中文文档](readme.zh.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md) · [Contributing](CONTRIBUTING.md)
 
 ---
 
 ## Overview
+
+> **Status: alpha** — the API is still settling. Feedback and
+> contributions are welcome.
 
 Neony renders a reactive DOM in a native window. You compose your UI from
 Python objects — components, layouts, styles — and Neony diff-updates the
@@ -34,7 +38,8 @@ pip install neony
 ```
 
 Requires Python 3.11+ and the platform WebView stack (WebKitGTK on Linux,
-WebView2 on Windows, WKWebView on macOS).
+WebView2 on Windows, WKWebView on macOS). X11 is not supported — see the
+[Roadmap](#roadmap).
 
 ---
 
@@ -135,6 +140,41 @@ Run from the repository root:
 ```bash
 uv run test_gallery.py
 ```
+
+---
+
+## Roadmap
+
+Planned work, roughly in priority order.
+
+### Performance
+
+- [ ] **Input throttling** — merge high-frequency `on_input` renders
+- [ ] **Hover de-noise** — `mouseover`/`mouseout` should not trigger full-tree renders
+- [ ] **Dirty-subtree diffing** — only re-diff components whose state changed
+- [ ] **Style direct-patch** — pure style changes bypass the full diff
+- [ ] **Snapshot reuse** — skip `to_node()` for unchanged subtrees
+
+### Components
+
+- [ ] **Form controls** — Radio, Switch, Select/ComboBox, Slider, Progress
+- [ ] **Overlays** — Dialog/Modal, Tooltip, Dropdown, Menu
+- [ ] **Data views** — DataTable, List, Tree
+- [ ] **Content** — Card, Avatar, Badge, Image
+
+### Animation
+
+- [ ] **CSS `transition` support** in `Styles`
+- [ ] **Built-in animated containers**
+- [ ] **Transition hooks**
+
+### Platform verification
+
+- [ ] **Windows (WebView2)**
+- [ ] **macOS (WKWebView)**
+- [ ] **Linux desktops beyond hyprland**
+- [ ] **HiDPI / mixed-DPI scaling**
+-  x  ~~X11~~ — **not a compatibility target**
 
 ---
 
