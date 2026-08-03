@@ -53,19 +53,20 @@ wheels = [
 
 [[package]]
 name = "lumiview"
-version = "0.1.0.dev1"
+version = "0.1.0.dev2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cattrs" },
     { name = "typing-extensions" },
     { name = "wryview" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/03/e2/a4fb9f316a0938210555dc80c4935e416937cf2be2f482b29877802fe110/lumiview-0.1.0.dev1.tar.gz", hash = "sha256:a8f3d65a0b5eafe10547c0c39bf88ecab870e1f7823a2e1c12775ff8b37eaa35", size = 85021, upload-time = "2026-08-02T09:57:01.69Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/ec/d5cdd11595bbd634b9bc82d0257e6780d60a77dc5f31267e22e906becc20/lumiview-0.1.0.dev2.tar.gz", hash = "sha256:0d019e15d01e74591ddf50b7f3ef3d58422202cae5d9e01dc726219884c3fea6", size = 85838, upload-time = "2026-08-03T10:54:39.6Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9c/eb/377e467f74f02b4a4198f7dbc706613d20b886099351e6d5cd463489657a/lumiview-0.1.0.dev1-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:db2e292b5b368b692d8a8f4d91d372f13a8f154f2f5ef80e0af4158c9b505f3a", size = 622978, upload-time = "2026-08-02T09:56:56.188Z" },
-    { url = "https://files.pythonhosted.org/packages/e8/d5/812f0067e77dbae94b884fe4aee030ecf0c0e87982c0896f9a92de1e7a59/lumiview-0.1.0.dev1-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:98e1aa2cc02347add25def7ef0dfbca9485039611d77b131ca0ac2b54e69cb0a", size = 596237, upload-time = "2026-08-02T09:56:57.706Z" },
-    { url = "https://files.pythonhosted.org/packages/72/6d/383942ee2b88306b4612a593a04d4756a7aead6b2405c7b909959f1de2d9/lumiview-0.1.0.dev1-cp310-abi3-manylinux_2_38_x86_64.whl", hash = "sha256:24d1e3cd6278ad966c994d102671d7eb29dc93e27ce60da84401e54485693d74", size = 2211052, upload-time = "2026-08-02T09:56:59.014Z" },
-    { url = "https://files.pythonhosted.org/packages/f4/b4/7fdb12215a8120a3beb8ce563f6cf7af072ff0233a59d44a56663ceb3b57/lumiview-0.1.0.dev1-cp310-abi3-win_amd64.whl", hash = "sha256:becfbc17b983b08fbf3e98907e0ed95d2fccbedd60a2b0194d2358236d8fa894", size = 456903, upload-time = "2026-08-02T09:57:00.426Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/e3/1a9b89ace2f00472528e6569e9f7e05644c3aa6d5bef3342d00bcea93fd0/lumiview-0.1.0.dev2-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:6dd1659e629cfd332ea1cec75c72ab6848d7b4229baf192aabdbf0e6e6f5243c", size = 623294, upload-time = "2026-08-03T10:54:32.839Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/02/b7e0536df0113b85f7a531236d7abe2fbd485e8bf788ba2111dd9b8e2646/lumiview-0.1.0.dev2-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:51d749b010ce9283aa6c93212835192816abc82b036674fae30fddf144aca2b4", size = 596775, upload-time = "2026-08-03T10:54:34.142Z" },
+    { url = "https://files.pythonhosted.org/packages/82/f8/77bd6b7468fdb47ce9f935c761cf6de3fc385c8170e86a61962db8a3c5e5/lumiview-0.1.0.dev2-cp310-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:acc85e4f6edf2a7c9cd0fbce9abde635b8e37a7c9afdbf8444accc1b0b829a28", size = 553607, upload-time = "2026-08-03T10:54:35.411Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/dc/a1a15c1e71323712d287297ffceb3eba6317cc99a90b6b6ec29555c02a88/lumiview-0.1.0.dev2-cp310-abi3-win32.whl", hash = "sha256:95f2646d991bf5147a73cab104b04319e394199474c57298ee81e27ccacaca9b", size = 414854, upload-time = "2026-08-03T10:54:36.994Z" },
+    { url = "https://files.pythonhosted.org/packages/43/af/5e085a2f5afffd0c59fcbc97858f1da3aadc43db78236fedd2131c6605a5/lumiview-0.1.0.dev2-cp310-abi3-win_amd64.whl", hash = "sha256:e22490af0d992770d658db97b845d32f6c06e77ad608ea7e3ad333634965b8ad", size = 440664, upload-time = "2026-08-03T10:54:38.288Z" },
 ]
 
 [[package]]
@@ -86,7 +87,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "lumiview" },
+    { name = "lumiview", specifier = "==0.1.0.dev2" },
     { name = "pydantic", specifier = ">=2.13.4" },
 ]
 

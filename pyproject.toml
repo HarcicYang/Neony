@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Software Development :: User Interfaces",
 ]
 dependencies = [
-    "lumiview",
+    "lumiview==0.1.0.dev2",
     "pydantic>=2.13.4",
 ]
 

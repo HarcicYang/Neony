@@ -170,7 +170,7 @@ Planned work, roughly in priority order.
 
 ### Platform verification
 
-- [ ] **Windows (WebView2)**
+- [x] **Windows (WebView2)**
 - [ ] **macOS (WKWebView)**
 - [x] **Linux desktops**
 - [ ] **HiDPI / mixed-DPI scaling**

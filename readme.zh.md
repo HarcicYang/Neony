@@ -166,7 +166,7 @@ uv run test_gallery.py
 
 ### 平台验证
 
-- [ ] **Windows(WebView2)**
+- [x] **Windows(WebView2)**
 - [ ] **macOS(WKWebView)**
 - [X] **Linux 桌面**
 - [ ] **HiDPI / 混合 DPI 缩放**

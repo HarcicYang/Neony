@@ -10,7 +10,7 @@ import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
-from lumiview._scope import BridgeContext, InitContext, Scope
+from lumiview._scope import BridgeContext, InitContext, Plugin
 from pydantic import BaseModel, Field
 
 from neony.dom.base import DOMElement, NodeDescriptor
@@ -231,10 +231,10 @@ class DiffEngine:
 # ---- reactive bridge ----
 
 
-class Neony(Scope):
+class Neony(Plugin):
     """Reactive DOM bridge for a LumiView window.
 
-    A :class:`~lumiview.Scope` plugin that manages the lifecycle of a
+    A :class:`~lumiview.Plugin` that manages the lifecycle of a
     DOMElement tree: serialises it, diffs against the previous snapshot,
     and pushes patches to the JavaScript engine inside the webview.
 
@@ -279,7 +279,7 @@ class Neony(Scope):
         self.command(self._on_resync, name="resync")
         self.command(self._on_ready_ack, name="ready")
 
-    # ---- LumiView Scope lifecycle hooks ----
+    # ---- Plugin lifecycle hooks ----
 
     def on_init(self, ctx: InitContext) -> InitContext:
         """Inject the Neony JavaScript engine into every page."""
