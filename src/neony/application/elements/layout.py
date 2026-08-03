@@ -175,6 +175,11 @@ class GlassPanel(Component):
 
         # Default 12px; pass "0px" (or any radius) to override.
         radius = radius if radius is not None else "12px"
+        # A semantic role adds a persistent colour-matched outer glow —
+        # neutral panels keep the plain dark drop shadow.
+        shadow = "0 8px 32px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.04)"
+        if role != "neutral":
+            shadow = f"0 0 24px {Theme.glass_border(role)}, " + shadow
         glass_styles = Styles(
             position="relative",
             display="flex",
@@ -189,7 +194,7 @@ class GlassPanel(Component):
             # aggressively transparent.
             background_color=Color(var="--color-surface-panel-glass-bg"),
             backdrop_filter="blur(16px)",
-            box_shadow=("0 8px 32px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.04)"),
+            box_shadow=shadow,
         )
         if grow:
             # Fill the parent content region: the panel (and its frosted

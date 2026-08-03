@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import urllib.parse
 
+from neony.application.theme import Theme
 from neony.dom import Color, DomEvent, Span, Styles
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
@@ -77,6 +78,7 @@ class Checkbox(Component):
         self._checked = checked
         self._disabled = disabled
         self._glass = glass
+        self._focused = False
 
         self._input = _InputElem(type="checkbox", checked=checked, disabled=disabled)
         self._label_span = Span(container=[label])
@@ -84,6 +86,8 @@ class Checkbox(Component):
 
         self._apply_box_style()
         self._bind(self._input, "change")
+        self._bind(self._input, "focus")
+        self._bind(self._input, "blur")
 
     # ---- state ----
 
@@ -121,7 +125,7 @@ class Checkbox(Component):
         """Sync the visible box style with the checked state."""
         if self._checked:
             base = _GLASS_BOX if self._glass else _BOX
-            self._input.styles = base.model_copy(
+            styles = base.model_copy(
                 update={
                     "background_color": (
                         Color(var="--color-accent-glass-bg") if self._glass else Color(var="--color-accent")
@@ -133,7 +137,12 @@ class Checkbox(Component):
                 }
             )
         else:
-            self._input.styles = _GLASS_BOX if self._glass else _BOX
+            styles = (_GLASS_BOX if self._glass else _BOX).model_copy()
+        if self._focused:
+            # Colour-matched focus ring (the box has appearance:none —
+            # no native focus indicator to fall back on).
+            styles = styles.model_copy(update={"box_shadow": Theme.focus_glow("accent")})
+        self._input.styles = styles
 
     # ---- events ----
 
@@ -141,5 +150,11 @@ class Checkbox(Component):
         if event_type == "change":
             self._checked = bool(event.value)
             self._input.checked = self._checked
+            self._apply_box_style()
+        elif event_type == "focus":
+            self._focused = True
+            self._apply_box_style()
+        elif event_type == "blur":
+            self._focused = False
             self._apply_box_style()
         await self._dispatch(event_type, event)

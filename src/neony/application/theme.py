@@ -150,6 +150,16 @@ class Theme(BaseModel):
         return "var(--color-border-glass)"
 
     @staticmethod
+    def focus_glow(role: str = "accent") -> str:
+        """Return a box-shadow value for a focus-ring glow.
+
+        A 3px halo using the role's glass token (20-25% opacity) so the
+        ring follows the active theme automatically.  Neutral roles
+        (e.g. ghost buttons) resolve to the subtle border glass.
+        """
+        return f"0 0 0 3px {Theme.glass_border(role)}"
+
+    @staticmethod
     def _scrollbar_css() -> str:
         """Scrollbar rules following the theme tokens.
 

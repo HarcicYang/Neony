@@ -166,14 +166,35 @@ class TestComponentEvents:
 class TestButtonFeedback:
     """Hover / press state drives style changes."""
 
-    def test_hover_adds_shadow(self):
+    def test_hover_adds_glow(self):
         import asyncio
 
         btn = Button("x")
         assert btn._btn.styles.box_shadow is None
         handler = btn._btn._handlers["mouseover"][0]
         asyncio.run(handler(DomEvent(key=btn._btn.key, type="mouseover")))
-        assert btn._btn.styles.box_shadow == "0 4px 16px var(--color-shadow)"
+        assert btn._btn.styles.box_shadow == (
+            "0 4px 16px var(--color-shadow), 0 0 20px var(--color-accent-glass)"
+        )
+
+    def test_danger_hover_glow_uses_danger_color(self):
+        import asyncio
+
+        btn = Button("x", variant="danger")
+        handler = btn._btn._handlers["mouseover"][0]
+        asyncio.run(handler(DomEvent(key=btn._btn.key, type="mouseover")))
+        assert "var(--color-danger-glass)" in btn._btn.styles.box_shadow
+
+    def test_focus_adds_ring_blur_removes(self):
+        import asyncio
+
+        btn = Button("x")
+        h_in = btn._btn._handlers["focus"][0]
+        h_out = btn._btn._handlers["blur"][0]
+        asyncio.run(h_in(DomEvent(key=btn._btn.key, type="focus")))
+        assert btn._btn.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
+        asyncio.run(h_out(DomEvent(key=btn._btn.key, type="blur")))
+        assert btn._btn.styles.box_shadow is None
 
     def test_mouseout_clears_hover(self):
         import asyncio
@@ -220,6 +241,82 @@ class TestInputNoLoop:
         inp = Input()
         inp.value = "set programmatically"
         assert inp._input.value == "set programmatically"
+
+
+class TestFocusGlow:
+    """Focus rings and colour-matched glows on interactive controls."""
+
+    def test_input_focus_ring(self):
+        import asyncio
+
+        from neony.application.elements import Input
+
+        inp = Input()
+        assert inp._input.styles.box_shadow is None
+        asyncio.run(inp._input._handlers["focus"][0](DomEvent(key=inp._input.key, type="focus")))
+        assert inp._input.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
+        asyncio.run(inp._input._handlers["blur"][0](DomEvent(key=inp._input.key, type="blur")))
+        assert inp._input.styles.box_shadow is None
+
+    def test_input_focus_ring_does_not_mutate_shared_constant(self):
+        import asyncio
+
+        from neony.application.elements import Input
+        from neony.application.elements.input import _FIELD
+
+        inp = Input()
+        asyncio.run(inp._input._handlers["focus"][0](DomEvent(key=inp._input.key, type="focus")))
+        # The module-level _FIELD constant must stay untouched — the
+        # focus ring is applied on a model_copy.
+        assert _FIELD.box_shadow is None
+
+    def test_checkbox_focus_ring(self):
+        import asyncio
+
+        from neony.application.elements import Checkbox
+
+        cb = Checkbox("x")
+        assert cb._input.styles.box_shadow is None
+        asyncio.run(cb._input._handlers["focus"][0](DomEvent(key=cb._input.key, type="focus")))
+        assert cb._input.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
+        asyncio.run(cb._input._handlers["blur"][0](DomEvent(key=cb._input.key, type="blur")))
+        assert cb._input.styles.box_shadow is None
+
+    def test_checkbox_focus_ring_survives_check_toggle(self):
+        import asyncio
+
+        from neony.application.elements import Checkbox
+
+        cb = Checkbox("x")
+        asyncio.run(cb._input._handlers["focus"][0](DomEvent(key=cb._input.key, type="focus")))
+        asyncio.run(cb._input._handlers["change"][0](DomEvent(key=cb._input.key, type="change", value=True)))
+        assert cb._input.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
+        assert cb._input.styles.background_color.var == "--color-accent"
+
+
+class TestGlassPanelGlow:
+    """GlassPanel gets a persistent colour-matched glow per role."""
+
+    def test_neutral_keeps_plain_shadow(self):
+        from neony.application.elements import GlassPanel
+
+        panel = GlassPanel("content")
+        shadow = panel.build().to_node().styles["box-shadow"]
+        assert shadow == "0 8px 32px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.04)"
+
+    def test_accent_role_glows_accent(self):
+        from neony.application.elements import GlassPanel
+
+        panel = GlassPanel("content", role="accent")
+        shadow = panel.build().to_node().styles["box-shadow"]
+        assert shadow.startswith("0 0 24px var(--color-accent-glass), 0 8px 32px")
+
+    def test_danger_role_glows_danger(self):
+        from neony.application.elements import GlassPanel
+
+        panel = GlassPanel("content", role="danger")
+        shadow = panel.build().to_node().styles["box-shadow"]
+        assert shadow.startswith("0 0 24px var(--color-danger-glass), 0 8px 32px")
 
 
 class TestPageAndTheme:

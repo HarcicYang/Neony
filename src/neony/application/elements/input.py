@@ -66,6 +66,8 @@ class Input(Component):
 
         self._bind(self._input, "input")
         self._bind(self._input, "change")
+        self._bind(self._input, "focus")
+        self._bind(self._input, "blur")
 
     # ---- state ----
 
@@ -97,4 +99,13 @@ class Input(Component):
             # setAttribute("value") → WebKitGTK fires another input
             # event → infinite loop / frozen page.
             self._value = str(event.value or "")
+        elif event_type == "focus":
+            # Colour-matched focus ring replaces the removed native
+            # outline.  ``model_copy`` — _FIELD is a shared module
+            # constant and must not be mutated in place.
+            self._input.styles = self._input.styles.model_copy(
+                update={"box_shadow": Theme.focus_glow("accent")}
+            )
+        elif event_type == "blur":
+            self._input.styles = self._input.styles.model_copy(update={"box_shadow": None})
         await self._dispatch(event_type, event)

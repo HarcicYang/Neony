@@ -40,7 +40,13 @@ class Button(Component):
         self._glass = glass
         self._hover = False
         self._pressed = False
+        self._focused = False
         self._custom_styles: Styles | None = None
+
+        # Semantic role for glow colouring.  Ghost → surface → the
+        # neutral border glass (subtle, no colour bleed); primary and
+        # danger keep their own role's tint.
+        self._role = {"primary": "accent", "ghost": "surface"}.get(variant, variant)
 
         self._btn = _ButtonElem(
             type="button",
@@ -55,6 +61,8 @@ class Button(Component):
         self._bind(self._btn, "mouseout")
         self._bind(self._btn, "mousedown")
         self._bind(self._btn, "mouseup")
+        self._bind(self._btn, "focus")
+        self._bind(self._btn, "blur")
 
     def reset_styles(self, styles: Styles) -> Button:
         """Replace the base styles; hover/press effects still apply on top."""
@@ -113,7 +121,7 @@ class Button(Component):
         return base.model_copy(update={"background_color": Color(var="--color-accent")})
 
     def _apply_state(self) -> None:
-        """Recompute the button styles from variant + hover + pressed."""
+        """Recompute the button styles from variant + hover + pressed + focus."""
         base = (
             self._custom_styles if self._custom_styles is not None else self._variant_styles(self._variant, self._glass)
         )
@@ -125,13 +133,21 @@ class Button(Component):
                     "box_shadow": "inset 0 2px 6px rgba(0, 0, 0, 0.25)",
                 }
             )
-        elif self._hover:
-            styles = styles.model_copy(
-                update={
-                    "box_shadow": "0 4px 16px var(--color-shadow)",
-                    "opacity": 0.92,
-                }
-            )
+        else:
+            update: dict[str, str] = {}
+            shadows: list[str] = []
+            if self._focused:
+                # Focus ring — first in the list so it renders on top.
+                shadows.append(Theme.focus_glow(self._role))
+            if self._hover:
+                update["opacity"] = 0.92
+                shadows.append("0 4px 16px var(--color-shadow)")
+                # Colour-matched glow so the lift reads as the element's
+                # own colour, not a neutral grey shadow.
+                shadows.append(f"0 0 20px {Theme.glass_border(self._role)}")
+            if shadows:
+                update["box_shadow"] = ", ".join(shadows)
+                styles = styles.model_copy(update=update)
         if self._disabled:
             styles = styles.model_copy(update={"opacity": 0.5})
         self._btn.styles = styles
@@ -181,5 +197,11 @@ class Button(Component):
             self._apply_state()
         elif event_type == "mouseup":
             self._pressed = False
+            self._apply_state()
+        elif event_type == "focus":
+            self._focused = True
+            self._apply_state()
+        elif event_type == "blur":
+            self._focused = False
             self._apply_state()
         await self._dispatch(event_type, event)
