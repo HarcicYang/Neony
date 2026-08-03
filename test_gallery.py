@@ -6,7 +6,9 @@ Python snippet that produced it, so the gallery doubles as a reference.
 
 Showcases: Button variants, Input types, Checkbox state, layout
 primitives (HStack/Flex/Spacer), typography roles, and the frosted
-glass look (GlassPanel + glass=True components).
+glass look (GlassPanel + glass=True components). Interaction glows
+(hover halos, focus rings) and role-tinted GlassPanel glows are built
+in — hover anything to see them.
 """
 
 from neony.application import Config, NeonApplication, Page, WebViewConfig, WindowConfig
@@ -126,9 +128,10 @@ custom_btn = Button("Custom").reset_styles(
 
 buttons_panel = Section(
     "Buttons",
-    "Three variants (primary, ghost, danger) with hover / press feedback; "
-    "disabled dims. reset_styles() replaces the base look while keeping "
-    "the feedback.",
+    "Three variants (primary, ghost, danger) with hover / press feedback "
+    "and colour-matched glows — hover lifts with a halo in the variant's "
+    "own colour, focus draws a tinted ring. reset_styles() replaces the "
+    "base look while keeping the feedback.",
     """Button("Primary Action")
 Button("Ghost Button", variant="ghost")
 Button("Delete", variant="danger")
@@ -286,7 +289,8 @@ glass_input.on_input(on_glass_input)
 
 # One frosted stage carries the background image; the glass components
 # inside it (glass=True, no background of their own) blur it through
-# their translucent, theme-tinted surfaces.
+# their translucent, theme-tinted surfaces.  role="accent" adds a
+# persistent colour-matched glow around the panel.
 glass_demo = GlassPanel(
     Heading("Frosted Stage", level=4),
     Text(
@@ -304,16 +308,36 @@ glass_demo = GlassPanel(
     Checkbox("Glass checkbox", glass=True),
     gap="16px",
     background=_BACKGROUND_URL,
+    role="accent",
+)
+
+# Role glows: a semantic role tints both the hairline border and the
+# persistent outer glow — success below, danger right.
+success_stage = GlassPanel(
+    Text("Success — role glows follow the theme", role="success"),
+    gap="8px",
+    padding="12px 16px",
+    role="success",
+)
+danger_stage = GlassPanel(
+    Text("Danger — destructive emphasis", role="danger"),
+    gap="8px",
+    padding="12px 16px",
+    role="danger",
 )
 
 glass_panel = Section(
     "Frosted Glass",
     "GlassPanel blurs the background image; components with glass=True "
-    "keep their theme colours while gaining the frosted surface.",
-    """GlassPanel(Heading("Frosted"), background=url)
+    "keep their theme colours while gaining the frosted surface. A "
+    "semantic role tints the panel's border AND its outer glow.",
+    """GlassPanel(Heading("Frosted"), background=url, role="accent")
+GlassPanel(Text("…"), role="success")
 Button("Primary", glass=True)
 Checkbox("Glass", glass=True)""",
     glass_demo,
+    success_stage,
+    danger_stage,
 )
 
 # ── assemble ─────────────────────────────────────────────────────
