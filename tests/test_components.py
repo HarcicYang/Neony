@@ -173,9 +173,7 @@ class TestButtonFeedback:
         assert btn._btn.styles.box_shadow is None
         handler = btn._btn._handlers["mouseover"][0]
         asyncio.run(handler(DomEvent(key=btn._btn.key, type="mouseover")))
-        assert btn._btn.styles.box_shadow == (
-            "0 4px 16px var(--color-shadow), 0 0 20px var(--color-accent-glass)"
-        )
+        assert btn._btn.styles.box_shadow == ("0 4px 16px var(--color-shadow), 0 0 20px var(--color-accent-glass)")
 
     def test_danger_hover_glow_uses_danger_color(self):
         import asyncio

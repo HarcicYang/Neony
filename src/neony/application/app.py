@@ -156,9 +156,7 @@ class NeonApplication:
             # PageLoadFinished carries the loaded URL as an argument —
             # ``*_args`` absorbs it so the default-bound event isn't
             # overwritten (lumiview calls the handler with the URL).
-            entry.window.on(WindowHookEvent.PageLoadFinished)(
-                lambda *_args, _loaded=page_loaded: _loaded.set()
-            )
+            entry.window.on(WindowHookEvent.PageLoadFinished)(lambda *_args, _loaded=page_loaded: _loaded.set())
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
             await self._inject_theme(entry)
