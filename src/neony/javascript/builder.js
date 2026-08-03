@@ -22,6 +22,10 @@ function buildNode(desc, registry) {
     const styles = desc.styles || {};
     for (const [prop, value] of Object.entries(styles)) {
         el.style.setProperty(prop, value);
+        // WebKitGTK needs the prefixed variant of backdrop-filter
+        if (prop === "backdrop-filter") {
+            el.style.setProperty("-webkit-backdrop-filter", value);
+        }
     }
 
     // Apply HTML attributes (empty string = boolean presence)

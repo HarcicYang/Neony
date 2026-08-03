@@ -72,6 +72,10 @@ class Styles(BaseModel):
         default=None
     )
     position: Literal["static", "relative", "absolute", "fixed", "sticky"] | None = Field(default=None)
+    top: str | None = Field(default=None)
+    left: str | None = Field(default=None)
+    right: str | None = Field(default=None)
+    bottom: str | None = Field(default=None)
 
     # --- Flexbox ---
     justify_content: (
@@ -208,6 +212,13 @@ class Styles(BaseModel):
     # Frosted-glass effect. Rendered as both backdrop-filter and
     # -webkit-backdrop-filter for WebKitGTK compatibility.
     backdrop_filter: str | None = Field(default=None)
+    # Native control appearance reset (e.g. appearance: none for
+    # custom-styled checkboxes) plus background layers.
+    appearance: str | None = Field(default=None)
+    background_image: str | None = Field(default=None)
+    background_size: str | None = Field(default=None)
+    background_position: str | None = Field(default=None)
+    background_repeat: str | None = Field(default=None)
     overflow: (
         Literal[
             "visible",

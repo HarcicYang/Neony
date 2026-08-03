@@ -65,13 +65,15 @@ class Page:
         """Render the page root DOMElement.
 
         Two layers:
-        - outer Div: full-screen background + base typography
+        - outer Div: full-screen backdrop + base typography. The
+          background is transparent so the ``<body>`` shows through —
+          either the theme colour (set by sync_theme) or a background
+          image (set by ``app.set_background``).
         - inner Div: the width-constrained, centered content column
         """
         outer = Styles(
             min_height="100vh",
             width="100%",
-            background_color=Color(var="--color-bg"),
             color=Color(var="--color-text-primary"),
             font_family="system-ui, -apple-system, sans-serif",
         )

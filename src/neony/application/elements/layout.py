@@ -132,3 +132,76 @@ class Separator(Component):
                 margin="8px 0",
             ),
         )
+
+
+class GlassPanel(Component):
+    """Explicit frosted-glass container.
+
+    Wraps children in a translucent surface with backdrop blur and a
+    highlight border tinted with the given semantic *role* (``"accent"``,
+    ``"danger"``, ``"success"``, or ``"neutral"``).
+
+    Pass ``background=url`` to paint an image inside the panel itself
+    (under a theme-coloured overlay) — the frosted effect stays local
+    to the panel instead of covering the whole page.
+
+    With a background the panel is two layers: a plain backdrop Div
+    carries the image (WebKitGTK's ``backdrop-filter`` can swallow an
+    element's own background, so the image must live on a layer without
+    it), and a frosted layer sits above and blurs it.
+    """
+
+    def __init__(
+        self,
+        *children: Component | DOMElement | str,
+        gap: str = "16px",
+        padding: str = "24px",
+        role: str = "neutral",
+        background: str | None = None,
+    ) -> None:
+        super().__init__()
+        from neony.application.theme import Theme
+
+        glass_styles = Styles(
+            position="relative",
+            display="flex",
+            flex_direction="column",
+            gap=gap,
+            padding=padding,
+            border_radius="12px",
+            border=f"1px solid {Theme.glass_border(role)}",
+            # Theme-tinted glass (the surface colour at ~85%), not the
+            # neutral glass token — the panel stays in family with the
+            # palette.
+            background_color=Color(var="--color-surface-glass-bg"),
+            backdrop_filter="blur(16px)",
+            box_shadow=("0 8px 32px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.04)"),
+        )
+
+        children_el = Flex._build_children(children)
+        if background:
+            # Bottom layer: image + theme overlay, no backdrop-filter —
+            # guaranteed to render. Top layer: the frosted glass that
+            # blurs it.
+            backdrop = Div(
+                styles=Styles(
+                    position="absolute",
+                    top="0",
+                    left="0",
+                    right="0",
+                    bottom="0",
+                    border_radius="12px",
+                    background_image=(
+                        f"linear-gradient(var(--color-bg-overlay), var(--color-bg-overlay)), url('{background}')"
+                    ),
+                    background_size="cover, cover",
+                    background_position="center center, center center",
+                    background_repeat="no-repeat, no-repeat",
+                )
+            )
+            self._root = Div(
+                styles=Styles(position="relative", display="flex", flex_direction="column"),
+                container=[backdrop, Div(styles=glass_styles, container=children_el)],
+            )
+        else:
+            self._root = Div(styles=glass_styles, container=children_el)

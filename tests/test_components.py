@@ -86,6 +86,20 @@ class TestComponentState:
         assert checkbox is not None
         assert "checked" not in checkbox.attrs
 
+    def test_checkbox_custom_box_style(self):
+        """Checked state drives the custom box appearance."""
+        cb = Checkbox("x", checked=False)
+        unchecked = cb._input.to_node()
+        assert unchecked.styles.get("appearance") == "none"
+        assert unchecked.styles.get("background-color") == "var(--color-surface)"
+        assert "background-image" not in unchecked.styles
+
+        cb.checked = True
+        checked = cb._input.to_node()
+        assert checked.styles.get("background-color") == "var(--color-accent)"
+        assert checked.styles.get("background-image", "").startswith('url("data:image/svg+xml')
+        assert checked.styles.get("background-size") == "12px 12px"
+
     def test_input_value_property(self):
         inp = Input()
         inp.value = "hello"
@@ -213,8 +227,9 @@ class TestPageAndTheme:
         page = Page(gap="12px")
         page.add(Text("hello"))
         node = page.build().to_node()
-        # outer layer: full-screen background
-        assert node.styles["background-color"] == "var(--color-bg)"
+        # outer layer: full-screen transparent backdrop (body provides
+        # the theme colour / background image)
+        assert "background-color" not in node.styles
         assert "margin" not in node.styles
         assert "max-width" not in node.styles
         # inner layer: centered, width-constrained flex column

@@ -19,7 +19,9 @@ from neony.application.theme import Theme
 from neony.dom import DOMElement, DomEvent
 from neony.dom.bridge import Neony
 
-_INITIAL_HTML = "<html><body><div id='neony-root'></div></body></html>"
+# margin:0 — the browser default 8px body margin would leave a white
+# ring around the page since our themed root sits inside the body.
+_INITIAL_HTML = "<html><body style='margin:0;padding:0'><div id='neony-root'></div></body></html>"
 
 
 class NeonApplication:
@@ -49,6 +51,7 @@ class NeonApplication:
         self._window: Window | None = None
         self.state: SimpleNamespace = SimpleNamespace()
         self.theme: Theme = Theme()
+        self.ready_handler: Any = None  # optional async callable, run after window ready
 
     # ---- lifecycle ----
 
@@ -76,6 +79,8 @@ class NeonApplication:
         await asyncio.sleep(0.5)
         await self.sync_theme()
         await self.render()
+        if self.ready_handler is not None:
+            await self.ready_handler()
 
     # ---- theme ----
 
@@ -84,15 +89,68 @@ class NeonApplication:
 
         Switching ``app.theme.mode`` and calling this re-injects the
         block — every ``var(--color-*)`` redraws with zero DOM diff.
+
+        The ``<body>`` background is set to the theme colour so the page
+        stays themed even with a transparent Page root; a background
+        image set via :meth:`set_background` sits on top of it (with a
+        theme-coloured overlay refreshed on every theme switch).
         """
         if self._window is None:
             return
         css = self.theme.to_css()
-        await self._window.eval_js(
+        # NOTE: the trailing ``})()`` closes the IIFE — a stray extra
+        # brace here makes the whole script a SyntaxError and kills
+        # theme injection entirely.
+        js = (
             f"(() => {{ const el = document.getElementById('neony-theme'); "
             f"if (el) el.textContent = {css!r}; else {{ const s = document.createElement('style'); "
-            f"s.id = 'neony-theme'; s.textContent = {css!r}; document.head.appendChild(s); }} }})()"
+            f"s.id = 'neony-theme'; s.textContent = {css!r}; document.head.appendChild(s); }} "
+            "document.body.style.backgroundColor = 'var(--color-bg)'; })()"
         )
+        if self._background_url is not None:
+            js += "\n" + self._background_js()
+        await self._window.eval_js(js)
+
+    # ---- background image ----
+
+    _background_url: str | None = None
+
+    @staticmethod
+    def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+        """Convert ``#rrggbb`` to ``rgba(r, g, b, a)``."""
+        h = hex_color.lstrip("#")
+        r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
+        return f"rgba({r}, {g}, {b}, {alpha})"
+
+    def _background_js(self) -> str:
+        """JS that paints the background image under a theme overlay.
+
+        The overlay is a semi-transparent layer of the theme's ``bg``
+        colour — it dims the image so glass surfaces read clearly and
+        keeps the page in family with the palette.
+        """
+        url = self._background_url
+        assert url is not None
+        overlay = self._hex_to_rgba(self.theme.bg, 0.55)
+        return (
+            f"document.body.style.backgroundImage = 'linear-gradient({overlay}, {overlay}), url({url})';\n"
+            "document.body.style.backgroundSize = 'cover, cover';\n"
+            "document.body.style.backgroundPosition = 'center center, center center';\n"
+            "document.body.style.backgroundAttachment = 'fixed, fixed';"
+        )
+
+    async def set_background(self, url: str) -> None:
+        """Set a full-screen background image behind the glass UI.
+
+        The image sits on ``<body>`` under a theme-coloured overlay;
+        components with ``glass=True`` (or
+        :class:`~neony.application.elements.GlassPanel`) blur it through
+        their translucent surfaces. Switching themes re-tints the overlay.
+        """
+        if self._window is None:
+            return
+        self._background_url = url
+        await self._window.eval_js(self._background_js())
 
     # ---- rendering ----
 

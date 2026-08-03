@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from neony.application.theme import Theme
 from neony.dom import Button as _ButtonElem
 from neony.dom import Color, DOMElement, DomEvent, Styles
 
@@ -27,6 +28,7 @@ class Button(Component):
         label: str = "",
         *,
         variant: Literal["primary", "ghost", "danger"] = "primary",
+        glass: bool = False,
         disabled: bool = False,
         icon: str | None = None,
     ) -> None:
@@ -35,6 +37,7 @@ class Button(Component):
         self._icon = icon
         self._disabled = disabled
         self._variant = variant
+        self._glass = glass
         self._hover = False
         self._pressed = False
         self._custom_styles: Styles | None = None
@@ -42,7 +45,7 @@ class Button(Component):
         self._btn = _ButtonElem(
             type="button",
             container=self._text_content(),
-            styles=self._variant_styles(variant),
+            styles=self._variant_styles(variant, glass),
             disabled=disabled,
         )
 
@@ -70,7 +73,7 @@ class Button(Component):
         return parts
 
     @staticmethod
-    def _variant_styles(variant: str) -> Styles:
+    def _variant_styles(variant: str, glass: bool = False) -> Styles:
         # border: none kills the WebKitGTK default 2px outset border;
         # ghost re-adds its own hairline border.
         base = Styles(
@@ -83,6 +86,21 @@ class Button(Component):
             transition="all 0.15s ease",
             color=Color(var="--color-text-primary"),
         )
+
+        if glass:
+            # Frosted version of the variant's own colour: the theme
+            # tint is kept (semi-transparent) instead of being replaced
+            # by a neutral glass surface.
+            role = {"primary": "accent", "ghost": "surface"}.get(variant, variant)
+            return base.model_copy(
+                update={
+                    "background_color": Color(var=f"--color-{role}-glass-bg"),
+                    "backdrop_filter": "blur(12px)",
+                    "border": f"1px solid {Theme.glass_border(role)}",
+                    "box_shadow": ("0 2px 12px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.04)"),
+                }
+            )
+
         if variant == "ghost":
             return base.model_copy(
                 update={
@@ -96,7 +114,9 @@ class Button(Component):
 
     def _apply_state(self) -> None:
         """Recompute the button styles from variant + hover + pressed."""
-        base = self._custom_styles if self._custom_styles is not None else self._variant_styles(self._variant)
+        base = (
+            self._custom_styles if self._custom_styles is not None else self._variant_styles(self._variant, self._glass)
+        )
         styles = base.model_copy()
         if self._pressed:
             styles = styles.model_copy(

@@ -9,7 +9,7 @@ from neony.application.elements.button import Button
 from neony.application.elements.checkbox import Checkbox
 from neony.application.elements.heading import Heading
 from neony.application.elements.input import Input
-from neony.application.elements.layout import Flex, HStack, Separator, Spacer, VStack
+from neony.application.elements.layout import Flex, GlassPanel, HStack, Separator, Spacer, VStack
 from neony.application.elements.tabs import Tabs
 from neony.application.elements.text import Text
 
@@ -18,6 +18,7 @@ __all__ = [
     "Checkbox",
     "Component",
     "Flex",
+    "GlassPanel",
     "HStack",
     "Heading",
     "Input",

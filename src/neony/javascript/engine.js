@@ -27,6 +27,12 @@ class NeonyEngine {
      */
     mount(msg) {
         this.registry.clear();
+
+        // Reset host-page defaults — the browser's 8px body margin would
+        // otherwise leave a white ring around the themed root.
+        document.body.style.margin = "0";
+        document.body.style.padding = "0";
+
         this.container = document.querySelector("#neony-root") || document.body;
         this.container.innerHTML = "";
 

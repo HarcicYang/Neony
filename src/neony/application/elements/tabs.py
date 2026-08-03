@@ -36,6 +36,16 @@ _PANEL_BASE = Styles(
 
 _PANEL_ACTIVE = _PANEL_BASE.model_copy(update={"display": "flex"})
 
+_GLASS_PANEL_BASE = _PANEL_BASE.model_copy(
+    update={
+        "background_color": Color(var="--color-surface-glass-bg"),
+        "backdrop_filter": "blur(16px)",
+        "border": "1px solid var(--color-border-glass)",
+    }
+)
+
+_GLASS_PANEL_ACTIVE = _GLASS_PANEL_BASE.model_copy(update={"display": "flex"})
+
 
 class Tabs(Component):
     """A set of named tabs; exactly one panel is visible at a time.
@@ -47,16 +57,19 @@ class Tabs(Component):
         tabs.add("Inputs", inputs_panel)
 
     ``tabs.active`` (index) and ``tabs.active_key`` switch programmatically.
+    ``glass=True`` gives the panels a frosted, translucent surface.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, glass: bool = False) -> None:
+        self._glass = glass
         super().__init__()
         self._titles: list[str] = []
         self._panels: list[DOMElement] = []
         self._tab_elems: list[Div] = []
         self._active: int = 0
 
-        self._bar = Div(styles=Styles(display="flex", gap="4px"))
+        # flex_wrap: many tabs wrap to a second row instead of overflowing
+        self._bar = Div(styles=Styles(display="flex", gap="4px", flex_wrap="wrap"))
         self._root = Div(
             styles=Styles(display="flex", flex_direction="column", width="100%"),
             container=[self._bar],
@@ -102,6 +115,8 @@ class Tabs(Component):
         return handler
 
     def _apply_visibility(self) -> None:
+        panel_active = _GLASS_PANEL_ACTIVE if self._glass else _PANEL_ACTIVE
+        panel_base = _GLASS_PANEL_BASE if self._glass else _PANEL_BASE
         for i, (tab, panel) in enumerate(zip(self._tab_elems, self._panels, strict=True)):
             tab.styles = _TAB_ACTIVE if i == self._active else _TAB_BASE
-            panel.styles = _PANEL_ACTIVE if i == self._active else _PANEL_BASE
+            panel.styles = panel_active if i == self._active else panel_base

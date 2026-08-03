@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from neony.application.theme import Theme
 from neony.dom import Color, DomEvent, Styles
 from neony.dom import Input as _InputElem
 
@@ -21,6 +22,14 @@ _FIELD = Styles(
     transition="border-color 0.15s ease",
 )
 
+_GLASS_FIELD = _FIELD.model_copy(
+    update={
+        "background_color": Color(var="--color-surface-glass-bg"),
+        "backdrop_filter": "blur(8px)",
+        "border": f"1px solid {Theme.glass_border('neutral')}",
+    }
+)
+
 
 class Input(Component):
     """Single-line text field with internal value state.
@@ -28,6 +37,7 @@ class Input(Component):
     - ``input.value`` reads / sets the current text (immediate DOM write)
     - ``on_input(fn)`` fires for every keystroke (user-driven only)
     - ``on_change(fn)`` fires when the field loses focus after edits
+    - ``glass=True`` gives the field a frosted, translucent surface
     """
 
     def __init__(
@@ -36,6 +46,7 @@ class Input(Component):
         *,
         value: str = "",
         type: Literal["text", "password", "email", "number", "search", "tel", "url"] = "text",
+        glass: bool = False,
         disabled: bool = False,
         maxlength: int | None = None,
     ) -> None:
@@ -49,7 +60,7 @@ class Input(Component):
             value=value,
             maxlength=maxlength,
             disabled=disabled,
-            styles=_FIELD,
+            styles=_GLASS_FIELD if glass else _FIELD,
         )
         self._root = self._input
 

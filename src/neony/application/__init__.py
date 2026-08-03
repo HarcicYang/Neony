@@ -11,10 +11,11 @@ Public API::
 from neony.application.app import NeonApplication, launch
 from neony.application.config import Config, WebViewConfig, WindowConfig
 from neony.application.page import Page
-from neony.application.theme import DARK, LIGHT, Theme
+from neony.application.theme import DARK, DEEP_BLUE, LIGHT, Theme
 
 __all__ = [
     "DARK",
+    "DEEP_BLUE",
     "LIGHT",
     "Config",
     "NeonApplication",
