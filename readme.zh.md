@@ -168,7 +168,7 @@ uv run test_gallery.py
 
 - [ ] **Windows(WebView2)**
 - [ ] **macOS(WKWebView)**
-- [ ] **hyprland 之外的 Linux 桌面**
+- [X] **Linux 桌面**
 - [ ] **HiDPI / 混合 DPI 缩放**
 -  x  ~~X11~~ — **不计划支持**
 

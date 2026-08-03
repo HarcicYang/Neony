@@ -172,7 +172,7 @@ Planned work, roughly in priority order.
 
 - [ ] **Windows (WebView2)**
 - [ ] **macOS (WKWebView)**
-- [ ] **Linux desktops beyond hyprland**
+- [x] **Linux desktops**
 - [ ] **HiDPI / mixed-DPI scaling**
 -  x  ~~X11~~ — **not a compatibility target**
 

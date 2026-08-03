@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
-from lumiview import App, Window
+from neony.application import Page, launch
+from neony.application.elements import Button, Heading, Text, VStack
 
-app = App(name="HelloLumiView")
+counter = Button("Click me")
 
 
-async def main():
-    win = await Window.create(
-        title="Hello LumiView!",
-        url="https://harcic.is-a.dev",
-        width=900,
-        height=640,
-        devtools=True,
+async def on_click(event) -> None:
+    counter.label = "Clicked!"
+
+
+counter.on_click(on_click)
+
+page = Page(gap="16px").add(
+    VStack(
+        Heading("Hello, Neony", level=1),
+        Text("Build desktop UI in pure Python.", role="secondary"),
+        counter,
+        gap="12px",
     )
-    title = await win.eval_js("document.title")
-    print(f"Page title: {title}")
+)
 
-
-app.run(main)
+launch(page, title="My App", width=480, height=360, devtools=True)
