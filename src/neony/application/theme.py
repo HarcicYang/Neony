@@ -149,14 +149,37 @@ class Theme(BaseModel):
             return f"var(--color-{role}-glass)"
         return "var(--color-border-glass)"
 
+    @staticmethod
+    def _scrollbar_css() -> str:
+        """Scrollbar rules following the theme tokens.
+
+        WebKit (``::-webkit-scrollbar`` pseudo-elements) is the live
+        renderer; the Firefox ``scrollbar-color``/``scrollbar-width``
+        pair is standard and inherits from ``html``.  All colours are
+        ``var(--color-*)`` references so a theme switch re-injects the
+        block and scrollbars follow — no extra sync needed.
+        """
+        return (
+            # Firefox standard properties
+            "html{scrollbar-color:var(--color-surface-raised) var(--color-bg);"
+            "scrollbar-width:thin;}"
+            # WebKit pseudo-elements
+            "::-webkit-scrollbar{width:8px;height:8px}"
+            "::-webkit-scrollbar-track{background:var(--color-bg)}"
+            "::-webkit-scrollbar-thumb{"
+            "background:var(--color-surface-raised);border-radius:4px}"
+            "::-webkit-scrollbar-thumb:hover{background:var(--color-accent)}"
+            "::-webkit-scrollbar-corner{background:var(--color-bg)}"
+        )
+
     def to_css(self) -> str:
-        """Generate the ``:root { --color-*: ...; }`` stylesheet block."""
+        """Generate the ``:root { --color-*: ...; }`` block plus scrollbar rules."""
         tokens: list[str] = []
         for name in type(self).model_fields:
             if name == "mode":
                 continue
             tokens.append(f"--color-{name.replace('_', '-')}: {getattr(self, name)};")
-        return ":root { " + " ".join(tokens) + " }"
+        return ":root { " + " ".join(tokens) + " } " + self._scrollbar_css()
 
     def to_style_element(self) -> str:
         """Wrap :meth:`to_css` in a ``<style>`` tag for inline injection."""

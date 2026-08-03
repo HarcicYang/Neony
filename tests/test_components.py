@@ -253,3 +253,31 @@ class TestPageAndTheme:
         theme.toggle()
         assert theme.mode == "light"
         assert theme.bg != "#1a1a2e"
+
+
+class TestScrollbarTheming:
+    def test_webkit_scrollbar_rules(self):
+        css = Theme().to_css()
+        assert "::-webkit-scrollbar" in css
+        assert "::-webkit-scrollbar-track" in css
+        assert "::-webkit-scrollbar-thumb" in css
+        assert "::-webkit-scrollbar-thumb:hover" in css
+        assert "::-webkit-scrollbar-corner" in css
+
+    def test_firefox_scrollbar_rules(self):
+        css = Theme().to_css()
+        assert "scrollbar-color" in css
+        assert "scrollbar-width" in css
+
+    def test_scrollbar_uses_theme_tokens(self):
+        css = Theme().to_css()
+        assert "var(--color-surface-raised)" in css
+        assert "var(--color-bg)" in css
+        assert "var(--color-accent)" in css
+
+    def test_scrollbar_rules_survive_theme_toggle(self):
+        theme = Theme()
+        theme.set_mode("light")
+        css = theme.to_css()
+        assert "::-webkit-scrollbar" in css
+        assert "scrollbar-color" in css
