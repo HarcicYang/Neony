@@ -134,7 +134,7 @@ class Button(Component):
                 }
             )
         else:
-            update: dict[str, str] = {}
+            update: dict[str, str | float] = {}
             shadows: list[str] = []
             if self._focused:
                 # Focus ring — first in the list so it renders on top.

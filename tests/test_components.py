@@ -183,7 +183,7 @@ class TestButtonFeedback:
         btn = Button("x", variant="danger")
         handler = btn._btn._handlers["mouseover"][0]
         asyncio.run(handler(DomEvent(key=btn._btn.key, type="mouseover")))
-        assert "var(--color-danger-glass)" in btn._btn.styles.box_shadow
+        assert "var(--color-danger-glass)" in (btn._btn.styles.box_shadow or "")
 
     def test_focus_adds_ring_blur_removes(self):
         import asyncio
@@ -291,7 +291,8 @@ class TestFocusGlow:
         asyncio.run(cb._input._handlers["focus"][0](DomEvent(key=cb._input.key, type="focus")))
         asyncio.run(cb._input._handlers["change"][0](DomEvent(key=cb._input.key, type="change", value=True)))
         assert cb._input.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
-        assert cb._input.styles.background_color.var == "--color-accent"
+        bg = cb._input.styles.background_color
+        assert bg is not None and bg.var == "--color-accent"
 
 
 class TestGlassPanelGlow:

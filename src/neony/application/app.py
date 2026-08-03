@@ -8,10 +8,12 @@ state namespace.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import sys
 from types import SimpleNamespace
 from typing import Any, cast
 
-from lumiview import App, Bridge, Window, WindowEffect
+from lumiview import App, Bridge, Window, WindowEffect, WindowHookEvent
 
 from neony.application.config import Config
 from neony.application.page import Page
@@ -48,6 +50,29 @@ class _Entry:
         self.neony = neony
         self.window: Window | None = None
         self.tree = tree
+
+
+def _set_linux_app_name(name: str) -> None:
+    """Set the GLib program name so the window manager shows *name*
+    instead of ``python3`` in the taskbar / launcher.
+
+    On Linux the WM_CLASS used by taskbars and docks defaults to the
+    process name (``argv[0]``).  lumiview's ``App(name=...)`` only
+    reaches the titlebar text — it never sets the GTK program name, and
+    ``TaoWindowBuilder`` exposes no ``with_class()`` API.  We set
+    ``g_set_prgname`` via ctypes: GLib is already linked by tao's GTK
+    backend, so the library is guaranteed to be present without adding
+    a PyGObject dependency.
+    """
+    if sys.platform != "linux":
+        return
+    try:
+        import ctypes
+
+        glib = ctypes.CDLL("libglib-2.0.so.0")
+        glib.g_set_prgname(name.encode())
+    except OSError:
+        pass  # should never happen on Linux, but don't crash
 
 
 class NeonApplication:
@@ -92,6 +117,9 @@ class NeonApplication:
             idx = len(self._entries)
             self._entries.append(_Entry(neony, tree))
             self._collect_handlers(neony, tree, idx)
+        # Linux: make the taskbar/dock show the app name instead of
+        # ``python3`` — lumiview's App(name=...) never reaches WM_CLASS.
+        _set_linux_app_name(self.config.window.title)
         app = App(name=self.config.window.title.replace(" ", ""))
         app.run(self._main)
 
@@ -113,8 +141,19 @@ class NeonApplication:
                 bridge=Bridge(includes=includes),
                 **kwargs,
             )
-            # Give the WebView a moment to settle before mounting
-            await asyncio.sleep(0.5)
+            # Wait for the page (including the injected Bridge JS) to
+            # finish loading before mounting — a fixed sleep would either
+            # race slow machines or waste time on fast ones.  The 5s
+            # timeout only guards against an event never arriving.
+            page_loaded = asyncio.Event()
+            # PageLoadFinished carries the loaded URL as an argument —
+            # ``*_args`` absorbs it so the default-bound event isn't
+            # overwritten (lumiview calls the handler with the URL).
+            entry.window.on(WindowHookEvent.PageLoadFinished)(
+                lambda *_args, _loaded=page_loaded: _loaded.set()
+            )
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
             await self._inject_theme(entry)
             await self.render(window_index=i)
         if self.ready_handler is not None:
