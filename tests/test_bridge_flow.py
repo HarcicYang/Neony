@@ -132,6 +132,72 @@ class TestRevContinuity:
         assert fake.mount_calls == 1
 
 
+class TestDeferredRender:
+    """Hover / focus / blur events coalesce into one deferred render.
+
+    Immediate-path events (input, click) still render synchronously —
+    those tests live in TestRevContinuity above.
+    """
+
+    def test_hover_defers_render(self):
+        app, fake, els = _build_app()
+        inp = els["input"]
+
+        async def run():
+            await app.render()  # mount rev 1
+            # focus is a deferred event — no patch arrives immediately
+            await _fire(app, inp._input.key, "focus")
+            assert fake.patches == [], "deferred render must not fire synchronously"
+            await asyncio.sleep(0.05)  # > debounce window (16ms)
+            return [p["rev"] for p in fake.patches]
+
+        revs = asyncio.run(run())
+        assert revs == [2]
+
+    def test_rapid_hover_burst_coalesces(self):
+        """A burst of deferred events within the debounce window produces
+        exactly one render, not one per event."""
+        from neony.application.elements import Button
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        btn = Button("x")
+        tree = VStack(btn).build()
+        _setup_entry(app, tree, fake)
+
+        async def run():
+            await app.render()  # mount rev 1
+            # Four style-only events within the debounce window.  The
+            # final state (hovered) differs from the base state, so the
+            # coalesced render emits exactly one patch.
+            for et in ("mouseover", "mouseout", "mouseover", "mouseover"):
+                await _fire(app, btn._btn.key, et)
+            await asyncio.sleep(0.05)
+            return len(fake.patches)
+
+        n = asyncio.run(run())
+        assert n == 1, f"expected 1 coalesced patch, got {n}"
+
+    def test_immediate_event_cancels_pending_deferred(self):
+        """An immediate-path event arriving during the debounce window
+        supersedes the pending deferred render."""
+        app, fake, els = _build_app()
+        inp = els["input"]
+
+        async def run():
+            await app.render()  # mount rev 1
+            await _fire(app, inp._input.key, "focus")  # deferred → scheduled
+            await _fire(app, inp._input.key, "input", "a")  # immediate → runs now
+            assert len(fake.patches) == 1, "immediate event rendered synchronously"
+            await asyncio.sleep(0.05)
+            # The superseded deferred task must not emit a second patch —
+            # its diff runs against the updated snapshot and finds nothing.
+            return len(fake.patches)
+
+        n = asyncio.run(run())
+        assert n == 1, f"superseded deferred render emitted an extra patch (got {n})"
+
+
 class TestHandlerIsolation:
     """One failing handler must not break the event chain."""
 

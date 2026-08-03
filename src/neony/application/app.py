@@ -52,6 +52,13 @@ class _Entry:
         self.tree = tree
 
 
+# Style-only events that don't need an immediate full-tree render.  They
+# render deferred (one frame of coalescing) so a mouse sweeping across the
+# UI doesn't trigger a full-tree render per event.  Adding "input" here
+# also enables keystroke throttling.
+_DEFERRED_EVENTS = frozenset({"mouseover", "mouseout", "focus", "blur"})
+
+
 def _set_linux_app_name(name: str) -> None:
     """Set the GLib program name so the window manager shows *name*
     instead of ``python3`` in the taskbar / launcher.
@@ -263,7 +270,7 @@ class NeonApplication:
 
     # ---- rendering ----
 
-    async def render(self, window_index: int | None = None) -> None:
+    async def render(self, window_index: int | None = None, *, immediate: bool = True) -> None:
         """Render (or update) the DOM tree(s) in the browser.
 
         The first call mounts the full tree; subsequent calls diff
@@ -272,6 +279,10 @@ class NeonApplication:
         Without *window_index* every window renders; a specific index
         renders only that window (the auto-render after an event handler
         does this — only the originating window re-renders).
+
+        *immediate* is forwarded to the Neony bridge: ``False`` defers
+        the render by one frame so a burst of style-only events
+        (hover, focus, blur) coalesces into a single render.
 
         Once a window starts closing (minimize/maximize/close racing
         with in-flight events, or an actual close), WebKitGTK tears down
@@ -286,7 +297,7 @@ class NeonApplication:
             if entry.window is None:
                 continue
             try:
-                await entry.neony.render(entry.tree)
+                await entry.neony.render(entry.tree, immediate=immediate)
             except RuntimeError as exc:
                 if "WebView is not initialized" in str(exc):
                     return  # window closing — drop the patch
@@ -305,13 +316,19 @@ class NeonApplication:
 
     def _make_wrapper(self, fn: Any, element: DOMElement, idx: int) -> Any:
         """Wrap a user handler: build DomEvent, call fn, auto-render
-        only the window the event came from."""
+        only the window the event came from.
+
+        Style-only events (hover / focus / blur) render deferred — one
+        frame of coalescing — so a mouse sweeping across the UI doesn't
+        trigger a full-tree render per event.
+        """
 
         async def wrapper(key: str, event_type: str, value: Any = None) -> None:
             evt = DomEvent(key=key, type=event_type, value=value)
             await fn(evt)
             if self.config.auto_render:
-                await self.render(window_index=idx)
+                immediate = event_type not in _DEFERRED_EVENTS
+                await self.render(window_index=idx, immediate=immediate)
 
         return wrapper
 

@@ -25,6 +25,8 @@ Neony 在原生窗口中渲染响应式 DOM。你完全用 Python 对象——�
 - **与 Tauri 同源** — Rust `tao`/`wry` WebView(经 LumiView)
 - **三套主题预设** — dark / light / deep-blue，基于 CSS 自定义属性
 - **(可选)毛玻璃** — 半透明表面 + 背景模糊
+- **语义色光晕** — 焦点环与悬停辉光跟随元素语义颜色
+- **主题化滚动条** — 滚动条跟随活跃主题(WebKit + Firefox)
 - **自定义窗口装饰** — 无边框、透明窗口、自定义标题栏
 - **(仅支持平台)原生窗口效果** — blur / acrylic / mica 材质
 
@@ -115,8 +117,9 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 ## 主题
 
 三套内置预设 — `DARK`(默认)、`LIGHT`、`DEEP_BLUE` — 以 CSS 自定义属性
-暴露在 `:root`，切换主题零 DOM diff 全量重绘。切换与自定义主题见
-[API 参考](docs/api.zh.md)。
+暴露在 `:root`，切换主题零 DOM diff 全量重绘。滚动条与交互光晕(焦点环、
+悬停辉光)引用同一套 `--color-*` token，因此也随主题自动切换。切换与
+自定义主题见 [API 参考](docs/api.zh.md)。
 
 ---
 
@@ -145,8 +148,8 @@ uv run test_gallery.py
 
 ### 性能优化
 
-- [ ] **输入节流** — 合并高频 `on_input` 渲染
-- [ ] **悬停降噪** — `mouseover`/`mouseout` 不应触发全树渲染
+- [x] **悬停降噪** — `mouseover`/`mouseout`/`focus`/`blur` 延迟渲染(一帧合并)
+- [~] **输入节流** — 合并渲染管线已就位；`on_input` 仍逐键渲染，接入延迟路径仅需一行
 - [ ] **脏子树 diff** — 只重新 diff 状态变化的组件
 - [ ] **样式直通补丁** — 纯样式变化绕过全树 diff
 - [ ] **快照复用** — 未变化的子树跳过 `to_node()`

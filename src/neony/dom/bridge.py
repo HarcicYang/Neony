@@ -273,6 +273,11 @@ class Neony(Plugin):
         self._rev: int = 0
         self._lock: asyncio.Lock = asyncio.Lock()
         self._handlers: dict[tuple[str | None, str], list[Callable[..., Any]]] = {}
+        # Deferred-render coalescing (input throttling / hover de-noise):
+        # a pending task scheduled by ``render(immediate=False)``; cancelled
+        # and replaced on each new request within the debounce window.
+        self._render_task: asyncio.Task | None = None
+        self._render_debounce: float = 0.016  # ~1 frame at 60fps
 
         # Register JS→Python IPC commands on this scope
         self.command(self._on_event, name="event")
@@ -345,12 +350,18 @@ class Neony(Plugin):
         if fn in handlers:
             handlers.remove(fn)
 
-    async def render(self, element: DOMElement) -> PatchMessage | None:
+    async def render(self, element: DOMElement, *, immediate: bool = True) -> PatchMessage | None:
         """Render (or update) a DOM tree in the browser.
 
         On the first call the entire tree is mounted via ``eval_js``.
         Subsequent calls diff against the previous snapshot and send
         only changed patches via ``emit``.
+
+        With ``immediate=False`` the render is deferred by one frame
+        (~16ms): a pending deferred render is cancelled and rescheduled,
+        so a burst of style-only events (hover, focus, blur) coalesces
+        into a single render.  This is the input-throttling / hover
+        de-noise mechanism.
 
         *rev* increments ONLY when a message is actually sent, so the
         JavaScript engine's ``lastRev`` stays in lockstep with the
@@ -359,7 +370,8 @@ class Neony(Plugin):
         that would trigger an unnecessary full resync.
 
         Returns the :class:`PatchMessage` that was sent, or ``None``
-        when there was nothing to send.
+        when there was nothing to send (including a deferred render
+        that was cancelled by a newer request).
         """
         async with self._lock:
             if self._win is None:
@@ -368,24 +380,58 @@ class Neony(Plugin):
                     "in a LumiView Bridge and the window must be created."
                 )
 
-            new_node = element.to_node()
-            msg: PatchMessage | None = None
+            if self._render_task is not None:
+                self._render_task.cancel()
+                self._render_task = None
 
-            if self._snapshot is None:
-                # First render: full mount
+            # Immediate path: first mount, or "important" events (click,
+            # change, submit).  Deferred path: style-only / high-frequency
+            # events that can wait one frame.
+            if immediate or self._snapshot is None:
+                return await self._do_render(element)
+
+            loop = asyncio.get_event_loop()
+            self._render_task = loop.create_task(self._deferred_render(element))
+            return None
+
+    async def _deferred_render(self, element: DOMElement) -> PatchMessage | None:
+        """Sleep one frame, then render.  Cancelled when a newer render
+        request arrives within the debounce window."""
+        await asyncio.sleep(self._render_debounce)
+        async with self._lock:
+            # Superseded: a newer render request replaced us between the
+            # sleep and the lock acquisition (or cancelled us).  Bail out
+            # instead of racing _do_render.
+            if self._render_task is not asyncio.current_task():
+                return None
+            self._render_task = None
+            return await self._do_render(element)
+
+    async def _do_render(self, element: DOMElement) -> PatchMessage | None:
+        """The actual render cycle: serialize, diff, emit patches."""
+        if self._win is None:
+            raise RuntimeError(
+                "Neony: window not ready — the bridge must be included "
+                "in a LumiView Bridge and the window must be created."
+            )
+        new_node = element.to_node()
+        msg: PatchMessage | None = None
+
+        if self._snapshot is None:
+            # First render: full mount
+            self._rev += 1
+            msg = PatchMessage(
+                rev=self._rev,
+                ops=[CreatePatch(key=new_node.key, node=new_node)],
+            )
+            await self._win.eval_js(f"window.neony.mount({msg.model_dump_json()})")
+        else:
+            ops = DiffEngine.diff(self._snapshot, new_node)
+            if ops:
                 self._rev += 1
-                msg = PatchMessage(
-                    rev=self._rev,
-                    ops=[CreatePatch(key=new_node.key, node=new_node)],
-                )
-                await self._win.eval_js(f"window.neony.mount({msg.model_dump_json()})")
-            else:
-                ops = DiffEngine.diff(self._snapshot, new_node)
-                if ops:
-                    self._rev += 1
-                    msg = PatchMessage(rev=self._rev, ops=ops)
-                    await self._win.emit("neony:patch", msg.model_dump(mode="json"))
+                msg = PatchMessage(rev=self._rev, ops=ops)
+                await self._win.emit("neony:patch", msg.model_dump(mode="json"))
 
-            self._snapshot = new_node
-            self._last_tree = element
-            return msg
+        self._snapshot = new_node
+        self._last_tree = element
+        return msg

@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Theme-matched scrollbars** — scrollbars follow the active theme via
+  `--color-*` tokens (`Theme.to_css()` emits WebKit `::-webkit-scrollbar`
+  rules + Firefox `scrollbar-color`/`scrollbar-width`).
+- **Colour-matched glow** — focus rings (3px halo via
+  `Theme.focus_glow(role)`) and hover glows tinted with each element's
+  semantic colour: `Button` (per variant), `Input`, `Checkbox`, and
+  `GlassPanel` (persistent per-role glow).
+- **`Theme.focus_glow(role)`** helper — returns a focus-ring box-shadow
+  value referencing the role's glass token.
+- **Linux app name (WM_CLASS)** — `g_set_prgname` via ctypes so the
+  taskbar/dock shows the app name instead of `python3`.
+
+### Changed
+
+- **LumiView `0.1.0.dev1` → `0.1.0.dev2`** — `Neony` now subclasses the
+  explicit `Plugin` lifecycle class (duck-typed `on_init`/`on_ready`
+  hooks are ignored in dev2); `uv.lock` regenerated.
+- **Startup sequencing** — the fixed `asyncio.sleep(0.5)` after
+  `Window.create` is replaced with a `WindowHookEvent.PageLoadFinished`
+  wait (5s timeout guard); the window's DOM mounts the moment the page
+  is actually ready.
+- **Render coalescing (hover de-noise)** — `Neony.render()` gains an
+  `immediate` flag; `mouseover`/`mouseout`/`focus`/`blur` render deferred
+  by one frame (~16ms), so a burst of style-only events coalesces into a
+  single full-tree render. `NeonApplication.render()` forwards it.
+
+### Fixed
+
+- `PageLoadFinished` handler crash: the event carries the loaded URL as
+  an argument, which overwrote the default-bound event; the lambda now
+  absorbs `*_args`.
+
+### Docs
+
+- `readme.md` / `readme.zh.md` — new features, theming section, roadmap
+  checkboxes.
+
+---
+
 ## 0.1.0 — 2026-08-03
 
 ### Added

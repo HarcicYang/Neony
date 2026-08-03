@@ -26,6 +26,8 @@ It builds on [LumiView](https://lumiview.dev), which uses the same Rust
 - **Same stack as Tauri** — Rust `tao`/`wry` webviews via LumiView
 - **3 theme presets** — dark / light / deep-blue via CSS custom properties
 - **(Optional) Frosted glass** — translucent surfaces with backdrop blur
+- **Colour-matched glow** — focus rings and hover glows tinted with each element's semantic colour
+- **Theme-matched scrollbars** — scrollbars follow the active theme (WebKit + Firefox)
 - **Custom window chrome** — frameless, transparent, custom TitleBar
 - **(Supported platform only) Native window effects** — blur / acrylic / mica materials
 
@@ -119,8 +121,9 @@ All components share a fluent, chainable API — see the
 
 Three built-in presets — `DARK` (default), `LIGHT`, `DEEP_BLUE` — exposed as
 CSS custom properties on `:root`, so a theme switch redraws the whole UI with
-zero DOM diff. See the [API reference](docs/api.en.md) for switching and
-custom themes.
+zero DOM diff. Scrollbars and interaction glows (focus rings, hover halos)
+reference the same `--color-*` tokens, so they follow theme switches too.
+See the [API reference](docs/api.en.md) for switching and custom themes.
 
 ---
 
@@ -149,8 +152,8 @@ Planned work, roughly in priority order.
 
 ### Performance
 
-- [ ] **Input throttling** — merge high-frequency `on_input` renders
-- [ ] **Hover de-noise** — `mouseover`/`mouseout` should not trigger full-tree renders
+- [x] **Hover de-noise** — `mouseover`/`mouseout`/`focus`/`blur` render deferred (one frame of coalescing)
+- [~] **Input throttling** — coalescing render pipeline in place; `on_input` still renders per keystroke, hooking it into the deferred path is a one-line change
 - [ ] **Dirty-subtree diffing** — only re-diff components whose state changed
 - [ ] **Style direct-patch** — pure style changes bypass the full diff
 - [ ] **Snapshot reuse** — skip `to_node()` for unchanged subtrees
