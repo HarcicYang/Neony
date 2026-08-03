@@ -1,1 +1,44 @@
-src/neony.egg-info/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+build/
+dist/
+wheels/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Test / coverage
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.pyrefly_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Editors / IDEs
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Zed
+# (keep .zed/settings.json and .zed/tasks.json — they are project config)
+
+# Node / JS
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# OS
+Thumbs.db
