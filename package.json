@@ -1,0 +1,13 @@
+{
+  "name": "neony",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Neony JavaScript runtime unit tests (vitest + jsdom)",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0",
+    "vitest": "^3.0.0"
+  }
+}

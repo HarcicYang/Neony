@@ -37,6 +37,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: node --check src/neony/javascript/builder.js
-      - run: node --check src/neony/javascript/engine.js
-      - run: node --check src/neony/javascript/index.js
+      - run: npm ci
+      - run: npm test
