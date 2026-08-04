@@ -267,6 +267,16 @@ class Styles(BaseModel):
         ]
         | None
     ) = Field(default=None)
+    user_select: (
+        Literal[
+            "none",
+            "auto",
+            "text",
+            "contain",
+            "all",
+        ]
+        | None
+    ) = Field(default=None)
     z_index: int | None = Field(default=None)
 
 
@@ -434,6 +444,13 @@ class DOMElement(BaseModel):
     # _parent so an ancestor can never reuse a stale cached snapshot.
     _dirty: bool = PrivateAttr(default=False)
     _parent: DOMElement | None = PrivateAttr(default=None)
+
+    # Opt-in event bubbling: when True, DOM events on descendant elements
+    # with no handler of their own route here (the bridge walks the parent
+    # chain).  Components whose children are interactive pieces of the
+    # component — SidebarItem's icon/label spans — enable this; plain
+    # layout containers keep the strict per-element routing.
+    _bubble_events: bool = PrivateAttr(default=False)
 
     # Signal bindings (see bind_text & co) — kept alive so they can be
     # disposed by unbind(); the Signal holds the Effect, the Effect holds
@@ -630,6 +647,11 @@ class DOMElement(BaseModel):
                 # WebKitGTK needs the prefixed variant of backdrop-filter
                 if css_property == "backdrop-filter":
                     declarations.append(f"-webkit-backdrop-filter: {v}")
+                # user-select needs -webkit- (Blink/WebKit) and -moz-
+                # (Gecko) prefixes — unprefixed is the standard spelling.
+                if css_property == "user-select":
+                    declarations.append(f"-webkit-user-select: {v}")
+                    declarations.append(f"-moz-user-select: {v}")
 
         if not declarations:
             return ""
@@ -748,6 +770,11 @@ class DOMElement(BaseModel):
                 # WebKitGTK needs the prefixed variant of backdrop-filter
                 if css_property == "backdrop-filter":
                     styles["-webkit-backdrop-filter"] = str(v)
+                # user-select needs -webkit- (Blink/WebKit) and -moz-
+                # (Gecko) prefixes — unprefixed is the standard spelling.
+                if css_property == "user-select":
+                    styles["-webkit-user-select"] = str(v)
+                    styles["-moz-user-select"] = str(v)
 
         # Attrs: same precedence as _build_attrs (typed fields, then args)
         attrs: dict[str, str] = {}

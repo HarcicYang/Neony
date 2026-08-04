@@ -204,12 +204,22 @@ class NeonyEngine {
             if (prop === "backdrop-filter") {
                 el.style.setProperty("-webkit-backdrop-filter", value);
             }
+            // user-select needs -webkit- (Blink/WebKit) and -moz- (Gecko)
+            // prefixes — unprefixed is the standard spelling.
+            if (prop === "user-select") {
+                el.style.setProperty("-webkit-user-select", value);
+                el.style.setProperty("-moz-user-select", value);
+            }
         }
         const removeStyles = op.remove || [];
         for (const prop of removeStyles) {
             el.style.removeProperty(prop);
             if (prop === "backdrop-filter") {
                 el.style.removeProperty("-webkit-backdrop-filter");
+            }
+            if (prop === "user-select") {
+                el.style.removeProperty("-webkit-user-select");
+                el.style.removeProperty("-moz-user-select");
             }
         }
     }

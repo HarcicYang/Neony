@@ -235,6 +235,21 @@ describe("patch ops", () => {
     expect(removeProperty).toHaveBeenCalledWith("-webkit-backdrop-filter");
   });
 
+  it("update_styles: mirrors -webkit- and -moz- prefixes for user-select", () => {
+    const engine = baseEngine();
+    const a = engine.registry.get("a");
+    const setProperty = vi.spyOn(a.style, "setProperty");
+    const removeProperty = vi.spyOn(a.style, "removeProperty");
+    engine.applyOps([{ op: "update_styles", key: "a", set: { "user-select": "none" }, remove: [] }]);
+    expect(setProperty).toHaveBeenCalledWith("user-select", "none");
+    expect(setProperty).toHaveBeenCalledWith("-webkit-user-select", "none");
+    expect(setProperty).toHaveBeenCalledWith("-moz-user-select", "none");
+    engine.applyOps([{ op: "update_styles", key: "a", set: {}, remove: ["user-select"] }]);
+    expect(removeProperty).toHaveBeenCalledWith("user-select");
+    expect(removeProperty).toHaveBeenCalledWith("-webkit-user-select");
+    expect(removeProperty).toHaveBeenCalledWith("-moz-user-select");
+  });
+
   it("set_text: replaces text content", () => {
     const engine = baseEngine();
     engine.applyOps([{ op: "set_text", key: "a", text: "changed" }]);

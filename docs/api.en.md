@@ -207,6 +207,9 @@ sidebar.active_key = "settings"  # programmatic, no callback
 **Options:** `Sidebar(width, glass, corner_radius)`,
 `SidebarItem(label, key, icon, active)`
 
+Clicks anywhere on an item — including the icon or label — count:
+item-level events bubble up from its children.
+
 ---
 
 ## Theming
@@ -267,8 +270,13 @@ Styles(
     backdrop_filter="blur(16px)",
     border_radius="12px",
     border_top_right_radius="12px",
+    user_select="none",  # emits user-select + -webkit/-moz prefixes
 )
 ```
+
+Properties needing browser prefixes (`backdrop-filter`, `user-select`) are
+emitted with their prefixed variants automatically — one Python field, all
+engine spellings.
 
 ### `DomEvent`
 

@@ -41,6 +41,14 @@ describe("buildNode", () => {
     expect(setProperty).toHaveBeenCalledWith("-webkit-backdrop-filter", "blur(8px)");
   });
 
+  it("adds -webkit- and -moz- prefixes for user-select", () => {
+    const setProperty = vi.spyOn(CSSStyleDeclaration.prototype, "setProperty");
+    rt.buildNode({ key: "u", tag: "div", styles: { "user-select": "none" } }, new Map());
+    expect(setProperty).toHaveBeenCalledWith("user-select", "none");
+    expect(setProperty).toHaveBeenCalledWith("-webkit-user-select", "none");
+    expect(setProperty).toHaveBeenCalledWith("-moz-user-select", "none");
+  });
+
   it("applies attributes (empty string = boolean presence)", () => {
     const el = rt.buildNode(
       { key: "a", tag: "input", attrs: { type: "checkbox", disabled: "" } },

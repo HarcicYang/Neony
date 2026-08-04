@@ -88,6 +88,9 @@ class SidebarItem(Component):
             styles=_ITEM_ACTIVE if active else _ITEM_BASE,
             container=self._text_content(),
         )
+        # The icon/label spans carry their own keys, so clicks land on them
+        # — bubble those events up to this item's handlers.
+        self._root._bubble_events = True
         self._bind(self._root, "click")
         self._bind(self._root, "mouseover")
         self._bind(self._root, "mouseout")

@@ -198,6 +198,64 @@ class TestDeferredRender:
         assert n == 1, f"superseded deferred render emitted an extra patch (got {n})"
 
 
+class TestEventBubbling:
+    """Opt-in bubbling: events on handler-less children route to a
+    `_bubble_events` ancestor (e.g. SidebarItem's icon/label spans)."""
+
+    def _make_tree(self, bubble: bool):
+        from neony.dom import Div, Span
+
+        parent = Div(key="parent", container=[Span(key="child", container=["text"])])
+        parent._bubble_events = bubble
+        calls: list[str] = []
+        parent.on_click(lambda e: calls.append(e.key))
+        return parent, calls
+
+    def test_child_event_bubbles_to_optin_ancestor(self):
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        parent, calls = self._make_tree(bubble=True)
+        _setup_entry(app, parent, fake)
+
+        # JS resolves the click to the child span's key; the span has no
+        # handler, so the event bubbles to the _bubble_events parent.
+        asyncio.run(_fire(app, "child", "click"))
+        assert calls == ["child"], "bubbled event must keep the original element's key"
+        # The parent's own key still routes directly (exact match path).
+        asyncio.run(_fire(app, "parent", "click"))
+        assert calls == ["child", "parent"]
+
+    def test_child_event_dropped_without_optin(self):
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        parent, calls = self._make_tree(bubble=False)
+        _setup_entry(app, parent, fake)
+
+        asyncio.run(_fire(app, "child", "click"))
+        assert calls == [], "no bubbling without _bubble_events"
+        asyncio.run(_fire(app, "parent", "click"))
+        assert calls == ["parent"]
+
+    def test_bubbles_only_events_without_exact_match(self):
+        """A child with its own handler keeps it — no double dispatch."""
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+
+        from neony.dom import Div, Span
+
+        calls: list[str] = []
+        parent = Div(key="parent")
+        parent._bubble_events = True
+        child = Span(key="child", container=["text"])
+        parent.container.append(child)
+        child.on_click(lambda e: calls.append("child"))
+        parent.on_click(lambda e: calls.append("parent"))
+        _setup_entry(app, parent, fake)
+
+        asyncio.run(_fire(app, "child", "click"))
+        assert calls == ["child"], "child handler wins; parent must not double-fire"
+
+
 class TestHandlerIsolation:
     """One failing handler must not break the event chain."""
 

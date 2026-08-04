@@ -87,6 +87,9 @@ describe("event delegation", () => {
   });
 
   it("traces events to the nearest keyed ancestor", () => {
+    // The JS deliberately forwards the INNERMOST keyed element. If that
+    // element has no handler, Python-side opt-in bubbling (`_bubble_events`)
+    // routes the event to a handler-bearing ancestor instead.
     mountTree({
       key: "card",
       tag: "div",

@@ -201,6 +201,8 @@ sidebar.active_key = "settings"  # 编程切换,不触发回调
 **参数:** `Sidebar(width, glass, corner_radius)`，
 `SidebarItem(label, key, icon, active)`
 
+点击条目任意位置（包括图标与文字）都生效——条目级事件会从其子元素冒泡上来。
+
 ---
 
 ## 主题
@@ -260,8 +262,12 @@ Styles(
     backdrop_filter="blur(16px)",
     border_radius="12px",
     border_top_right_radius="12px",
+    user_select="none",  # 自动输出 user-select + -webkit/-moz 前缀
 )
 ```
+
+需要浏览器前缀的属性（`backdrop-filter`、`user-select`）会自动输出带
+前缀的变体——一个 Python 字段，覆盖所有引擎写法。
 
 ### `DomEvent`
 

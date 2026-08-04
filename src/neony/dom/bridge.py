@@ -276,6 +276,10 @@ class Neony(Plugin):
         self._rev: int = 0
         self._lock: asyncio.Lock = asyncio.Lock()
         self._handlers: dict[tuple[str | None, str], list[Callable[..., Any]]] = {}
+        # key → DOMElement lookup for opt-in event bubbling: when an event
+        # arrives for an element with no handler of its own, the bridge
+        # walks the parent chain to find a _bubble_events ancestor.
+        self._key_map: dict[str, DOMElement] = {}
         # Deferred-render coalescing (input throttling / hover de-noise):
         # a pending task scheduled by ``render(immediate=False)``; cancelled
         # and replaced on each new request within the debounce window.
@@ -305,6 +309,13 @@ class Neony(Plugin):
     async def _on_event(self, ctx: BridgeContext, key: str, event_type: str, value: Any = None) -> None:
         """Handle a DOM event forwarded from JavaScript.
 
+        Events route to the element the JS ``closest()`` resolved — usually
+        the exact element.  When that element has no handler of its own,
+        opt-in bubbling applies: if an ancestor has ``_bubble_events`` set
+        (components whose children are parts of the component, e.g.
+        SidebarItem's icon/label spans), the event routes to the nearest
+        such ancestor instead.
+
         One handler raising must not break the rest of the chain —
         each handler runs independently.
         """
@@ -313,13 +324,33 @@ class Neony(Plugin):
         from lumiview._task import _run_async
 
         log = logging.getLogger("neony.bridge")
+        dispatched = False
         for (ekey, etype), fns in self._handlers.items():
             if etype == event_type and (ekey is None or ekey == key):
+                dispatched = True
                 for fn in fns:
                     try:
                         await _run_async(fn, key=key, event_type=event_type, value=value)
                     except Exception:
                         log.exception(f"Event handler for {event_type} on {key} failed")
+        if dispatched:
+            return
+
+        # No handler on the exact element — walk up the parent chain and
+        # stop at the nearest ancestor that opted into bubbling.
+        el = self._key_map.get(key)
+        while el is not None and el._parent is not None:
+            el = el._parent
+            if not el._bubble_events:
+                continue
+            for (ekey, etype), fns in self._handlers.items():
+                if etype == event_type and ekey == el.key:
+                    for fn in fns:
+                        try:
+                            await _run_async(fn, key=key, event_type=event_type, value=value)
+                        except Exception:
+                            log.exception(f"Event handler for {event_type} on {key} failed")
+                    return
 
     async def _on_resync(self, ctx: BridgeContext, rev: int) -> None:
         """JS detected a revision gap — re-send the full mount."""

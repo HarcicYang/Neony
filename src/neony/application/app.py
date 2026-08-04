@@ -325,7 +325,13 @@ class NeonApplication:
         tree._render_request = request
 
     def _collect_handlers(self, neony: Neony, element: DOMElement, idx: int) -> None:
-        """Walk the tree and register element handlers on one window's bridge."""
+        """Walk the tree and register element handlers on one window's bridge.
+
+        Every element is recorded in the bridge's key map so opt-in event
+        bubbling (`_bubble_events`) can walk the parent chain from any
+        element whose own key has no handler.
+        """
+        neony._key_map[element.key] = element
         for event_type, fns in element._handlers.items():
             for fn in fns:
                 neony.on(event_type, key=element.key)(self._make_wrapper(fn, element, idx))

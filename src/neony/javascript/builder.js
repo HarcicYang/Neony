@@ -26,6 +26,12 @@ function buildNode(desc, registry) {
         if (prop === "backdrop-filter") {
             el.style.setProperty("-webkit-backdrop-filter", value);
         }
+        // user-select needs -webkit- (Blink/WebKit) and -moz- (Gecko)
+        // prefixes — unprefixed is the standard spelling.
+        if (prop === "user-select") {
+            el.style.setProperty("-webkit-user-select", value);
+            el.style.setProperty("-moz-user-select", value);
+        }
     }
 
     // Apply HTML attributes (empty string = boolean presence)

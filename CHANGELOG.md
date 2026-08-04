@@ -38,6 +38,14 @@
 - **Python test suites** — `tests/test_reactive.py` (primitives),
   `tests/test_dirty_tracking.py`, `tests/test_binding.py`,
   `tests/test_cross_window.py`, `tests/test_effect.py`.
+- **`Styles.user_select`** — text-selection control (`none` / `auto` /
+  `text` / `contain` / `all`); one Python field emits `user-select`
+  plus the `-webkit-` and `-moz-` prefixed variants (same treatment as
+  `backdrop-filter`, across Python serialization and the JS engine).
+- **Opt-in event bubbling** — components mark a root element with
+  `_bubble_events` so events on handler-less children (e.g. `SidebarItem`'s
+  icon/label spans) route to it. Layout containers keep strict
+  per-element routing unless they opt in.
 
 ### Changed
 

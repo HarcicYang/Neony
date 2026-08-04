@@ -51,6 +51,20 @@ class TestStyleSerialization:
         assert "width" not in node.styles
         assert "color" in node.styles
 
+    def test_user_select_emits_browser_prefixes(self):
+        d = Div(styles=Styles(user_select="none"))
+        node = d.to_node()
+        assert node.styles["user-select"] == "none"
+        assert node.styles["-webkit-user-select"] == "none"
+        assert node.styles["-moz-user-select"] == "none"
+
+    def test_user_select_none_omits_all_variants(self):
+        d = Div(styles=Styles(user_select=None))
+        node = d.to_node()
+        assert "user-select" not in node.styles
+        assert "-webkit-user-select" not in node.styles
+        assert "-moz-user-select" not in node.styles
+
 
 class TestAttrSerialization:
     """HTML attributes → flat dict."""
