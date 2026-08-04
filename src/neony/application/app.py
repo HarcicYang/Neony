@@ -46,7 +46,7 @@ class _Entry:
 
 # Style-only events: deferred one frame of coalescing so a mouse sweep
 # doesn't trigger a full-tree render per event.
-_DEFERRED_EVENTS = frozenset({"mouseover", "mouseout", "focus", "blur"})
+_DEFERRED_EVENTS = frozenset({"mouseover", "mouseout", "focus", "blur", "input"})
 
 # User state type: inferred from the ``state=`` constructor argument
 # (dataclass, pydantic model, ...).  Falls back to SimpleNamespace.
@@ -385,8 +385,8 @@ class NeonApplication(Generic[_S]):
         """Wrap a user handler: build a DomEvent, call *fn*, auto-render
         only the originating window (style-only events deferred)."""
 
-        async def wrapper(key: str, event_type: str, value: Any = None) -> None:
-            evt = DomEvent(key=key, type=event_type, value=value)
+        async def wrapper(key: str, event_type: str, value: Any = None, **extra: Any) -> None:
+            evt = DomEvent(key=key, type=event_type, value=value, **extra)
             await fn(evt)
             if self.config.auto_render:
                 immediate = event_type not in _DEFERRED_EVENTS
@@ -439,6 +439,31 @@ class NeonApplication(Generic[_S]):
         """Begin an interactive window drag (custom titlebars)."""
         await App.get().call_on_main(self._require_window(window_index).start_dragging)
 
+    async def show(self, window_index: int = 0) -> None:
+        """Show a hidden window (restore from taskbar / dock)."""
+        await App.get().call_on_main(self._require_window(window_index).show)
+
+    async def hide(self, window_index: int = 0) -> None:
+        """Hide the window (keeps it running, off the taskbar)."""
+        await App.get().call_on_main(self._require_window(window_index).hide)
+
+    async def focus(self, window_index: int = 0) -> None:
+        """Give the window keyboard focus."""
+        await App.get().call_on_main(self._require_window(window_index).focus)
+
+    async def set_bounds(self, x: float, y: float, w: float, h: float, window_index: int = 0) -> None:
+        """Move and resize a window: (*x*, *y*) is the top-left screen
+        position in logical pixels, (*w*, *h*) the new inner size.
+
+        Position goes through tao's ``set_outer_position`` directly
+        (lumiview's own ``set_bounds`` only positions the webview child
+        inside the tao window); sizing reuses :meth:`set_size`.
+        """
+        window = self._require_window(window_index)
+        if window._tao is not None:
+            await App.get().call_on_main(window._tao.set_outer_position, x, y)
+        await self.set_size(int(w), int(h), window_index=window_index)
+
     async def close(self, window_index: int = 0) -> None:
         """Request a window close, honouring the configured close behavior."""
         await App.get().call_on_main(self._require_window(window_index).request_close)
@@ -472,6 +497,24 @@ class NeonApplication(Generic[_S]):
         at runtime.
         """
         await App.get().call_on_main(self._require_window(window_index).set_icon, icon)
+
+    # ---- clipboard ----
+
+    async def clipboard_write(self, text: str, window_index: int = 0) -> None:
+        """Write *text* to the system clipboard via ``navigator.clipboard``."""
+        import json
+
+        await self._require_window(window_index).eval_js(f"navigator.clipboard.writeText({json.dumps(text)})")
+
+    async def clipboard_read(self, window_index: int = 0) -> str:
+        """Read text from the system clipboard and return it.
+
+        Requires transient user activation — call from a click / keypress
+        handler, not a timer — because the browser gates the clipboard-read
+        permission on a user gesture.  Returns ``""`` when the clipboard
+        holds no text.
+        """
+        return await self._require_window(window_index).eval_js("navigator.clipboard.readText()")
 
 
 def launch(

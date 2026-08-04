@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import sys
 from collections.abc import Callable
-from typing import Literal, Self
+from typing import Any, Literal, Self
 
-from neony.dom import Color, Div, DOMElement, Styles
+from neony.dom import Color, Div, DOMElement, DomEvent, Styles
 
 from .elements import Component
 
 _Direction = Literal["row", "row-reverse", "column", "column-reverse"]
 _Align = Literal["stretch", "center", "flex-start", "flex-end", "baseline"]
 _Justify = Literal["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"]
+
+# Shortcut modifier tokens → DomEvent modifier field names.
+_MODIFIER_ATTRS = {"ctrl": "ctrl_key", "shift": "shift_key", "alt": "alt_key", "meta": "meta_key"}
 
 
 class Page:
@@ -39,6 +44,7 @@ class Page:
         radius: str | None = None,
     ) -> None:
         self._children: list[Component | DOMElement] = []
+        self._shortcut_handlers: list[tuple[str, Callable]] = []
         self._close_handlers: list[Callable] = []
         self._focus_handlers: list[Callable] = []
         self._blur_handlers: list[Callable] = []
@@ -94,6 +100,76 @@ class Page:
         """
         self._blur_handlers.append(fn)
         return self
+
+    # ---- shortcuts ----
+
+    def on_shortcut(self, combo: str | dict[str, str], fn: Callable[[], Any]) -> Self:
+        """Register a window-level keyboard shortcut.  *fn* is called —
+        with no arguments, sync or async — when the combo is pressed
+        anywhere in this window, even while an input has focus.  Chainable.
+
+        *combo* is either a string like ``"Ctrl+S"`` (all platforms) or a
+        dict keyed by ``sys.platform`` values (``"darwin"``, ``"win32"``,
+        ``"linux"``) with a ``"default"`` fallback for per-platform
+        shortcuts::
+
+            page.on_shortcut("Ctrl+S", save)
+            page.on_shortcut({"darwin": "Meta+S", "default": "Ctrl+S"}, save)
+
+        Modifier tokens: ``Ctrl``, ``Shift``, ``Alt``, ``Meta`` (Cmd on
+        macOS).  The final token is the key, matched case-insensitively
+        against ``event.key``.  All listed modifiers must be pressed and
+        no others — ``Ctrl+Shift+S`` never fires a ``"Ctrl+S"`` binding.
+        """
+        resolved = self._resolve_combo(combo)
+        self._parse_combo(resolved)  # fail fast on typos at registration
+        self._shortcut_handlers.append((resolved, fn))
+        return self
+
+    @staticmethod
+    def _resolve_combo(combo: str | dict[str, str]) -> str:
+        if isinstance(combo, str):
+            return combo
+        if sys.platform in combo:
+            return combo[sys.platform]
+        if "default" in combo:
+            return combo["default"]
+        raise ValueError(f"on_shortcut: no entry for platform {sys.platform!r}; add a 'default' key to the combo dict")
+
+    @staticmethod
+    def _parse_combo(combo: str) -> tuple[set[str], str]:
+        """Split ``"Ctrl+Shift+S"`` into (modifier set, key)."""
+        parts = [p for p in combo.split("+") if p]
+        if len(parts) < 2:
+            raise ValueError(f"on_shortcut: {combo!r} must be MODIFIER+KEY, e.g. 'Ctrl+S'")
+        modifiers: set[str] = set()
+        for part in parts[:-1]:
+            norm = part.lower()
+            if norm not in _MODIFIER_ATTRS:
+                raise ValueError(
+                    f"on_shortcut: unknown modifier {part!r} in {combo!r} (expected Ctrl / Shift / Alt / Meta)"
+                )
+            modifiers.add(norm)
+        return modifiers, parts[-1].lower()
+
+    @classmethod
+    def _match_shortcut(cls, evt: DomEvent, combo: str) -> bool:
+        """True when *evt* (a keydown) exactly matches *combo*: all listed
+        modifiers pressed, none extra, key equal case-insensitively."""
+        if evt.type != "keydown" or evt.value is None:
+            return False
+        want_mods, want_key = cls._parse_combo(combo)
+        pressed = {m for m, attr in _MODIFIER_ATTRS.items() if getattr(evt, attr)}
+        return pressed == want_mods and evt.value.lower() == want_key
+
+    async def _dispatch_shortcuts(self, evt: DomEvent) -> None:
+        """Keydown handler attached to the page root — fire every
+        matching shortcut (sync or async handler)."""
+        for combo, fn in self._shortcut_handlers:
+            if self._match_shortcut(evt, combo):
+                result = fn()
+                if asyncio.iscoroutine(result):
+                    await result
 
     # ---- navigation & download policies ----
 
@@ -179,4 +255,11 @@ class Page:
         for child in self._children:
             container.append(child.build() if isinstance(child, Component) else child)
 
-        return Div(styles=outer, container=[Div(styles=inner, container=container)])
+        root = Div(styles=outer, container=[Div(styles=inner, container=container)])
+        if self._shortcut_handlers:
+            # Shortcuts must fire while typing in any input, so keydown
+            # anywhere in the tree bubbles to the root (opt-in bubbling
+            # via `_bubble_events`); the root's own keydowns match too.
+            root._bubble_events = True
+            root.on("keydown", self._dispatch_shortcuts)
+        return root

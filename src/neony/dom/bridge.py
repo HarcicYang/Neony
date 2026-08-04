@@ -261,7 +261,38 @@ class Neony(Plugin):
 
     # ---- JS → Python commands (called via lumiview.invoke) ----
 
-    async def _on_event(self, ctx: BridgeContext, key: str, event_type: str, value: Any = None) -> None:
+    async def _on_event(
+        self,
+        ctx: BridgeContext,
+        key: str,
+        event_type: str,
+        value: Any = None,
+        *,
+        # Rich payload fields.  Declared explicitly, not via **kwargs:
+        # lumiview commands reject varargs/varkwargs at registration and
+        # stray payload keys are rejected in strict mode, so every field
+        # the JS can send must be a named parameter here.  Forwarded to
+        # the registered handlers as DomEvent fields.
+        #
+        # Numeric fields are ``Any``: lumiview converts payload values
+        # with strict type matching (``type(value) is typ``, no unions),
+        # and browser coordinates arrive as JSON integers
+        # (``clientX: 123``) — ``float`` would reject every mouse event.
+        # ``DomEvent``'s pydantic ``float`` fields are the typed surface
+        # and coerce ints themselves.
+        ctrl_key: bool = False,
+        shift_key: bool = False,
+        alt_key: bool = False,
+        meta_key: bool = False,
+        x: Any = None,
+        y: Any = None,
+        offset_x: Any = None,
+        offset_y: Any = None,
+        delta_x: Any = None,
+        delta_y: Any = None,
+        clipboard_text: str | None = None,
+        clipboard_html: str | None = None,
+    ) -> None:
         """Handle a DOM event from JavaScript.  Events with no handler on
         their own element bubble to the nearest ``_bubble_events`` ancestor
         (SidebarItem's icon/label spans); each handler runs independently —
@@ -271,13 +302,27 @@ class Neony(Plugin):
         from lumiview._task import _run_async
 
         log = logging.getLogger("neony.bridge")
+        extra: dict[str, Any] = {
+            "ctrl_key": ctrl_key,
+            "shift_key": shift_key,
+            "alt_key": alt_key,
+            "meta_key": meta_key,
+            "x": x,
+            "y": y,
+            "offset_x": offset_x,
+            "offset_y": offset_y,
+            "delta_x": delta_x,
+            "delta_y": delta_y,
+            "clipboard_text": clipboard_text,
+            "clipboard_html": clipboard_html,
+        }
         dispatched = False
         for (ekey, etype), fns in self._handlers.items():
             if etype == event_type and (ekey is None or ekey == key):
                 dispatched = True
                 for fn in fns:
                     try:
-                        await _run_async(fn, key=key, event_type=event_type, value=value)
+                        await _run_async(fn, key=key, event_type=event_type, value=value, **extra)
                     except Exception:
                         log.exception(f"Event handler for {event_type} on {key} failed")
         if dispatched:
@@ -293,7 +338,7 @@ class Neony(Plugin):
                 if etype == event_type and ekey == el.key:
                     for fn in fns:
                         try:
-                            await _run_async(fn, key=key, event_type=event_type, value=value)
+                            await _run_async(fn, key=key, event_type=event_type, value=value, **extra)
                         except Exception:
                             log.exception(f"Event handler for {event_type} on {key} failed")
                     return

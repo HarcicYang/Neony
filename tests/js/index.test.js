@@ -57,7 +57,10 @@ describe("event delegation", () => {
     mountTree({ key: "btn", tag: "button", text: "click me" });
     const el = document.querySelector("[data-neony-key='btn']");
     el.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-    expect(invoke).toHaveBeenCalledWith("neony.event", { key: "btn", event_type: "click", value: null });
+    expect(invoke).toHaveBeenCalledWith(
+      "neony.event",
+      expect.objectContaining({ key: "btn", event_type: "click", value: null })
+    );
   });
 
   it("captures input element values", () => {
@@ -94,7 +97,10 @@ describe("event delegation", () => {
     });
     const inner = document.querySelector("[data-neony-key='inner']");
     inner.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-    expect(invoke).toHaveBeenCalledWith("neony.event", { key: "inner", event_type: "click", value: null });
+    expect(invoke).toHaveBeenCalledWith(
+      "neony.event",
+      expect.objectContaining({ key: "inner", event_type: "click", value: null })
+    );
   });
 
   it("ignores events on elements without a key", () => {
@@ -110,7 +116,10 @@ describe("event delegation", () => {
     el.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
     expect(win.close).toHaveBeenCalled();
     // ...and the normal Neony event still fires for user callbacks
-    expect(invoke).toHaveBeenCalledWith("neony.event", { key: "close-btn", event_type: "click", value: null });
+    expect(invoke).toHaveBeenCalledWith(
+      "neony.event",
+      expect.objectContaining({ key: "close-btn", event_type: "click", value: null })
+    );
   });
 
   it("does NOT route window-control actions on non-click events", () => {
@@ -124,5 +133,97 @@ describe("event delegation", () => {
     mountTree({ key: "btn", tag: "button", attrs: { "data-window-action": "nonexistent" } });
     const el = document.querySelector("[data-neony-key='btn']");
     expect(() => el.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))).not.toThrow();
+  });
+});
+
+describe("rich event payload", () => {
+  let invoke;
+  let win;
+
+  beforeEach(() => {
+    win = { minimize: vi.fn(), toggleMaximize: vi.fn(), close: vi.fn() };
+    invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { listen, invoke, window: win };
+  });
+
+  function lastPayload() {
+    return invoke.mock.calls.find(([name]) => name === "neony.event")[1];
+  }
+
+  it("carries modifier keys on keydown", () => {
+    mountTree({ key: "inp", tag: "input" });
+    const el = document.querySelector("[data-neony-key='inp']");
+    el.dispatchEvent(
+      new window.KeyboardEvent("keydown", {
+        key: "s",
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+      })
+    );
+    // Unpressed modifiers are omitted from the payload, not sent as false.
+    expect(lastPayload()).toEqual(expect.objectContaining({ ctrl_key: true, shift_key: true }));
+  });
+
+  it("carries viewport and element-relative coordinates on click", () => {
+    mountTree({ key: "btn", tag: "button" });
+    const el = document.querySelector("[data-neony-key='btn']");
+    el.dispatchEvent(new window.MouseEvent("click", { clientX: 42, clientY: 17, bubbles: true }));
+    // Element at the origin → offset == client coordinates.
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({ x: 42, y: 17, offset_x: 42, offset_y: 17 })
+    );
+  });
+
+  it("carries no coordinates on keyboard events", () => {
+    mountTree({ key: "inp", tag: "input" });
+    const el = document.querySelector("[data-neony-key='inp']");
+    el.dispatchEvent(new window.KeyboardEvent("keydown", { key: "s", bubbles: true }));
+    const payload = lastPayload();
+    expect(payload.x).toBeUndefined();
+    expect(payload.y).toBeUndefined();
+  });
+
+  it("carries wheel deltas", () => {
+    mountTree({ key: "scroller", tag: "div" });
+    const el = document.querySelector("[data-neony-key='scroller']");
+    el.dispatchEvent(new window.WheelEvent("wheel", { deltaX: 10, deltaY: -3, bubbles: true }));
+    expect(lastPayload()).toEqual(expect.objectContaining({ delta_x: 10, delta_y: -3 }));
+  });
+
+  it("forwards paste clipboard data as plain text and HTML", () => {
+    mountTree({ key: "inp", tag: "input" });
+    const el = document.querySelector("[data-neony-key='inp']");
+    const clipboardData = {
+      getData: vi.fn((type) => (type === "text/html" ? "<b>hi</b>" : "hi")),
+    };
+    const event = new window.Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: clipboardData });
+    el.dispatchEvent(event);
+    expect(clipboardData.getData).toHaveBeenCalledWith("text/plain");
+    expect(clipboardData.getData).toHaveBeenCalledWith("text/html");
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({ clipboard_text: "hi", clipboard_html: "<b>hi</b>" })
+    );
+  });
+
+  it("fires copy as a notification without clipboard payload", () => {
+    mountTree({ key: "inp", tag: "input" });
+    const el = document.querySelector("[data-neony-key='inp']");
+    el.dispatchEvent(new window.Event("copy", { bubbles: true, cancelable: true }));
+    const payload = lastPayload();
+    expect(payload.clipboard_text).toBeUndefined();
+    expect(payload.clipboard_html).toBeUndefined();
+  });
+
+  it("does not include modifier keys when no modifier is pressed", () => {
+    mountTree({ key: "btn", tag: "button" });
+    const el = document.querySelector("[data-neony-key='btn']");
+    el.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    const payload = lastPayload();
+    expect(payload.ctrl_key).toBeUndefined();
+    expect(payload.shift_key).toBeUndefined();
+    expect(payload.alt_key).toBeUndefined();
+    expect(payload.meta_key).toBeUndefined();
   });
 });

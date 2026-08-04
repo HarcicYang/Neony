@@ -275,12 +275,40 @@ class DomEvent(BaseModel):
     ``type`` (DOM event name), ``value`` (``el.value`` for inputs,
     ``el.checked`` for checkboxes, else ``None``).  ``source`` tells real
     user interaction ("user") from programmatic changes ("program"),
-    which must not fire user callbacks."""
+    which must not fire user callbacks.
+
+    Rich fields: modifier keys (``ctrl_key`` ... — ``True`` only when
+    pressed), mouse coordinates (``x``/``y`` viewport-relative,
+    ``offset_x``/``offset_y`` element-relative), wheel delta
+    (``delta_x``/``delta_y``), and clipboard data (``clipboard_text`` /
+    ``clipboard_html`` — paste events only).  Absent on events that
+    don't carry them.
+    """
 
     key: str
     type: str
     value: Any = None
     source: Literal["user", "program"] = "program"
+
+    # Modifier keys.
+    ctrl_key: bool = False
+    shift_key: bool = False
+    alt_key: bool = False
+    meta_key: bool = False
+
+    # Mouse coordinates (MouseEvent / WheelEvent).
+    x: float | None = None
+    y: float | None = None
+    offset_x: float | None = None
+    offset_y: float | None = None
+
+    # Wheel delta (WheelEvent).
+    delta_x: float | None = None
+    delta_y: float | None = None
+
+    # Clipboard data (paste events only).
+    clipboard_text: str | None = None
+    clipboard_html: str | None = None
 
 
 class NodeDescriptor(BaseModel):
@@ -610,6 +638,17 @@ class DOMElement(BaseModel):
 
     def on_mouseout(self, fn: Callable[..., Any]) -> DOMElement:
         return self.on("mouseout", fn)
+
+    def on_paste(self, fn: Callable[..., Any]) -> DOMElement:
+        """Paste — ``event.clipboard_text`` / ``event.clipboard_html``
+        carry the clipboard contents."""
+        return self.on("paste", fn)
+
+    def on_copy(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("copy", fn)
+
+    def on_cut(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("cut", fn)
 
     # ---- internal helpers ----
 

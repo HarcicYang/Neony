@@ -46,8 +46,8 @@ def _setup_entry(app: NeonApplication, tree, fake: FakeWindow) -> Neony:
     return neony
 
 
-async def _fire(app: NeonApplication, key: str, event_type: str, value: Any = None) -> None:
-    await app._entries[0].neony._on_event(cast(Any, None), key=key, event_type=event_type, value=value)
+async def _fire(app: NeonApplication, key: str, event_type: str, value: Any = None, **extra: Any) -> None:
+    await app._entries[0].neony._on_event(cast(Any, None), key=key, event_type=event_type, value=value, **extra)
 
 
 def _build_app() -> tuple[NeonApplication, FakeWindow, dict]:
@@ -73,12 +73,14 @@ class TestRevContinuity:
             await app.render()  # mount (rev 1)
             inp = els["input"]
 
-            # user types → patch sent
+            # user types → deferred render flushed after the debounce window
             await _fire(app, inp._input.key, "input", "a")
+            await asyncio.sleep(0.05)
             # change event on blur → diff finds nothing → NO patch, NO rev bump
             await _fire(app, inp._input.key, "change", "a")
             # user types again → next patch must be rev 2 (continuous), not 3
             await _fire(app, inp._input.key, "input", "ab")
+            await asyncio.sleep(0.05)
 
             return [p["rev"] for p in fake.patches]
 
@@ -95,6 +97,7 @@ class TestRevContinuity:
             inp = els["input"]
             for ch in ("a", "ab", "abc"):
                 await _fire(app, inp._input.key, "input", ch)
+                await asyncio.sleep(0.05)  # flush each deferred render
             return [p["rev"] for p in fake.patches]
 
         revs = asyncio.run(run())
@@ -120,10 +123,12 @@ class TestRevContinuity:
             await app.render()  # mount rev 1
             # type in a
             await _fire(app, a._input.key, "input", "x")
+            await asyncio.sleep(0.05)  # flush deferred render
             # focus leaves a → change with no diff
             await _fire(app, a._input.key, "change", "x")
             # type in b — must NOT resync
             await _fire(app, b._input.key, "input", "y")
+            await asyncio.sleep(0.05)  # flush deferred render
             # echo state updated on the Python side
             assert echo_a.text == "Ax"
             assert echo_b.text == "By"
@@ -135,10 +140,11 @@ class TestRevContinuity:
 
 
 class TestDeferredRender:
-    """Hover / focus / blur events coalesce into one deferred render.
+    """Hover / focus / blur / input events coalesce into one deferred render.
 
-    Immediate-path events (input, click) still render synchronously —
-    those tests live in TestRevContinuity above.
+    Immediate-path events (click, change, keydown, ...) still render
+    synchronously — the input tests in TestRevContinuity above now flush
+    their deferred renders explicitly.
     """
 
     def test_hover_defers_render(self):
@@ -183,13 +189,18 @@ class TestDeferredRender:
     def test_immediate_event_cancels_pending_deferred(self):
         """An immediate-path event arriving during the debounce window
         supersedes the pending deferred render."""
-        app, fake, els = _build_app()
-        inp = els["input"]
+        from neony.application.elements import Button
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        btn = Button("go")
+        tree = VStack(btn).build()
+        _setup_entry(app, tree, fake)
 
         async def run():
             await app.render()  # mount rev 1
-            await _fire(app, inp._input.key, "focus")  # deferred → scheduled
-            await _fire(app, inp._input.key, "input", "a")  # immediate → runs now
+            await _fire(app, btn._btn.key, "focus")  # deferred → scheduled
+            await _fire(app, btn._btn.key, "click")  # immediate → runs now
             assert len(fake.patches) == 1, "immediate event rendered synchronously"
             await asyncio.sleep(0.05)
             # The superseded deferred task must not emit a second patch —
@@ -198,6 +209,143 @@ class TestDeferredRender:
 
         n = asyncio.run(run())
         assert n == 1, f"superseded deferred render emitted an extra patch (got {n})"
+
+    def test_rapid_input_burst_coalesces(self):
+        """Typing without pause coalesces into one deferred render, not
+        one patch per keystroke."""
+        app, fake, els = _build_app()
+        inp = els["input"]
+
+        async def run():
+            await app.render()  # mount rev 1
+            # Three keystrokes within the debounce window — the intermediate
+            # renders are cancelled; only the final state lands.
+            for ch in ("a", "ab", "abc"):
+                await _fire(app, inp._input.key, "input", ch)
+            assert fake.patches == [], "deferred renders must not fire synchronously"
+            await asyncio.sleep(0.05)
+            return len(fake.patches)
+
+        n = asyncio.run(run())
+        assert n == 1, f"expected 1 coalesced patch, got {n}"
+
+
+class TestRichPayload:
+    """Modifier keys / coordinates / delta / clipboard flow from the JS
+    invocation through _on_event into the user's DomEvent."""
+
+    @staticmethod
+    def _keydown_app() -> tuple[NeonApplication, FakeWindow, str, list[DomEvent]]:
+        """App wired to a raw keyed Div whose keydown handler records
+        events.  Raw elements register handlers directly (components
+        bind only their own events), so the whole tree can be collected
+        in one pass."""
+        from neony.dom import Div
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        div = Div(key="kbd")
+        received: list[DomEvent] = []
+        div.on_keydown(lambda e: received.append(e))
+        _setup_entry(app, div, fake)
+        return app, fake, div.key, received
+
+    def test_modifier_keys_reach_handler(self):
+        app, _fake, key, received = self._keydown_app()
+
+        asyncio.run(_fire(app, key, "keydown", "s", ctrl_key=True, shift_key=True))
+
+        assert len(received) == 1
+        assert received[0].ctrl_key is True
+        assert received[0].shift_key is True
+        assert received[0].alt_key is False
+        assert received[0].meta_key is False
+
+    def test_coordinates_reach_handler(self):
+        app, _fake, key, received = self._keydown_app()
+
+        asyncio.run(_fire(app, key, "keydown", "s", x=42, y=17, offset_x=10, offset_y=5))
+
+        assert received[0].x == 42
+        assert received[0].y == 17
+        assert received[0].offset_x == 10
+        assert received[0].offset_y == 5
+
+    def test_missing_rich_fields_default(self):
+        """Events without rich payload fields keep the defaults — backward
+        compatible with the old 4-field payload."""
+        app, _fake, key, received = self._keydown_app()
+
+        asyncio.run(_fire(app, key, "keydown", "s"))
+
+        evt = received[0]
+        assert evt.ctrl_key is False
+        assert evt.x is None
+        assert evt.delta_x is None
+        assert evt.clipboard_text is None
+
+    def test_numeric_coords_pass_lumiview_strict_conversion(self):
+        """Browser coordinates arrive as JSON integers (clientX: 123), but
+        lumiview converts payload values with strict type matching.  The
+        command signature must accept ints or every mouse event would be
+        rejected at the bridge (gallery regression: clicks dead)."""
+        import typing
+
+        from lumiview._binding import _converter, bind_arguments
+        from lumiview._scope import Command, Scope
+
+        # The command system registers the *bound* method (no `self`),
+        # exactly like ``self.command(self._on_event, ...)`` in __init__.
+        command_fn = Neony(name="neony")._on_event
+        hints = typing.get_type_hints(command_fn)
+        for value in (123, 12.5):
+            for name in ("x", "y", "offset_x", "offset_y", "delta_x", "delta_y"):
+                converted = _converter.structure(value, hints[name])
+                assert converted == value, f"{name}={value!r} failed strict conversion"
+
+        # The whole JS payload shape binds without error...
+        payload = {
+            "key": "btn",
+            "event_type": "click",
+            "value": None,
+            "x": 123,
+            "y": 45,
+            "offset_x": 12,
+            "offset_y": 9,
+        }
+        bound = bind_arguments(
+            Command(fn=command_fn, name="event", scope=Scope("test")),
+            payload,
+            window=None,
+        )
+        assert bound["x"] == 123
+        assert bound["offset_y"] == 9
+        # ...and the bound kwargs invoke the command (no invalid_argument).
+        assert bound["key"] == "btn"
+        assert bound["event_type"] == "click"
+
+    def test_clipboard_data_reaches_handler(self):
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        div = Div(key="paste-target")
+        received: list[DomEvent] = []
+        div.on_paste(lambda e: received.append(e))
+        _setup_entry(app, div, fake)
+
+        asyncio.run(
+            _fire(
+                app,
+                div.key,
+                "paste",
+                None,
+                clipboard_text="hi",
+                clipboard_html="<b>hi</b>",
+            )
+        )
+
+        assert len(received) == 1
+        assert received[0].clipboard_text == "hi"
+        assert received[0].clipboard_html == "<b>hi</b>"
 
 
 class TestEventBubbling:

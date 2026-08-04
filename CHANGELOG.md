@@ -83,6 +83,34 @@
 - **`TitleBar(icon=...)`** — inline icon for frameless windows, painted
   left of the title (the frameless counterpart of `WindowConfig.icon`,
   which only shows in OS window chrome).
+- **Input throttling** — `input` joins the deferred render path: typing
+  coalesces into one render per frame instead of one per keystroke
+  (same one-frame debounce as hover/focus).
+- **Rich event payload** — `DomEvent` gains modifier keys (`ctrl_key` /
+  `shift_key` / `alt_key` / `meta_key`), mouse coordinates (`x` / `y`
+  viewport, `offset_x` / `offset_y` element-relative), wheel deltas
+  (`delta_x` / `delta_y`), and clipboard data (`clipboard_text` /
+  `clipboard_html`); `wheel` joins the delegated event table.
+- **Clipboard events** — `paste` / `copy` / `cut` delegated to elements;
+  paste carries the clipboard's plain-text and HTML forms (the
+  synchronous `getData` window), copy/cut are notifications. New
+  `on_paste()` / `on_copy()` / `on_cut()` convenience methods.
+- **In-app shortcuts** — `Page.on_shortcut("Ctrl+S", fn)` registers
+  window-level keybindings that fire even while an input has focus
+  (bubbling keydown); accepts a per-platform dict
+  (`{"darwin": "Meta+S", "default": "Ctrl+S"}`). Modifiers must match
+  exactly; the key matches case-insensitively.
+- **Window state control** — `NeonApplication.show()` / `hide()` /
+  `focus()` / `set_bounds(x, y, w, h)`; `set_bounds` positions the
+  window on screen via tao's `set_outer_position` (lumiview's own
+  `set_bounds` only moves the webview child) and resizes via `set_size`.
+- **Clipboard API** — `NeonApplication.clipboard_write(text)` /
+  `clipboard_read()` wrap `navigator.clipboard` (read requires a user
+  gesture, like the browser).
+- **Local resource URLs** — `file_url(path)` → `file://` URL (Windows
+  paths, spaces, non-ASCII all handled) and `data_url(path)` → base64
+  `data:` URL with MIME guess, exported from `neony.application` for
+  local images in `GlassPanel(background=...)`, `TitleBar(icon=...)`, ...
 
 ### Changed
 
@@ -112,6 +140,13 @@
   shadowed the null fallback.
 - `captureValue` (JavaScript) lost the pressed key for `keydown`/`keyup`
   on inputs — the element's `value` was captured before `event.key`.
+- **Mouse events dead after the rich payload landed** — browser
+  coordinates arrive as JSON integers (`clientX: 123`), but lumiview
+  converts command payloads with strict type matching (no unions), so a
+  `float` annotation rejected every `neony.event` call carrying
+  coordinates — clicks went silently missing.  The bridge's numeric
+  fields are now `Any` (validated/coerced by `DomEvent`'s pydantic
+  fields), with a regression test exercising the real binding path.
 
 ### Docs
 

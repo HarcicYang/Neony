@@ -5,7 +5,7 @@ Planned work, roughly in priority order.
 ## Performance
 
 - [x] **Hover de-noise** — `mouseover`/`mouseout`/`focus`/`blur` render deferred (one frame of coalescing)
-- [ ] **Input throttling** — coalescing render pipeline in place; `on_input` still renders per keystroke, hooking it into the deferred path is a one-line change
+- [x] **Input throttling** — `input` joins the deferred render path; typing coalesces into one render per frame
 - [x] **Dirty-subtree diffing** — only changed elements re-serialize; mutations mark their ancestors dirty
 - [x] **Snapshot reuse** — unchanged subtrees reuse cached snapshots, skipping `to_node()`
 - [x] **Style direct-patch** — pure style changes bypass the full diff
@@ -21,9 +21,11 @@ Planned work, roughly in priority order.
 
 - [ ] **Scroll & wheel events** — `wheel` and `scroll` in the delegation table, with delta values in the event payload
 - [ ] **Pointer move events** — `pointermove` / `mousemove` for sliders, drawing, tooltip-follow, drag feedback
-- [ ] **Drag-and-drop events** — `dragstart` / `dragover` / `drop` for file drop and in-app drag reorder
-- [ ] **Clipboard events** — `paste` / `copy` / `cut` for rich-text fields and paste-from-clipboard workflows
-- [ ] **Rich event payload** — `DomEvent` currently carries only `key` / `type` / `value`. Add modifier keys (`ctrl` / `shift` / `meta` / `alt`), mouse coordinates (`x` / `y`), and wheel delta (`delta_x` / `delta_y`) so shortcut keys, right-click menus, and scroll-aware UIs work without `eval_js`.
+- [ ] **File drop** — `drop` / `dragenter` / `dragover` / `dragleave` in the delegation table; `DomEvent.files` carries `dataTransfer.files` as `[{path, name, size, type}]` (`File.path` works on WebView2 / WebKitGTK, empty on macOS WKWebView — tolerate `null`); `on_drop(fn)` on components; must `preventDefault()` or the webview navigates to the file (already blocked by the navigation defaults)
+- [ ] **In-app drag reorder** — `dragstart` / `dragover` / `drop`; needs a user hook (via `eval_js` or a future API) to call `dataTransfer.setData(...)`, since the delegate can't know the drag payload
+- [x] **Clipboard events** — `paste` / `copy` / `cut` delegated; paste carries `clipboard_text` / `clipboard_html`, copy/cut are notifications
+- [x] **Rich event payload** — `DomEvent` carries modifier keys (`ctrl_key` / `shift_key` / `alt_key` / `meta_key`), mouse coordinates (`x` / `y` / `offset_x` / `offset_y`), and wheel delta (`delta_x` / `delta_y`) — shortcut keys, right-click menus, and scroll-aware UIs work without `eval_js`
+- [x] **In-app shortcuts** — `Page.on_shortcut("Ctrl+S", fn)` (per-platform dict supported), fires while typing in any input via bubbling keydown
 
 ## Lifecycle
 
@@ -50,11 +52,11 @@ Planned work, roughly in priority order.
 
 - [ ] **File dialogs** — open/save file via native OS dialog
 - [x] **Window icon** — `WindowConfig.icon` at startup; `app.set_icon()` at runtime; `TitleBar(icon=...)` inline for frameless windows
-- [ ] **Window state query** — `get_size()` / `get_bounds()` / `show()` / `hide()` / `focus()` / `set_bounds()` exposed on `NeonApplication`
-- [ ] **Clipboard API** — typed wrapper around `navigator.clipboard` (read/write text, images)
-- [ ] **Local resource URL helper** — `file://` / data-URL encoding for Windows paths, spaces, non-ASCII filenames
+- [ ] **Window state query** — `show()` / `hide()` / `focus()` / `set_bounds()` (screen position via tao `set_outer_position`) are exposed; only the query half (`get_size()` / `get_bounds()`) remains, needs lumiview upstream
+- [x] **Clipboard API** — `clipboard_write(text)` / `clipboard_read()` wrap `navigator.clipboard` (text; read needs a user gesture)
+- [x] **Local resource URL helper** — `file_url()` / `data_url()` for Windows paths, spaces, non-ASCII filenames
 - [ ] **System tray** — tray icon with context menu (tao-supported, needs lumiview upstream)
-- [ ] **Global shortcuts** — app-wide keybindings that work even when the window is not focused (tao-supported, needs lumiview upstream)
+- [ ] **Global shortcuts** — app-wide keybindings that work even when the window is *not* focused. No JS API can observe keys outside a focused window, so this needs native code: tao 0.9.1+ has `platform::global_shortcut`, needs lumiview upstream. Caveat: the Linux hotkey ecosystem is X11-only — Wayland gets nothing
 
 ## Platform verification
 

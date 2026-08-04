@@ -36,6 +36,7 @@
         "click", "dblclick", "input", "change", "submit",
         "keydown", "keyup", "focus", "blur", "contextmenu",
         "mouseover", "mouseout", "mousedown", "mouseup",
+        "wheel", "paste", "copy", "cut",
     ];
 
     function captureValue(el, event) {
@@ -67,11 +68,47 @@
         var key = el.getAttribute("data-neony-key");
         var value = captureValue(el, event);
 
-        window.lumiview.invoke("neony.event", {
+        var payload = {
             key: key,
             event_type: event.type,
             value: value,
-        }).catch(function () {
+        };
+
+        // Modifier keys — present on KeyboardEvent, MouseEvent, ...
+        if (event.ctrlKey) payload.ctrl_key = true;
+        if (event.shiftKey) payload.shift_key = true;
+        if (event.altKey) payload.alt_key = true;
+        if (event.metaKey) payload.meta_key = true;
+
+        // Mouse coordinates (MouseEvent / WheelEvent only — undefined
+        // elsewhere, so the guard keeps keydown payloads lean).
+        if (event.clientX !== undefined) {
+            payload.x = event.clientX;
+            payload.y = event.clientY;
+            payload.offset_x = event.offsetX;
+            payload.offset_y = event.offsetY;
+        }
+
+        // Wheel delta (WheelEvent only)
+        if (event.deltaX !== undefined) {
+            payload.delta_x = event.deltaX;
+            payload.delta_y = event.deltaY;
+        }
+
+        // Clipboard data — paste only.  getData() works only during the
+        // synchronous dispatch, which this capture-phase handler is.
+        // copy / cut have already written the selection by now, so they
+        // fire as notifications without payload.
+        if (event.type === "paste" && event.clipboardData) {
+            try {
+                payload.clipboard_text = event.clipboardData.getData("text/plain");
+            } catch (e) {}
+            try {
+                payload.clipboard_html = event.clipboardData.getData("text/html");
+            } catch (e) {}
+        }
+
+        window.lumiview.invoke("neony.event", payload).catch(function () {
             // Fire-and-forget — ignore delivery failures
         });
     }

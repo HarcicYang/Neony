@@ -12,6 +12,7 @@ from neony.application.app import NeonApplication, launch
 from neony.application.config import Config, WebViewConfig, WindowConfig
 from neony.application.page import Page
 from neony.application.theme import DARK, DEEP_BLUE, LIGHT, Theme
+from neony.application.urls import data_url, file_url
 
 __all__ = [
     "DARK",
@@ -23,5 +24,7 @@ __all__ = [
     "Theme",
     "WebViewConfig",
     "WindowConfig",
+    "data_url",
+    "file_url",
     "launch",
 ]

@@ -8,7 +8,7 @@ completed is a stacking notification.
 """
 
 import asyncio
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from lumiview import WindowHookEvent
@@ -160,6 +160,127 @@ class TestFocusBlur:
         _app, win = _wire_focus(page)
 
         assert not win.hooks  # no handlers → no registrations
+
+
+def _fire_event(app: NeonApplication, key: str, event_type: str, value: Any = None, **extra: Any) -> None:
+    """Dispatch a DOM event into the bridge (mirrors the JS invoke)."""
+    asyncio.run(app._entries[0].neony._on_event(cast(Any, None), key=key, event_type=event_type, value=value, **extra))
+
+
+class TestShortcuts:
+    """Page.on_shortcut — window-level keybindings via bubbling keydown."""
+
+    @staticmethod
+    def _make(*combos: str) -> tuple[NeonApplication, str, list[str]]:
+        """Page with each combo registered; returns (app, root_key, calls)."""
+        from neony.dom import Div
+
+        calls: list[str] = []
+        page = Page()
+        for i, combo in enumerate(combos):
+            page.on_shortcut(combo, lambda name=f"c{i}": calls.append(name))
+        inner = Div(key="inner-child")
+        page.add(inner)  # keydown from a child exercises the bubble path
+        app = NeonApplication(Config())
+        entry = _entry(page)
+        app._entries.append(entry)
+        app._collect_handlers(entry.neony, entry.tree, 0)
+        return app, entry.tree.key, calls
+
+    def test_fires_on_matching_combo(self):
+        app, root, calls = self._make("Ctrl+K")
+
+        _fire_event(app, root, "keydown", "k", ctrl_key=True)
+
+        assert calls == ["c0"]
+
+    def test_does_not_fire_for_key_alone(self):
+        app, root, calls = self._make("Ctrl+K")
+
+        _fire_event(app, root, "keydown", "k")
+
+        assert calls == []
+
+    def test_does_not_fire_with_extra_modifier(self):
+        app, root, calls = self._make("Ctrl+K")
+
+        _fire_event(app, root, "keydown", "K", ctrl_key=True, shift_key=True)
+
+        assert calls == []
+
+    def test_case_insensitive_key(self):
+        app, root, calls = self._make("Ctrl+Shift+K")
+
+        _fire_event(app, root, "keydown", "K", ctrl_key=True, shift_key=True)
+
+        assert calls == ["c0"]
+
+    def test_bubbles_from_child_element(self):
+        """Typing in an inner element (no keydown handler of its own)
+        reaches the page root via opt-in bubbling."""
+        app, _root, calls = self._make("Ctrl+K")
+
+        _fire_event(app, "inner-child", "keydown", "k", ctrl_key=True)
+
+        assert calls == ["c0"]
+
+    def test_multiple_shortcuts_independent(self):
+        app, root, calls = self._make("Ctrl+K", "Ctrl+Shift+S")
+
+        _fire_event(app, root, "keydown", "s", ctrl_key=True, shift_key=True)
+
+        assert calls == ["c1"]
+
+    def test_per_platform_dict_picks_current_platform(self):
+        calls: list[str] = []
+        page = Page()
+        page.on_shortcut({"linux": "Ctrl+L", "default": "Ctrl+K"}, lambda: calls.append("pressed"))
+        app = NeonApplication(Config())
+        entry = _entry(page)
+        app._entries.append(entry)
+        app._collect_handlers(entry.neony, entry.tree, 0)
+
+        _fire_event(app, entry.tree.key, "keydown", "l", ctrl_key=True)
+        _fire_event(app, entry.tree.key, "keydown", "k", ctrl_key=True)
+        # Exactly one combo is bound — the platform-specific one when
+        # this platform has an entry, else the "default" fallback.
+        assert calls == ["pressed"]
+
+    def test_async_handler_awaited(self):
+        import asyncio
+
+        calls: list[str] = []
+        page = Page()
+
+        async def handler() -> None:
+            await asyncio.sleep(0)
+            calls.append("async")
+
+        page.on_shortcut("Ctrl+S", handler)
+        app = NeonApplication(Config())
+        entry = _entry(page)
+        app._entries.append(entry)
+        app._collect_handlers(entry.neony, entry.tree, 0)
+
+        _fire_event(app, entry.tree.key, "keydown", "s", ctrl_key=True)
+
+        assert calls == ["async"]
+
+    def test_chainable(self):
+        page = Page()
+        assert page.on_shortcut("Ctrl+K", lambda: None) is page
+
+    def test_unknown_modifier_raises(self):
+        with pytest.raises(ValueError, match="unknown modifier"):
+            Page().on_shortcut("Ctr+K", lambda: None)
+
+    def test_missing_modifier_raises(self):
+        with pytest.raises(ValueError, match="MODIFIER\\+KEY"):
+            Page().on_shortcut("K", lambda: None)
+
+    def test_dict_missing_current_platform_and_default_raises(self):
+        with pytest.raises(ValueError, match="'default'"):
+            Page().on_shortcut({"darwin": "Meta+K"}, lambda: None)
 
 
 def _wire_policies(
