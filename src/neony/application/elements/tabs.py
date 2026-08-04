@@ -8,7 +8,7 @@ from .base import Component
 
 _TAB_BASE = Styles(
     padding="10px 24px",
-    border_radius="8px 8px 0 0",
+    border_radius="8px",
     font_size="14px",
     font_weight="500",
     cursor="pointer",
