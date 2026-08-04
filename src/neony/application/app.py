@@ -105,6 +105,8 @@ class NeonApplication:
     def __init__(self, config: Config | None = None) -> None:
         self.config = config or Config()
         self._entries: list[_Entry] = []
+        # Fire-and-forget render tasks scheduled by signal bindings.
+        self._render_tasks: set[asyncio.Task] = set()
         self.state: SimpleNamespace = SimpleNamespace()
         self.theme: Theme = Theme()
         self.ready_handler: Any = None  # optional async callable, run after windows ready
@@ -124,6 +126,7 @@ class NeonApplication:
             idx = len(self._entries)
             self._entries.append(_Entry(neony, tree))
             self._collect_handlers(neony, tree, idx)
+            self._arm_render_request(tree, idx)
         # Linux: make the taskbar/dock show the app name instead of
         # ``python3`` — lumiview's App(name=...) never reaches WM_CLASS.
         _set_linux_app_name(self.config.window.title)
@@ -302,6 +305,24 @@ class NeonApplication:
                 raise
 
     # ---- handler collection ----
+
+    def _arm_render_request(self, tree: DOMElement, idx: int) -> None:
+        """Wire the tree root so signal-bound writes can schedule renders.
+
+        A binding effect that writes this tree requests a render through
+        the root; outside a running event loop the request is dropped
+        (the next event-driven render picks the change up anyway).
+        """
+
+        def request() -> None:
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                return
+            # Held in a set so the task isn't garbage-collected mid-run.
+            self._render_tasks.add(asyncio.create_task(self.render(window_index=idx)))
+
+        tree._render_request = request
 
     def _collect_handlers(self, neony: Neony, element: DOMElement, idx: int) -> None:
         """Walk the tree and register element handlers on one window's bridge."""

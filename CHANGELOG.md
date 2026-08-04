@@ -15,8 +15,35 @@
   value referencing the role's glass token.
 - **Linux app name (WM_CLASS)** — `g_set_prgname` via ctypes so the
   taskbar/dock shows the app name instead of `python3`.
+- **Reactive primitives** (`neony.dom`) — `Signal`, `Computed`, `Effect`,
+  plus `batch()`, `untrack()` and `SharedSignal` for cross-window state.
+  Automatic dependency tracking, cached derived values, and coalesced
+  re-runs (`loop.call_soon` with a running loop, `batch()` synchronously).
+  A crashing effect inside a flush is isolated — the rest of the batch
+  still runs.
+- **Declarative bindings** — `bind_text()`, `bind_style()`, `bind_attr()`,
+  `bind_visible()` and `unbind()` on `DOMElement` and `Component`. A bound
+  signal write marks the element dirty and schedules a render for its
+  window (armed per-tree by `NeonApplication`) — no manual refresh calls.
+- **Dirty-subtree tracking** — mutations mark the element (and, via
+  parent pointers, every ancestor) dirty; rendering re-serializes only
+  dirty elements. Unchanged subtrees reuse cached snapshots, which the
+  diff engine sees as identical — zero patches. In-place `container`
+  mutations participate through a parent-aware list proxy.
+- **Cross-window reactivity** — a write to a `SharedSignal` updates every
+  window whose tree binds it, each through its own render request.
+- **JavaScript unit tests** — vitest + jsdom covering the browser runtime
+  (event delegation, patch engine, DOM builder); wired into CI via
+  `npm ci && npm test` (replacing the `node --check` syntax-only step).
+- **Python test suites** — `tests/test_reactive.py` (primitives),
+  `tests/test_dirty_tracking.py`, `tests/test_binding.py`,
+  `tests/test_cross_window.py`, `tests/test_effect.py`.
 
 ### Changed
+
+- **Render path** — `Neony.render()` serializes through a per-key snapshot
+  cache; only dirty subtrees are re-walked. `test_reactive.py` rewritten
+  around the signal API (declarative bindings instead of manual refresh).
 
 - **LumiView `0.1.0.dev1` → `0.1.0.dev2`** — `Neony` now subclasses the
   explicit `Plugin` lifecycle class (duck-typed `on_init`/`on_ready`
@@ -35,11 +62,21 @@
 - `PageLoadFinished` handler crash: the event carries the loaded URL as
   an argument, which overwrote the default-bound event; the lambda now
   absorbs `*_args`.
+- `captureValue` (JavaScript) forwarded `value: ""` for `<button>`
+  elements instead of `null` — a button's default `value` IDL property
+  shadowed the null fallback.
+- `captureValue` (JavaScript) lost the pressed key for `keydown`/`keyup`
+  on inputs — the element's `value` was captured before `event.key`.
 
 ### Docs
 
 - `readme.md` / `readme.zh.md` — new features, theming section, roadmap
-  checkboxes.
+  checkboxes; roadmap marks dirty-subtree diffing / snapshot reuse done
+  and adds a Reactivity section.
+- `docs/api.en.md` / `docs/api.zh.md` — new Reactivity chapter (Signal,
+  Computed, Effect, batch, untrack, SharedSignal, bindings, dirty-subtree
+  tracking); the standalone bilingual `docs.md` was split into the two
+  per-language files and removed.
 
 ---
 

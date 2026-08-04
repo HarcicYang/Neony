@@ -270,6 +270,9 @@ class Neony(Plugin):
         self._win: Window | None = None
         self._snapshot: NodeDescriptor | None = None
         self._last_tree: DOMElement | None = None
+        # Per-key snapshot cache for dirty-subtree tracking: unchanged
+        # elements reuse their cached NodeDescriptor (see to_node).
+        self._snapshots: dict[str, NodeDescriptor] = {}
         self._rev: int = 0
         self._lock: asyncio.Lock = asyncio.Lock()
         self._handlers: dict[tuple[str | None, str], list[Callable[..., Any]]] = {}
@@ -408,13 +411,18 @@ class Neony(Plugin):
             return await self._do_render(element)
 
     async def _do_render(self, element: DOMElement) -> PatchMessage | None:
-        """The actual render cycle: serialize, diff, emit patches."""
+        """The actual render cycle: serialize, diff, emit patches.
+
+        Serialization passes the per-key snapshot cache: elements that
+        did not change since the last render are reused verbatim (their
+        dirty flag is clear), so only dirty subtrees are re-walked.
+        """
         if self._win is None:
             raise RuntimeError(
                 "Neony: window not ready — the bridge must be included "
                 "in a LumiView Bridge and the window must be created."
             )
-        new_node = element.to_node()
+        new_node = element.to_node(snapshot_cache=self._snapshots)
         msg: PatchMessage | None = None
 
         if self._snapshot is None:

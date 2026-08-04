@@ -17,7 +17,7 @@ import asyncio
 from collections.abc import Callable
 from typing import Any, Self
 
-from neony.dom import DOMElement, DomEvent, Styles
+from neony.dom import DOMElement, DomEvent, Signal, Styles
 
 
 class Component:
@@ -48,6 +48,33 @@ class Component:
         Later calls overwrite earlier ones — no merging.
         """
         self._root.styles = styles
+        return self
+
+    # ---- signal bindings (proxy to the root element) ----
+
+    def bind_text(self, signal: Signal[Any], fmt: Callable[[Any], str] = str) -> Self:
+        """Bind *signal* to the component's text content (see DOMElement.bind_text)."""
+        self._root.bind_text(signal, fmt)
+        return self
+
+    def bind_style(self, signal: Signal[Any], prop: str, fmt: Callable[[Any], str] = str) -> Self:
+        """Bind *signal* to a root style property (see DOMElement.bind_style)."""
+        self._root.bind_style(signal, prop, fmt)
+        return self
+
+    def bind_attr(self, signal: Signal[Any], name: str, fmt: Callable[[Any], str] = str) -> Self:
+        """Bind *signal* to a root HTML attribute (see DOMElement.bind_attr)."""
+        self._root.bind_attr(signal, name, fmt)
+        return self
+
+    def bind_visible(self, signal: Signal[Any]) -> Self:
+        """Bind *signal* to the root's visibility (see DOMElement.bind_visible)."""
+        self._root.bind_visible(signal)
+        return self
+
+    def unbind(self) -> Self:
+        """Dispose every signal binding on the root element."""
+        self._root.unbind()
         return self
 
     # ---- event API ----

@@ -23,6 +23,8 @@ It builds on [LumiView](https://lumiview.dev), which uses the same Rust
 `tao`/`wry` webview stack as [Tauri](https://tauri.app).
 
 - **Pure Python API** — components, layouts and events, no need for non-python codes
+- **Fine-grained reactivity** — `Signal` / `Computed` / `Effect` primitives with declarative bindings
+- **Dirty-subtree diffing** — only changed elements re-serialize; unchanged subtrees reuse cached snapshots
 - **Same stack as Tauri** — Rust `tao`/`wry` webviews via LumiView
 - **3 theme presets** — dark / light / deep-blue via CSS custom properties
 - **(Optional) Frosted glass** — translucent surfaces with backdrop blur
@@ -131,14 +133,14 @@ See the [API reference](docs/api.en.md) for switching and custom themes.
 
 Run from the repository root:
 
-| File                        | Shows                                                      |
-| --------------------------- | ---------------------------------------------------------- |
-| `test_gallery.py`           | Component gallery with docs & code samples, glass TitleBar |
-| `test_custom_window.py`     | Frameless window: TitleBar + Sidebar chrome                |
-| `test_transparent_panel.py` | Floating transparent panel with native blur                |
-| `test_multi_window.py`      | Two windows sharing one app state                          |
-| `test_reactive.py`          | Minimal `launch()` app                                     |
-| `test_builder.py`           | Raw DOM builder without the app layer                      |
+| File                        | Shows                                                            |
+| --------------------------- | ---------------------------------------------------------------- |
+| `test_gallery.py`           | Component gallery with docs & code samples, glass TitleBar       |
+| `test_custom_window.py`     | Frameless window: TitleBar + Sidebar chrome                      |
+| `test_transparent_panel.py` | Floating transparent panel with native blur                      |
+| `test_multi_window.py`      | Two windows sharing one app state                                |
+| `test_reactive.py`          | Signal-based API: declarative bindings instead of manual refresh |
+| `test_builder.py`           | Raw DOM builder without the app layer                            |
 
 ```bash
 uv run test_gallery.py
@@ -154,9 +156,16 @@ Planned work, roughly in priority order.
 
 - [x] **Hover de-noise** — `mouseover`/`mouseout`/`focus`/`blur` render deferred (one frame of coalescing)
 - [~] **Input throttling** — coalescing render pipeline in place; `on_input` still renders per keystroke, hooking it into the deferred path is a one-line change
-- [ ] **Dirty-subtree diffing** — only re-diff components whose state changed
+- [x] **Dirty-subtree diffing** — only changed elements re-serialize; mutations mark their ancestors dirty
+- [x] **Snapshot reuse** — unchanged subtrees reuse cached snapshots, skipping `to_node()`
 - [ ] **Style direct-patch** — pure style changes bypass the full diff
-- [ ] **Snapshot reuse** — skip `to_node()` for unchanged subtrees
+
+### Reactivity
+
+- [x] **Signal primitives** — `Signal` / `Computed` / `Effect` with automatic dependency tracking and `batch()` coalescing
+- [x] **Declarative bindings** — `bind_text()` / `bind_style()` / `bind_attr()` / `bind_visible()` on elements and components
+- [x] **Cross-window reactivity** — a shared signal write updates every window with a binding
+- [x] **JS unit tests** — vitest + jsdom cover the browser runtime (event delegation, patch engine)
 
 ### Components
 
@@ -177,7 +186,7 @@ Planned work, roughly in priority order.
 - [ ] **macOS (WKWebView)**
 - [x] **Linux desktops**
 - [ ] **HiDPI / mixed-DPI scaling**
--  x  ~~X11~~ — **not a compatibility target**
+- x ~~X11~~ — **not a compatibility target**
 
 ---
 
@@ -188,12 +197,14 @@ manager and runner.
 
 ```bash
 uv sync --group dev   # install dependencies (incl. dev tools)
+npm ci                # install JS dev dependencies (vitest, jsdom)
 
 uv run test_gallery.py            # run a demo
-uv run pytest -q                  # run the test suite
+uv run pytest -q                  # run the Python test suite
 uv run ruff check .               # lint
 uv run ruff format --check .      # format check
 uv run pyrefly check              # type check
+npm test                          # run the JS test suite (vitest)
 ```
 
 ---

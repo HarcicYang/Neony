@@ -47,13 +47,17 @@
     ];
 
     function captureValue(el, event) {
+        // Keyboard events: the pressed key is the payload — the element's
+        // value (e.g. what's already typed in an input) is irrelevant.
+        if (event.key !== undefined) return event.key;
         // Checkboxes / radio: use `checked` property (not `value`, which
         // is always "on" for unchecked checkboxes).
         if (el.type === "checkbox" || el.type === "radio") {
             return el.checked;
         }
-        if (el.value !== undefined) return el.value;
-        if (event.key !== undefined) return event.key;
+        // Buttons expose a `value` IDL property that defaults to "" —
+        // not user data, so it must not shadow the null fallback below.
+        if (el.value !== undefined && el.tagName !== "BUTTON") return el.value;
         return null;
     }
 

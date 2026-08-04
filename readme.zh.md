@@ -21,6 +21,8 @@ Neony 在原生窗口中渲染响应式 DOM。你完全用 Python 对象——�
 使用相同的 Rust `tao`/`wry` WebView 技术栈。
 
 - **纯 Python API** — 组件、布局、事件，全程不接触 Web 技术
+- **细粒度响应式** — `Signal` / `Computed` / `Effect` 原语 + 声明式绑定
+- **脏子树 diff** — 只有变化的元素重新序列化，未变子树复用缓存快照
 - **与 Tauri 同源** — Rust `tao`/`wry` WebView(经 LumiView)
 - **三套主题预设** — dark / light / deep-blue，基于 CSS 自定义属性
 - **(可选)毛玻璃** — 半透明表面 + 背景模糊
@@ -76,20 +78,20 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 
 从 `neony.application.elements` 导入。
 
-| 组件                      | 说明                                                          |
-| ------------------------- | ------------------------------------------------------------- |
+| 组件                      | 说明                                                           |
+| ------------------------- | -------------------------------------------------------------- |
 | `Button`                  | 主题按钮 — primary / ghost / danger 变体，悬停与按压反馈       |
 | `Checkbox`                | 自定义复选框，含标签与 change 事件                             |
-| `Input`                   | 单行输入框 — text / password / email / number…                |
+| `Input`                   | 单行输入框 — text / password / email / number…                 |
 | `Heading`                 | 主题标题(h1–h6)，自动字号                                      |
 | `Text`                    | 内联文本，支持语义角色(primary / secondary / danger / success) |
 | `Tabs`                    | 选项卡栏 + 面板，同时只显示一个                                |
 | `Flex`                    | 通用弹性容器，完全控制                                         |
-| `VStack` / `HStack`       | 纵向 / 横向弹性堆叠                                           |
+| `VStack` / `HStack`       | 纵向 / 横向弹性堆叠                                            |
 | `Spacer`                  | 弹性空白，吸收剩余空间                                         |
-| `Separator`               | 细水平分隔线                                                  |
+| `Separator`               | 细水平分隔线                                                   |
 | `GlassPanel`              | 毛玻璃容器，可选背景图                                         |
-| `TitleBar`                | 无边框窗口的自定义标题栏 — 拖动、最小化 / 最大化 / 关闭       |
+| `TitleBar`                | 无边框窗口的自定义标题栏 — 拖动、最小化 / 最大化 / 关闭        |
 | `Sidebar` / `SidebarItem` | 垂直导航栏，与 TitleBar 同款玻璃风格                           |
 
 所有组件共享链式 API，用法见 [API 参考](docs/api.zh.md)。
@@ -128,11 +130,11 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 
 | 文件                        | 演示内容                               |
 | --------------------------- | -------------------------------------- |
-| `test_gallery.py`           | 带文档与代码示例的组件画廊，玻璃标题栏  |
+| `test_gallery.py`           | 带文档与代码示例的组件画廊，玻璃标题栏 |
 | `test_custom_window.py`     | 无边框窗口:TitleBar + Sidebar 一体装饰 |
 | `test_transparent_panel.py` | 带原生模糊的透明悬浮面板               |
 | `test_multi_window.py`      | 共享同一 app 状态的双窗口              |
-| `test_reactive.py`          | 最简 `launch()` 应用                   |
+| `test_reactive.py`          | Signal API:声明式绑定替代手动刷新      |
 | `test_builder.py`           | 不含应用层的原始 DOM 构建              |
 
 ```bash
@@ -149,9 +151,16 @@ uv run test_gallery.py
 
 - [x] **悬停降噪** — `mouseover`/`mouseout`/`focus`/`blur` 延迟渲染(一帧合并)
 - [~] **输入节流** — 合并渲染管线已就位；`on_input` 仍逐键渲染，接入延迟路径仅需一行
-- [ ] **脏子树 diff** — 只重新 diff 状态变化的组件
+- [x] **脏子树 diff** — 只有变化的元素重新序列化，变更会向上标记祖先
+- [x] **快照复用** — 未变化的子树复用缓存快照，跳过 `to_node()`
 - [ ] **样式直通补丁** — 纯样式变化绕过全树 diff
-- [ ] **快照复用** — 未变化的子树跳过 `to_node()`
+
+### 响应式
+
+- [x] **Signal 原语** — `Signal` / `Computed` / `Effect`，自动依赖追踪 + `batch()` 合并
+- [x] **声明式绑定** — 元素与组件上的 `bind_text()` / `bind_style()` / `bind_attr()` / `bind_visible()`
+- [x] **跨窗口响应式** — 共享 Signal 写入自动更新所有绑定的窗口
+- [x] **JS 单元测试** — vitest + jsdom 覆盖浏览器运行时(事件委托、补丁引擎)
 
 ### 组件
 
@@ -170,9 +179,9 @@ uv run test_gallery.py
 
 - [x] **Windows(WebView2)**
 - [ ] **macOS(WKWebView)**
-- [X] **Linux 桌面**
+- [x] **Linux 桌面**
 - [ ] **HiDPI / 混合 DPI 缩放**
--  x  ~~X11~~ — **不计划支持**
+- x ~~X11~~ — **不计划支持**
 
 ---
 
@@ -182,12 +191,14 @@ uv run test_gallery.py
 
 ```bash
 uv sync --group dev   # 安装依赖(含开发工具)
+npm ci                # 安装 JS 开发依赖(vitest、jsdom)
 
 uv run test_gallery.py            # 运行示例
-uv run pytest -q                  # 运行测试
+uv run pytest -q                  # 运行 Python 测试
 uv run ruff check .               # 代码检查
 uv run ruff format --check .      # 格式检查
 uv run pyrefly check              # 类型检查
+npm test                          # 运行 JS 测试(vitest)
 ```
 
 ---

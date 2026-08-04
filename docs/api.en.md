@@ -186,8 +186,9 @@ titlebar.override_close(confirm_close)  # take over close
 
 **Options:** `title`, `show_minimize`, `show_maximize`, `show_close`, `height`
 
-The bar is a drag region (double-click maximizes); control buttons route
-through the WindowControls bridge automatically.
+The bar is a drag region (double-click maximizes); control buttons carry
+internal `data-window-action` attributes routed through the
+WindowControls bridge — an implementation detail users never see.
 
 ### `Sidebar` & `SidebarItem`
 
@@ -220,7 +221,7 @@ await app.sync_theme()  # re-inject variables
 
 Token families: `--color-bg`, `--color-surface`,
 `--color-text-primary` / `--color-text-secondary`, `--color-accent`,
-`--color-danger`, `--color-success`, `--color-border`,
+`--color-danger`, `--color-success`, `--color-border`, `--color-shadow`,
 `--color-*-glass*` (frosted variants).
 
 Components reference tokens via `Color(var="--color-*")` so theme
@@ -295,3 +296,128 @@ card = Div(
     container=["Hello"],
 )
 ```
+
+## Reactivity
+
+Import from `neony.dom`. The V-DOM diff engine reacts to whole-tree
+mutations; these primitives react to individual state changes.
+
+### `Signal`
+
+A single reactive value. Read with `signal()` (inside an effect/computed
+this records a dependency); write with `set()` / `update()`.
+
+```python
+from neony.dom import Signal
+
+count = Signal(0)
+count.get()  # 0
+count()  # same — call = read
+count.set(5)
+count.update(lambda c: c + 1)  # 6 — mutate in place
+```
+
+Writing an equal value (`==`) notifies nothing.
+
+### `Computed`
+
+A lazily evaluated, cached derived value. Recomputes only when a
+dependency changed; computeds may depend on other computeds.
+
+```python
+from neony.dom import Computed, Signal
+
+count = Signal(2)
+double = Computed(lambda: count() * 2)
+double()  # 4 (cached until count changes)
+```
+
+### `effect()` / `Effect`
+
+Runs `fn` immediately, then re-runs it whenever any Signal it read
+changes. Returns a disposable `Effect`.
+
+```python
+from neony.dom import Signal, effect
+
+name = Signal("Neony")
+stop = effect(lambda: print(f"hello {name()}"))  # prints immediately
+name.set("world")  # re-runs
+stop.dispose()  # unsubscribes everything
+```
+
+Re-runs are coalesced: with a running event loop they are deferred to
+`loop.call_soon`; use `batch()` to coalesce synchronously.
+
+```python
+from neony.dom import batch, Signal
+
+count = Signal(0)
+effect(lambda: print(count()))  # prints 0
+with batch():
+    count.set(1)
+    count.set(2)  # one re-run, prints 2
+```
+
+### `untrack()`
+
+Run a function without recording dependency reads.
+
+```python
+from neony.dom import Signal, untrack
+
+log = Signal(0)
+effect(lambda: untrack(lambda: print(log())))  # reads but never subscribes
+```
+
+### `SharedSignal`
+
+A `Signal` meant to be shared across every window — a write updates all
+windows with a binding (each window schedules its own render).
+
+```python
+from neony.dom import SharedSignal
+
+count = SharedSignal(0)
+label_a.bind_text(count)  # window A
+label_b.bind_text(count)  # window B
+count.set(1)  # both windows update
+```
+
+### Declarative bindings
+
+Bind a signal to an element (or component) so the DOM follows it
+automatically — no manual refresh calls.
+
+```python
+from neony.dom import Signal
+
+count = Signal(0)
+label.bind_text(count, fmt=str)  # text content
+bar.bind_style(count, "opacity", fmt=lambda v: v / 100)  # CSS property
+img.bind_attr(count, "src")  # HTML attribute
+panel.bind_visible(count)  # display: none when falsy
+```
+
+- `bind_text(signal, fmt=str)` — replaces the element's children with a
+  single text string
+- `bind_style(signal, prop, fmt=None)` — `prop` is a `Styles` field name
+  (snake_case); a `None` signal value removes the property
+- `bind_attr(signal, name, fmt=str)` — writes into the raw attribute bag
+- `bind_visible(signal)` — hides (`display: none`) when falsy, restores
+  the pre-binding display value when truthy
+- `unbind()` — dispose every binding on the element
+
+All four are also available on `Component` (they proxy to the component's
+root element). A binding write marks the element dirty and schedules a
+render for its window, so a signal changed from anywhere — an event
+handler, a timer, another window — reaches the screen without an explicit
+`render()` call.
+
+### Dirty-subtree tracking
+
+Every mutation marks the element dirty and propagates up to the root.
+Rendering re-serializes only dirty elements; unchanged subtrees reuse
+their cached snapshots (which the diff engine sees as identical, so zero
+patches are emitted). This is automatic — `container.append()` and
+property assignment both participate.

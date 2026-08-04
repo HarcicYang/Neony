@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
-from typing import Any, Literal
+from collections.abc import Callable, Iterable
+from typing import Any, Literal, Self, SupportsIndex
 
 from pydantic import BaseModel, PrivateAttr, model_serializer
 from pydantic.fields import Field
+
+from neony.dom.reactive import Effect, Signal, effect
 
 
 def _new_key() -> str:
@@ -302,6 +304,102 @@ class NodeDescriptor(BaseModel):
     children: list[NodeDescriptor] = Field(default_factory=list)
 
 
+class _Children(list):
+    """The ``container`` list, aware of its owning element.
+
+    (Plain ``list`` base — the ``DOMElement | str`` element type lives in
+    the method annotations only, since ``list[...]`` in the bases list is
+    evaluated at class-definition time, before DOMElement exists.)
+
+    Two jobs:
+
+    - **Parent pointers** — every child element's ``_parent`` is kept in
+      sync so a mutation can propagate its dirty flag up to the root.
+    - **Dirty marking** — in-place mutations (``append``, ``remove``,
+      ``__setitem__``, ...) never touch the owner's ``__setattr__``, so
+      they must mark the owner dirty themselves.
+    """
+
+    __slots__ = ("_owner",)
+
+    def __init__(self, owner: DOMElement, iterable: Iterable[DOMElement | str] = ()) -> None:
+        super().__init__()
+        self._owner = owner
+        for item in iterable:
+            self.append(item)
+
+    def _set_parent(self, item: DOMElement | str) -> None:
+        if isinstance(item, DOMElement):
+            item._parent = self._owner
+
+    def _unset_parent(self, item: DOMElement | str) -> None:
+        if isinstance(item, DOMElement):
+            item._parent = None
+
+    def append(self, item: DOMElement | str) -> None:
+        super().append(item)
+        self._set_parent(item)
+        self._owner._mark_dirty()
+
+    def extend(self, items: Iterable[DOMElement | str]) -> None:
+        for item in items:
+            super().append(item)
+            self._set_parent(item)
+        self._owner._mark_dirty()
+
+    def insert(self, index: SupportsIndex, item: DOMElement | str) -> None:
+        super().insert(index, item)
+        self._set_parent(item)
+        self._owner._mark_dirty()
+
+    def remove(self, item: DOMElement | str) -> None:
+        super().remove(item)
+        self._unset_parent(item)
+        self._owner._mark_dirty()
+
+    def pop(self, index: SupportsIndex = -1) -> DOMElement | str:
+        item = super().pop(index)
+        self._unset_parent(item)
+        self._owner._mark_dirty()
+        return item
+
+    def clear(self) -> None:
+        for item in self:
+            self._unset_parent(item)
+        super().clear()
+        self._owner._mark_dirty()
+
+    def __setitem__(self, index: SupportsIndex | slice, item: Any) -> None:
+        if isinstance(index, slice):
+            old = list(self[index])
+            super().__setitem__(index, item)
+            for o in old:
+                self._unset_parent(o)
+            if isinstance(item, (list, tuple)):
+                for i in item:
+                    self._set_parent(i)
+            else:
+                self._set_parent(item)
+        else:
+            old = self[index]
+            super().__setitem__(index, item)
+            self._unset_parent(old)
+            self._set_parent(item)
+        self._owner._mark_dirty()
+
+    def __delitem__(self, index: SupportsIndex | slice) -> None:
+        if isinstance(index, slice):
+            old = list(self[index])
+            super().__delitem__(index)
+            for o in old:
+                self._unset_parent(o)
+        else:
+            item = self[index]
+            super().__delitem__(index)
+            self._unset_parent(item)
+        self._owner._mark_dirty()
+
+
 class DOMElement(BaseModel):
     """Base class for all DOM elements.
 
@@ -330,6 +428,145 @@ class DOMElement(BaseModel):
     # Handlers attached via the fluent .on_xxx() API. Stored as a
     # PrivateAttr so callables are never serialized.
     _handlers: dict[str, list[Callable[..., Any]]] = PrivateAttr(default_factory=dict)
+
+    # Dirty-subtree tracking: _dirty means "this element changed since the
+    # last render and must be re-serialized".  Mutations propagate up via
+    # _parent so an ancestor can never reuse a stale cached snapshot.
+    _dirty: bool = PrivateAttr(default=False)
+    _parent: DOMElement | None = PrivateAttr(default=None)
+
+    # Signal bindings (see bind_text & co) — kept alive so they can be
+    # disposed by unbind(); the Signal holds the Effect, the Effect holds
+    # the bound element.
+    _bindings: list[Effect] = PrivateAttr(default_factory=list)
+    # Optional callback invoked when a bound signal writes this element —
+    # armed by the app on the root of each window's tree so a write can
+    # schedule a render without waiting for the next user event.
+    _render_request: Callable[[], None] | None = PrivateAttr(default=None)
+    # The display value bind_visible restores when the signal turns true.
+    _visible_display: Literal["block", "flex", "grid", "inline", "inline-block", "inline-flex", "none"] | None = (
+        PrivateAttr(default=None)
+    )
+
+    # ---- dirty tracking ----
+
+    def model_post_init(self, __context: Any) -> None:
+        """Replace the plain container list with the parent-aware proxy."""
+        # object.__setattr__: the swap itself is not a mutation.
+        object.__setattr__(self, "container", _Children(self, self.container))
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        super().__setattr__(name, value)
+        if not name.startswith("_"):
+            self._mark_dirty()
+
+    def _mark_dirty(self) -> None:
+        """Mark this element dirty and propagate to every ancestor.
+
+        An ancestor re-serializes when any descendant changed — otherwise
+        its cached snapshot (with the stale child) would be reused.
+        """
+        node: DOMElement | None = self
+        while node is not None and not node._dirty:
+            node._dirty = True
+            node = node._parent
+
+    def mark_dirty(self) -> None:
+        """Explicitly mark this element (and its ancestors) as changed."""
+        self._mark_dirty()
+
+    # ---- signal bindings ----
+
+    def _bind(self, write: Callable[[], None]) -> Effect:
+        """Create a binding effect: run *write* now, re-run on dependency
+        change.  The write marks this element dirty and requests a render
+        through the root's ``_render_request`` (armed by the app)."""
+
+        def run() -> None:
+            write()
+            self._mark_dirty()
+            self._request_render()
+
+        eff = effect(run)
+        self._bindings.append(eff)
+        return eff
+
+    def _request_render(self) -> None:
+        node: DOMElement | None = self
+        while node is not None and node._parent is not None:
+            node = node._parent
+        if node is not None and node._render_request is not None:
+            node._render_request()
+
+    def bind_text(self, signal: Signal[Any], fmt: Callable[[Any], str] = str) -> Self:
+        """Bind *signal* to this element's text content.
+
+        The text follows ``fmt(signal())`` — initially and whenever the
+        signal changes.  Replaces the element's children with a single
+        text string.  Returns self for chaining.
+        """
+        self._bind(lambda: self._set_text(fmt(signal())))
+        return self
+
+    def bind_style(
+        self,
+        signal: Signal[Any],
+        prop: str,
+        fmt: Callable[[Any], Any] | None = None,
+    ) -> Self:
+        """Bind *signal* to a style property of this element.
+
+        *prop* is a :class:`Styles` field name (snake_case, e.g.
+        ``"color"``, ``"opacity"``, ``"font_size"``).  A signal value of
+        ``None`` removes the property (pass *fmt* to transform values).
+        Returns self for chaining.
+        """
+        apply = fmt if fmt is not None else (lambda v: v)
+        self._bind(lambda: self._set_style(prop, apply(signal())))
+        return self
+
+    def bind_attr(self, signal: Signal[Any], name: str, fmt: Callable[[Any], str] = str) -> Self:
+        """Bind *signal* to an HTML attribute of this element.
+
+        The attribute is written into ``args`` (the raw-attribute bag).
+        Returns self for chaining.
+        """
+        self._bind(lambda: self._set_attr(name, fmt(signal())))
+        return self
+
+    def bind_visible(self, signal: Signal[Any]) -> Self:
+        """Bind *signal* to the element's visibility.
+
+        Truthy → shown (restores the pre-binding ``display`` value),
+        falsy → ``display: none``.  Returns self for chaining.
+        """
+        self._visible_display = self.styles.display
+        self._bind(lambda: self._set_visible(bool(signal())))
+        return self
+
+    def unbind(self) -> Self:
+        """Dispose every signal binding on this element."""
+        for eff in self._bindings:
+            eff.dispose()
+        self._bindings.clear()
+        return self
+
+    # ---- binding internals ----
+
+    def _set_text(self, text: str) -> None:
+        self.container = [text]
+
+    def _set_style(self, prop: str, value: Any) -> None:
+        setattr(self.styles, prop, value if value is not None else None)
+
+    def _set_attr(self, name: str, value: Any) -> None:
+        self.args[name] = str(value)
+
+    def _set_visible(self, visible: bool) -> None:
+        if visible:
+            self.styles.display = self._visible_display
+        else:
+            self.styles.display = "none"
 
     # ---- fluent event API ----
 
@@ -468,20 +705,39 @@ class DOMElement(BaseModel):
 
     # ---- serialization for reactive bridge ----
 
-    def to_node(self) -> NodeDescriptor:
+    def to_node(self, snapshot_cache: dict[str, NodeDescriptor] | None = None) -> NodeDescriptor:
         """Serialize this element and all descendants to a JSON-safe NodeDescriptor.
+
+        With *snapshot_cache* (key → last serialized :class:`NodeDescriptor`),
+        unchanged elements reuse their cached snapshot instead of being
+        re-serialized — dirty-subtree tracking.  Every node that IS
+        serialized is written back into the cache and has its dirty flag
+        cleared.
 
         Raises ValueError if duplicate keys are found anywhere in the tree,
         or if ``container`` mixes strings and elements.
         """
         seen_keys: set[str] = set()
-        node = self._to_node_impl(seen_keys)
+        node = self._to_node_impl(seen_keys, snapshot_cache)
         return node
 
-    def _to_node_impl(self, seen_keys: set[str]) -> NodeDescriptor:
+    def _to_node_impl(
+        self,
+        seen_keys: set[str],
+        snapshot_cache: dict[str, NodeDescriptor] | None = None,
+    ) -> NodeDescriptor:
         if self.key in seen_keys:
             raise ValueError(f"Duplicate key {self.key!r} in DOM tree. Each element must have a unique key.")
         seen_keys.add(self.key)
+
+        # Dirty-subtree fast path: an unchanged element reuses its last
+        # snapshot verbatim (the diff engine compares identical objects
+        # and emits nothing).  Because dirty flags propagate to ancestors,
+        # a clean element implies its whole subtree is clean.
+        if snapshot_cache is not None and not self._dirty:
+            cached = snapshot_cache.get(self.key)
+            if cached is not None:
+                return cached
 
         # Styles: kebab-case keys, string values, skip None
         styles: dict[str, str] = {}
@@ -529,9 +785,9 @@ class DOMElement(BaseModel):
         else:
             for item in self.container:
                 if isinstance(item, DOMElement):
-                    children.append(item._to_node_impl(seen_keys))
+                    children.append(item._to_node_impl(seen_keys, snapshot_cache))
 
-        return NodeDescriptor(
+        node = NodeDescriptor(
             key=self.key,
             tag=self._tag,
             attrs=attrs,
@@ -539,3 +795,7 @@ class DOMElement(BaseModel):
             text=text,
             children=children,
         )
+        if snapshot_cache is not None:
+            snapshot_cache[self.key] = node
+        self._dirty = False
+        return node

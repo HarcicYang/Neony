@@ -114,6 +114,7 @@ from .elems import (
     UnorderedList,
     Video,
 )
+from .reactive import Computed, Effect, SharedSignal, Signal, batch, effect, untrack
 
 __all__ = [
     "H1",
@@ -134,12 +135,14 @@ __all__ = [
     "Canvas",
     "Code",
     "Color",
+    "Computed",
     "CreatePatch",
     "DOMElement",
     "Details",
     "DiffEngine",
     "Div",
     "DomEvent",
+    "Effect",
     "Em",
     "Fieldset",
     "Figcaption",
@@ -177,6 +180,8 @@ __all__ = [
     "Section",
     "Select",
     "SetTextPatch",
+    "SharedSignal",
+    "Signal",
     "Small",
     "Source",
     "Span",
@@ -200,4 +205,7 @@ __all__ = [
     "UpdateAttrsPatch",
     "UpdateStylesPatch",
     "Video",
+    "batch",
+    "effect",
+    "untrack",
 ]
