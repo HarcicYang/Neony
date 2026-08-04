@@ -1,4 +1,5 @@
-# -*- mode: python ; coding: utf-8 -*-
+# ruff: noqa: F821 — Analysis / PYZ / EXE are injected by PyInstaller
+# when it exec()s the spec; they exist at build time, not analysis time.
 """PyInstaller spec for ``demo_gallery.py`` (all platforms).
 
 Linux: system GTK/WebKit libraries are EXCLUDED from the bundle.
@@ -80,11 +81,7 @@ if sys.platform == "linux":
         "libxkbcommon",
         "libdbus",
     )
-    a.binaries = [
-        entry
-        for entry in a.binaries
-        if not os.path.basename(entry[1]).startswith(_SYSTEM_PREFIXES)
-    ]
+    a.binaries = [entry for entry in a.binaries if not os.path.basename(entry[1]).startswith(_SYSTEM_PREFIXES)]
 
 pyz = PYZ(a.pure)
 
@@ -101,5 +98,10 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    # macOS: console bootloader (bare executable, as before the spec) —
+    # windowed mode there produces a .app bundle (needs a BUNDLE target)
+    # and a bare windowed binary's NSApplication behaviour is undefined.
+    # Windows: windowed bootloader — no console window.  Linux: console
+    # either way.
+    console=sys.platform != "darwin",
 )

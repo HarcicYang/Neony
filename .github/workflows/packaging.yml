@@ -9,6 +9,11 @@ name: Packaging
 # Artifact naming: <os>_<arch>_<version>_<builder>[.exe]
 #   e.g. linux_x86_64_0.1.0_nuitka, win_x86_64_0.1.0_pyinstaller.exe
 # Version comes from pyproject.toml (works for workflow_dispatch too).
+#
+# Wheel availability (verified against PyPI): lumiview + wryview publish
+# linux x86_64, win_amd64, and macosx_11_0_arm64 — NO Intel mac wheels,
+# so the macOS entries must stay on arm64 (macos-latest); macos-13 would
+# fail at dependency resolution.
 on:
   workflow_dispatch:
   push:
@@ -49,6 +54,10 @@ jobs:
       # executable must use the target machine's webkit2gtk, whose
       # helper-process paths are distro-specific), while Windows/macOS
       # bundle the native bindings and rely on the OS-provided WebView.
+      # NOTE: macOS uses the console bootloader (bare executable) —
+      # windowed mode would need a BUNDLE target for a .app.  Only
+      # Linux has been run-tested locally; the first CI run validates
+      # the Windows/macOS branches.
       - name: Build executable (PyInstaller)
         shell: bash
         run: uv run pyinstaller --noconfirm demo_gallery.spec
