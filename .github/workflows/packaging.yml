@@ -44,19 +44,14 @@ jobs:
       - run: uv sync --group dev
       - run: uv pip install pyinstaller
 
+      # demo_gallery.spec handles the platform split: on Linux the
+      # GTK/WebKit system libraries are stripped from the bundle (the
+      # executable must use the target machine's webkit2gtk, whose
+      # helper-process paths are distro-specific), while Windows/macOS
+      # bundle the native bindings and rely on the OS-provided WebView.
       - name: Build executable (PyInstaller)
         shell: bash
-        run: |
-          uv run pyinstaller \
-            --onefile \
-            --name neony-gallery \
-            --collect-binaries lumiview \
-            --collect-binaries wryview \
-            --collect-data neony \
-            --hidden-import lumiview.plugins.window_controls \
-            --hidden-import lumiview._events \
-            --hidden-import lumiview._task \
-            demo_gallery.py
+        run: uv run pyinstaller --noconfirm demo_gallery.spec
 
       - name: Rename artifact
         shell: bash
