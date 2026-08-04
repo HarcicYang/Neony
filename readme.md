@@ -17,7 +17,7 @@ Reactive desktop UI framework for Python, built on [LumiView](https://lumiview.d
 
 Neony renders a reactive DOM in a native window. You compose your UI from
 Python objects — components, layouts, styles — and Neony diff-updates the
-browser DOM automatically. No HTML, no JavaScript, no CSS strings.
+browser DOM automatically. No HTML, no JavaScript.
 
 It builds on [LumiView](https://lumiview.dev), which uses the same Rust
 `tao`/`wry` webview stack as [Tauri](https://tauri.app).

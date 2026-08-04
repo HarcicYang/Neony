@@ -15,8 +15,7 @@
 > **状态:alpha** — API 仍在演进中。欢迎反馈与贡献。
 
 Neony 在原生窗口中渲染响应式 DOM。你完全用 Python 对象——组件、布局、样式——
-拼装界面，Neony 自动对浏览器 DOM 做增量更新。不需要写 HTML、JavaScript
-或 CSS 字符串。
+拼装界面，Neony 自动对浏览器 DOM 做增量更新。不需要写 HTML、JavaScript。
 
 它基于 [LumiView](https://lumiview.dev)，与 [Tauri](https://tauri.app)
 使用相同的 Rust `tao`/`wry` WebView 技术栈。
