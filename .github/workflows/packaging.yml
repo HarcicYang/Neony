@@ -171,3 +171,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
+          # GitHub generates release notes from the commits/PRs since the
+          # previous tag (same as the "Generate release notes" button).
+          generate_release_notes: true
