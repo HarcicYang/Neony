@@ -33,6 +33,7 @@ class TitleBar(Component):
         self,
         title: str = "",
         *,
+        icon: str | None = None,
         show_minimize: bool = True,
         show_maximize: bool = True,
         show_close: bool = True,
@@ -40,6 +41,7 @@ class TitleBar(Component):
     ) -> None:
         super().__init__()
         self._title = title
+        self._icon = icon
         self._height = height
         self._show_minimize = show_minimize
         self._show_maximize = show_maximize
@@ -67,6 +69,23 @@ class TitleBar(Component):
             ),
         )
 
+        # Optional inline icon for frameless windows: a fixed-size square
+        # painted with the image, so it never stretches with the title.
+        if icon is not None:
+            self._icon_el: Span | None = Span(
+                styles=Styles(
+                    width="18px",
+                    height="18px",
+                    flex_shrink="0",
+                    background_image=f"url({icon})",
+                    background_size="contain",
+                    background_position="center",
+                    background_repeat="no-repeat",
+                ),
+            )
+        else:
+            self._icon_el = None
+
         # Root: full-width drag region with aggressive frosted glass.
         self._root = Div(
             styles=Styles(
@@ -89,7 +108,7 @@ class TitleBar(Component):
                         flex_grow="1",
                         overflow="hidden",
                     ),
-                    container=[self._title_span],
+                    container=[self._icon_el, self._title_span] if self._icon_el else [self._title_span],
                 ),
                 Div(
                     styles=Styles(

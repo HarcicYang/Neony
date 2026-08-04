@@ -56,7 +56,7 @@ app.state.user_name = "Ada"
 `set_title(title)`， `set_size(w, h)`， `minimize()`， `toggle_maximize()`，
 `is_maximized()`， `set_fullscreen(f)`， `start_dragging()`， `close()`，
 `apply_blur(color?)`， `apply_acrylic(color?)`， `apply_mica()`，
-`clear_effect(effect)`， `eval_js(script)`
+`clear_effect(effect)`， `eval_js(script)`， `set_icon(icon)`
 
 **主题与渲染:**
 `sync_theme()`， `set_background(url)`， `render()`
@@ -79,8 +79,13 @@ launch(page, title="Demo", width=480, height=360, devtools=True)
 
 Pydantic 配置模型。`WindowConfig` 负责几何与外观
 (`title`， `width`， `height`， `decorations`， `transparent`，
-`always_on_top`， `resizable` …)。`WebViewConfig` 负责运行时
+`always_on_top`， `resizable`， `icon` …)。`WebViewConfig` 负责运行时
 (`devtools`， `incognito`， `user_agent`， `javascript` …)。
+
+**`WindowConfig.icon`** — 文件路径(PNG、ICO …)或原始 RGBA 数据
+`(bytes, width, height)`，显示在*带系统装饰*窗口的 OS 窗口栏中。
+无边框窗口没有 OS 装饰——内联图标见 [`TitleBar`](#titlebar) 的 `icon`
+参数，运行时更换见 [`set_icon()`](#neonapplication)。
 
 ### `Page`
 
@@ -127,6 +132,42 @@ app.close_handler = on_shutdown
 ```python
 page = Page()
 page.on_close(lambda: print("窗口关闭中"))
+```
+
+**焦点追踪** — `Page.on_focus(fn)` / `Page.on_blur(fn)`(同步或异步，
+链式，可注册多个)在页面窗口获得 / 失去键盘焦点时触发——用于暂停
+定时器、更新状态栏，或在多窗口应用中判断哪个窗口处于活动状态。
+
+```python
+page = Page()
+page.on_focus(lambda: print("活跃"))
+page.on_blur(lambda: print("非活跃"))
+```
+
+### 导航策略
+
+页面内的链接或重定向会把 webview 导航走、离开你的 UI。Neony 为每个
+窗口安装安全默认值——拦截所有导航、拒绝所有新窗口请求、取消所有
+下载——没有你的允许，什么都不会逃逸。按页面覆盖即可。
+
+**决策型策略** — 单个处理器，最后注册的胜出(决策无法合并):
+
+```python
+# 只允许你自己的站点，其余全部拦截。
+page.on_navigation(lambda url: url.startswith("https://myapp.example"))
+
+# target="_blank" 链接与 window.open():返回 "allow" 或 "deny"。
+page.on_new_window(lambda url: "deny")
+
+# 返回 True 允许、False 取消，或返回路径把下载重定向到自定义位置。
+page.on_download_started(lambda url, path: "/downloads/")
+```
+
+**通知型** — 多个处理器堆叠，全部执行:
+
+```python
+# url、最终路径(取消时为 None)、成功标志。
+page.on_download_completed(lambda url, path, ok: print(f"下载完成 {path}"))
 ```
 
 ### 多窗口
@@ -233,7 +274,11 @@ titlebar.on_close(lambda e: print("bye"))  # 附加回调
 titlebar.override_close(confirm_close)  # 完全接管关闭
 ```
 
-**参数:** `title`， `show_minimize`， `show_maximize`， `show_close`， `height`
+**参数:** `title`， `icon`， `show_minimize`， `show_maximize`，
+`show_close`， `height`
+
+`icon` 在标题左侧绘制一个小图标(URL 或文件路径)——无边框模式下
+`WindowConfig.icon` 的对应物，因为无边框窗口没有 OS 装饰来承载它。
 
 标题栏即拖拽区域(双击最大化);控制按钮带内部 `data-window-action`
 属性,经 WindowControls 桥接自动路由 — 用户无需感知的实现细节。

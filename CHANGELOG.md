@@ -67,6 +67,22 @@
   containers (or calling `Component.build()` twice) now raises a clear
   `RuntimeError` instead of silently corrupting parent pointers, dirty
   propagation, and event bubbling.
+- **Window focus tracking** — `Page.on_focus(fn)` / `Page.on_blur(fn)`
+  (sync or async, chainable, multiple handlers stack) fire on the native
+  `Focused` / `Unfocused` window events — know which window is active in
+  multi-window apps.
+- **Navigation & download policies** — safe defaults are installed on
+  every window (all navigation blocked, new-window requests denied,
+  downloads cancelled) so an in-page link can never navigate the UI
+  away. `Page.on_navigation(fn)` / `on_new_window(fn)` /
+  `on_download_started(fn)` override the defaults (single decision, last
+  one wins); `on_download_completed(fn)` stacks notifications.
+- **`NeonApplication.set_icon()`** — runtime window icon swap (file path
+  or raw RGBA data), the post-creation counterpart to `WindowConfig.icon`
+  (which already worked at startup but was undocumented).
+- **`TitleBar(icon=...)`** — inline icon for frameless windows, painted
+  left of the title (the frameless counterpart of `WindowConfig.icon`,
+  which only shows in OS window chrome).
 
 ### Changed
 

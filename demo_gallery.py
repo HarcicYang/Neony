@@ -46,6 +46,7 @@ app = NeonApplication(
 )
 
 _BACKGROUND_URL = "https://harcic.is-a.dev/resource/backgrounds/8.webp"
+_ICON_URL = "https://harcic.is-a.dev/resource/favicon.svg"
 
 _MONO = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
 
@@ -340,6 +341,37 @@ Checkbox("Glass", glass=True)""",
     danger_stage,
 )
 
+# ── tab: icon ─────────────────────────────────────────────────────
+
+# Frameless windows have no OS window chrome, so the icon can't be set
+# via WindowConfig — it's painted inline in the TitleBar instead.  The
+# window header above shows the live result.
+icon_panel = Section(
+    "Window Icon",
+    "Frameless windows show the icon inline in the TitleBar; decorated "
+    "windows hand it to the OS window chrome via WindowConfig.icon — "
+    "both take the same URL or file path.",
+    """# Frameless — inline in the TitleBar (this window):
+TitleBar("My App", icon="https://harcic.is-a.dev/resource/favicon.svg")
+
+# Decorated — the OS window chrome shows it:
+launch(page, title="My App", icon="icon.png")
+# or: Config(window=WindowConfig(title="My App", icon="icon.png"))
+
+# Runtime swap (either mode):
+await app.set_icon("icon.png")""",
+    VStack(
+        Text("Live: the favicon in the titlebar above uses TitleBar(icon=...).", role="secondary"),
+        Text(
+            "For decorated windows the taskbar / titlebar icon comes from "
+            "WindowConfig.icon; TitleBar(icon=...) only affects frameless chrome.",
+            role="secondary",
+        ),
+        gap="8px",
+        align="stretch",
+    ),
+)
+
 # ── assemble ─────────────────────────────────────────────────────
 
 tabs = Tabs(glass=True)
@@ -349,10 +381,11 @@ tabs.add("Checks", checks_panel)
 tabs.add("Layout", layout_panel)
 tabs.add("Type", typography_panel)
 tabs.add("Glass", glass_panel)
+tabs.add("Icon", icon_panel)
 
 # ── assemble: transparent TitleBar over a solid content stage ─────
 
-titlebar = TitleBar("Neony — Component Gallery")
+titlebar = TitleBar("Neony — Component Gallery", icon=_ICON_URL)
 
 # The content stage uses the plain theme background — only the titlebar
 # above it stays transparent, so the desktop shows through the chrome

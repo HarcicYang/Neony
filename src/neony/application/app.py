@@ -137,6 +137,8 @@ class NeonApplication(Generic[_S]):
                 await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
             await self._inject_theme(entry)
             await self._wire_close_hook(entry, entry.window)
+            await self._wire_focus_hook(entry, entry.window)
+            await self._wire_navigation_policy(entry, entry.window)
             await self.render(window_index=i)
         if self.ready_handler is not None:
             await self.ready_handler()
@@ -164,6 +166,73 @@ class NeonApplication(Generic[_S]):
                 logging.getLogger("neony.app").error("Page close handler failed", exc_info=exc)
 
         window.on(WindowHookEvent.CloseRequested)(_on_window_close)
+
+    async def _wire_focus_hook(self, entry: _Entry, window: Window) -> None:
+        """Wire a Page's focus/blur handlers to the window's native
+        focus events (``Focused`` / ``Unfocused``)."""
+        if entry.page is None:
+            return
+        if entry.page._focus_handlers:
+            handlers = list(entry.page._focus_handlers)
+
+            async def _on_focused(*_args) -> None:
+                await asyncio.gather(
+                    *[self._run_handler(h) for h in handlers],
+                    return_exceptions=True,
+                )
+
+            window.on(WindowHookEvent.Focused)(_on_focused)
+        if entry.page._blur_handlers:
+            handlers = list(entry.page._blur_handlers)
+
+            async def _on_unfocused(*_args) -> None:
+                await asyncio.gather(
+                    *[self._run_handler(h) for h in handlers],
+                    return_exceptions=True,
+                )
+
+            window.on(WindowHookEvent.Unfocused)(_on_unfocused)
+
+    async def _wire_navigation_policy(self, entry: _Entry, window: Window) -> None:
+        """Install navigation / new-window / download policies.
+
+        Safe defaults are always installed — every navigation blocked,
+        every new-window request denied, every download cancelled — so an
+        in-page link can never navigate the app UI away.  Page-level
+        handlers registered via ``on_navigation`` & co. replace the
+        default (a policy is a single decision; the last handler wins).
+        """
+        await App.get().call_on_main(window.set_on_navigation, lambda url: False)
+        await App.get().call_on_main(window.set_on_new_window, lambda url: "deny")
+        await App.get().call_on_main(window.set_on_download_started, lambda url, path: False)
+        if entry.page is None:
+            return
+        if entry.page._navigation_handler is not None:
+            await App.get().call_on_main(window.set_on_navigation, entry.page._navigation_handler)
+        if entry.page._new_window_handler is not None:
+            await App.get().call_on_main(window.set_on_new_window, entry.page._new_window_handler)
+        if entry.page._download_started_handler is not None:
+            await App.get().call_on_main(window.set_on_download_started, entry.page._download_started_handler)
+        if entry.page._download_completed_handlers:
+            handlers = list(entry.page._download_completed_handlers)
+
+            # Native policy callbacks are synchronous (they run on the GUI
+            # thread and can't be awaited) — coroutine handlers would be
+            # silently dropped, so warn instead of pretending.
+            def _on_download_completed(url: str, path: str | None, success: bool) -> None:
+                for fn in handlers:
+                    try:
+                        result = fn(url, path, success)
+                        if asyncio.iscoroutine(result):
+                            logging.getLogger("neony.app").warning(
+                                "Async Page.on_download_completed handlers are not "
+                                "supported (the native callback is synchronous); "
+                                "coroutine dropped."
+                            )
+                    except Exception as exc:
+                        logging.getLogger("neony.app").error("Page download-completed handler failed", exc_info=exc)
+
+            await App.get().call_on_main(window.set_on_download_completed, _on_download_completed)
 
     async def _wire_close_handler(self) -> None:
         """Register the app-level teardown hook on lumiview's Close event."""
@@ -305,10 +374,10 @@ class NeonApplication(Generic[_S]):
                 self._collect_handlers(neony, child, idx)
 
     @staticmethod
-    async def _run_handler(fn: Any) -> None:
-        """Call *fn*, awaiting it if it's a coroutine (sync/async friendly —
-        same pattern as ``Component._dispatch``)."""
-        result = fn()
+    async def _run_handler(fn: Any, *args: Any) -> None:
+        """Call *fn(*args)*, awaiting it if it's a coroutine (sync/async
+        friendly — same pattern as ``Component._dispatch``)."""
+        result = fn(*args)
         if asyncio.iscoroutine(result):
             await result
 
@@ -393,6 +462,16 @@ class NeonApplication(Generic[_S]):
     async def eval_js(self, script: str, window_index: int = 0) -> str:
         """Execute *script* in a page; returns the result string."""
         return await self._require_window(window_index).eval_js(script)
+
+    async def set_icon(self, icon: str | tuple[bytes, int, int], window_index: int = 0) -> None:
+        """Set or replace the window icon (taskbar / window manager).
+
+        *icon* is a file path (PNG, ICO, …) or raw RGBA data
+        ``(bytes, width, height)``.  For the startup icon, prefer
+        ``WindowConfig.icon`` — set at creation; this method changes it
+        at runtime.
+        """
+        await App.get().call_on_main(self._require_window(window_index).set_icon, icon)
 
 
 def launch(

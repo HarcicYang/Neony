@@ -56,7 +56,7 @@ counterpart to [`SharedSignal`](#sharedsignal) for cross-window data.
 `set_title(title)`, `set_size(w, h)`, `minimize()`, `toggle_maximize()`,
 `is_maximized()`, `set_fullscreen(f)`, `start_dragging()`, `close()`,
 `apply_blur(color?)`, `apply_acrylic(color?)`, `apply_mica()`,
-`clear_effect(effect)`, `eval_js(script)`
+`clear_effect(effect)`, `eval_js(script)`, `set_icon(icon)`
 
 **Theme / rendering:**
 `sync_theme()`, `set_background(url)`, `render()`
@@ -79,8 +79,14 @@ see [`NeonApplication`](#neonapplication)).
 
 Pydantic config models. `WindowConfig` covers geometry and appearance
 (`title`, `width`, `height`, `decorations`, `transparent`,
-`always_on_top`, `resizable`, …). `WebViewConfig` covers runtime
+`always_on_top`, `resizable`, `icon`, …). `WebViewConfig` covers runtime
 options (`devtools`, `incognito`, `user_agent`, `javascript`, …).
+
+**`WindowConfig.icon`** — file path (PNG, ICO, …) or raw RGBA data
+`(bytes, width, height)`, shown in the OS window chrome of *decorated*
+windows. Frameless windows have no OS chrome — see the
+[`TitleBar`](#titlebar) `icon` parameter for inline icons, and
+[`set_icon()`](#neonapplication) to swap at runtime.
 
 ### `Page`
 
@@ -153,6 +159,48 @@ button instead — see [`TitleBar.override_close`](#titlebar).
 ```python
 page = Page()
 page.on_close(lambda: print("window closing"))
+```
+
+**Focus tracking** — `Page.on_focus(fn)` / `Page.on_blur(fn)` (sync or
+async, chainable, multiple handlers stack) fire when the page's window
+gains / loses keyboard focus — useful for pausing timers, updating a
+status bar, or knowing which window is active in a multi-window app.
+
+```python
+page = Page()
+page.on_focus(lambda: print("active"))
+page.on_blur(lambda: print("inactive"))
+```
+
+---
+
+## Navigation policies
+
+A link or redirect inside the page would otherwise navigate the webview
+away from your UI. Neony installs safe defaults on every window —
+navigation blocked, new-window requests denied, downloads cancelled —
+so nothing can escape without your say-so. Override them per-page.
+
+**Decision policies** — a single handler, the last one registered wins
+(a decision can't be merged):
+
+```python
+# Allow only your own site; everything else is blocked.
+page.on_navigation(lambda url: url.startswith("https://myapp.example"))
+
+# target="_blank" links and window.open(): "allow" or "deny".
+page.on_new_window(lambda url: "deny")
+
+# Return True to allow, False to cancel, or a path to redirect the
+# download to a custom location.
+page.on_download_started(lambda url, path: "/downloads/")
+```
+
+**Notifications** — multiple handlers stack, all run:
+
+```python
+# url, final path (or None if cancelled), success flag.
+page.on_download_completed(lambda url, path, ok: print(f"downloaded {path}"))
 ```
 
 ---
@@ -240,7 +288,12 @@ titlebar.on_close(lambda e: print("bye"))  # extra callback
 titlebar.override_close(confirm_close)  # take over close
 ```
 
-**Options:** `title`, `show_minimize`, `show_maximize`, `show_close`, `height`
+**Options:** `title`, `icon`, `show_minimize`, `show_maximize`,
+`show_close`, `height`
+
+`icon` paints a small image (URL or file path) left of the title — the
+frameless counterpart of `WindowConfig.icon`, since a frameless window
+has no OS chrome to carry it.
 
 The bar is a drag region (double-click maximizes); control buttons carry
 internal `data-window-action` attributes routed through the

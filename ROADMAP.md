@@ -30,8 +30,8 @@ Planned work, roughly in priority order.
 - [x] **Page close hook** — `page.on_close(fn)`, wired to the native `CloseRequested` event internally
 - [x] **App shutdown hook** — `app.close_handler`, runs after all windows close
 - [x] **Element reuse defense** — mounting the same element twice raises a clear `RuntimeError`
-- [ ] **Window focus/blur events** — detect which window is active in multi-window apps (depends on lumiview upstream)
-- [ ] **Window navigation control** — expose `set_on_navigation` / `set_on_new_window` / download events from lumiview's Window API
+- [x] **Window focus/blur events** — `page.on_focus(fn)` / `on_blur(fn)`, wired to the native `Focused` / `Unfocused` events
+- [x] **Window navigation control** — safe defaults (block navigation, deny new windows, cancel downloads) installed on every window; `page.on_navigation` / `on_new_window` / `on_download_started` / `on_download_completed` override them
 
 ## Components
 
@@ -49,7 +49,7 @@ Planned work, roughly in priority order.
 ## Platform integration
 
 - [ ] **File dialogs** — open/save file via native OS dialog
-- [ ] **Window icon** — `Window.set_icon()` via `Config.window.icon`
+- [x] **Window icon** — `WindowConfig.icon` at startup; `app.set_icon()` at runtime; `TitleBar(icon=...)` inline for frameless windows
 - [ ] **Window state query** — `get_size()` / `get_bounds()` / `show()` / `hide()` / `focus()` / `set_bounds()` exposed on `NeonApplication`
 - [ ] **Clipboard API** — typed wrapper around `navigator.clipboard` (read/write text, images)
 - [ ] **Local resource URL helper** — `file://` / data-URL encoding for Windows paths, spaces, non-ASCII filenames

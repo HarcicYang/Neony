@@ -40,6 +40,12 @@ class Page:
     ) -> None:
         self._children: list[Component | DOMElement] = []
         self._close_handlers: list[Callable] = []
+        self._focus_handlers: list[Callable] = []
+        self._blur_handlers: list[Callable] = []
+        self._navigation_handler: Callable[[str], bool] | None = None
+        self._new_window_handler: Callable[[str], str] | None = None
+        self._download_started_handler: Callable[[str, str], bool | str] | None = None
+        self._download_completed_handlers: list[Callable] = []
         self._direction = direction
         self._gap = gap
         self._padding = padding
@@ -67,6 +73,69 @@ class Page:
         internally — the window index and lifecycle stay out of user code.
         """
         self._close_handlers.append(fn)
+        return self
+
+    def on_focus(self, fn: Callable) -> Self:
+        """Register *fn* — sync or async — called when this page's window
+        gains keyboard focus.  Multiple handlers stack; exceptions are
+        logged.  Chainable.
+
+        Wired to the native ``Focused`` window event internally.
+        """
+        self._focus_handlers.append(fn)
+        return self
+
+    def on_blur(self, fn: Callable) -> Self:
+        """Register *fn* — sync or async — called when this page's window
+        loses keyboard focus.  Multiple handlers stack; exceptions are
+        logged.  Chainable.
+
+        Wired to the native ``Unfocused`` window event internally.
+        """
+        self._blur_handlers.append(fn)
+        return self
+
+    # ---- navigation & download policies ----
+
+    def on_navigation(self, fn: Callable[[str], bool]) -> Self:
+        """Set the navigation policy: *fn(url)* returns ``True`` to allow
+        the page to navigate or ``False`` to block it.  Calling again
+        replaces the previous handler — the last one wins (a policy is a
+        single decision, not a listener list).  Chainable.
+
+        Default (no handler): every navigation is blocked, so the app UI
+        can never be navigated away by an in-page link or redirect.
+        """
+        self._navigation_handler = fn
+        return self
+
+    def on_new_window(self, fn: Callable[[str], str]) -> Self:
+        """Set the new-window policy: *fn(url)* returns ``"allow"`` or
+        ``"deny"`` for ``target="_blank"`` links and ``window.open()``.
+        Calling again replaces the previous handler.  Chainable.
+
+        Default (no handler): every new-window request is denied.
+        """
+        self._new_window_handler = fn
+        return self
+
+    def on_download_started(self, fn: Callable[[str, str], bool | str]) -> Self:
+        """Set the download policy: *fn(url, suggested_path)* returns
+        ``True`` to allow, ``False`` to cancel, or a path string to
+        redirect the download.  Calling again replaces the previous
+        handler.  Chainable.
+
+        Default (no handler): every download is cancelled.
+        """
+        self._download_started_handler = fn
+        return self
+
+    def on_download_completed(self, fn: Callable) -> Self:
+        """Register *fn(url, path, success)* — called when a download
+        finishes.  Multiple handlers stack; exceptions are logged.
+        Chainable.  Only fires for downloads the download policy allowed.
+        """
+        self._download_completed_handlers.append(fn)
         return self
 
     # ---- build ----
