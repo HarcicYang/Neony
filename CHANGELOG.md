@@ -58,6 +58,15 @@
   attribute access and IDE completion, while the default stays a bare
   `SimpleNamespace`. `launch(..., state=...)` forwards it. All windows
   share the same instance, exactly as before.
+- **Lifecycle hooks** — `app.close_handler` runs once after all windows
+  close (before the event loop stops), symmetric with `ready_handler`.
+  `Page.on_close(fn)` registers per-window close callbacks (sync or
+  async, multiple stack, exceptions never block the close); the
+  framework wires them to the native `CloseRequested` event internally.
+- **Element reuse defense** — mounting the same `DOMElement` into two
+  containers (or calling `Component.build()` twice) now raises a clear
+  `RuntimeError` instead of silently corrupting parent pointers, dirty
+  propagation, and event bubbling.
 
 ### Changed
 
@@ -90,13 +99,14 @@
 
 ### Docs
 
-- `readme.md` / `readme.zh.md` — new features, theming section, roadmap
-  checkboxes; roadmap marks dirty-subtree diffing / snapshot reuse done
-  and adds a Reactivity section.
+- `readme.md` / `readme.zh.md` — new features, theming section; the
+  roadmap was split into a standalone `ROADMAP.md` (with new Events,
+  Lifecycle and Platform integration categories).
 - `docs/api.en.md` / `docs/api.zh.md` — new Reactivity chapter (Signal,
   Computed, Effect, batch, untrack, SharedSignal, bindings, dirty-subtree
-  tracking); the standalone bilingual `docs.md` was split into the two
-  per-language files and removed.
+  tracking) and a Lifecycle section (close_handler, page.on_close); the
+  standalone bilingual `docs.md` was split into the two per-language
+  files and removed.
 
 ---
 

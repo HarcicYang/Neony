@@ -50,7 +50,7 @@ app.state.user_name = "Ada"
 All windows share the same `state` object, so this is the imperative
 counterpart to [`SharedSignal`](#sharedsignal) for cross-window data.
 
-**Attributes:** `config`, `state`, `theme`, `ready_handler`
+**Attributes:** `config`, `state`, `theme`, `ready_handler`, `close_handler`
 
 **Window methods** (all async):
 `set_title(title)`, `set_size(w, h)`, `minimize()`, `toggle_maximize()`,
@@ -98,7 +98,8 @@ Page(fill=True, radius="12px")  # chrome layouts
 `fill=True` stretches to the full window height. `radius` rounds the
 window frame (for transparent frameless windows).
 
-**Methods:** `add(child)` (chainable), `build()` → DOMElement
+**Methods:** `add(child)` (chainable), `on_close(fn)` (chainable —
+see [Lifecycle](#lifecycle)), `build()` → DOMElement
 
 ### Multi-window
 
@@ -121,6 +122,38 @@ app.ready_handler = on_ready
 
 Every window-control method takes `window_index` (default 0).
 `launch([page_one, page_two], ...)` accepts a list too.
+
+### Lifecycle
+
+Startup and teardown are declared as plain attributes — the framework
+owns the wiring to the native window events.
+
+```python
+async def on_ready() -> None:
+    print("windows are up")
+
+
+async def on_shutdown() -> None:
+    save_state(app.state)  # runs after all windows close
+
+
+app.ready_handler = on_ready
+app.close_handler = on_shutdown
+```
+
+`close_handler` runs exactly once, after the last window closes and
+before the event loop stops — the last chance for async cleanup.
+
+**Per-window close** — `Page.on_close(fn)` (sync or async, chainable,
+multiple handlers stack). Fires when that page's window is closing,
+before it actually closes; exceptions are logged and never block the
+close. For a confirm-before-close dialog, take over the titlebar close
+button instead — see [`TitleBar.override_close`](#titlebar).
+
+```python
+page = Page()
+page.on_close(lambda: print("window closing"))
+```
 
 ---
 

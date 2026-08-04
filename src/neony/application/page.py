@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from collections.abc import Callable
+from typing import Literal, Self
 
 from neony.dom import Color, Div, DOMElement, Styles
 
@@ -38,6 +39,7 @@ class Page:
         radius: str | None = None,
     ) -> None:
         self._children: list[Component | DOMElement] = []
+        self._close_handlers: list[Callable] = []
         self._direction = direction
         self._gap = gap
         self._padding = padding
@@ -54,6 +56,17 @@ class Page:
     def add(self, child: Component | DOMElement) -> Page:
         """Append a component or raw DOMElement to the page."""
         self._children.append(child)
+        return self
+
+    def on_close(self, fn: Callable) -> Self:
+        """Register *fn* — sync or async — called when this page's window is
+        closing.  Multiple handlers stack and all run; exceptions are logged
+        but never prevent the window from closing.  Chainable.
+
+        The framework wires this to the native ``CloseRequested`` event
+        internally — the window index and lifecycle stay out of user code.
+        """
+        self._close_handlers.append(fn)
         return self
 
     # ---- build ----

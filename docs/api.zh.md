@@ -50,7 +50,7 @@ app.state.user_name = "Ada"
 所有窗口共享同一个 `state` 对象，是 [`SharedSignal`](#sharedsignal)
 之外跨窗口数据的命令式方案。
 
-**属性:** `config`， `state`， `theme`， `ready_handler`
+**属性:** `config`， `state`， `theme`， `ready_handler`， `close_handler`
 
 **窗口方法**(全部异步):
 `set_title(title)`， `set_size(w, h)`， `minimize()`， `toggle_maximize()`，
@@ -96,7 +96,38 @@ Page(fill=True, radius="12px")  # 装饰性布局
 
 `fill=True` 撑满窗口高度。`radius` 圆角窗口边框(用于透明无边框窗口)。
 
-**方法:** `add(child)`(链式)， `build()` → DOMElement
+**方法:** `add(child)`(链式)， `on_close(fn)`(链式 —— 见
+[生命周期](#生命周期))， `build()` → DOMElement
+
+### 生命周期
+
+启动与收尾都用普通属性声明 —— 框架内部负责与原生窗口事件的接线。
+
+```python
+async def on_ready() -> None:
+    print("窗口已就绪")
+
+
+async def on_shutdown() -> None:
+    save_state(app.state)  # 所有窗口关闭后执行
+
+
+app.ready_handler = on_ready
+app.close_handler = on_shutdown
+```
+
+`close_handler` 恰好执行一次:最后一个窗口关闭后、事件循环停止前 ——
+异步清理的最后机会。
+
+**按窗口关闭** — `Page.on_close(fn)`(同步或异步，链式，可注册多个)。
+该页面窗口关闭时触发，在真正关闭之前执行;异常只记录日志，绝不阻止
+关闭。若要"关闭前确认"对话框，请接管标题栏关闭按钮 —— 见
+[`TitleBar.override_close`](#titlebar)。
+
+```python
+page = Page()
+page.on_close(lambda: print("窗口关闭中"))
+```
 
 ### 多窗口
 

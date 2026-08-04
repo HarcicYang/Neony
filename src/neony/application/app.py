@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import sys
 from types import SimpleNamespace
 from typing import Any, Generic, TypeVar, cast
@@ -31,14 +32,16 @@ _INITIAL_HTML = (
 
 
 class _Entry:
-    """Per-window runtime state: bridge scope, window, and DOM tree."""
+    """Per-window runtime state: bridge scope, window, DOM tree, and the
+    originating Page (for its close handlers)."""
 
-    __slots__ = ("neony", "tree", "window")
+    __slots__ = ("neony", "page", "tree", "window")
 
-    def __init__(self, neony: Neony, tree: DOMElement) -> None:
+    def __init__(self, neony: Neony, tree: DOMElement, page: Page | None = None) -> None:
         self.neony = neony
         self.window: Window | None = None
         self.tree = tree
+        self.page = page
 
 
 # Style-only events: deferred one frame of coalescing so a mouse sweep
@@ -87,6 +90,7 @@ class NeonApplication(Generic[_S]):
         self.state: _S = state if state is not None else cast(_S, SimpleNamespace())
         self.theme: Theme = Theme()
         self.ready_handler: Any = None  # optional async callable, run after windows ready
+        self.close_handler: Any = None  # optional async callable, run when the app exits
 
     # ---- lifecycle ----
 
@@ -97,7 +101,7 @@ class NeonApplication(Generic[_S]):
             tree = page.build() if isinstance(page, Page) else page
             neony = Neony(name="neony", mount_selector=self.config.mount_selector)
             idx = len(self._entries)
-            self._entries.append(_Entry(neony, tree))
+            self._entries.append(_Entry(neony, tree, page if isinstance(page, Page) else None))
             self._collect_handlers(neony, tree, idx)
             self._arm_render_request(tree, idx)
         # Linux: taskbar/dock shows the app name, not ``python3``.
@@ -132,9 +136,41 @@ class NeonApplication(Generic[_S]):
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
             await self._inject_theme(entry)
+            await self._wire_close_hook(entry, entry.window)
             await self.render(window_index=i)
         if self.ready_handler is not None:
             await self.ready_handler()
+        # App-level teardown: fires once after all windows close, before
+        # lumiview stops the asyncio loop (completion awaited, 5s guard).
+        await self._wire_close_handler()
+
+    async def _wire_close_hook(self, entry: _Entry, window: Window) -> None:
+        """Wire a Page's close handlers to the window's native close event.
+
+        User code declares handlers on the Page; the framework maps
+        Page → Window here.  lumiview defers the actual close until every
+        handler finishes (exceptions are logged, never blocking close).
+        """
+        if entry.page is None or not entry.page._close_handlers:
+            return
+        handlers = list(entry.page._close_handlers)
+
+        async def _on_window_close(*_args) -> None:
+            results = await asyncio.gather(
+                *[self._run_handler(h) for h in handlers],
+                return_exceptions=True,
+            )
+            for exc in (r for r in results if isinstance(r, BaseException)):
+                logging.getLogger("neony.app").error("Page close handler failed", exc_info=exc)
+
+        window.on(WindowHookEvent.CloseRequested)(_on_window_close)
+
+    async def _wire_close_handler(self) -> None:
+        """Register the app-level teardown hook on lumiview's Close event."""
+        if self.close_handler is not None:
+            from lumiview._events import AppHookEvent
+
+            App.get().on(AppHookEvent.Close)(self.close_handler)
 
     # ---- theme ----
 
@@ -267,6 +303,14 @@ class NeonApplication(Generic[_S]):
         for child in element.container:
             if isinstance(child, DOMElement):
                 self._collect_handlers(neony, child, idx)
+
+    @staticmethod
+    async def _run_handler(fn: Any) -> None:
+        """Call *fn*, awaiting it if it's a coroutine (sync/async friendly —
+        same pattern as ``Component._dispatch``)."""
+        result = fn()
+        if asyncio.iscoroutine(result):
+            await result
 
     def _make_wrapper(self, fn: Any, element: DOMElement, idx: int) -> Any:
         """Wrap a user handler: build a DomEvent, call *fn*, auto-render
