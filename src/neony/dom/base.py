@@ -315,10 +315,22 @@ class _Children(list):
 
     def _set_parent(self, item: DOMElement | str) -> None:
         if isinstance(item, DOMElement):
+            if item._parent is not None:
+                raise RuntimeError(
+                    f"DOMElement(key={item.key!r}) is already mounted in a tree "
+                    f"(parent key={item._parent.key!r}). Elements cannot be shared "
+                    f"between containers — create a new instance."
+                )
             item._parent = self._owner
 
     def _unset_parent(self, item: DOMElement | str) -> None:
         if isinstance(item, DOMElement):
+            if item._parent is not self._owner:
+                raise RuntimeError(
+                    f"DOMElement(key={item.key!r}) is not a child of this container "
+                    f"(its parent is key={item._parent.key if item._parent else None!r}) "
+                    f"— removing it here would corrupt the tree."
+                )
             item._parent = None
 
     def _mark_owner_structural(self) -> None:

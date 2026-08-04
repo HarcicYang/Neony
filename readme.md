@@ -44,7 +44,7 @@ pip install neony
 
 Requires Python 3.11+ and the platform WebView stack (WebKitGTK on Linux,
 WebView2 on Windows, WKWebView on macOS). X11 is not supported — see the
-[Roadmap](#roadmap).
+[Roadmap](ROADMAP.md).
 
 ---
 
@@ -152,46 +152,8 @@ uv run demo_gallery.py
 
 ## Roadmap
 
-Planned work, roughly in priority order.
-
-### Performance
-
-- [x] **Hover de-noise** — `mouseover`/`mouseout`/`focus`/`blur` render deferred (one frame of coalescing)
-- [~] **Input throttling** — coalescing render pipeline in place; `on_input` still renders per keystroke, hooking it into the deferred path is a one-line change
-- [x] **Dirty-subtree diffing** — only changed elements re-serialize; mutations mark their ancestors dirty
-- [x] **Snapshot reuse** — unchanged subtrees reuse cached snapshots, skipping `to_node()`
-- [x] **Style direct-patch** — pure style changes bypass the full diff
-
-### Reactivity
-
-- [x] **Signal primitives** — `Signal` / `Computed` / `Effect` with automatic dependency tracking and `batch()` coalescing
-- [x] **Declarative bindings** — `bind_text()` / `bind_style()` / `bind_attr()` / `bind_visible()` on elements and components
-- [x] **Cross-window reactivity** — a shared signal write updates every window with a binding
-- [x] **JS unit tests** — vitest + jsdom cover the browser runtime (event delegation, patch engine)
-
-### Components
-
-- [ ] **Form controls** — Radio, Switch, Select/ComboBox, Slider, Progress
-- [ ] **Overlays** — Dialog/Modal, Tooltip, Dropdown, Menu
-- [ ] **Data views** — DataTable, List, Tree
-- [ ] **Content** — Card, Avatar, Badge, Image
-
-### Animation
-
-- [ ] **CSS `transition` support** in `Styles`
-- [ ] **Built-in animated containers**
-- [ ] **Transition hooks**
-
-### Platform verification
-
-- [x] **Windows (WebView2)**
-- [ ] **macOS (WKWebView)**
-- [x] **Linux desktops (Wayland)**
-- [ ] **HiDPI / mixed-DPI scaling**
-
-> NOTE:
-> For Linux, we won't test on x11, please do it yourself
-> For macOS, we don't have a device to test on, please do it yourself too.
+Planned work lives in [ROADMAP.md](ROADMAP.md) — performance, events,
+lifecycle, components, animation, platform integration and verification.
 
 ---
 

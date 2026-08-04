@@ -116,9 +116,13 @@ panes = {
 # height so overflow actually scrolls.
 content_holder = Div(styles=Styles(flex_grow="1", min_height="0", overflow="auto"))
 
+# build() once per pane — a component's root mounts exactly once, so
+# switching reuses the cached root instead of rebuilding it.
+pane_roots = {k: p.build() for k, p in panes.items()}
+
 
 def switch_pane(key: str) -> None:
-    content_holder.container = [panes.get(key, panes["home"]).build()]
+    content_holder.container = [pane_roots.get(key, pane_roots["home"])]
 
 
 switch_pane("home")

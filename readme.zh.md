@@ -42,7 +42,7 @@ pip install neony
 
 需要 Python 3.11+，以及对应平台的 WebView 运行时(Linux 为 WebKitGTK，
 Windows 为 WebView2，macOS 为 WKWebView)。不支持 X11 — 见
-[路线图](#路线图)。
+[路线图](ROADMAP.md)。
 
 ---
 
@@ -147,46 +147,8 @@ uv run demo_gallery.py
 
 ## 路线图
 
-计划中的工作，大致按优先级排列。
-
-### 性能优化
-
-- [x] **悬停降噪** — `mouseover`/`mouseout`/`focus`/`blur` 延迟渲染(一帧合并)
-- [~] **输入节流** — 合并渲染管线已就位；`on_input` 仍逐键渲染，接入延迟路径仅需一行
-- [x] **脏子树 diff** — 只有变化的元素重新序列化，变更会向上标记祖先
-- [x] **快照复用** — 未变化的子树复用缓存快照，跳过 `to_node()`
-- [x] **样式直通补丁** — 纯样式变化绕过全树 diff
-
-### 响应式
-
-- [x] **Signal 原语** — `Signal` / `Computed` / `Effect`，自动依赖追踪 + `batch()` 合并
-- [x] **声明式绑定** — 元素与组件上的 `bind_text()` / `bind_style()` / `bind_attr()` / `bind_visible()`
-- [x] **跨窗口响应式** — 共享 Signal 写入自动更新所有绑定的窗口
-- [x] **JS 单元测试** — vitest + jsdom 覆盖浏览器运行时(事件委托、补丁引擎)
-
-### 组件
-
-- [ ] **表单控件** — Radio、Switch、Select/ComboBox、Slider、Progress
-- [ ] **浮层** — Dialog/Modal、Tooltip、Dropdown、Menu
-- [ ] **数据视图** — DataTable、List、Tree
-- [ ] **内容** — Card、Avatar、Badge、Image
-
-### 动画
-
-- [ ] **`Styles` 支持 CSS `transition`**
-- [ ] **内置动画容器**
-- [ ] **状态切换过渡**
-
-### 平台验证
-
-- [x] **Windows(WebView2)**
-- [ ] **macOS(WKWebView)**
-- [x] **Linux 桌面(Wayland)**
-- [ ] **HiDPI / 混合 DPI 缩放**
-
-> 注：
-> 对于 Linux 兼容性，我们的测试工作将不会覆盖 x11，请自行测试
-> 对于 macOS 兼容性，我们没有条件进行实际测试，请自行测试
+计划中的工作已移入 [ROADMAP.md](ROADMAP.md) — 性能、事件、生命周期、
+组件、动画、平台集成与验证。
 
 ---
 

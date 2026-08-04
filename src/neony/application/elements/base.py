@@ -24,11 +24,21 @@ class Component:
     def __init__(self) -> None:
         self._root: DOMElement
         self._callbacks: dict[str, list[Callable[..., Any]]] = {}
+        self._built = False
 
     # ---- build ----
 
     def build(self) -> DOMElement:
-        """Return the internal DOMElement tree for insertion into a Page."""
+        """Return the internal DOMElement tree for insertion into a Page.
+
+        A component owns exactly one root and one mount: the second call
+        raises, because the same element cannot live in two trees.
+        """
+        if self._built:
+            raise RuntimeError(
+                f"{type(self).__name__}.build() can only be called once. Create a new instance for each page/window."
+            )
+        self._built = True
         return self._root
 
     # ---- styling ----

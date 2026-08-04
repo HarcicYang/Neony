@@ -10,10 +10,12 @@ import asyncio
 from types import SimpleNamespace
 from typing import Any, cast
 
+import pytest
+
 from neony.application import Config, NeonApplication
 from neony.application.app import _Entry
-from neony.application.elements import Input, Text, VStack
-from neony.dom import DomEvent
+from neony.application.elements import Button, Input, Text, VStack
+from neony.dom import Div, DomEvent
 from neony.dom.bridge import Neony
 
 
@@ -326,3 +328,44 @@ class TestHandlerIsolation:
 
         asyncio.run(_fire(app, div.key, "click"))
         assert calls == ["good"]
+
+
+class TestReuseGuard:
+    """Elements and components cannot be mounted into two trees — the
+    framework raises with a clear message instead of silently corrupting
+    ``_parent`` pointers, dirty propagation, and event bubbling."""
+
+    def test_same_element_two_containers_raises(self):
+        child = Div()
+        first = Div()
+        second = Div()
+        first.container.append(child)
+        with pytest.raises(RuntimeError, match="already mounted"):
+            second.container.append(child)
+
+    def test_component_build_twice_raises(self):
+        btn = Button("x")
+        btn.build()
+        with pytest.raises(RuntimeError, match="only be called once"):
+            btn.build()
+
+    def test_shared_component_across_pages_raises(self):
+        from neony.application import Page
+
+        btn = Button("x")
+        first = Page().add(btn)
+        second = Page().add(btn)
+        first.build()
+        with pytest.raises(RuntimeError, match="only be called once"):
+            second.build()
+
+    def test_remove_from_wrong_container_raises(self):
+        owner = Div()
+        child = Div()
+        owner.container.append(child)
+        # Simulate a corrupted state where the element's parent pointer
+        # was externally reassigned — removing it here would corrupt
+        # the original tree.
+        object.__setattr__(child, "_parent", Div())
+        with pytest.raises(RuntimeError, match="not a child of this container"):
+            owner.container.remove(child)
