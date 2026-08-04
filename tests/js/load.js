@@ -1,17 +1,10 @@
 /**
- * Load the Neony JavaScript runtime sources into the jsdom window.
+ * Load the Neony JS runtime sources into the jsdom window.
  *
- * The three source files (builder.js → engine.js → index.js) are plain
- * script files defining globals: ``buildNode`` / ``unregisterSubtree``
- * (function declarations → window properties) and ``NeonyEngine`` (class
- * declaration → lexical binding in the eval scope, NOT a window
- * property).  To make all of them accessible to tests regardless of
- * binding kind, an exposure line is appended inside the same eval scope:
- *
- *     window.__neony__ = { buildNode, unregisterSubtree, NeonyEngine, neony: window.neony }
- *
- * ``window.neony`` is set by the index.js IIFE and is a real window
- * property, so it is read directly at eval time.
+ * A class declaration (`NeonyEngine`) is a lexical binding, not a window
+ * property, so an exposure line is appended in the same eval scope:
+ * `window.__neony__ = { buildNode, unregisterSubtree, NeonyEngine, neony: window.neony }`
+ * (`window.neony` is a real property set by the index.js IIFE).
  */
 
 import { readFileSync } from "node:fs";

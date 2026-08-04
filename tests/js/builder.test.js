@@ -31,10 +31,7 @@ describe("buildNode", () => {
   });
 
   it("adds the -webkit- prefix for backdrop-filter", () => {
-    // jsdom's CSSStyleDeclaration drops unknown properties entirely, so
-    // assert the writes themselves (on the prototype — buildNode creates
-    // its own element): the source must call setProperty for both the
-    // standard and the -webkit- prefixed variant.
+    // jsdom drops unknown CSS properties — assert the writes themselves.
     const setProperty = vi.spyOn(CSSStyleDeclaration.prototype, "setProperty");
     rt.buildNode({ key: "b", tag: "div", styles: { "backdrop-filter": "blur(8px)" } }, new Map());
     expect(setProperty).toHaveBeenCalledWith("backdrop-filter", "blur(8px)");

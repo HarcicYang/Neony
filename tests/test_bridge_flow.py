@@ -1,10 +1,9 @@
 """Regression tests for the reactive event/render flow.
 
 The critical invariant: ``rev`` increments only when a message is
-actually sent. A re-render with no changes (e.g. a ``change`` event
-after the state was already rendered) must not create a revision gap —
-otherwise the JS engine's ``lastRev`` falls behind and the next real
-patch triggers a full resync, wiping input state.
+actually sent — an empty re-render must not create a revision gap, or
+the JS engine's ``lastRev`` falls behind and the next real patch
+triggers a full resync, wiping input state.
 """
 
 import asyncio

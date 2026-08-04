@@ -14,13 +14,9 @@ from .base import Component
 class Button(Component):
     """A themed push button with hover / press feedback.
 
-    ``variant`` selects a token-based palette:
-
-    - ``"primary"`` — accent background
-    - ``"ghost"`` — transparent with border (boundary weakening)
-    - ``"danger"`` — danger accent
-
-    Hovering lifts the button (shadow); pressing dims and compresses it.
+    ``variant`` selects a token-based palette: ``"primary"`` (accent bg),
+    ``"ghost"`` (transparent, bordered), ``"danger"`` (danger accent).
+    Hovering lifts the button; pressing dims and compresses it.
     """
 
     def __init__(
@@ -43,9 +39,7 @@ class Button(Component):
         self._focused = False
         self._custom_styles: Styles | None = None
 
-        # Semantic role for glow colouring.  Ghost → surface → the
-        # neutral border glass (subtle, no colour bleed); primary and
-        # danger keep their own role's tint.
+        # Semantic role for glow colouring (ghost → surface, subtle).
         self._role = {"primary": "accent", "ghost": "surface"}.get(variant, variant)
 
         self._btn = _ButtonElem(
@@ -82,8 +76,7 @@ class Button(Component):
 
     @staticmethod
     def _variant_styles(variant: str, glass: bool = False) -> Styles:
-        # border: none kills the WebKitGTK default 2px outset border;
-        # ghost re-adds its own hairline border.
+        # border: none kills WebKitGTK's default 2px outset border.
         base = Styles(
             padding="10px 20px",
             border_radius="8px",
@@ -96,9 +89,7 @@ class Button(Component):
         )
 
         if glass:
-            # Frosted version of the variant's own colour: the theme
-            # tint is kept (semi-transparent) instead of being replaced
-            # by a neutral glass surface.
+            # Frosted version of the variant's own colour.
             role = {"primary": "accent", "ghost": "surface"}.get(variant, variant)
             return base.model_copy(
                 update={
@@ -137,13 +128,13 @@ class Button(Component):
             update: dict[str, str | float] = {}
             shadows: list[str] = []
             if self._focused:
-                # Focus ring — first in the list so it renders on top.
+                # Focus ring first so it renders on top.
                 shadows.append(Theme.focus_glow(self._role))
             if self._hover:
                 update["opacity"] = 0.92
                 shadows.append("0 4px 16px var(--color-shadow)")
-                # Colour-matched glow so the lift reads as the element's
-                # own colour, not a neutral grey shadow.
+                # Colour-matched glow — the lift reads as the element's
+                # own colour.
                 shadows.append(f"0 0 20px {Theme.glass_border(self._role)}")
             if shadows:
                 update["box_shadow"] = ", ".join(shadows)

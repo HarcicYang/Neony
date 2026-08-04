@@ -1,17 +1,10 @@
 """TitleBar component — custom window chrome for frameless windows.
 
-Window-control actions (minimize / maximize / close) are fully managed
-internally: each control button carries a ``data-window-action`` attribute
-that the Neony JS runtime routes to the LumiView ``WindowControls`` bridge
-scope.  Users get a pure-Python API on top:
-
-- Zero config: ``TitleBar("My App")`` — everything works in a frameless
-  window (``WindowConfig(decorations=False)`` loads the ``WindowControls``
-  scope automatically).
-- Extra callbacks: ``titlebar.on_close(fn)`` — the window action still
-  runs, *fn* is notified afterwards.
-- Full takeover: ``titlebar.override_close(fn)`` — the built-in window
-  action is disabled and *fn* is the only thing that runs.
+Window-control actions are fully managed internally: each button
+carries a ``data-window-action`` attribute that the JS runtime routes
+to the LumiView ``WindowControls`` bridge scope.  Users get a pure
+Python API: ``on_close(fn)`` extra callbacks, ``override_close(fn)``
+full takeover.
 """
 
 from __future__ import annotations
@@ -30,12 +23,10 @@ _ICONS = {"minimize": "—", "maximize": "□", "close": "✕"}
 
 
 class TitleBar(Component):
-    """A draggable glass titlebar with minimize / maximize / close controls.
+    """Draggable glass titlebar with minimize / maximize / close controls.
 
-    The root div carries ``data-lumiview-drag-region`` (the WindowControls
-    drag script makes the whole bar drag the window; double-clicking it
-    toggles maximize).  Control buttons are excluded from dragging and
-    dispatch their window action through the bridge.
+    The root carries ``data-lumiview-drag-region``; control buttons are
+    excluded from dragging and dispatch through the bridge.
     """
 
     def __init__(
@@ -62,9 +53,8 @@ class TitleBar(Component):
         self._btn_max = self._make_control_button("maximize", show_maximize)
         self._btn_close = self._make_control_button("close", show_close)
 
-        # line-height = height - 2*8px so the glyph's vertical margins
-        # match the 8px side padding — the title sits at an equal
-        # distance from all edges instead of hugging the left edge.
+        # line-height = height - 16px so the glyph's vertical margins
+        # match the 8px side padding.
         self._title_span = Span(
             container=[self._title],
             styles=Styles(
@@ -124,10 +114,8 @@ class TitleBar(Component):
     def _make_control_button(self, kind: str, visible: bool) -> _ButtonElem:
         """Build one window-control button.
 
-        The ``data-window-action`` attribute is what the JS runtime routes
-        to ``WindowControls`` bridge commands — an internal detail users
-        never see.  ``data-lumiview-no-drag`` keeps the WindowControls
-        drag script from treating the button as drag chrome.
+        ``data-window-action`` is what the JS routes to the bridge; the
+        ``data-lumiview-no-drag`` keeps the drag script off it.
         """
         styles = Styles(
             width="28px",
@@ -158,12 +146,8 @@ class TitleBar(Component):
     def _apply_hover(self) -> None:
         """Recompute control-button hover styles.
 
-        Close turns danger-red on hover (matching common titlebar UX);
-        minimize / maximize lift slightly onto the surface colour.
-
-        Both branches set the full state — the non-hover branch restores
-        the base colours explicitly (a plain ``model_copy`` would keep
-        the hover colours frozen after mouseout).
+        Close turns danger-red on hover; both branches set the full
+        state, so mouseout explicitly restores the base colours.
         """
         if self._close_hover:
             self._btn_close.styles = self._btn_close.styles.model_copy(

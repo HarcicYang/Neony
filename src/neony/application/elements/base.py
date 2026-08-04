@@ -1,14 +1,9 @@
 """Component base class.
 
-A Component *encapsulates* a :class:`DOMElement` tree (never inherits).
-It owns its state, proxies the fluent event API, and produces a
-:class:`DOMElement` via :meth:`build` that plugs into a Page or any
-other component's tree.
-
-Event semantics: user-driven DOM events reach the component's internal
-elements with ``DomEvent.source == "user"`` and notify registered
-callbacks. Programmatic state changes (e.g. ``checkbox.checked = True``)
-update state and the DOM tree immediately but never fire callbacks.
+A Component encapsulates a DOMElement tree (never inherits): it owns
+its state, proxies the fluent event API, and produces a DOMElement via
+:meth:`build`.  User-driven events reach callbacks with ``source ==
+"user"``; programmatic state changes never fire callbacks.
 """
 
 from __future__ import annotations
@@ -21,14 +16,10 @@ from neony.dom import DOMElement, DomEvent, Signal, Styles
 
 
 class Component:
-    """Base class for all Neony UI components.
-
-    Subclasses build their internal DOMElement tree in ``__init__``
-    (stored as ``self._root``), own their state, and expose chainable
-    ``on_*`` methods. Bind internal elements to events with
-    :meth:`_bind`; override :meth:`_on_event` to sync state before
-    user callbacks run.
-    """
+    """Base class for all Neony UI components.  Subclasses build their
+    internal DOMElement tree in ``__init__`` (stored as ``self._root``),
+    sync state in :meth:`_on_event`, and expose chainable ``on_*``
+    methods (via :meth:`_bind`)."""
 
     def __init__(self) -> None:
         self._root: DOMElement
@@ -43,10 +34,8 @@ class Component:
     # ---- styling ----
 
     def reset_styles(self, styles: Styles) -> Self:
-        """Completely replace the component's root styles (chainable).
-
-        Later calls overwrite earlier ones — no merging.
-        """
+        """Completely replace the root styles (chainable) — later calls
+        overwrite earlier ones."""
         self._root.styles = styles
         return self
 
@@ -80,11 +69,8 @@ class Component:
     # ---- event API ----
 
     def on(self, event_type: str, fn: Callable[..., Any]) -> Self:
-        """Register a callback for *event_type* on this component (chainable).
-
-        The callback receives a :class:`DomEvent` with ``source == "user"``.
-        Programmatic state changes do not fire callbacks.
-        """
+        """Register a callback for *event_type* (chainable), called with
+        a :class:`DomEvent` with ``source == "user"``."""
         self._callbacks.setdefault(event_type, []).append(fn)
         return self
 

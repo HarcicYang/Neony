@@ -1,8 +1,4 @@
-"""Patch protocol models, diff engine, and reactive DOM bridge for Neony.
-
-Defines the JSON patch operations used to synchronise a Python-side
-DOMElement tree with the live DOM inside a LumiView webview.
-"""
+"""Patch protocol, diff engine, and the reactive DOM bridge."""
 
 from __future__ import annotations
 
@@ -57,9 +53,7 @@ class ReorderPatch(BaseModel):
 class MovePatch(BaseModel):
     """Move element *key* to a new parent / index.
 
-    Note: v1 emits REMOVE + CREATE for cross-parent moves.
-    This op is protocol-ready for future use.
-    """
+    v1 emits REMOVE + CREATE instead; protocol-ready only."""
 
     op: Literal["move"] = "move"
     key: str
@@ -134,11 +128,8 @@ class DiffEngine:
 
     @staticmethod
     def diff(old: NodeDescriptor | None, new: NodeDescriptor) -> list[Patch]:
-        """Compare *old* (may be ``None`` for first render) with *new*.
-
-        Returns a list of patches that, when applied in order, transform
-        the old DOM state into the new one.
-        """
+        """Compare *old* (``None`` on first render) with *new*, returning
+        ordered patches that transform the old DOM into the new one."""
         if old is None:
             return [CreatePatch(key=new.key, node=new)]
 
@@ -148,26 +139,21 @@ class DiffEngine:
     def _diff_node(old: NodeDescriptor, new: NodeDescriptor) -> list[Patch]:
         patches: list[Patch] = []
 
-        # Tag changed → replace the whole element
         if old.tag != new.tag:
             patches.append(ReplacePatch(key=new.key, node=new))
             return patches
 
-        # Text changed
         if old.text != new.text:
             patches.append(SetTextPatch(key=new.key, text=new.text or ""))
 
-        # Attrs diff
         attr_patch = DiffEngine._diff_dict(old.attrs, new.attrs)
         if attr_patch:
             patches.append(UpdateAttrsPatch(key=new.key, set=attr_patch["set"], remove=attr_patch["remove"]))
 
-        # Styles diff
         style_patch = DiffEngine._diff_dict(old.styles, new.styles)
         if style_patch:
             patches.append(UpdateStylesPatch(key=new.key, set=style_patch["set"], remove=style_patch["remove"]))
 
-        # Children diff
         child_patches = DiffEngine._diff_children(old.children, new.children, parent_key=new.key)
         patches.extend(child_patches)
 
@@ -207,21 +193,16 @@ class DiffEngine:
         old_keys = [c.key for c in old_children]
         new_keys = [c.key for c in new_children]
 
-        # Removed: keys in old but not in new
         for k in old_keys:
             if k not in new_map:
                 patches.append(RemovePatch(key=k))
 
-        # Created + recurse: walk new children in order
         for i, c in enumerate(new_children):
             if c.key not in old_map:
-                # New element
                 patches.append(CreatePatch(key=c.key, node=c, parent=parent_key, index=i))
             else:
-                # Existing element — recurse
                 patches.extend(DiffEngine._diff_node(old_map[c.key], c))
 
-        # Reorder: keys exist in both but order changed
         if old_keys != new_keys and set(old_keys) == set(new_keys):
             patches.append(ReorderPatch(parent=parent_key, ordered_keys=new_keys))
 
@@ -232,32 +213,10 @@ class DiffEngine:
 
 
 class Neony(Plugin):
-    """Reactive DOM bridge for a LumiView window.
-
-    A :class:`~lumiview.Plugin` that manages the lifecycle of a
-    DOMElement tree: serialises it, diffs against the previous snapshot,
-    and pushes patches to the JavaScript engine inside the webview.
-
-    Include it in a LumiView Bridge via ``Bridge(includes=[neony])`` —
-    commands are registered automatically at construction time and the
-    JS engine is injected via ``on_init``.
-
-    Usage::
-
-        neony = Neony()
-        app = App(name="Demo")
-
-        async def main():
-            win = await Window.create(bridge=Bridge(includes=[neony]), ...)
-            tree = Body(container=[Div(container=["Hello"])])
-            await neony.render(tree)
-
-            @neony.on("click")
-            async def handle_click(key, type, value):
-                print(f"Clicked {key}")
-
-        app.run(main)
-    """
+    """Reactive DOM bridge for a LumiView window: serialises the tree,
+    diffs against the previous snapshot, and pushes patches to the JS
+    engine.  Include via ``Bridge(includes=[neony])``; commands register
+    at construction and the engine injects via ``on_init``."""
 
     def __init__(
         self,
@@ -270,19 +229,15 @@ class Neony(Plugin):
         self._win: Window | None = None
         self._snapshot: NodeDescriptor | None = None
         self._last_tree: DOMElement | None = None
-        # Per-key snapshot cache for dirty-subtree tracking: unchanged
-        # elements reuse their cached NodeDescriptor (see to_node).
+        # Per-key snapshot cache: unchanged elements reuse their snapshot (see to_node).
         self._snapshots: dict[str, NodeDescriptor] = {}
         self._rev: int = 0
         self._lock: asyncio.Lock = asyncio.Lock()
         self._handlers: dict[tuple[str | None, str], list[Callable[..., Any]]] = {}
-        # key → DOMElement lookup for opt-in event bubbling: when an event
-        # arrives for an element with no handler of its own, the bridge
-        # walks the parent chain to find a _bubble_events ancestor.
+        # key → element, for opt-in bubbling to handler-less descendants.
         self._key_map: dict[str, DOMElement] = {}
-        # Deferred-render coalescing (input throttling / hover de-noise):
-        # a pending task scheduled by ``render(immediate=False)``; cancelled
-        # and replaced on each new request within the debounce window.
+        # Pending deferred render (``render(immediate=False)``), cancelled
+        # and replaced on each new request.
         self._render_task: asyncio.Task | None = None
         self._render_debounce: float = 0.016  # ~1 frame at 60fps
 
@@ -307,18 +262,10 @@ class Neony(Plugin):
     # ---- JS → Python commands (called via lumiview.invoke) ----
 
     async def _on_event(self, ctx: BridgeContext, key: str, event_type: str, value: Any = None) -> None:
-        """Handle a DOM event forwarded from JavaScript.
-
-        Events route to the element the JS ``closest()`` resolved — usually
-        the exact element.  When that element has no handler of its own,
-        opt-in bubbling applies: if an ancestor has ``_bubble_events`` set
-        (components whose children are parts of the component, e.g.
-        SidebarItem's icon/label spans), the event routes to the nearest
-        such ancestor instead.
-
-        One handler raising must not break the rest of the chain —
-        each handler runs independently.
-        """
+        """Handle a DOM event from JavaScript.  Events with no handler on
+        their own element bubble to the nearest ``_bubble_events`` ancestor
+        (SidebarItem's icon/label spans); each handler runs independently —
+        one raising must not break the chain."""
         import logging
 
         from lumiview._task import _run_async
@@ -336,8 +283,7 @@ class Neony(Plugin):
         if dispatched:
             return
 
-        # No handler on the exact element — walk up the parent chain and
-        # stop at the nearest ancestor that opted into bubbling.
+        # No exact match — bubble to the nearest _bubble_events ancestor.
         el = self._key_map.get(key)
         while el is not None and el._parent is not None:
             el = el._parent
@@ -365,12 +311,8 @@ class Neony(Plugin):
     # ---- public API ----
 
     def on(self, event_type: str, *, key: str | None = None):
-        """Register a DOM event handler (decorator).
-
-        The handler receives keyword arguments *key*, *event_type*, and *value*.
-        If *key* is ``None`` (the default), the handler matches *event_type*
-        on any element.
-        """
+        """Register a DOM event handler (decorator), called with *key*,
+        *event_type*, *value*.  A ``None`` *key* matches any element."""
 
         def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
             self._handlers.setdefault((key, event_type), []).append(fn)
@@ -385,27 +327,11 @@ class Neony(Plugin):
             handlers.remove(fn)
 
     async def render(self, element: DOMElement, *, immediate: bool = True) -> PatchMessage | None:
-        """Render (or update) a DOM tree in the browser.
-
-        On the first call the entire tree is mounted via ``eval_js``.
-        Subsequent calls diff against the previous snapshot and send
-        only changed patches via ``emit``.
-
-        With ``immediate=False`` the render is deferred by one frame
-        (~16ms): a pending deferred render is cancelled and rescheduled,
-        so a burst of style-only events (hover, focus, blur) coalesces
-        into a single render.  This is the input-throttling / hover
-        de-noise mechanism.
-
-        *rev* increments ONLY when a message is actually sent, so the
-        JavaScript engine's ``lastRev`` stays in lockstep with the
-        browser — an unchanged re-render (e.g. a ``change`` event after
-        the state was already rendered) must not create a revision gap
-        that would trigger an unnecessary full resync.
-
-        Returns the :class:`PatchMessage` that was sent, or ``None``
-        when there was nothing to send (including a deferred render
-        that was cancelled by a newer request).
+        """Render (or update) a DOM tree.  First call mounts; later calls
+        diff and emit patches.  ``immediate=False`` defers one frame so
+        style-only event bursts coalesce.  *rev* increments only when a
+        message is sent — an empty re-render must not gap the JS engine's
+        ``lastRev``.  Returns the sent :class:`PatchMessage` or ``None``.
         """
         async with self._lock:
             if self._win is None:
@@ -418,9 +344,8 @@ class Neony(Plugin):
                 self._render_task.cancel()
                 self._render_task = None
 
-            # Immediate path: first mount, or "important" events (click,
-            # change, submit).  Deferred path: style-only / high-frequency
-            # events that can wait one frame.
+            # Immediate: first mount or important events.  Deferred:
+            # style-only / high-frequency events that can wait a frame.
             if immediate or self._snapshot is None:
                 return await self._do_render(element)
 
@@ -429,25 +354,18 @@ class Neony(Plugin):
             return None
 
     async def _deferred_render(self, element: DOMElement) -> PatchMessage | None:
-        """Sleep one frame, then render.  Cancelled when a newer render
-        request arrives within the debounce window."""
+        """Sleep one frame, then render (cancelled by newer requests)."""
         await asyncio.sleep(self._render_debounce)
         async with self._lock:
-            # Superseded: a newer render request replaced us between the
-            # sleep and the lock acquisition (or cancelled us).  Bail out
-            # instead of racing _do_render.
+            # A newer request superseded us — bail instead of racing.
             if self._render_task is not asyncio.current_task():
                 return None
             self._render_task = None
             return await self._do_render(element)
 
     async def _do_render(self, element: DOMElement) -> PatchMessage | None:
-        """The actual render cycle: serialize, diff, emit patches.
-
-        Serialization passes the per-key snapshot cache: elements that
-        did not change since the last render are reused verbatim (their
-        dirty flag is clear), so only dirty subtrees are re-walked.
-        """
+        """Serialize (via the snapshot cache — only dirty subtrees are
+        re-walked), diff, and emit patches."""
         if self._win is None:
             raise RuntimeError(
                 "Neony: window not ready — the bridge must be included "

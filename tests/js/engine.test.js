@@ -1,9 +1,5 @@
 /**
- * Unit tests for engine.js — the NeonyEngine patch application engine.
- *
- * Covers: mount, applyMessage revision tracking (stale drop, gap
- * resync), and every patch op (create, remove, replace, reorder,
- * update_attrs, update_styles, set_text, move).
+ * Unit tests for engine.js — mount, revision tracking, and patch ops.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,12 +12,10 @@ beforeEach(() => {
   rt = loadRuntime(["builder.js", "engine.js"]);
 });
 
-/** Build a PatchMessage-shaped object. */
 function makeMsg(rev, ops) {
   return { rev, ops };
 }
 
-/** Mount a minimal root so the engine has a live tree. */
 function mountEngine(engine, rev = 1, node = { key: "root", tag: "div" }) {
   engine.mount(makeMsg(rev, [{ op: "create", key: node.key, node }]));
   return engine;
@@ -222,9 +216,7 @@ describe("patch ops", () => {
   it("update_styles: mirrors -webkit- prefix for backdrop-filter", () => {
     const engine = baseEngine();
     const a = engine.registry.get("a");
-    // jsdom's CSSStyleDeclaration drops unknown properties entirely, so
-    // assert the writes/removes themselves: both the standard and the
-    // -webkit- prefixed variant must be touched.
+    // jsdom drops unknown CSS properties — assert the writes/removes themselves.
     const setProperty = vi.spyOn(a.style, "setProperty");
     const removeProperty = vi.spyOn(a.style, "removeProperty");
     engine.applyOps([{ op: "update_styles", key: "a", set: { "backdrop-filter": "blur(8px)" }, remove: [] }]);

@@ -1,9 +1,6 @@
 /**
- * Neony JavaScript runtime — bootstrap and event delegation.
- *
- * Injected once per page by the Neony bridge plugin.
- * Creates the global ``window.neony`` API and subscribes to
- * Python-emitted patch events.
+ * Bootstrap and event delegation. Injected once per page by the bridge
+ * plugin; creates the global ``window.neony`` API.
  */
 (() => {
     // Guard against double-injection
@@ -11,7 +8,6 @@
 
     const engine = new NeonyEngine();
 
-    // Public API
     window.neony = {
         engine,
         mount: (msg) => engine.mount(msg),
@@ -28,17 +24,13 @@
         return;
     }
 
-    // Listen for patch messages from Python
     window.lumiview.listen("neony:patch", (msg) => {
         engine.applyMessage(msg);
     });
 
-    // ── event delegation ────────────────────────────────────────
-    //
-    // Listen on `document` (capture phase) — `document.body` may not
-    // exist yet when the init script runs.  Each event is traced back
-    // to the nearest ancestor with a data-neony-key attribute and
-    // forwarded to Python via lumiview.invoke("neony.event", ...).
+    // Event delegation: listen on `document` (capture phase —
+    // `document.body` may not exist yet), trace each event to the
+    // nearest data-neony-key ancestor, forward via lumiview.invoke.
 
     var DELEGATED_EVENTS = [
         "click", "dblclick", "input", "change", "submit",
@@ -47,16 +39,14 @@
     ];
 
     function captureValue(el, event) {
-        // Keyboard events: the pressed key is the payload — the element's
-        // value (e.g. what's already typed in an input) is irrelevant.
+        // Keyboard events carry the pressed key, not the element's value.
         if (event.key !== undefined) return event.key;
-        // Checkboxes / radio: use `checked` property (not `value`, which
-        // is always "on" for unchecked checkboxes).
+        // Checkboxes use `checked` — `value` is always "on".
         if (el.type === "checkbox" || el.type === "radio") {
             return el.checked;
         }
-        // Buttons expose a `value` IDL property that defaults to "" —
-        // not user data, so it must not shadow the null fallback below.
+        // A button's `value` IDL property defaults to "" — not user data,
+        // so it must not shadow the null fallback below.
         if (el.value !== undefined && el.tagName !== "BUTTON") return el.value;
         return null;
     }
@@ -65,12 +55,9 @@
         var el = event.target.closest("[data-neony-key]");
         if (!el) return;
 
-        // Window-control buttons (e.g. TitleBar): on *click* only, route
-        // the action through the WindowControls bridge scope so
-        // `lumiview.window.*` executes the native operation, then still
-        // dispatch the normal Neony event so user callbacks run too.
-        // Restricted to clicks — this handler receives every delegated
-        // event type, and a plain hover must never close a window.
+        // Window-control buttons: on *click* only, run the native
+        // `lumiview.window.*` action (a plain hover must never close a
+        // window), then still forward the normal Neony event.
         var winAction = el.getAttribute("data-window-action");
         if (winAction && event.type === "click" && window.lumiview.window) {
             var action = window.lumiview.window[winAction];

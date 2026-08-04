@@ -1,38 +1,21 @@
 """Fine-grained reactive primitives — Signal, Computed, Effect.
 
-The V-DOM diff engine reacts to whole-tree mutations; these primitives
-react to individual state changes.  A :class:`Signal` holds a value and
-notifies subscribers on write; :class:`Computed` derives values with
-automatic dependency tracking and caching; :class:`Effect` runs a
-function immediately and re-runs it whenever any Signal it read changes.
+Signal holds a value and notifies subscribers on write; Computed derives
+cached values with automatic dependency tracking; Effect runs a function
+immediately and re-runs it whenever any Signal it read changes.
 
-Dependency tracking is scope-based: while a node (Effect or Computed) is
-evaluating, every Signal/Computed read is recorded as a dependency.
-Writes notify subscribers; Effects re-run (batch-coalesced), Computeds
-mark themselves dirty and invalidate their own subscribers.
+Dependency tracking is scope-based: while a node is evaluating, every
+read is recorded as a dependency.  Re-runs are coalesced — deferred to
+``loop.call_soon`` when a loop is running, synchronous otherwise, always
+coalesced inside :func:`batch` (deferring while another effect runs also
+prevents recursion when an effect writes a Signal it reads).
 
 Usage::
 
     count = Signal(0)
-    double = Computed(lambda: count() * 2)
-
-    def log():
-        print("count is", count())
-    stop = effect(log)          # runs immediately: prints 0
-
-    count.set(1)                # log re-runs: prints 1
-
-    with batch():
-        count.set(2)
-        count.set(3)            # one re-run, not two
-    stop.dispose()              # no more re-runs
-
-Scheduling: with a running asyncio loop, effect re-runs are deferred to
-``loop.call_soon`` — multiple writes in one synchronous block coalesce
-into a single re-run (the microtask coalescing).  Without a loop, re-runs
-are synchronous, except inside :func:`batch` (always coalesced) or while
-another effect is running (deferred until it finishes, which prevents
-infinite recursion when an effect writes a Signal it reads).
+    stop = effect(lambda: print(count()))
+    count.set(1)  # re-runs, prints 1
+    stop.dispose()
 """
 
 from __future__ import annotations
@@ -59,13 +42,8 @@ def _get_running_loop() -> asyncio.AbstractEventLoop | None:
 
 
 class Source:
-    """Base for things that can be subscribed to (Signal, Computed).
-
-    Not generic: the type parameter lives on the leaf classes (Signal[T],
-    Computed[T]).  No ``__slots__`` — the primitives are few (user-level
-    state), the gain is negligible, and slots complicate Computed's
-    multiple inheritance and pyrefly's attribute checking.
-    """
+    """Base for subscribable values (Signal, Computed).  Not generic —
+    the type parameter lives on the leaf classes."""
 
     def __init__(self) -> None:
         self._subs: set[ReactiveNode] = set()
@@ -76,11 +54,7 @@ class Source:
 
 
 class ReactiveNode:
-    """Base for things that track dependencies (Effect, Computed).
-
-    While a node is evaluating, every Source read is recorded in
-    ``_deps`` and subscribes the node to that source.
-    """
+    """Base for dependency-tracking nodes (Effect, Computed)."""
 
     def __init__(self) -> None:
         self._deps: set[Source] = set()
@@ -90,8 +64,8 @@ class ReactiveNode:
         source._subs.add(self)
 
     def _begin_track(self) -> None:
-        # Drop stale subscriptions before re-collecting: an effect whose
-        # branch changed must stop listening to abandoned sources.
+        # Drop stale subscriptions: an effect whose branch changed must
+        # stop listening to abandoned sources.
         for dep in self._deps:
             dep._subs.discard(self)
         self._deps.clear()
@@ -105,13 +79,9 @@ class ReactiveNode:
 
 
 class Signal(Source, Generic[T]):
-    """A single reactive value.
-
-    Read with ``signal()`` or ``signal.get()`` (inside an effect/computed
-    this records a dependency); write with ``signal.set(value)`` or
-    ``signal.update(fn)``.  Writing an equal value (``==``) notifies
-    nothing.
-    """
+    """A single reactive value.  Read with ``signal()`` (records a
+    dependency inside an effect/computed); write with ``set()`` /
+    ``update()``.  Writing an equal value (``==``) notifies nothing."""
 
     def __init__(self, value: T) -> None:
         super().__init__()
@@ -142,23 +112,14 @@ class Signal(Source, Generic[T]):
 
 
 class SharedSignal(Signal[T]):
-    """A :class:`Signal` meant to be shared across every window.
-
-    Behaviourally identical to ``Signal`` — Python objects are shared by
-    reference, and bindings in every window's tree subscribe to the same
-    signal, so a write updates all windows (each window schedules its own
-    render through its tree root).  Declaring the intent explicitly keeps
-    multi-window apps readable.
-    """
+    """A :class:`Signal` meant for cross-window state — behaviourally
+    identical (objects are shared by reference); the intent stays
+    explicit in multi-window apps."""
 
 
 class Computed(Source, ReactiveNode, Generic[T]):
-    """A lazily evaluated, cached derived value.
-
-    ``computed()`` returns the cached value, recomputing only when a
-    dependency changed.  Computeds may depend on other computeds and
-    are themselves valid dependencies for effects and other computeds.
-    """
+    """Lazily evaluated, cached derived value; recomputes only when a
+    dependency changed.  Computeds may depend on other computeds."""
 
     def __init__(self, fn: Callable[[], T]) -> None:
         Source.__init__(self)
@@ -195,10 +156,7 @@ class Computed(Source, ReactiveNode, Generic[T]):
 
 class Effect(ReactiveNode):
     """Run *fn* immediately, then re-run it when a dependency changes.
-
-    Disposable: ``effect.dispose()`` unsubscribes from every dependency
-    so the effect (and anything it captured) can be garbage collected.
-    """
+    ``dispose()`` unsubscribes from every dependency."""
 
     def __init__(self, fn: Callable[[], None]) -> None:
         super().__init__()
@@ -217,8 +175,7 @@ class Effect(ReactiveNode):
         finally:
             _RUNNING_EFFECTS -= 1
             self._end_track()
-        # A write inside the effect may have queued other effects in the
-        # no-loop path — flush them once we're back at the top level.
+        # Flush effects queued by this run once we're back at top level.
         if _PENDING and _RUNNING_EFFECTS == 0 and _BATCH_DEPTH == 0 and _get_running_loop() is None:
             _flush()
 
@@ -264,8 +221,7 @@ def _schedule(eff: Effect) -> None:
             loop.call_soon(_flush)
         return
     if _RUNNING_EFFECTS > 0:
-        # Defer to the effect's tail flush — running it now would recurse
-        # into the writer's stack.
+        # Defer to the tail flush — running now would recurse the writer's stack.
         _PENDING.add(eff)
         return
     eff._run_now()
@@ -282,9 +238,8 @@ def _flush() -> None:
         try:
             eff._run_now()
         except Exception:
-            # One crashing effect must not block the rest of the batch.
-            # (Effect._run_now guarantees the tracking stack is restored
-            # via finally, so the crash only loses this effect's run.)
+            # One crash must not block the batch (the tracking stack is
+            # restored via finally, so only this run is lost).
             import logging
 
             logging.getLogger("neony.reactive").exception("Effect crashed")

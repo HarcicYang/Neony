@@ -94,15 +94,12 @@ class Input(Component):
 
     async def _on_event(self, event_type: str, event: DomEvent) -> None:
         if event_type == "input":
-            # Record state only — the DOM already holds the typed value.
-            # Writing it back would diff an UpdateAttrsPatch → JS
-            # setAttribute("value") → WebKitGTK fires another input
-            # event → infinite loop / frozen page.
+            # Record state only — writing the value back would fire
+            # another `input` event in WebKitGTK (infinite loop).
             self._value = str(event.value or "")
         elif event_type == "focus":
-            # Colour-matched focus ring replaces the removed native
-            # outline.  ``model_copy`` — _FIELD is a shared module
-            # constant and must not be mutated in place.
+            # Focus ring replaces the native outline; ``model_copy`` —
+            # _FIELD is a shared constant.
             self._input.styles = self._input.styles.model_copy(update={"box_shadow": Theme.focus_glow("accent")})
         elif event_type == "blur":
             self._input.styles = self._input.styles.model_copy(update={"box_shadow": None})

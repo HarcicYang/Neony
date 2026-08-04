@@ -1,10 +1,4 @@
-"""Sidebar component — vertical navigation, glass-matched to TitleBar.
-
-The sidebar shares TitleBar's aggressive frosted-glass treatment (same
-blur, same surface token) so the two stack seamlessly into one chrome
-unit: ``VStack(TitleBar(...), HStack(Sidebar(...), content, gap="0"))``
-reads as a single top-and-left frame with no seams.
-"""
+"""Sidebar component — vertical navigation, glass-matched to TitleBar."""
 
 from __future__ import annotations
 
@@ -25,15 +19,13 @@ _ITEM_BASE = Styles(
     cursor="pointer",
     background_color=Color(name="transparent"),
     color=Color(var="--color-text-secondary"),
-    # Always-present left border avoids a 3px layout shift when the
-    # active accent border appears.
+    # Always-present left border avoids a layout shift on activation.
     border_left="3px solid transparent",
 )
 
 _ITEM_ACTIVE = _ITEM_BASE.model_copy(
     update={
-        # Frosted like the rest of the chrome — translucent surface with
-        # backdrop blur, not a flat opaque fill.
+        # Frosted like the rest of the chrome, not a flat fill.
         "background_color": Color(var="--color-surface-glass-bg"),
         "backdrop_filter": "blur(20px) saturate(1.2)",
         "color": Color(var="--color-text-primary"),
@@ -62,12 +54,8 @@ _SOLID = Styles(
 
 
 class SidebarItem(Component):
-    """One clickable entry in a :class:`Sidebar`.
-
-    ``key`` identifies the item in ``Sidebar.active_key`` and in the
-    ``change`` event value; it defaults to the lowercased label.
-    ``icon`` is an optional unicode glyph shown before the label.
-    """
+    """One clickable entry in a :class:`Sidebar`; ``key`` defaults to the
+    lowercased label, ``icon`` is an optional glyph shown first."""
 
     def __init__(
         self,
@@ -88,8 +76,7 @@ class SidebarItem(Component):
             styles=_ITEM_ACTIVE if active else _ITEM_BASE,
             container=self._text_content(),
         )
-        # The icon/label spans carry their own keys, so clicks land on them
-        # — bubble those events up to this item's handlers.
+        # Clicks land on the icon/label spans — bubble them to this item.
         self._root._bubble_events = True
         self._bind(self._root, "click")
         self._bind(self._root, "mouseover")
@@ -98,8 +85,7 @@ class SidebarItem(Component):
     # ---- internals ----
 
     def _text_content(self) -> list[DOMElement | str]:
-        # Element-only children: reactive mode forbids mixing strings
-        # and elements in one container.
+        # Element-only children (reactive mode forbids mixing).
         parts: list[DOMElement | str] = []
         if self._icon:
             parts.append(
@@ -169,9 +155,6 @@ class Sidebar(Component):
             SidebarItem("Settings", icon="⚙️"),
         )
         sidebar.on_change(lambda e: switch_content(e.value))  # key string
-
-    ``sidebar.active_key`` switches programmatically without firing the
-    ``change`` callback (source-aware semantics).
     """
 
     def __init__(
@@ -196,8 +179,7 @@ class Sidebar(Component):
         # Stretch to the full height of the chrome row it lives in.
         self._root.styles = self._root.styles.model_copy(update={"width": width, "flex_shrink": "0"})
         if corner_radius is not None:
-            # Rounds the inner corner where the sidebar meets the
-            # titlebar above it.
+            # Rounds the corner where the sidebar meets the titlebar.
             self._root.styles = self._root.styles.model_copy(update={"border_top_right_radius": corner_radius})
 
         for item in items:

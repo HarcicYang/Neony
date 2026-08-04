@@ -1,9 +1,4 @@
-"""Page — top-level container for a Neony application.
-
-A Page replaces bare Div usage at the root: it owns the page-level
-flex layout, applies the theme background, and collects components.
-``app.run(page)`` calls :meth:`build` internally.
-"""
+"""Page — the top-level container for a Neony application."""
 
 from __future__ import annotations
 
@@ -24,10 +19,8 @@ class Page:
     Usage::
 
         page = Page(gap="16px", padding="24px")
-        page.add(Heading("Hello"))
         page.add(Button("OK"))
-
-        app.run(page)   # build() called internally
+        app.run(page)  # build() called internally
     """
 
     def __init__(
@@ -66,15 +59,9 @@ class Page:
     # ---- build ----
 
     def build(self) -> DOMElement:
-        """Render the page root DOMElement.
-
-        Two layers:
-        - outer Div: full-screen backdrop + base typography. The
-          background is transparent so the ``<body>`` shows through —
-          either the theme colour (set by sync_theme) or a background
-          image (set by ``app.set_background``).
-        - inner Div: the width-constrained, centered content column
-        """
+        """Render the page root DOMElement: an outer full-screen backdrop
+        (transparent, so the body theme/background shows through) and an
+        inner width-constrained, centered content column."""
         outer = Styles(
             min_height="100vh",
             width="100%",
@@ -95,19 +82,15 @@ class Page:
         )
 
         if self._fill:
-            # fill=True: the inner column stretches to the full window
-            # height so chrome layouts (TitleBar + Sidebar) cover the
-            # whole window.  Uses the html/body/#neony-root height:100%
-            # chain (set by _INITIAL_HTML) — percentage heights track the
-            # real window size, unlike vh which can lag when a tiling WM
-            # stretches the window after creation.
+            # fill=True: stretch to the full window height (via the
+            # html/body/#neony-root height:100% chain) so chrome layouts
+            # cover the whole window.
             outer = outer.model_copy(update={"display": "flex", "height": "100%", "min_height": None})
             inner = inner.model_copy(update={"flex_grow": "1"})
 
         if self._radius is not None:
             # Window-level rounded corners: the outer layer clips the
-            # whole chrome stack. With a transparent window the rounded
-            # corners show the desktop around the frame.
+            # chrome stack.
             outer = outer.model_copy(update={"border_radius": self._radius, "overflow": "hidden"})
 
         container: list[DOMElement | str] = []

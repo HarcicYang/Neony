@@ -1,15 +1,10 @@
 """Dual-mode theme with semantic colour tokens.
 
 Tokens are exposed to CSS as custom properties (``--color-*``) on
-``:root``. Components reference them through ``Color(var=...)`` so a
-theme switch re-injects the ``:root`` block and the browser redraws
-every ``var(--color-*)`` — no DOM diff required.
-
-Glass tokens (``surface_glass`` etc.) power the opt-in frosted look:
-semi-transparent surfaces that let a background image show through
-``backdrop-filter`` blur. They are per-theme — a light theme gets a
-white translucent surface, dark themes get a dark one — so the glass
-always stays in family with the palette.
+``:root``; components reference them via ``Color(var=...)`` so a theme
+switch re-injects the block and the browser redraws — no DOM diff.
+Glass tokens (``surface_glass`` etc.) are per-theme, so the frosted
+look always stays in family with the palette.
 """
 
 from __future__ import annotations
@@ -32,8 +27,6 @@ _DEEP_BLUE = {
     "shadow": "0 8px 32px rgba(0, 0, 0, 0.12)",
     "bg_overlay": "rgba(26, 26, 46, 0.7)",
     # --- glass (per-theme, tinted with the surface colour) ---
-    # Deep-blue keeps a distinctly blue tint so it reads apart from
-    # dark's neutral charcoal glass.
     "surface_glass": "rgba(54, 54, 92, 0.92)",
     "surface_raised_glass": "rgba(64, 64, 104, 0.92)",
     "border_glass": "rgba(255, 255, 255, 0.08)",
@@ -60,8 +53,6 @@ _DARK = {
     "shadow": "0 8px 32px rgba(0, 0, 0, 0.25)",
     "bg_overlay": "rgba(13, 13, 18, 0.7)",
     # --- glass (per-theme, tinted with the surface colour) ---
-    # Neutral charcoal — deliberately low blue/purple so it reads as
-    # "glass", distinct from deep-blue's tinted glass.
     "surface_glass": "rgba(52, 52, 56, 0.92)",
     "surface_raised_glass": "rgba(60, 60, 64, 0.92)",
     "border_glass": "rgba(255, 255, 255, 0.08)",
@@ -140,35 +131,22 @@ class Theme(BaseModel):
 
     @staticmethod
     def glass_border(role: str = "neutral") -> str:
-        """Highlight border colour matching a semantic role.
-
-        Returns a CSS variable reference (``var(--color-accent-glass)``
-        etc.) so the tint follows the active theme automatically.
-        """
+        """Highlight border colour for a semantic role (``var(--color-*-glass)``)."""
         if role in ("accent", "danger", "success"):
             return f"var(--color-{role}-glass)"
         return "var(--color-border-glass)"
 
     @staticmethod
     def focus_glow(role: str = "accent") -> str:
-        """Return a box-shadow value for a focus-ring glow.
-
-        A 3px halo using the role's glass token (20-25% opacity) so the
-        ring follows the active theme automatically.  Neutral roles
-        (e.g. ghost buttons) resolve to the subtle border glass.
-        """
+        """3px focus-ring halo using the role's glass token (neutral
+        roles resolve to the subtle border glass)."""
         return f"0 0 0 3px {Theme.glass_border(role)}"
 
     @staticmethod
     def _scrollbar_css() -> str:
-        """Scrollbar rules following the theme tokens.
-
-        WebKit (``::-webkit-scrollbar`` pseudo-elements) is the live
-        renderer; the Firefox ``scrollbar-color``/``scrollbar-width``
-        pair is standard and inherits from ``html``.  All colours are
-        ``var(--color-*)`` references so a theme switch re-injects the
-        block and scrollbars follow — no extra sync needed.
-        """
+        """Scrollbar rules for WebKit (``::-webkit-scrollbar``) and
+        Firefox (``scrollbar-color``/``scrollbar-width``), all coloured
+        via ``var(--color-*)`` so they follow theme switches."""
         return (
             # Firefox standard properties
             "html{scrollbar-color:var(--color-surface-raised) var(--color-bg);"

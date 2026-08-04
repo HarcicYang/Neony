@@ -1,9 +1,5 @@
-"""Layout components — flexbox wrappers with sensible defaults.
-
-The default layout is flex column (like a natural document flow).
-``VStack`` / ``HStack`` are thin wrappers; ``Flex`` gives full control.
-``Spacer`` absorbs leftover space; ``Separator`` draws a subtle divider.
-"""
+"""Layout components — flexbox wrappers: ``Flex`` (full control),
+``VStack``/``HStack`` (thin wrappers), ``Spacer``, ``Separator``."""
 
 from __future__ import annotations
 
@@ -50,10 +46,8 @@ class Flex(Component):
                 padding=padding,
                 width=width,
                 flex_grow=str(grow),
-                # Allow the container to shrink below its content height
-                # inside a parent flex column — otherwise min-height:auto
-                # stretches it to the content and overflow:auto scrolls
-                # never engage (content spills out instead).
+                # Without this, min-height:auto stretches the container
+                # to its content and overflow:auto never engages.
                 min_height="0",
             ),
             container=self._build_children(children),
@@ -147,17 +141,12 @@ class GlassPanel(Component):
     """Explicit frosted-glass container.
 
     Wraps children in a translucent surface with backdrop blur and a
-    highlight border tinted with the given semantic *role* (``"accent"``,
-    ``"danger"``, ``"success"``, or ``"neutral"``).
-
-    Pass ``background=url`` to paint an image inside the panel itself
-    (under a theme-coloured overlay) — the frosted effect stays local
-    to the panel instead of covering the whole page.
-
-    With a background the panel is two layers: a plain backdrop Div
-    carries the image (WebKitGTK's ``backdrop-filter`` can swallow an
-    element's own background, so the image must live on a layer without
-    it), and a frosted layer sits above and blurs it.
+    highlight border tinted with the semantic *role* (``"accent"``,
+    ``"danger"``, ``"success"``, ``"neutral"``).  ``background=url``
+    paints an image inside (the frosted effect stays local); with a
+    background the panel is two layers — a plain backdrop carries the
+    image, since WebKitGTK's ``backdrop-filter`` can swallow an
+    element's own background.
     """
 
     def __init__(
@@ -175,8 +164,7 @@ class GlassPanel(Component):
 
         # Default 12px; pass "0px" (or any radius) to override.
         radius = radius if radius is not None else "12px"
-        # A semantic role adds a persistent colour-matched outer glow —
-        # neutral panels keep the plain dark drop shadow.
+        # Semantic roles add a colour-matched outer glow; neutral keeps the plain shadow.
         shadow = "0 8px 32px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.04)"
         if role != "neutral":
             shadow = f"0 0 24px {Theme.glass_border(role)}, " + shadow
@@ -188,24 +176,19 @@ class GlassPanel(Component):
             padding=padding,
             border_radius=radius,
             border=f"1px solid {Theme.glass_border(role)}",
-            # Content panels use the denser glass token (0.85) — text
-            # needs a stable, dark backdrop to stay readable over the
-            # background image, unlike the chrome bars which stay
-            # aggressively transparent.
+            # Denser glass (0.85) keeps text readable over the background.
             background_color=Color(var="--color-surface-panel-glass-bg"),
             backdrop_filter="blur(16px)",
             box_shadow=shadow,
         )
         if grow:
-            # Fill the parent content region: the panel (and its frosted
-            # surface / backdrop) stretches to the full available height.
+            # Stretch to the full available height.
             glass_styles = glass_styles.model_copy(update={"flex_grow": "1", "height": "100%"})
 
         children_el = Flex._build_children(children)
         if background:
-            # Bottom layer: image + theme overlay, no backdrop-filter —
-            # guaranteed to render. Top layer: the frosted glass that
-            # blurs it.
+            # Image layer below, frosted glass above (backdrop-filter
+            # would swallow the image's own background).
             backdrop = Div(
                 styles=Styles(
                     position="absolute",

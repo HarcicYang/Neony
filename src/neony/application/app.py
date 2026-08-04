@@ -1,9 +1,5 @@
-"""NeonApplication — a complete LumiView wrapper with reactive DOM.
-
-Wraps App creation, Window setup, the Neony bridge, handler collection
-from the DOM tree, auto-render, theme injection, and a user-facing
-state namespace.
-"""
+"""NeonApplication — LumiView wrapper: windows, the Neony bridge,
+handler collection, auto-render, theme injection, and app state."""
 
 from __future__ import annotations
 
@@ -22,17 +18,10 @@ from neony.dom import DOMElement, DomEvent
 from neony.dom.bridge import Neony
 
 # margin:0 — the browser default 8px body margin would leave a white
-# ring around the page since our themed root sits inside the body.
-#
-# height:100% chain — the window's viewport (and thus ``vh`` units)
-# can lag behind the actual window size when a tiling WM stretches the
-# window after creation (e.g. hyprland).  Percentage heights follow the
-# element's real height instead, so ``Page(fill=True)`` chrome layouts
-# always match the window edge precisely.
-#
-# box-sizing:border-box — elements styled width:100% + padding (e.g. the
-# Tabs panels) would otherwise measure *content* width and overflow the
-# window's right edge by the padding amount.
+# ring around the page.  height:100% chain — vh units lag the real
+# window size under tiling WMs (e.g. hyprland), percentages follow it.
+# box-sizing:border-box — width:100% + padding would overflow the
+# window's right edge.
 _INITIAL_HTML = (
     "<html><head><style>*,*::before,*::after{box-sizing:border-box}"
     "html,body{height:100%;margin:0;padding:0}"
@@ -52,25 +41,16 @@ class _Entry:
         self.tree = tree
 
 
-# Style-only events that don't need an immediate full-tree render.  They
-# render deferred (one frame of coalescing) so a mouse sweeping across the
-# UI doesn't trigger a full-tree render per event.  Adding "input" here
-# also enables keystroke throttling.
+# Style-only events: deferred one frame of coalescing so a mouse sweep
+# doesn't trigger a full-tree render per event.
 _DEFERRED_EVENTS = frozenset({"mouseover", "mouseout", "focus", "blur"})
 
 
 def _set_linux_app_name(name: str) -> None:
-    """Set the GLib program name so the window manager shows *name*
-    instead of ``python3`` in the taskbar / launcher.
-
-    On Linux the WM_CLASS used by taskbars and docks defaults to the
-    process name (``argv[0]``).  lumiview's ``App(name=...)`` only
-    reaches the titlebar text — it never sets the GTK program name, and
-    ``TaoWindowBuilder`` exposes no ``with_class()`` API.  We set
-    ``g_set_prgname`` via ctypes: GLib is already linked by tao's GTK
-    backend, so the library is guaranteed to be present without adding
-    a PyGObject dependency.
-    """
+    """Set the GLib program name so the taskbar shows *name* instead of
+    ``python3`` (WM_CLASS defaults to ``argv[0]``; lumiview's
+    ``App(name=...)`` never reaches it).  ctypes is safe — GLib is
+    already linked by tao's GTK backend."""
     if sys.platform != "linux":
         return
     try:
@@ -87,18 +67,9 @@ class NeonApplication:
 
     Example::
 
-        from neony.application import Config, NeonApplication, WindowConfig
-        from neony.application.elements import Button
-
         app = NeonApplication(Config(window=WindowConfig(title="Demo")))
-
         counter = Button("Click me")
-
-        async def clicked(event: DomEvent):
-            counter.label = "Clicked!"
-
-        counter.on_click(clicked)
-
+        counter.on_click(lambda e: setattr(counter, "label", "Clicked!"))
         app.run(Page().add(counter))
     """
 
@@ -114,12 +85,8 @@ class NeonApplication:
     # ---- lifecycle ----
 
     def run(self, *pages: Page | DOMElement) -> None:
-        """Blocking entry point.
-
-        Each *page* opens its own window. All windows share the same
-        LumiView event loop and this app's ``state`` namespace — handlers
-        from any window read/write the same ``app.state``.
-        """
+        """Blocking entry point — one window per *page*, all sharing one
+        event loop and the app's ``state`` namespace."""
         for page in pages:
             tree = page.build() if isinstance(page, Page) else page
             neony = Neony(name="neony", mount_selector=self.config.mount_selector)
@@ -127,8 +94,7 @@ class NeonApplication:
             self._entries.append(_Entry(neony, tree))
             self._collect_handlers(neony, tree, idx)
             self._arm_render_request(tree, idx)
-        # Linux: make the taskbar/dock show the app name instead of
-        # ``python3`` — lumiview's App(name=...) never reaches WM_CLASS.
+        # Linux: taskbar/dock shows the app name, not ``python3``.
         _set_linux_app_name(self.config.window.title)
         app = App(name=self.config.window.title.replace(" ", ""))
         app.run(self._main)
@@ -137,9 +103,8 @@ class NeonApplication:
         kwargs = self.config.to_window_kwargs()
         title = kwargs.pop("title", "Neony")
         for i, entry in enumerate(self._entries):
-            # Frameless windows get the WindowControls scope: it injects
-            # the ``lumiview.window.*`` JS API plus drag/resize region
-            # handlers (all Bridge commands, no raw JS in user code).
+            # Frameless windows get the WindowControls scope
+            # (``lumiview.window.*`` bridge commands).
             includes: list = [entry.neony]
             if not self.config.window.decorations:
                 from lumiview.plugins.window_controls import WindowControls
@@ -151,14 +116,12 @@ class NeonApplication:
                 bridge=Bridge(includes=includes),
                 **kwargs,
             )
-            # Wait for the page (including the injected Bridge JS) to
-            # finish loading before mounting — a fixed sleep would either
-            # race slow machines or waste time on fast ones.  The 5s
-            # timeout only guards against an event never arriving.
+            # Wait for the page (Bridge JS included) before mounting —
+            # a fixed sleep would race slow machines.  5s guards against
+            # the event never arriving.
             page_loaded = asyncio.Event()
-            # PageLoadFinished carries the loaded URL as an argument —
-            # ``*_args`` absorbs it so the default-bound event isn't
-            # overwritten (lumiview calls the handler with the URL).
+            # PageLoadFinished passes the loaded URL as an argument —
+            # ``*_args`` absorbs it.
             entry.window.on(WindowHookEvent.PageLoadFinished)(lambda *_args, _loaded=page_loaded: _loaded.set())
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
@@ -170,16 +133,8 @@ class NeonApplication:
     # ---- theme ----
 
     async def sync_theme(self) -> None:
-        """Inject the current theme's ``:root`` CSS variables into every page.
-
-        Switching ``app.theme.mode`` and calling this re-injects the
-        block — every ``var(--color-*)`` redraws with zero DOM diff.
-
-        The ``<body>`` background is set to the theme colour so the page
-        stays themed even with a transparent Page root.  The background
-        image's tint layer (from :meth:`set_background`) references
-        ``var(--color-bg)`` too, so it re-tints on the same injection.
-        """
+        """Re-inject the theme's ``:root`` CSS variables into every page —
+        every ``var(--color-*)`` redraws with zero DOM diff."""
         for entry in self._entries:
             if entry.window is not None:
                 await self._inject_theme(entry)
@@ -188,12 +143,10 @@ class NeonApplication:
         """Inject theme CSS variables into one window's page."""
         assert entry.window is not None
         css = self.theme.to_css()
-        # NOTE: the trailing ``})()`` closes the IIFE — a stray extra
-        # brace here makes the whole script a SyntaxError and kills
-        # theme injection entirely.
+        # NOTE: ``})()`` closes the IIFE — a stray brace makes the whole
+        # script a SyntaxError.
         # Transparent windows keep the body transparent so the native
-        # background (or blur effect) shows through — painting the theme
-        # colour here would make the window opaque.
+        # background (or blur) shows through.
         body_bg = (
             "document.body.style.backgroundColor = 'var(--color-bg)';" if not self.config.window.transparent else ""
         )
@@ -203,8 +156,6 @@ class NeonApplication:
             f"s.id = 'neony-theme'; s.textContent = {css!r}; document.head.appendChild(s); }} "
             f"{body_bg} }})()"
         )
-        # The background tint layer references var(--color-bg) directly —
-        # the injection above re-tints it; no extra JS needed here.
         await entry.window.eval_js(js)
 
     # ---- background image ----
@@ -219,20 +170,14 @@ class NeonApplication:
         return f"rgba({r}, {g}, {b}, {alpha})"
 
     def _background_js(self) -> str:
-        """JS that paints the background image under a theme-coloured tint.
+        """JS painting the background image under a theme-coloured tint.
 
-        Two fixed layers (image on ``#neony-bg`` at z-index -2, tint on
-        ``#neony-bg-tint`` at z-index -1).  The tint's ``background-color``
-        references ``var(--color-bg)`` at 0.55 opacity, so it follows the
-        theme through the CSS custom property — the exact mechanism that
-        repaints every component on a theme switch.  A hard-coded rgba
-        gradient was unreliable here: WebKitGTK caches the composited
-        layer and never redraws it when the Python-side colour changes.
-
-        The layers live on normal elements, not ``<body>``: transparent
-        windows skip body-background painting, but an element always
-        composites.  The image layer is only re-styled (never rebuilt) so
-        the remote image isn't re-fetched.
+        Two fixed layers: the image on ``#neony-bg`` (z-index -2) and a
+        ``var(--color-bg)`` tint on ``#neony-bg-tint`` (z-index -1), so
+        the tint follows theme switches via the CSS variable.  Layers sit
+        on elements, not ``<body>`` (transparent windows skip
+        body-background painting).  The image layer is only re-styled,
+        never rebuilt, so the remote image isn't re-fetched.
         """
         url = self._background_url
         assert url is not None
@@ -256,14 +201,8 @@ class NeonApplication:
         )
 
     async def set_background(self, url: str) -> None:
-        """Set a full-screen background image behind the glass UI.
-
-        The image sits on a fixed ``#neony-bg`` layer under a
-        ``var(--color-bg)`` tint layer; components with ``glass=True``
-        (or :class:`~neony.application.elements.GlassPanel`) blur it
-        through their translucent surfaces. The tint follows theme
-        switches automatically — no re-injection needed.
-        """
+        """Full-screen background image behind the glass UI; the tint
+        follows theme switches automatically."""
         self._background_url = url
         for entry in self._entries:
             if entry.window is not None:
@@ -272,23 +211,13 @@ class NeonApplication:
     # ---- rendering ----
 
     async def render(self, window_index: int | None = None, *, immediate: bool = True) -> None:
-        """Render (or update) the DOM tree(s) in the browser.
+        """Render (or update) the DOM tree(s).  First call mounts; later
+        calls diff and send minimal patches.  Without *window_index* every
+        window renders; a specific index renders only that window.
 
-        The first call mounts the full tree; subsequent calls diff
-        against the previous snapshot and send minimal patches.
-
-        Without *window_index* every window renders; a specific index
-        renders only that window (the auto-render after an event handler
-        does this — only the originating window re-renders).
-
-        *immediate* is forwarded to the Neony bridge: ``False`` defers
-        the render by one frame so a burst of style-only events
-        (hover, focus, blur) coalesces into a single render.
-
-        Once a window starts closing (minimize/maximize/close racing
-        with in-flight events, or an actual close), WebKitGTK tears down
-        the WebView and ``emit`` raises "WebView is not initialized" —
-        those patches are dropped silently.
+        *immediate=False* defers by one frame so hover/focus/blur bursts
+        coalesce.  Patches are dropped silently once a closing window's
+        WebView tears down ("WebView is not initialized").
         """
         if not self._entries:
             raise RuntimeError("NeonApplication: run() must be called first")
@@ -307,12 +236,9 @@ class NeonApplication:
     # ---- handler collection ----
 
     def _arm_render_request(self, tree: DOMElement, idx: int) -> None:
-        """Wire the tree root so signal-bound writes can schedule renders.
-
-        A binding effect that writes this tree requests a render through
-        the root; outside a running event loop the request is dropped
-        (the next event-driven render picks the change up anyway).
-        """
+        """Wire the tree root so bound-signal writes can schedule renders
+        (dropped outside a running event loop — the next event-driven
+        render picks the change up anyway)."""
 
         def request() -> None:
             try:
@@ -325,12 +251,9 @@ class NeonApplication:
         tree._render_request = request
 
     def _collect_handlers(self, neony: Neony, element: DOMElement, idx: int) -> None:
-        """Walk the tree and register element handlers on one window's bridge.
-
-        Every element is recorded in the bridge's key map so opt-in event
-        bubbling (`_bubble_events`) can walk the parent chain from any
-        element whose own key has no handler.
-        """
+        """Register element handlers on one window's bridge; every element
+        also lands in the key map so opt-in bubbling can walk the parent
+        chain from any handler-less key."""
         neony._key_map[element.key] = element
         for event_type, fns in element._handlers.items():
             for fn in fns:
@@ -340,13 +263,8 @@ class NeonApplication:
                 self._collect_handlers(neony, child, idx)
 
     def _make_wrapper(self, fn: Any, element: DOMElement, idx: int) -> Any:
-        """Wrap a user handler: build DomEvent, call fn, auto-render
-        only the window the event came from.
-
-        Style-only events (hover / focus / blur) render deferred — one
-        frame of coalescing — so a mouse sweeping across the UI doesn't
-        trigger a full-tree render per event.
-        """
+        """Wrap a user handler: build a DomEvent, call *fn*, auto-render
+        only the originating window (style-only events deferred)."""
 
         async def wrapper(key: str, event_type: str, value: Any = None) -> None:
             evt = DomEvent(key=key, type=event_type, value=value)
@@ -428,17 +346,9 @@ class NeonApplication:
 
 
 def launch(page: Page | DOMElement | list[Page | DOMElement], **config_kwargs: Any) -> None:
-    """Convenience: build a Config from kwargs and run *page*.
-
-    Example::
-
-        launch(page, title="Demo", width=480, height=640, devtools=True)
-        launch([page_one, page_two], title="Multi", ...)  # two windows
-
-    Pass a list of pages to open multiple windows sharing one app state.
-    Recognised kwargs mirror :class:`WindowConfig` / :class:`WebViewConfig`
-    fields plus ``mount_selector`` and ``auto_render``.
-    """
+    """Build a Config from kwargs and run *page* (a list opens multiple
+    windows sharing one app state).  Kwargs mirror :class:`WindowConfig` /
+    :class:`WebViewConfig` plus ``mount_selector`` and ``auto_render``."""
     from neony.application.config import WebViewConfig, WindowConfig
 
     pages = page if isinstance(page, list) else [page]

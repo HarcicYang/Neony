@@ -1,8 +1,6 @@
 /**
- * DOM builder — creates real DOM nodes from Neony NodeDescriptor JSON.
- *
- * Every created element is registered in the provided *registry* Map
- * (key → Element) so the engine can look up elements by key later.
+ * Creates real DOM nodes from NodeDescriptor JSON, registering every
+ * element in the *registry* Map (key → Element).
  */
 
 /**
@@ -26,8 +24,7 @@ function buildNode(desc, registry) {
         if (prop === "backdrop-filter") {
             el.style.setProperty("-webkit-backdrop-filter", value);
         }
-        // user-select needs -webkit- (Blink/WebKit) and -moz- (Gecko)
-        // prefixes — unprefixed is the standard spelling.
+        // user-select also needs -webkit- and -moz- prefixes.
         if (prop === "user-select") {
             el.style.setProperty("-webkit-user-select", value);
             el.style.setProperty("-moz-user-select", value);
@@ -40,12 +37,10 @@ function buildNode(desc, registry) {
         el.setAttribute(name, value);
     }
 
-    // Text content
     if (desc.text !== null && desc.text !== undefined) {
         el.textContent = desc.text;
     }
 
-    // Recurse into children
     const children = desc.children || [];
     for (const child of children) {
         el.appendChild(buildNode(child, registry));

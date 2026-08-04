@@ -1,14 +1,11 @@
 /**
  * Unit tests for index.js — bootstrap and event delegation.
  *
- * Loading order matters: the index.js IIFE skips event-delegation setup
- * when `window.lumiview` is missing, so the mock must exist BEFORE
- * loadRuntime() runs.  The runtime is then loaded ONCE at module scope —
- * the IIFE's capture-phase listeners on `document` must not be
- * duplicated per test.  Each test re-creates `window.lumiview` (the
- * eventHandler reads it dynamically) and mountTree() uses the engine
- * captured at load time (setup.js deletes `window.neony` after each
- * test, but the closure keeps it alive).
+ * Loading order matters: the IIFE skips event-delegation setup when
+ * `window.lumiview` is missing, so the mock must exist BEFORE
+ * loadRuntime() runs — and the runtime loads ONCE at module scope,
+ * since its capture-phase listeners on `document` must not be
+ * duplicated per test.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";

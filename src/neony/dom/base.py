@@ -16,16 +16,8 @@ def _new_key() -> str:
 
 
 class Color(BaseModel):
-    """Represent a CSS color value in one of several formats.
-
-    Serializes to the appropriate CSS string representation.
-
-    - ``name`` — CSS keyword (``"red"``, ``"white"``, ...)
-    - ``hex`` — ``#RRGGBB`` / ``#RRGGBBAA`` string only
-    - ``rgb`` / ``rgba`` — numeric channels
-    - ``var`` — a CSS custom property reference (``"--color-surface"``),
-      serialized as ``var(--color-surface)`` for themed styling
-    """
+    """A CSS color value: keyword ``name``, ``hex`` string, ``rgb``/``rgba``
+    channels, or a ``var(--color-*)`` custom-property reference."""
 
     name: str | None = Field(default=None)
     rgb: tuple[int, int, int] | None = Field(default=None)
@@ -216,11 +208,9 @@ class Styles(BaseModel):
     # --- Visual ---
     opacity: float | None = Field(default=None)
     box_shadow: str | None = Field(default=None)
-    # Frosted-glass effect. Rendered as both backdrop-filter and
-    # -webkit-backdrop-filter for WebKitGTK compatibility.
+    # Frosted glass; also emitted with the -webkit- prefix (WebKitGTK).
     backdrop_filter: str | None = Field(default=None)
-    # Native control appearance reset (e.g. appearance: none for
-    # custom-styled checkboxes) plus background layers.
+    # Native control appearance reset (e.g. custom-styled checkboxes).
     appearance: str | None = Field(default=None)
     background_image: str | None = Field(default=None)
     background_size: str | None = Field(default=None)
@@ -281,17 +271,11 @@ class Styles(BaseModel):
 
 
 class DomEvent(BaseModel):
-    """Event payload forwarded from JavaScript to a Python handler.
-
-    *key* is the identity of the element that received the event,
-    *type* is the DOM event name (``"click"``, ``"input"``, ...),
-    and *value* is element-specific data (``el.value`` for inputs,
-    ``el.checked`` for checkboxes, ``None`` otherwise).
-
-    *source* distinguishes real user interaction (``"user"``) from
-    programmatic value changes (``"program"``) — the latter must not
-    fire user callbacks.
-    """
+    """Event payload forwarded from JavaScript: ``key`` (element identity),
+    ``type`` (DOM event name), ``value`` (``el.value`` for inputs,
+    ``el.checked`` for checkboxes, else ``None``).  ``source`` tells real
+    user interaction ("user") from programmatic changes ("program"),
+    which must not fire user callbacks."""
 
     key: str
     type: str
@@ -300,11 +284,8 @@ class DomEvent(BaseModel):
 
 
 class NodeDescriptor(BaseModel):
-    """JSON-safe snapshot of one DOM element for diffing and transmission.
-
-    Used by the reactive bridge to serialize DOM state, compute patches,
-    and send tree descriptions to the JavaScript engine.
-    """
+    """JSON-safe snapshot of one DOM element — the serialized shape the
+    bridge diffs and sends to the JavaScript engine."""
 
     key: str
     tag: str
@@ -317,17 +298,11 @@ class NodeDescriptor(BaseModel):
 class _Children(list):
     """The ``container`` list, aware of its owning element.
 
-    (Plain ``list`` base — the ``DOMElement | str`` element type lives in
-    the method annotations only, since ``list[...]`` in the bases list is
-    evaluated at class-definition time, before DOMElement exists.)
-
-    Two jobs:
-
-    - **Parent pointers** — every child element's ``_parent`` is kept in
-      sync so a mutation can propagate its dirty flag up to the root.
-    - **Dirty marking** — in-place mutations (``append``, ``remove``,
-      ``__setitem__``, ...) never touch the owner's ``__setattr__``, so
-      they must mark the owner dirty themselves.
+    A plain ``list`` base (the ``DOMElement | str`` element type lives in
+    method annotations only, since ``list[...]`` evaluates before
+    DOMElement exists).  Keeps children's ``_parent`` pointers in sync
+    and marks the owner dirty on in-place mutations (``append``,
+    ``__setitem__``, ...), which never reach the owner's ``__setattr__``.
     """
 
     __slots__ = ("_owner",)
@@ -422,12 +397,10 @@ class DOMElement(BaseModel):
     _tag: str = ""
     _void: bool = False
 
-    # Stable identity for diff tracking — auto-generated once per instance.
-    # Pass explicitly to preserve an element across rebuilt trees.
+    # Diff-tracking identity; pass explicitly to preserve across rebuilt trees.
     key: str = Field(default_factory=_new_key)
 
-    # Convenience attributes for the most common HTML attributes.
-    # Subclasses declare more with Field(json_schema_extra={"html_attr": True}).
+    # Common HTML attributes; more via Field(json_schema_extra={"html_attr": True}).
     id_: str | None = Field(default=None, alias="id", json_schema_extra={"html_attr": True})
     class_: str | None = Field(default=None, alias="class", json_schema_extra={"html_attr": True})
 
@@ -435,30 +408,21 @@ class DOMElement(BaseModel):
     styles: Styles = Field(default_factory=Styles)
     args: dict[str, Any] = Field(default_factory=dict)
 
-    # Handlers attached via the fluent .on_xxx() API. Stored as a
-    # PrivateAttr so callables are never serialized.
+    # Fluent .on_xxx() handlers — PrivateAttr so callables never serialize.
     _handlers: dict[str, list[Callable[..., Any]]] = PrivateAttr(default_factory=dict)
 
-    # Dirty-subtree tracking: _dirty means "this element changed since the
-    # last render and must be re-serialized".  Mutations propagate up via
-    # _parent so an ancestor can never reuse a stale cached snapshot.
+    # Dirty-subtree tracking: mutated elements re-serialize; the flag
+    # propagates up via _parent so no ancestor reuses a stale snapshot.
     _dirty: bool = PrivateAttr(default=False)
     _parent: DOMElement | None = PrivateAttr(default=None)
 
-    # Opt-in event bubbling: when True, DOM events on descendant elements
-    # with no handler of their own route here (the bridge walks the parent
-    # chain).  Components whose children are interactive pieces of the
-    # component — SidebarItem's icon/label spans — enable this; plain
-    # layout containers keep the strict per-element routing.
+    # Opt-in event bubbling: events on handler-less descendants route here
+    # (SidebarItem's icon/label spans; layout containers keep strict routing).
     _bubble_events: bool = PrivateAttr(default=False)
 
-    # Signal bindings (see bind_text & co) — kept alive so they can be
-    # disposed by unbind(); the Signal holds the Effect, the Effect holds
-    # the bound element.
+    # Signal bindings, kept alive for unbind() (Signal → Effect → element).
     _bindings: list[Effect] = PrivateAttr(default_factory=list)
-    # Optional callback invoked when a bound signal writes this element —
-    # armed by the app on the root of each window's tree so a write can
-    # schedule a render without waiting for the next user event.
+    # Armed by the app on each tree root so a bound-signal write schedules a render.
     _render_request: Callable[[], None] | None = PrivateAttr(default=None)
     # The display value bind_visible restores when the signal turns true.
     _visible_display: Literal["block", "flex", "grid", "inline", "inline-block", "inline-flex", "none"] | None = (
@@ -478,11 +442,8 @@ class DOMElement(BaseModel):
             self._mark_dirty()
 
     def _mark_dirty(self) -> None:
-        """Mark this element dirty and propagate to every ancestor.
-
-        An ancestor re-serializes when any descendant changed — otherwise
-        its cached snapshot (with the stale child) would be reused.
-        """
+        """Mark this element and every ancestor dirty — an ancestor must
+        re-serialize when any descendant changed."""
         node: DOMElement | None = self
         while node is not None and not node._dirty:
             node._dirty = True
@@ -495,9 +456,8 @@ class DOMElement(BaseModel):
     # ---- signal bindings ----
 
     def _bind(self, write: Callable[[], None]) -> Effect:
-        """Create a binding effect: run *write* now, re-run on dependency
-        change.  The write marks this element dirty and requests a render
-        through the root's ``_render_request`` (armed by the app)."""
+        """Run *write* now and on dependency change, marking dirty and
+        requesting a render through the root's ``_render_request``."""
 
         def run() -> None:
             write()
@@ -516,12 +476,8 @@ class DOMElement(BaseModel):
             node._render_request()
 
     def bind_text(self, signal: Signal[Any], fmt: Callable[[Any], str] = str) -> Self:
-        """Bind *signal* to this element's text content.
-
-        The text follows ``fmt(signal())`` — initially and whenever the
-        signal changes.  Replaces the element's children with a single
-        text string.  Returns self for chaining.
-        """
+        """Bind *signal* to this element's text: ``fmt(signal())`` now and
+        on every change, replacing the children with a single string."""
         self._bind(lambda: self._set_text(fmt(signal())))
         return self
 
@@ -531,32 +487,20 @@ class DOMElement(BaseModel):
         prop: str,
         fmt: Callable[[Any], Any] | None = None,
     ) -> Self:
-        """Bind *signal* to a style property of this element.
-
-        *prop* is a :class:`Styles` field name (snake_case, e.g.
-        ``"color"``, ``"opacity"``, ``"font_size"``).  A signal value of
-        ``None`` removes the property (pass *fmt* to transform values).
-        Returns self for chaining.
-        """
+        """Bind *signal* to a style property (*prop* is a snake_case
+        :class:`Styles` field name); a ``None`` value removes it."""
         apply = fmt if fmt is not None else (lambda v: v)
         self._bind(lambda: self._set_style(prop, apply(signal())))
         return self
 
     def bind_attr(self, signal: Signal[Any], name: str, fmt: Callable[[Any], str] = str) -> Self:
-        """Bind *signal* to an HTML attribute of this element.
-
-        The attribute is written into ``args`` (the raw-attribute bag).
-        Returns self for chaining.
-        """
+        """Bind *signal* to an HTML attribute (written into ``args``)."""
         self._bind(lambda: self._set_attr(name, fmt(signal())))
         return self
 
     def bind_visible(self, signal: Signal[Any]) -> Self:
-        """Bind *signal* to the element's visibility.
-
-        Truthy → shown (restores the pre-binding ``display`` value),
-        falsy → ``display: none``.  Returns self for chaining.
-        """
+        """Truthy → shown (restoring the pre-binding ``display``),
+        falsy → ``display: none``."""
         self._visible_display = self.styles.display
         self._bind(lambda: self._set_visible(bool(signal())))
         return self
@@ -588,12 +532,8 @@ class DOMElement(BaseModel):
     # ---- fluent event API ----
 
     def on(self, event_type: str, fn: Callable[..., Any]) -> DOMElement:
-        """Register *fn* for *event_type* and return self for chaining.
-
-        The handler is called with a :class:`DomEvent` when the element
-        receives a matching DOM event. Collect handlers are wired up by
-        :class:`~neony.application.NeonApplication`.
-        """
+        """Register *fn* for *event_type* (called with a :class:`DomEvent`);
+        returns self for chaining."""
         self._handlers.setdefault(event_type, []).append(fn)
         return self
 
@@ -647,8 +587,7 @@ class DOMElement(BaseModel):
                 # WebKitGTK needs the prefixed variant of backdrop-filter
                 if css_property == "backdrop-filter":
                     declarations.append(f"-webkit-backdrop-filter: {v}")
-                # user-select needs -webkit- (Blink/WebKit) and -moz-
-                # (Gecko) prefixes — unprefixed is the standard spelling.
+                # user-select also needs -webkit- and -moz- prefixes.
                 if css_property == "user-select":
                     declarations.append(f"-webkit-user-select: {v}")
                     declarations.append(f"-moz-user-select: {v}")
@@ -658,12 +597,8 @@ class DOMElement(BaseModel):
         return 'style="' + "; ".join(declarations) + '"'
 
     def _collect_attr_items(self) -> list[tuple[str, Any]]:
-        """Collect all HTML attributes as ``(html_name, value)`` pairs.
-
-        Typed fields declared with ``json_schema_extra={"html_attr": True}``
-        come first (in declaration order), then raw ``args`` — so ``args``
-        can still override a typed field if the user really wants to.
-        """
+        """``(html_name, value)`` pairs: typed ``html_attr`` fields first
+        (declaration order), then raw ``args`` (which can override them)."""
         items: list[tuple[str, Any]] = []
         for name, field in type(self).model_fields.items():
             extra = field.json_schema_extra
@@ -677,10 +612,7 @@ class DOMElement(BaseModel):
         return items
 
     def _build_attrs(self) -> list[str]:
-        """Collect all HTML attribute segments into a list.
-
-        Returns a list of ``key="value"`` (or bare ``key`` for boolean True) strings.
-        """
+        """All HTML attribute segments — ``key="value"``, bare ``key`` for True booleans."""
         attrs: list[str] = []
 
         # data-neony-key for DOM identity (always rendered)
@@ -699,7 +631,6 @@ class DOMElement(BaseModel):
 
     def build(self) -> str:
         """Render this element and all descendants to an HTML string."""
-        # Render children
         children: list[str] = []
         for item in self.container:
             if isinstance(item, DOMElement):
@@ -707,7 +638,6 @@ class DOMElement(BaseModel):
             else:
                 children.append(item)
 
-        # Build the opening tag: <tagname [style] [attrs]>
         parts: list[str] = [self._tag]
 
         style_str = self._build_styles()
@@ -728,16 +658,13 @@ class DOMElement(BaseModel):
     # ---- serialization for reactive bridge ----
 
     def to_node(self, snapshot_cache: dict[str, NodeDescriptor] | None = None) -> NodeDescriptor:
-        """Serialize this element and all descendants to a JSON-safe NodeDescriptor.
+        """Serialize this element and descendants to a JSON-safe
+        :class:`NodeDescriptor`.
 
-        With *snapshot_cache* (key → last serialized :class:`NodeDescriptor`),
-        unchanged elements reuse their cached snapshot instead of being
-        re-serialized — dirty-subtree tracking.  Every node that IS
-        serialized is written back into the cache and has its dirty flag
-        cleared.
-
-        Raises ValueError if duplicate keys are found anywhere in the tree,
-        or if ``container`` mixes strings and elements.
+        With *snapshot_cache*, clean elements reuse their cached snapshot
+        (dirty-subtree tracking); serialized nodes are cached and their
+        dirty flag cleared.  Raises ValueError on duplicate keys or mixed
+        string/element children.
         """
         seen_keys: set[str] = set()
         node = self._to_node_impl(seen_keys, snapshot_cache)
@@ -752,10 +679,8 @@ class DOMElement(BaseModel):
             raise ValueError(f"Duplicate key {self.key!r} in DOM tree. Each element must have a unique key.")
         seen_keys.add(self.key)
 
-        # Dirty-subtree fast path: an unchanged element reuses its last
-        # snapshot verbatim (the diff engine compares identical objects
-        # and emits nothing).  Because dirty flags propagate to ancestors,
-        # a clean element implies its whole subtree is clean.
+        # Clean element → reuse the cached snapshot (dirty flags propagate
+        # to ancestors, so a clean element implies a clean subtree).
         if snapshot_cache is not None and not self._dirty:
             cached = snapshot_cache.get(self.key)
             if cached is not None:
@@ -770,8 +695,7 @@ class DOMElement(BaseModel):
                 # WebKitGTK needs the prefixed variant of backdrop-filter
                 if css_property == "backdrop-filter":
                     styles["-webkit-backdrop-filter"] = str(v)
-                # user-select needs -webkit- (Blink/WebKit) and -moz-
-                # (Gecko) prefixes — unprefixed is the standard spelling.
+                # user-select also needs -webkit- and -moz- prefixes.
                 if css_property == "user-select":
                     styles["-webkit-user-select"] = str(v)
                     styles["-moz-user-select"] = str(v)
@@ -805,7 +729,6 @@ class DOMElement(BaseModel):
             )
 
         if self._void:
-            # Void elements have no children
             pass
         elif has_strings:
             text = "".join(str(item) for item in self.container)

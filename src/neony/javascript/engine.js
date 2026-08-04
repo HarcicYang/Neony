@@ -1,8 +1,6 @@
 /**
- * Neony DOM engine — maintains a live DOM tree and applies JSON patches.
- *
- * Owns a registry (key → Element), the current root, and a revision
- * counter used to detect missed patch messages.
+ * Maintains the live DOM tree and applies JSON patches (registry,
+ * root, and a revision counter for gap detection).
  */
 class NeonyEngine {
     constructor() {
@@ -16,20 +14,16 @@ class NeonyEngine {
         this.lastRev = 0;
     }
 
-    // ── mount (full initial render) ─────────────────────────────
-
     /**
-     * Full initial render. Clears the container, builds the entire tree
-     * from the first CREATE patch's node, and appends it.
-     *
+     * Full initial render: clear the container, build the tree from the
+     * first CREATE patch, append it.
      * @param {object} msg - PatchMessage with rev and ops[0] = CreatePatch
      * @returns {string} JSON ack: {ok: true, rev: N}
      */
     mount(msg) {
         this.registry.clear();
 
-        // Reset host-page defaults — the browser's 8px body margin would
-        // otherwise leave a white ring around the themed root.
+        // The browser's 8px body margin would leave a white ring around the root.
         document.body.style.margin = "0";
         document.body.style.padding = "0";
 
@@ -48,8 +42,6 @@ class NeonyEngine {
 
         return JSON.stringify({ ok: true, rev: msg.rev });
     }
-
-    // ── patch application ──────────────────────────────────────
 
     /**
      * Apply a batch of patches to the live DOM.
@@ -87,8 +79,7 @@ class NeonyEngine {
     }
 
     /**
-     * Apply a PatchMessage with revision tracking.
-     * Drops stale messages. Requests a resync on rev gaps.
+     * Apply a PatchMessage: drop stale messages, resync on rev gaps.
      * @param {object} msg - {rev: number, ops: Array}
      */
     applyMessage(msg) {
@@ -107,11 +98,8 @@ class NeonyEngine {
         this.lastRev = msg.rev;
     }
 
-    // ── individual op handlers ─────────────────────────────────
-
     _create(op) {
-        // If key already exists (e.g. from a prior REMOVE+CREATE cycle),
-        // clean up the old subtree first.
+        // Clean up any prior subtree with this key first.
         const existing = this.registry.get(op.key);
         if (existing) {
             unregisterSubtree(existing, this.registry);
@@ -169,10 +157,8 @@ class NeonyEngine {
 
         const setAttrs = op.set || {};
         for (const [name, value] of Object.entries(setAttrs)) {
-            // Direct property assignment for `checked` and `value` —
-            // once an input has been interacted with, its IDL property
-            // no longer tracks the content attribute reliably, and
-            // setAttribute("value") can refire `input` in WebKitGTK.
+            // IDL property for `checked`/`value`: setAttribute("value")
+            // can refire `input` in WebKitGTK.
             if (name === "checked" && (el.type === "checkbox" || el.type === "radio")) {
                 el.checked = true;
             } else if (name === "value" && el.tagName === "INPUT") {
@@ -204,8 +190,7 @@ class NeonyEngine {
             if (prop === "backdrop-filter") {
                 el.style.setProperty("-webkit-backdrop-filter", value);
             }
-            // user-select needs -webkit- (Blink/WebKit) and -moz- (Gecko)
-            // prefixes — unprefixed is the standard spelling.
+            // user-select also needs -webkit- and -moz- prefixes.
             if (prop === "user-select") {
                 el.style.setProperty("-webkit-user-select", value);
                 el.style.setProperty("-moz-user-select", value);

@@ -1,13 +1,7 @@
-"""Concrete HTML element classes.
-
-Each class maps to an HTML tag.  Void (self-closing) elements like ``<img>``
-have ``_void = True`` and render as ``<img ... />``.
-
-Common HTML attributes are declared as typed fields with
-``json_schema_extra={"html_attr": True}`` so they render into the
-``<tag ...>`` attribute list and serialize into ``NodeDescriptor.attrs``.
-Anything not covered can still go through the generic ``args`` dict.
-"""
+"""Concrete HTML element classes — one class per tag; void elements
+have ``_void = True``.  Typed HTML attributes use
+``json_schema_extra={"html_attr": True}``; anything else goes through
+the generic ``args`` dict."""
 
 from __future__ import annotations
 
@@ -242,12 +236,9 @@ class Option(DOMElement):
 
 
 class Textarea(DOMElement):
-    """Multiline text input.
-
-    ``value`` is a Python-side state record only — textarea content is
-    rendered via ``container``, and the live value is read back from the
-    DOM through events. It is deliberately NOT an HTML attribute.
-    """
+    """Multiline text input.  ``value`` is a Python-side record only —
+    content renders via ``container``, and the live value is read back
+    through events.  Deliberately NOT an HTML attribute."""
 
     _tag: str = "textarea"
 
@@ -355,11 +346,8 @@ class Img(DOMElement):
 
 
 class Input(DOMElement):
-    """Form input with typed attributes.
-
-    Boolean ``checked`` / ``disabled`` / ``readonly`` render as bare
-    attributes when ``True`` and are omitted when ``False``/``None``.
-    """
+    """Form input; boolean attrs render bare when ``True``, omitted when
+    ``False``/``None``."""
 
     _tag: str = "input"
     _void: bool = True
