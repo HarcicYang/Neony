@@ -47,7 +47,7 @@ New features must update both language versions.
 
 ### 5. Demos live at the repository root
 
-Working demos are `test_*.py` files at the root (e.g. `test_gallery.py`).
+Working demos are `demo_*.py` files at the root (e.g. `demo_gallery.py`).
 New components should ship with a demo, and the demo should be added to
 `.zed/tasks.json`.
 
@@ -75,9 +75,9 @@ sudo apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 ## Running the project
 
 ```bash
-uv run test_gallery.py              # component gallery demo
-uv run test_custom_window.py        # frameless window demo
-uv run test_multi_window.py         # multi-window demo
+uv run demo_gallery.py              # component gallery demo
+uv run demo_custom_window.py        # frameless window demo
+uv run demo_multi_window.py         # multi-window demo
 uv run pytest -q                    # test suite
 uv run ruff check .                 # lint
 uv run ruff format .                # format

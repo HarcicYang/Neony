@@ -1,7 +1,7 @@
 [
   {
-    "label": "Run builder test",
-    "command": "uv run test_builder.py",
+    "label": "Run builder demo",
+    "command": "uv run demo_builder.py",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -14,7 +14,7 @@
   },
   {
     "label": "Run reactive demo",
-    "command": "uv run test_reactive.py",
+    "command": "uv run demo_reactive.py",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -27,7 +27,7 @@
   },
   {
     "label": "Run multi-window demo",
-    "command": "uv run test_multi_window.py",
+    "command": "uv run demo_multi_window.py",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -40,7 +40,7 @@
   },
   {
     "label": "Run component gallery",
-    "command": "uv run test_gallery.py",
+    "command": "uv run demo_gallery.py",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -53,7 +53,7 @@
   },
   {
     "label": "Run custom window demo",
-    "command": "uv run test_custom_window.py",
+    "command": "uv run demo_custom_window.py",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -66,7 +66,7 @@
   },
   {
     "label": "Run transparent panel demo",
-    "command": "uv run test_transparent_panel.py",
+    "command": "uv run demo_transparent_panel.py",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",
@@ -79,7 +79,7 @@
   },
   {
     "label": "Local",
-    "command": "uv run test.py",
+    "command": "uv run demo_hello.py",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",

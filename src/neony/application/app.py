@@ -7,7 +7,7 @@ import asyncio
 import contextlib
 import sys
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, Generic, TypeVar, cast
 
 from lumiview import App, Bridge, Window, WindowEffect, WindowHookEvent
 
@@ -45,6 +45,10 @@ class _Entry:
 # doesn't trigger a full-tree render per event.
 _DEFERRED_EVENTS = frozenset({"mouseover", "mouseout", "focus", "blur"})
 
+# User state type: inferred from the ``state=`` constructor argument
+# (dataclass, pydantic model, ...).  Falls back to SimpleNamespace.
+_S = TypeVar("_S")
+
 
 def _set_linux_app_name(name: str) -> None:
     """Set the GLib program name so the taskbar shows *name* instead of
@@ -62,10 +66,12 @@ def _set_linux_app_name(name: str) -> None:
         pass  # should never happen on Linux, but don't crash
 
 
-class NeonApplication:
+class NeonApplication(Generic[_S]):
     """Reactive desktop application built on LumiView + Neony DOM.
 
-    Example::
+    ``state`` defaults to a bare ``SimpleNamespace``; pass your own
+    dataclass / pydantic model via the ``state=`` argument for typed
+    attributes::
 
         app = NeonApplication(Config(window=WindowConfig(title="Demo")))
         counter = Button("Click me")
@@ -73,12 +79,12 @@ class NeonApplication:
         app.run(Page().add(counter))
     """
 
-    def __init__(self, config: Config | None = None) -> None:
+    def __init__(self, config: Config | None = None, *, state: _S | None = None) -> None:
         self.config = config or Config()
         self._entries: list[_Entry] = []
         # Fire-and-forget render tasks scheduled by signal bindings.
         self._render_tasks: set[asyncio.Task] = set()
-        self.state: SimpleNamespace = SimpleNamespace()
+        self.state: _S = state if state is not None else cast(_S, SimpleNamespace())
         self.theme: Theme = Theme()
         self.ready_handler: Any = None  # optional async callable, run after windows ready
 
@@ -345,10 +351,17 @@ class NeonApplication:
         return await self._require_window(window_index).eval_js(script)
 
 
-def launch(page: Page | DOMElement | list[Page | DOMElement], **config_kwargs: Any) -> None:
+def launch(
+    page: Page | DOMElement | list[Page | DOMElement],
+    *,
+    state: Any = None,
+    **config_kwargs: Any,
+) -> None:
     """Build a Config from kwargs and run *page* (a list opens multiple
     windows sharing one app state).  Kwargs mirror :class:`WindowConfig` /
-    :class:`WebViewConfig` plus ``mount_selector`` and ``auto_render``."""
+    :class:`WebViewConfig` plus ``mount_selector`` and ``auto_render``.
+    *state* replaces the default ``SimpleNamespace`` (see
+    :class:`NeonApplication`)."""
     from neony.application.config import WebViewConfig, WindowConfig
 
     pages = page if isinstance(page, list) else [page]
@@ -362,4 +375,4 @@ def launch(page: Page | DOMElement | list[Page | DOMElement], **config_kwargs: A
         webview=WebViewConfig(**webview_cfg),
         **top_cfg,
     )
-    NeonApplication(config).run(*pages)
+    NeonApplication(config, state=state).run(*pages)

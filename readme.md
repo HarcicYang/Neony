@@ -107,16 +107,16 @@ All components share a fluent, chainable API — see the
 - **Frameless custom titlebar** — set `decorations=False`, add a
   `TitleBar`, and drag / minimize / maximize / close all work
   automatically. See [`docs/api.en.md`](docs/api.en.md) and the
-  [`test_custom_window.py`](test_custom_window.py) demo.
+  [`demo_custom_window.py`](demo_custom_window.py) demo.
 - **Transparent windows & native effects** — `transparent=True` plus
   `apply_blur()`, `apply_acrylic()`, `apply_mica()`. See
-  [`test_transparent_panel.py`](test_transparent_panel.py).
+  [`demo_transparent_panel.py`](demo_transparent_panel.py).
 - **Programmatic window control** — `set_title()`, `set_size()`,
   `minimize()`, `toggle_maximize()`, `close()`, … all on
   `NeonApplication`, with `window_index=0` for multi-window apps.
 - **Multi-window** — `run(*pages)` opens one window per page, all
   sharing one event loop and `app.state`. `launch([...])` accepts a list.
-  See [`test_multi_window.py`](test_multi_window.py).
+  See [`demo_multi_window.py`](demo_multi_window.py).
 
 ---
 
@@ -134,17 +134,18 @@ See the [API reference](docs/api.en.md) for switching and custom themes.
 
 Run from the repository root:
 
-| File                        | Shows                                                            |
-| --------------------------- | ---------------------------------------------------------------- |
-| `test_gallery.py`           | Component gallery with docs & code samples, glass TitleBar       |
-| `test_custom_window.py`     | Frameless window: TitleBar + Sidebar chrome                      |
-| `test_transparent_panel.py` | Floating transparent panel with native blur                      |
-| `test_multi_window.py`      | Two windows sharing one app state                                |
-| `test_reactive.py`          | Signal-based API: declarative bindings instead of manual refresh |
-| `test_builder.py`           | Raw DOM builder without the app layer                            |
+| File                          | Shows                                                            |
+| ----------------------------- | ---------------------------------------------------------------- |
+| `demo_hello.py`               | Minimal first app (same as the Quick Start example)              |
+| `demo_gallery.py`             | Component gallery with docs & code samples, glass TitleBar       |
+| `demo_custom_window.py`       | Frameless window: TitleBar + Sidebar chrome                      |
+| `demo_transparent_panel.py`   | Floating transparent panel with native blur                      |
+| `demo_multi_window.py`        | Two windows sharing one app state                                |
+| `demo_reactive.py`            | Signal-based API: declarative bindings instead of manual refresh |
+| `demo_builder.py`             | Raw DOM builder without the app layer                            |
 
 ```bash
-uv run test_gallery.py
+uv run demo_gallery.py
 ```
 
 ---
@@ -203,7 +204,7 @@ manager and runner.
 uv sync --group dev   # install dependencies (incl. dev tools)
 npm ci                # install JS dev dependencies (vitest, jsdom)
 
-uv run test_gallery.py            # run a demo
+uv run demo_gallery.py            # run a demo
 uv run pytest -q                  # run the Python test suite
 uv run ruff check .               # lint
 uv run ruff format --check .      # format check

@@ -7,6 +7,7 @@ triggers a full resync, wiping input state.
 """
 
 import asyncio
+from types import SimpleNamespace
 from typing import Any, cast
 
 from neony.application import Config, NeonApplication
@@ -253,6 +254,53 @@ class TestEventBubbling:
 
         asyncio.run(_fire(app, "child", "click"))
         assert calls == ["child"], "child handler wins; parent must not double-fire"
+
+
+class TestTypedState:
+    """``state=`` accepts a custom dataclass / model; default stays SimpleNamespace."""
+
+    def test_default_state_is_simplenamespace(self):
+        app = NeonApplication(Config())
+        assert isinstance(app.state, SimpleNamespace)
+
+    def test_custom_state_object_is_used_as_is(self):
+        from dataclasses import dataclass
+
+        @dataclass
+        class AppState:
+            count: int = 0
+
+        app = NeonApplication(Config(), state=AppState(count=3))
+        assert app.state.count == 3
+        app.state.count += 1  # mutable like the namespace default
+        assert app.state.count == 4
+
+    def test_launch_passes_state_through(self):
+        from dataclasses import dataclass
+
+        from neony.application import launch
+        from neony.dom import Div
+
+        @dataclass
+        class AppState:
+            name: str = "neony"
+
+        state = AppState()
+        captured: list = []
+        original_init = NeonApplication.__init__
+
+        def spy_init(self, config=None, *, state=None) -> None:
+            captured.append(state)
+            original_init(self, config, state=state)
+
+        import unittest.mock
+
+        with (
+            unittest.mock.patch.object(NeonApplication, "__init__", spy_init),
+            unittest.mock.patch.object(NeonApplication, "run", return_value=None),
+        ):
+            launch(Div(), state=state, width=100, height=100)
+        assert captured == [state]
 
 
 class TestHandlerIsolation:

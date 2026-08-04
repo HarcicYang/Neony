@@ -41,7 +41,7 @@ Pull Request 都非常欢迎。本文档说明项目约定与贡献方式。
 
 ### 5. 示例位于仓库根目录
 
-可运行示例是根目录的 `test_*.py` 文件(如 `test_gallery.py`)。
+可运行示例是根目录的 `demo_*.py` 文件(如 `demo_gallery.py`)。
 新组件应附带示例，并把示例加入 `.zed/tasks.json`。
 
 ---
@@ -67,9 +67,9 @@ sudo apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 ## 运行项目
 
 ```bash
-uv run test_gallery.py              # 组件画廊示例
-uv run test_custom_window.py        # 无边框窗口示例
-uv run test_multi_window.py         # 多窗口示例
+uv run demo_gallery.py              # 组件画廊示例
+uv run demo_custom_window.py        # 无边框窗口示例
+uv run demo_multi_window.py         # 多窗口示例
 uv run pytest -q                    # 测试套件
 uv run ruff check .                 # 代码检查
 uv run ruff format .                # 格式化

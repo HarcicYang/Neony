@@ -28,6 +28,28 @@ def main() -> None:
     app.run(page)
 ```
 
+**Typed state:** `state` defaults to a bare `SimpleNamespace`. Pass any
+object — a `dataclass`, pydantic model, or plain class — via the `state=`
+argument to get typed attribute access and IDE completion:
+
+```python
+from dataclasses import dataclass
+
+
+@dataclass
+class AppState:
+    count: int = 0
+    user_name: str = ""
+
+
+app = NeonApplication(Config(...), state=AppState())
+app.state.count += 1  # typed as int
+app.state.user_name = "Ada"
+```
+
+All windows share the same `state` object, so this is the imperative
+counterpart to [`SharedSignal`](#sharedsignal) for cross-window data.
+
 **Attributes:** `config`, `state`, `theme`, `ready_handler`
 
 **Window methods** (all async):
@@ -50,7 +72,8 @@ launch(page, title="Demo", width=480, height=360, devtools=True)
 ```
 
 Accepts all `WindowConfig` / `WebViewConfig` fields plus
-`mount_selector` and `auto_render`.
+`mount_selector`, `auto_render`, and `state` (a custom state object —
+see [`NeonApplication`](#neonapplication)).
 
 ### `Config`, `WindowConfig`, `WebViewConfig`
 

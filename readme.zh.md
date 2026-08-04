@@ -103,16 +103,16 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 
 - **无边框自定义标题栏** — 设置 `decorations=False`，添加 `TitleBar`，
   拖动 / 最小化 / 最大化 / 关闭全部自动生效。见 [API 参考](docs/api.zh.md)
-  与 [`test_custom_window.py`](test_custom_window.py) 示例。
+  与 [`demo_custom_window.py`](demo_custom_window.py) 示例。
 - **透明窗口与原生效果** — `transparent=True` 配合 `apply_blur()`、
   `apply_acrylic()`、`apply_mica()`。见
-  [`test_transparent_panel.py`](test_transparent_panel.py)。
+  [`demo_transparent_panel.py`](demo_transparent_panel.py)。
 - **编程式窗口控制** — `set_title()`、`set_size()`、`minimize()`、
   `toggle_maximize()`、`close()` … 均位于 `NeonApplication`，
   多窗口时接受 `window_index=0` 参数。
 - **多窗口** — `run(*pages)` 每个页面一个窗口，共享同一事件循环与
   `app.state`。`launch([...])` 也接受列表。
-  见 [`test_multi_window.py`](test_multi_window.py)。
+  见 [`demo_multi_window.py`](demo_multi_window.py)。
 
 ---
 
@@ -129,17 +129,18 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 
 在仓库根目录运行:
 
-| 文件                        | 演示内容                               |
-| --------------------------- | -------------------------------------- |
-| `test_gallery.py`           | 带文档与代码示例的组件画廊，玻璃标题栏 |
-| `test_custom_window.py`     | 无边框窗口:TitleBar + Sidebar 一体装饰 |
-| `test_transparent_panel.py` | 带原生模糊的透明悬浮面板               |
-| `test_multi_window.py`      | 共享同一 app 状态的双窗口              |
-| `test_reactive.py`          | Signal API:声明式绑定替代手动刷新      |
-| `test_builder.py`           | 不含应用层的原始 DOM 构建              |
+| 文件                            | 演示内容                               |
+| ------------------------------- | -------------------------------------- |
+| `demo_hello.py`                 | 最小示例(与快速入门一致)               |
+| `demo_gallery.py`               | 带文档与代码示例的组件画廊，玻璃标题栏 |
+| `demo_custom_window.py`         | 无边框窗口:TitleBar + Sidebar 一体装饰 |
+| `demo_transparent_panel.py`     | 带原生模糊的透明悬浮面板               |
+| `demo_multi_window.py`          | 共享同一 app 状态的双窗口              |
+| `demo_reactive.py`              | Signal API:声明式绑定替代手动刷新      |
+| `demo_builder.py`               | 不含应用层的原始 DOM 构建              |
 
 ```bash
-uv run test_gallery.py
+uv run demo_gallery.py
 ```
 
 ---
@@ -197,7 +198,7 @@ uv run test_gallery.py
 uv sync --group dev   # 安装依赖(含开发工具)
 npm ci                # 安装 JS 开发依赖(vitest、jsdom)
 
-uv run test_gallery.py            # 运行示例
+uv run demo_gallery.py            # 运行示例
 uv run pytest -q                  # 运行 Python 测试
 uv run ruff check .               # 代码检查
 uv run ruff format --check .      # 格式检查

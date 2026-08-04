@@ -28,6 +28,28 @@ def main() -> None:
     app.run(page)
 ```
 
+**类型化 state:** `state` 默认是裸 `SimpleNamespace`。通过 `state=` 参数
+传入任意对象 —— `dataclass`、pydantic 模型或普通类 —— 可获得类型安全的
+属性访问与 IDE 补全：
+
+```python
+from dataclasses import dataclass
+
+
+@dataclass
+class AppState:
+    count: int = 0
+    user_name: str = ""
+
+
+app = NeonApplication(Config(...), state=AppState())
+app.state.count += 1  # 类型为 int
+app.state.user_name = "Ada"
+```
+
+所有窗口共享同一个 `state` 对象，是 [`SharedSignal`](#sharedsignal)
+之外跨窗口数据的命令式方案。
+
 **属性:** `config`， `state`， `theme`， `ready_handler`
 
 **窗口方法**(全部异步):
@@ -50,7 +72,8 @@ launch(page, title="Demo", width=480, height=360, devtools=True)
 ```
 
 接受全部 `WindowConfig` / `WebViewConfig` 字段，
-以及 `mount_selector` 和 `auto_render`。
+以及 `mount_selector`、`auto_render` 和 `state`(自定义状态对象 ——
+见 [`NeonApplication`](#neonapplication))。
 
 ### `Config`， `WindowConfig`， `WebViewConfig`
 

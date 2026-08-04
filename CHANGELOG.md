@@ -53,11 +53,16 @@
   straight from the snapshot cache, updating it in place. Any structural
   change falls through to the full serialization + diff path; rev
   continuity is preserved.
+- **Typed app state** — `NeonApplication` is now generic: `state=`
+  accepts any object (dataclass, pydantic model, plain class) for typed
+  attribute access and IDE completion, while the default stays a bare
+  `SimpleNamespace`. `launch(..., state=...)` forwards it. All windows
+  share the same instance, exactly as before.
 
 ### Changed
 
 - **Render path** — `Neony.render()` serializes through a per-key snapshot
-  cache; only dirty subtrees are re-walked. `test_reactive.py` rewritten
+  cache; only dirty subtrees are re-walked. `demo_reactive.py` rewritten
   around the signal API (declarative bindings instead of manual refresh).
 
 - **LumiView `0.1.0.dev1` → `0.1.0.dev2`** — `Neony` now subclasses the
