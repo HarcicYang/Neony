@@ -25,6 +25,7 @@ It builds on [LumiView](https://lumiview.dev), which uses the same Rust
 - **Pure Python API** — components, layouts and events, no need for non-python codes
 - **Fine-grained reactivity** — `Signal` / `Computed` / `Effect` primitives with declarative bindings
 - **Dirty-subtree diffing** — only changed elements re-serialize; unchanged subtrees reuse cached snapshots
+- **Style direct-patch** — pure style/attr changes (hover, focus, press) patch straight from the snapshot cache, skipping serialization and diff
 - **Same stack as Tauri** — Rust `tao`/`wry` webviews via LumiView
 - **3 theme presets** — dark / light / deep-blue via CSS custom properties
 - **(Optional) Frosted glass** — translucent surfaces with backdrop blur
@@ -158,7 +159,7 @@ Planned work, roughly in priority order.
 - [~] **Input throttling** — coalescing render pipeline in place; `on_input` still renders per keystroke, hooking it into the deferred path is a one-line change
 - [x] **Dirty-subtree diffing** — only changed elements re-serialize; mutations mark their ancestors dirty
 - [x] **Snapshot reuse** — unchanged subtrees reuse cached snapshots, skipping `to_node()`
-- [ ] **Style direct-patch** — pure style changes bypass the full diff
+- [x] **Style direct-patch** — pure style changes bypass the full diff
 
 ### Reactivity
 
@@ -184,9 +185,12 @@ Planned work, roughly in priority order.
 
 - [x] **Windows (WebView2)**
 - [ ] **macOS (WKWebView)**
-- [x] **Linux desktops**
+- [x] **Linux desktops (Wayland)**
 - [ ] **HiDPI / mixed-DPI scaling**
-- x ~~X11~~ — **not a compatibility target**
+
+> NOTE:
+> For Linux, we won't test on x11, please do it yourself
+> For macOS, we don't have a device to test on, please do it yourself too.
 
 ---
 

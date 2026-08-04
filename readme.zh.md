@@ -23,6 +23,7 @@ Neony 在原生窗口中渲染响应式 DOM。你完全用 Python 对象——�
 - **纯 Python API** — 组件、布局、事件，全程不接触 Web 技术
 - **细粒度响应式** — `Signal` / `Computed` / `Effect` 原语 + 声明式绑定
 - **脏子树 diff** — 只有变化的元素重新序列化，未变子树复用缓存快照
+- **样式直通补丁** — 纯样式/属性变化(hover、focus、press)直接从快照缓存打补丁，跳过序列化与 diff
 - **与 Tauri 同源** — Rust `tao`/`wry` WebView(经 LumiView)
 - **三套主题预设** — dark / light / deep-blue，基于 CSS 自定义属性
 - **(可选)毛玻璃** — 半透明表面 + 背景模糊
@@ -153,7 +154,7 @@ uv run test_gallery.py
 - [~] **输入节流** — 合并渲染管线已就位；`on_input` 仍逐键渲染，接入延迟路径仅需一行
 - [x] **脏子树 diff** — 只有变化的元素重新序列化，变更会向上标记祖先
 - [x] **快照复用** — 未变化的子树复用缓存快照，跳过 `to_node()`
-- [ ] **样式直通补丁** — 纯样式变化绕过全树 diff
+- [x] **样式直通补丁** — 纯样式变化绕过全树 diff
 
 ### 响应式
 
@@ -179,9 +180,12 @@ uv run test_gallery.py
 
 - [x] **Windows(WebView2)**
 - [ ] **macOS(WKWebView)**
-- [x] **Linux 桌面**
+- [x] **Linux 桌面(Wayland)**
 - [ ] **HiDPI / 混合 DPI 缩放**
-- x ~~X11~~ — **不计划支持**
+
+> 注：
+> 对于 Linux 兼容性，我们的测试工作将不会覆盖 x11，请自行测试
+> 对于 macOS 兼容性，我们没有条件进行实际测试，请自行测试
 
 ---
 

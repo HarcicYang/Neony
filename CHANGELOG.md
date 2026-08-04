@@ -46,6 +46,13 @@
   `_bubble_events` so events on handler-less children (e.g. `SidebarItem`'s
   icon/label spans) route to it. Layout containers keep strict
   per-element routing unless they opt in.
+- **Style direct-patch** — pure style/attr changes (hover, focus, press
+  states) bypass tree serialization and the diff engine: mutations are
+  classified per element (`styles`/`args` → patchable in place; anything
+  else → structural), and the render emits `update_styles`/`update_attrs`
+  straight from the snapshot cache, updating it in place. Any structural
+  change falls through to the full serialization + diff path; rev
+  continuity is preserved.
 
 ### Changed
 

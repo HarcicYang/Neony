@@ -363,14 +363,81 @@ class Neony(Plugin):
             self._render_task = None
             return await self._do_render(element)
 
+    # ---- direct-patch fast path ----
+
+    def _can_direct_patch(self, element: DOMElement) -> bool:
+        """True when every dirty element only has style/attr changes, so
+        the render can bypass full serialization and the diff engine."""
+        if element._dirty:
+            if element._dirty_type & DOMElement._DIRTY_STRUCTURAL:
+                return False
+            if (element._dirty_type & (DOMElement._DIRTY_STYLES | DOMElement._DIRTY_ATTRS)) and (
+                element.key not in self._snapshots
+            ):
+                # A changed element must have a snapshot to diff against.
+                return False
+        else:
+            return True  # clean subtree — nothing changed below
+        for child in element.container:
+            if isinstance(child, DOMElement) and not self._can_direct_patch(child):
+                return False
+        return True
+
+    def _collect_direct_patches(self, element: DOMElement) -> list[Patch]:
+        """Generate style/attr patches for dirty elements, updating the
+        snapshot cache in place and clearing their dirty flags."""
+        patches: list[Patch] = []
+        self._collect_direct_patches_impl(element, patches)
+        return patches
+
+    def _collect_direct_patches_impl(self, element: DOMElement, patches: list[Patch]) -> None:
+        if not element._dirty:
+            return
+        cached = self._snapshots.get(element.key)
+        if cached is not None:
+            if element._dirty_type & DOMElement._DIRTY_STYLES:
+                new_styles = element._serialize_styles()
+                diff = DiffEngine._diff_dict(cached.styles, new_styles)
+                if diff:
+                    patches.append(UpdateStylesPatch(key=element.key, set=diff["set"], remove=diff["remove"]))
+                    cached.styles.clear()
+                    cached.styles.update(new_styles)
+            if element._dirty_type & DOMElement._DIRTY_ATTRS:
+                new_attrs = element._serialize_attrs()
+                diff = DiffEngine._diff_dict(cached.attrs, new_attrs)
+                if diff:
+                    patches.append(UpdateAttrsPatch(key=element.key, set=diff["set"], remove=diff["remove"]))
+                    cached.attrs.clear()
+                    cached.attrs.update(new_attrs)
+        element._dirty = False
+        element._dirty_type = 0
+        for child in element.container:
+            if isinstance(child, DOMElement):
+                self._collect_direct_patches_impl(child, patches)
+
     async def _do_render(self, element: DOMElement) -> PatchMessage | None:
         """Serialize (via the snapshot cache — only dirty subtrees are
-        re-walked), diff, and emit patches."""
+        re-walked), diff, and emit patches.  Pure style/attr changes take
+        the direct-patch fast path, skipping serialization and the diff
+        engine entirely."""
         if self._win is None:
             raise RuntimeError(
                 "Neony: window not ready — the bridge must be included "
                 "in a LumiView Bridge and the window must be created."
             )
+
+        if self._snapshot is not None and self._can_direct_patch(element):
+            # Fast path: style/attr-only changes bypass serialization + diff.
+            ops = self._collect_direct_patches(element)
+            if ops:
+                self._rev += 1
+                msg = PatchMessage(rev=self._rev, ops=ops)
+                await self._win.emit("neony:patch", msg.model_dump(mode="json"))
+                self._last_tree = element
+                return msg
+            self._last_tree = element
+            return None  # empty diff — no rev bump, no message
+
         new_node = element.to_node(snapshot_cache=self._snapshots)
         msg: PatchMessage | None = None
 

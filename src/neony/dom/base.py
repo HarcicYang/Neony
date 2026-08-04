@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable, Iterable
-from typing import Any, Literal, Self, SupportsIndex
+from typing import Any, ClassVar, Literal, Self, SupportsIndex
 
 from pydantic import BaseModel, PrivateAttr, model_serializer
 from pydantic.fields import Field
@@ -321,38 +321,43 @@ class _Children(list):
         if isinstance(item, DOMElement):
             item._parent = None
 
+    def _mark_owner_structural(self) -> None:
+        """Container mutations are structural — they force the full diff path."""
+        self._owner._dirty_type |= DOMElement._DIRTY_STRUCTURAL
+        self._owner._mark_dirty()
+
     def append(self, item: DOMElement | str) -> None:
         super().append(item)
         self._set_parent(item)
-        self._owner._mark_dirty()
+        self._mark_owner_structural()
 
     def extend(self, items: Iterable[DOMElement | str]) -> None:
         for item in items:
             super().append(item)
             self._set_parent(item)
-        self._owner._mark_dirty()
+        self._mark_owner_structural()
 
     def insert(self, index: SupportsIndex, item: DOMElement | str) -> None:
         super().insert(index, item)
         self._set_parent(item)
-        self._owner._mark_dirty()
+        self._mark_owner_structural()
 
     def remove(self, item: DOMElement | str) -> None:
         super().remove(item)
         self._unset_parent(item)
-        self._owner._mark_dirty()
+        self._mark_owner_structural()
 
     def pop(self, index: SupportsIndex = -1) -> DOMElement | str:
         item = super().pop(index)
         self._unset_parent(item)
-        self._owner._mark_dirty()
+        self._mark_owner_structural()
         return item
 
     def clear(self) -> None:
         for item in self:
             self._unset_parent(item)
         super().clear()
-        self._owner._mark_dirty()
+        self._mark_owner_structural()
 
     def __setitem__(self, index: SupportsIndex | slice, item: Any) -> None:
         if isinstance(index, slice):
@@ -370,7 +375,7 @@ class _Children(list):
             super().__setitem__(index, item)
             self._unset_parent(old)
             self._set_parent(item)
-        self._owner._mark_dirty()
+        self._mark_owner_structural()
 
     def __delitem__(self, index: SupportsIndex | slice) -> None:
         if isinstance(index, slice):
@@ -382,7 +387,7 @@ class _Children(list):
             item = self[index]
             super().__delitem__(index)
             self._unset_parent(item)
-        self._owner._mark_dirty()
+        self._mark_owner_structural()
 
 
 class DOMElement(BaseModel):
@@ -420,6 +425,15 @@ class DOMElement(BaseModel):
     # (SidebarItem's icon/label spans; layout containers keep strict routing).
     _bubble_events: bool = PrivateAttr(default=False)
 
+    # Mutation classification for the direct-patch fast path: style/attr
+    # changes patch in place; structural changes (children, text, key)
+    # force the full serialization + diff.  The bitmask only escalates
+    # (style → structural) within one render cycle.
+    _DIRTY_STYLES: ClassVar[int] = 1
+    _DIRTY_ATTRS: ClassVar[int] = 2
+    _DIRTY_STRUCTURAL: ClassVar[int] = 4
+    _dirty_type: int = PrivateAttr(default=0)
+
     # Signal bindings, kept alive for unbind() (Signal → Effect → element).
     _bindings: list[Effect] = PrivateAttr(default_factory=list)
     # Armed by the app on each tree root so a bound-signal write schedules a render.
@@ -439,6 +453,15 @@ class DOMElement(BaseModel):
     def __setattr__(self, name: str, value: Any) -> None:
         super().__setattr__(name, value)
         if not name.startswith("_"):
+            # Classify the mutation: styles/attrs patch in place; anything
+            # else (container, key, ...) is structural and needs the full
+            # serialization + diff path.
+            if name == "styles":
+                self._dirty_type |= self._DIRTY_STYLES
+            elif name == "args":
+                self._dirty_type |= self._DIRTY_ATTRS
+            else:
+                self._dirty_type |= self._DIRTY_STRUCTURAL
             self._mark_dirty()
 
     def _mark_dirty(self) -> None:
@@ -450,7 +473,10 @@ class DOMElement(BaseModel):
             node = node._parent
 
     def mark_dirty(self) -> None:
-        """Explicitly mark this element (and its ancestors) as changed."""
+        """Explicitly mark this element (and its ancestors) as changed.
+        Conservative: counts as structural, so the next render takes the
+        full serialization + diff path."""
+        self._dirty_type |= self._DIRTY_STRUCTURAL
         self._mark_dirty()
 
     # ---- signal bindings ----
@@ -519,15 +545,18 @@ class DOMElement(BaseModel):
 
     def _set_style(self, prop: str, value: Any) -> None:
         setattr(self.styles, prop, value if value is not None else None)
+        self._dirty_type |= self._DIRTY_STYLES
 
     def _set_attr(self, name: str, value: Any) -> None:
         self.args[name] = str(value)
+        self._dirty_type |= self._DIRTY_ATTRS
 
     def _set_visible(self, visible: bool) -> None:
         if visible:
             self.styles.display = self._visible_display
         else:
             self.styles.display = "none"
+        self._dirty_type |= self._DIRTY_STYLES
 
     # ---- fluent event API ----
 
@@ -577,21 +606,36 @@ class DOMElement(BaseModel):
         """Convert ``snake_case`` to ``kebab-case``."""
         return snake.replace("_", "-")
 
-    def _build_styles(self) -> str:
-        """Build the ``style="..."`` attribute string."""
-        declarations: list[str] = []
+    def _serialize_styles(self) -> dict[str, str]:
+        """Serialize ``self.styles`` to a kebab-case dict, skipping None
+        values and mirroring the WebKit/moz-prefixed variants."""
+        styles: dict[str, str] = {}
         for k, v in self.styles.model_dump().items():
             if v is not None:
                 css_property = self._to_kebab(k)
-                declarations.append(f"{css_property}: {v}")
-                # WebKitGTK needs the prefixed variant of backdrop-filter
+                styles[css_property] = str(v)
                 if css_property == "backdrop-filter":
-                    declarations.append(f"-webkit-backdrop-filter: {v}")
-                # user-select also needs -webkit- and -moz- prefixes.
+                    styles["-webkit-backdrop-filter"] = str(v)
                 if css_property == "user-select":
-                    declarations.append(f"-webkit-user-select: {v}")
-                    declarations.append(f"-moz-user-select: {v}")
+                    styles["-webkit-user-select"] = str(v)
+                    styles["-moz-user-select"] = str(v)
+        return styles
 
+    def _serialize_attrs(self) -> dict[str, str]:
+        """Serialize HTML attributes to a ``{name: value}`` dict
+        (booleans map to "" presence)."""
+        attrs: dict[str, str] = {}
+        for name, value in self._collect_attr_items():
+            if isinstance(value, bool):
+                if value:
+                    attrs[name] = ""
+            else:
+                attrs[name] = str(value)
+        return attrs
+
+    def _build_styles(self) -> str:
+        """Build the ``style="..."`` attribute string."""
+        declarations = [f"{k}: {v}" for k, v in self._serialize_styles().items()]
         if not declarations:
             return ""
         return 'style="' + "; ".join(declarations) + '"'
@@ -686,28 +730,8 @@ class DOMElement(BaseModel):
             if cached is not None:
                 return cached
 
-        # Styles: kebab-case keys, string values, skip None
-        styles: dict[str, str] = {}
-        for k, v in self.styles.model_dump().items():
-            if v is not None:
-                css_property = self._to_kebab(k)
-                styles[css_property] = str(v)
-                # WebKitGTK needs the prefixed variant of backdrop-filter
-                if css_property == "backdrop-filter":
-                    styles["-webkit-backdrop-filter"] = str(v)
-                # user-select also needs -webkit- and -moz- prefixes.
-                if css_property == "user-select":
-                    styles["-webkit-user-select"] = str(v)
-                    styles["-moz-user-select"] = str(v)
-
-        # Attrs: same precedence as _build_attrs (typed fields, then args)
-        attrs: dict[str, str] = {}
-        for name, value in self._collect_attr_items():
-            if isinstance(value, bool):
-                if value:
-                    attrs[name] = ""  # boolean attribute presence
-            else:
-                attrs[name] = str(value)
+        styles = self._serialize_styles()
+        attrs = self._serialize_attrs()
 
         # Children: recurse, handle text-vs-element rules
         text: str | None = None
@@ -748,4 +772,5 @@ class DOMElement(BaseModel):
         if snapshot_cache is not None:
             snapshot_cache[self.key] = node
         self._dirty = False
+        self._dirty_type = 0
         return node
