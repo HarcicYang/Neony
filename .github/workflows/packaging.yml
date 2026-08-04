@@ -129,6 +129,7 @@ jobs:
         run: |
           uv run python -m nuitka \
             --onefile \
+            --assume-yes-for-downloads \
             --include-package-data=neony \
             --include-module=lumiview._events \
             --include-module=lumiview._task \
