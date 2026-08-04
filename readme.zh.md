@@ -1,6 +1,6 @@
 # Neony
 
-基于 [LumiView](https://lumiview.dev) 的响应式桌面 UI 框架。
+基于 [LumiView](https://github.com/xiaosuawa/lumiview) 的响应式桌面 UI 框架。
 
 [![License: LGPL-3.0](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)

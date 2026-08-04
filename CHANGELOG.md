@@ -111,8 +111,136 @@
   paths, spaces, non-ASCII all handled) and `data_url(path)` → base64
   `data:` URL with MIME guess, exported from `neony.application` for
   local images in `GlassPanel(background=...)`, `TitleBar(icon=...)`, ...
+- **File drag-and-drop** — `drop` / `dragover` / `dragleave` join the
+  delegated events; `DomEvent.drop_files` carries one dict per dropped
+  file (`name`, `path`, `size`, `type` — `File.path` is exposed by
+  WebView2 / WebKitGTK, empty on WKWebView). New `on_drop()` /
+  `on_dragover()` / `on_dragleave()` on elements and components. The
+  engine `preventDefault()`s dragover/drop, so dropping a file never
+  navigates the webview to it; `dragover`/`dragleave` ride the deferred
+  render path (they fire continuously while dragging).
+- **Event API completion** — the missing `on_*` convenience methods on
+  elements and components: `on_mousedown()`, `on_mouseup()`,
+  `on_contextmenu()`, `on_wheel()` (plus `on_paste()` / `on_copy()` /
+  `on_cut()` / `on_drop()` / `on_dragover()` / `on_dragleave()` on
+  components) — every delegated event now has a fluent method.
+- **`GlassPanel` per-corner radii** — `border_top_left_radius` &
+  friends on `GlassPanel` override parts of `radius`, for joining
+  rounded chrome pieces.
 
 ### Changed
+
+- **Native file-drop path channel** — every window now installs a native
+  `drag_drop_handler` (tao's OS-level handler, which receives real file
+  paths).  It is a pure observer — always returns `False`, because wry
+  documents that `True` *blocks the OS' default behavior* (on WebKitGTK
+  that is delivering the drop to the web process, so `True` kills the
+  JS `drop` event — verified in the real environment).  Captured paths
+  are matched back into `drop_files` by base name in the bridge,
+  fixing empty paths on WebKitGTK ≥ 2.52 (where `File.path` was
+  removed) without touching the WebView2 path.
+- **Bindings accept `Computed`** — `bind_text()` / `bind_style()` /
+  `bind_attr()` / `bind_visible()` take `Signal | Computed` on both
+  elements and components, so derived values bind directly.
+- **Component event wiring** — `Component.on()` lazily wires DOM event
+  types its internals don't bind (keydown, wheel, paste, drop, ...) to
+  the root element, so `component.on_keydown(...)` actually fires;
+  `_bound_events` per component prevents double-dispatch of natively
+  wired types.
+- **Clipboard API internals** — `clipboard_write()` uses the synchronous
+  `execCommand('copy')` path (hidden textarea) with a fire-and-forget
+  `navigator.clipboard.writeText()` attempt, and verifies the result;
+  `clipboard_read()` runs the async read in-page into a global and
+  polls it from Python, because the webview bridge may not await JS
+  promises.  Both raise `RuntimeError` with the backend's reason when
+  rejected (e.g. WebKitGTK denying clipboard-read permission).
+- **`set_bounds` resilience** — a `set_outer_position` failure (Wayland
+  forbids client-side positioning) is logged but never blocks the
+  resize half of the call.
+- **Window-level key events** — `Page.on_keydown(fn)` / `Page.on_keyup(fn)`
+  register window-wide listeners (sync or async, called with the
+  `DomEvent`) that fire wherever keys land — typed in any input or
+  pressed on the bare page — thanks to the bubbling fix below.
+- **Clipboard read OS fallback** — on Linux, when the in-page read is
+  rejected (WebKitGTK has no `navigator.clipboard.readText`),
+  `clipboard_read()` falls back to the platform clipboard tool
+  (`wl-paste` on Wayland, `xclip` on X11, 2s timeout), so reads work
+  from a click handler (the window is focused, which Wayland requires).
+
+### Fixed
+
+- **Keys dropped when no element was focused** — the JS delegate traced
+  every event to its nearest `data-neony-key` ancestor and discarded the
+  event when none existed.  With focus on the page body (the normal
+  state after clicking anywhere that isn't an input), every `keydown` /
+  `keyup` was dropped, so window-level listeners (page key handlers,
+  shortcuts) only ever fired while an input was focused — or never, for
+  shortcuts pressed on the bare page.  Keyboard events now fall back to
+  the engine root, so body-focused keys reach `Page.on_keydown`,
+  `Page.on_keyup` and `Page.on_shortcut`.
+- **In-place styles mutations never rendered** — `el.styles.foo = X` (a
+  field write on the existing `Styles` model) bypassed the dirty
+  tracker, which only saw whole-`styles` reassignment; the snapshot
+  cache served the stale style forever.  The gallery's status dots
+  (`set_dot`) used exactly this pattern, so every indicator light was
+  dead.  `Styles` now carries an owner hook: any field mutation marks
+  the element (and ancestors) dirty, on the initial instance and after
+  `model_copy` reassignment alike.
+- **Events never bubbled past an element that handled them** — `_on_event`
+  returned after dispatching to the target, so window-level listeners
+  (page shortcuts, key handlers) never saw keys typed into an input
+  with handlers of its own — contradicting the documented "shortcuts
+  fire even while an input has focus".  Events now always bubble to the
+  nearest `_bubble_events` ancestor with a matching handler, after the
+  target's own handlers.
+- **Sync event handlers crashed every event** — `_make_wrapper` awaited
+  `fn(evt)` directly; a plain (sync) handler returned `None` →
+  `TypeError`, and because the crash happened *before* the auto-render
+  call, the UI never refreshed (the gallery/probe appeared dead: no
+  console output, drop-zone text stuck, modifier lights frozen).  The
+  wrapper now awaits only coroutines, exactly like `_run_handler`.
+- **`eval_js` results are JSON-encoded** — wryview passes the WebKitGTK
+  result through JSON (a JS string arrives quoted, `'"pong"'`, with
+  ``-style escapes), so `clipboard_read`'s `partition("\x01")`
+  never matched and every read failed as "unknown error" — even
+  `navigator.clipboard.readText`'s real rejection reason was invisible.
+  New `_js_result_value()` decodes quoted results; both clipboard
+  methods parse through it.  The probe confirmed
+  `navigator.clipboard.readText` is absent on WebKitGTK 2.52, so reads
+  keep failing *by design* there — with the true reason now surfaced
+  ("clipboard API unavailable") plus the paste-event workaround.
+- **File drops natively taken over on WebKitGTK** — installing wry's
+  `drag_drop_handler` (even as an observer) makes the webview deliver
+  the JS `drop` event with an *empty* `dataTransfer.files` (verified:
+  `drop_files` empty while the native handler received the real path).
+  The handler now returns `True` on `Drop` (blocking the useless empty
+  drop — wry's documented semantics) and re-dispatches the file list
+  from Python: `name`/`path`/`size`/`type` built from the real paths
+  (`_file_info`), the element under the pointer resolved via
+  `elementFromPoint` hit-testing, and the drop delivered through the
+  bridge — so `DomEvent.drop_files` finally carries real paths on
+  WebKitGTK ≥ 2.52.  `dragover`/`dragleave` still reach the page.
+- **Dropped-file paths empty on WebKitGTK ≥ 2.52** — `File.path` was
+  removed there (and never existed on WKWebView); the engine now falls
+  back to parsing the drag's `text/uri-list`, matched to each file by
+  base name (still the fallback behind the native takeover).
+- **Wheel payload lacked the delta units** — `delta_mode` (0 = pixels,
+  1 = lines, 2 = pages) is now forwarded.  On WebKitGTK 2.52 mouse
+  wheels deliver one event per notch in pixel mode (mode=0) with a
+  constant delta (±94.5 at the probe's scale) — consumers must convert
+  line/page modes by 16/256, not assume line deltas.
+
+- **Real-environment verification (probe v3/v4, Wayland + hyprland +
+  WebKitGTK 2.52.5)** — native drop takeover delivers real paths end to
+  end (incl. non-ASCII filenames); keyboard events reach the page *and*
+  the bridge (JS-side counter == Python log lines) and page-root
+  shortcuts fire (`Ctrl+K`); clipboard reads surface the real "clipboard
+  API unavailable" reason; hide/show round-trips with the page alive.
+  `set_bounds`/`set_size` resize requests are a no-op while the window
+  is tiled (GTK treats tiled windows as fixed-size; Wayland resizes are
+  compositor-best-effort) and position is impossible on Wayland by
+  protocol; window focus/blur page hooks were not observed firing on
+  this stack (tao GTK focus emission — follow-up).
 
 - **Render path** — `Neony.render()` serializes through a per-key snapshot
   cache; only dirty subtrees are re-walked. `demo_reactive.py` rewritten

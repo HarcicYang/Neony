@@ -7,10 +7,12 @@ import asyncio
 import contextlib
 import logging
 import sys
+from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any, Generic, TypeVar, cast
 
 from lumiview import App, Bridge, Window, WindowEffect, WindowHookEvent
+from wryview import DragDropEvent
 
 from neony.application.config import Config
 from neony.application.page import Page
@@ -46,11 +48,90 @@ class _Entry:
 
 # Style-only events: deferred one frame of coalescing so a mouse sweep
 # doesn't trigger a full-tree render per event.
-_DEFERRED_EVENTS = frozenset({"mouseover", "mouseout", "focus", "blur", "input"})
+_DEFERRED_EVENTS = frozenset({"mouseover", "mouseout", "focus", "blur", "input", "dragover", "dragleave"})
 
 # User state type: inferred from the ``state=`` constructor argument
 # (dataclass, pydantic model, ...).  Falls back to SimpleNamespace.
 _S = TypeVar("_S")
+
+
+def _file_info(path: str) -> dict[str, Any]:
+    """One ``drop_files`` entry from a real path: name from the basename,
+    size from the filesystem (0 when unreadable), MIME by extension."""
+    import mimetypes
+    import os
+
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        size = 0
+    mime, _ = mimetypes.guess_type(path)
+    return {"name": os.path.basename(path), "path": path, "size": size, "type": mime or ""}
+
+
+def _js_result_value(raw: str) -> str:
+    """Decode an ``eval_js`` result string.
+
+    wryview passes the WebKitGTK evaluation result through JSON-encoded —
+    a JS string arrives quoted (``'"pong"'``) with ``\\u0001``-style
+    escapes intact, so string parsing (``partition``, ``startswith``)
+    against the raw text fails.  Decode it to the actual value; raw
+    (unquoted) results pass through unchanged.
+    """
+    import json
+
+    text = raw.strip()
+    if text.startswith('"'):
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+    return text
+
+
+def _clipboard_read_hint(reason: str) -> str:
+    """Append the actionable workaround to a clipboard-read rejection.
+
+    WebKitGTK rejects ``navigator.clipboard.readText`` outright (the
+    promise's rejection is the only way the read can fail here) — the
+    paste event is the supported read path on Linux.  On other backends
+    a rejection usually means the user gesture was missing.
+    """
+    if sys.platform == "linux":
+        return (
+            " — WebKitGTK rejects programmatic clipboard reads and the "
+            "wl-paste/xclip fallback failed (install wl-clipboard or "
+            "xclip; the window must be focused); the reliable path is the "
+            "paste event (on_paste → DomEvent.clipboard_text, Ctrl+V)"
+        )
+    return " — the read was rejected; clipboard-read needs a user gesture (call it from a click handler)"
+
+
+def _os_clipboard_read() -> str | None:
+    """Read the clipboard text via the platform's clipboard tool.
+
+    WebKitGTK has no ``navigator.clipboard.readText`` — on Linux the OS
+    tool is the only programmatic read.  ``wl-paste`` (Wayland) and
+    ``xclip`` (X11) are tried in turn; Wayland grants clipboard access to
+    the focused surface only, which a click-driven read satisfies.
+    Returns ``None`` when no tool is installed or the read fails /
+    comes back empty within 2s.
+    """
+    import os
+    import shutil
+    import subprocess
+
+    for tool, env_var in (("wl-paste", "WAYLAND_DISPLAY"), ("xclip", "DISPLAY")):
+        if not os.environ.get(env_var) or shutil.which(tool) is None:
+            continue
+        try:
+            args = [tool, "--no-newline"] if tool == "wl-paste" else [tool, "-selection", "clipboard", "-o"]
+            out = subprocess.run(args, capture_output=True, timeout=2.0)
+        except (subprocess.SubprocessError, OSError):
+            continue
+        if out.returncode == 0 and out.stdout:
+            return out.stdout.decode("utf-8", "replace")
+    return None
 
 
 def _set_linux_app_name(name: str) -> None:
@@ -124,6 +205,7 @@ class NeonApplication(Generic[_S]):
                 title=title if i == 0 else f"{title} {i + 1}",
                 html=_INITIAL_HTML,
                 bridge=Bridge(includes=includes),
+                drag_drop_handler=self._make_drag_drop_handler(entry),
                 **kwargs,
             )
             # Wait for the page (Bridge JS included) before mounting —
@@ -383,16 +465,89 @@ class NeonApplication(Generic[_S]):
 
     def _make_wrapper(self, fn: Any, element: DOMElement, idx: int) -> Any:
         """Wrap a user handler: build a DomEvent, call *fn*, auto-render
-        only the originating window (style-only events deferred)."""
+        only the originating window (style-only events deferred).
+
+        *fn* may be sync or async — a bare ``await fn(evt)`` would raise
+        ``TypeError`` on sync handlers and skip the render (regression:
+        every event handler crashed and the UI never refreshed).
+        """
 
         async def wrapper(key: str, event_type: str, value: Any = None, **extra: Any) -> None:
             evt = DomEvent(key=key, type=event_type, value=value, **extra)
-            await fn(evt)
+            result = fn(evt)
+            if asyncio.iscoroutine(result):
+                await result
             if self.config.auto_render:
                 immediate = event_type not in _DEFERRED_EVENTS
                 await self.render(window_index=idx, immediate=immediate)
 
         return wrapper
+
+    # ---- native file drop channel ----
+
+    def _make_drag_drop_handler(self, entry: _Entry) -> Callable[[DragDropEvent, list[str], tuple[int, int]], bool]:
+        """Build the window's native drag-drop handler — a native takeover
+        of file drops, because WebKitGTK cannot deliver file data to the
+        page when the handler is installed (verified in the real
+        environment: the JS ``drop`` event fires with an *empty*
+        ``dataTransfer.files``; only the native handler receives the real
+        paths — ``File.path`` was removed in WebKitGTK ≥ 2.52 anyway).
+
+        On ``Drop`` the handler returns ``True`` — wry's docs: returning
+        ``True`` *blocks the OS' default behavior*, which here is the
+        useless empty drop — and re-dispatches the file list as a normal
+        Neony ``drop`` event from Python (see :meth:`_dispatch_native_drop`),
+        with ``name``/``path``/``size``/``type`` filled from the real
+        paths.  ``dragover``/``dragleave`` still reach the page (separate
+        signals), so drop-zone highlighting keeps working.
+        """
+
+        def handler(event: DragDropEvent, paths: list[str], position: tuple[int, int]) -> bool:
+            if event in (DragDropEvent.Enter, DragDropEvent.Drop):
+                entry.neony.native_drop_paths[:] = paths
+            if event is DragDropEvent.Drop:
+                if paths:
+                    files = [_file_info(p) for p in paths]
+                    self._schedule_on_loop(self._dispatch_native_drop(entry, files, position))
+                return True
+            return False
+
+        return handler
+
+    async def _dispatch_native_drop(
+        self,
+        entry: _Entry,
+        files: list[dict[str, Any]],
+        position: tuple[int, int],
+    ) -> None:
+        """Deliver a natively-captured drop to the element under the
+        pointer: hit-test the position from Python (``elementFromPoint``),
+        then dispatch a regular ``drop`` event through the bridge."""
+        if entry.window is None:
+            return
+        try:
+            script = (
+                "var el = document.elementFromPoint({}, {});"
+                "el = (el && el.closest) ? el.closest('[data-neony-key]') : null;"
+                "el ? el.getAttribute('data-neony-key') : ''"
+            ).format(*position)
+            key = _js_result_value(await entry.window.eval_js(script))
+        except Exception:
+            logging.getLogger("neony").exception("native drop hit-test failed")
+            key = ""
+        if key:
+            await entry.neony._on_event(cast(Any, None), key=key, event_type="drop", value=None, drop_files=files)
+
+    @staticmethod
+    def _schedule_on_loop(coro: Any) -> None:
+        """Schedule *coro* on the app's asyncio loop from any thread
+        (the drag-drop callback runs on the GTK main thread)."""
+        try:
+            loop = App.get()._async_loop
+        except Exception:
+            return
+        if loop is not None:
+            loop.call_soon_threadsafe(lambda: asyncio.create_task(coro))
 
     # ---- window control ----
 
@@ -457,11 +612,16 @@ class NeonApplication(Generic[_S]):
 
         Position goes through tao's ``set_outer_position`` directly
         (lumiview's own ``set_bounds`` only positions the webview child
-        inside the tao window); sizing reuses :meth:`set_size`.
+        inside the tao window); sizing reuses :meth:`set_size`.  Note
+        that Wayland forbids client-side positioning — there the window
+        only resizes.  A positioning failure never blocks the resize.
         """
         window = self._require_window(window_index)
         if window._tao is not None:
-            await App.get().call_on_main(window._tao.set_outer_position, x, y)
+            try:
+                await App.get().call_on_main(window._tao.set_outer_position, x, y)
+            except Exception:
+                logging.getLogger("neony").exception("set_outer_position failed (no-op on Wayland) — resizing anyway")
         await self.set_size(int(w), int(h), window_index=window_index)
 
     async def close(self, window_index: int = 0) -> None:
@@ -501,20 +661,95 @@ class NeonApplication(Generic[_S]):
     # ---- clipboard ----
 
     async def clipboard_write(self, text: str, window_index: int = 0) -> None:
-        """Write *text* to the system clipboard via ``navigator.clipboard``."""
+        """Write *text* to the system clipboard.
+
+        Uses the synchronous ``document.execCommand('copy')`` path (hidden
+        textarea) — it works on WebKitGTK and WebView2 without the async
+        clipboard API, and its result is verifiable — plus a fire-and-forget
+        ``navigator.clipboard.writeText()`` attempt.  Requires transient
+        user activation: call from a click / keypress handler, not a timer.
+        Raises :class:`RuntimeError` when the write was rejected.
+        """
         import json
 
-        await self._require_window(window_index).eval_js(f"navigator.clipboard.writeText({json.dumps(text)})")
+        escaped = json.dumps(text)
+        script = (
+            "(function () {"
+            "  if (navigator.clipboard && navigator.clipboard.writeText) {"
+            "    navigator.clipboard.writeText(" + escaped + ").catch(function () {});"
+            "  }"
+            "  try {"
+            "    var ta = document.createElement('textarea');"
+            "    ta.value = " + escaped + ";"
+            "    ta.style.position = 'fixed'; ta.style.left = '-9999px'; ta.style.top = '0';"
+            "    document.body.appendChild(ta);"
+            "    ta.focus(); ta.select();"
+            "    var ok = document.execCommand('copy');"
+            "    document.body.removeChild(ta);"
+            "    return ok ? 'ok' : 'ERR:execCommand copy rejected';"
+            "  } catch (e) { return 'ERR:' + (e && e.message || e); }"
+            "})()"
+        )
+        result = _js_result_value(await self._require_window(window_index).eval_js(script))
+        if isinstance(result, str) and result.startswith("ERR:"):
+            raise RuntimeError(f"clipboard_write failed: {result[4:]}")
 
     async def clipboard_read(self, window_index: int = 0) -> str:
         """Read text from the system clipboard and return it.
 
-        Requires transient user activation — call from a click / keypress
-        handler, not a timer — because the browser gates the clipboard-read
-        permission on a user gesture.  Returns ``""`` when the clipboard
-        holds no text.
+        Runs the async read in-page (the value lands in a page global)
+        and polls it from Python, because the webview bridge may not
+        await JS promises.  Requires transient user activation (a click /
+        keypress handler, not a timer).  On Linux, when the in-page read
+        is rejected (WebKitGTK has no ``readText``), falls back to the
+        OS clipboard tool (``wl-paste`` on Wayland, ``xclip`` on X11) —
+        which works from a click handler because the window is focused.
+        Raises :class:`RuntimeError` when every path failed or timed out.
         """
-        return await self._require_window(window_index).eval_js("navigator.clipboard.readText()")
+        window = self._require_window(window_index)
+        await window.eval_js(
+            "(function () {"
+            "  try {"
+            "    if (navigator.clipboard && navigator.clipboard.readText) {"
+            "      navigator.clipboard.readText().then("
+            "        function (t) { window.__neony_clip_read = 'OK' + '\\u0001' + t; },"
+            "        function (e) {"
+            "          var reason = e && (e.name || e.message) || String(e);"
+            "          window.__neony_clip_read = 'ERR' + '\\u0001' + reason;"
+            "        }"
+            "      );"
+            "    } else {"
+            "      window.__neony_clip_read = 'ERR' + '\\u0001' + 'clipboard API unavailable';"
+            "    }"
+            "  } catch (e) {"
+            "    window.__neony_clip_read = 'ERR' + '\\u0001' + e;"
+            "  }"
+            "  return 'started';"
+            "})()"
+        )
+        import asyncio
+
+        for _ in range(50):  # ~2.5s for the async read to land
+            await asyncio.sleep(0.05)
+            # JSON-encoded result — decode before parsing the separator.
+            raw = _js_result_value(await window.eval_js("window.__neony_clip_read || ''"))
+            if not raw:
+                continue
+            # 'OK' / 'ERR' + \x01 + payload (see the script above).
+            kind, _, value = raw.partition("\x01")
+            if kind == "OK":
+                return value
+            reason = value or "unknown error"
+            # WebKitGTK has no readText — the OS clipboard tool is the
+            # only programmatic read on Linux (the window is focused,
+            # which is what Wayland requires).
+            if sys.platform == "linux":
+                os_text = _os_clipboard_read()
+                if os_text is not None:
+                    return os_text
+            hint = _clipboard_read_hint(reason)
+            raise RuntimeError(f"clipboard_read failed: {reason}{hint}")
+        raise RuntimeError("clipboard_read timed out — the async clipboard API may be unavailable")
 
 
 def launch(

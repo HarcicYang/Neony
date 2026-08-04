@@ -136,6 +136,21 @@ class TestWindowState:
         assert wins[1]._tao.positions == [(10.0, 20.0)]
         assert wins[1].sizes == [(300.0, 200.0)]
 
+    def test_set_bounds_position_failure_does_not_block_resize(self, monkeypatch: pytest.MonkeyPatch):
+        """A positioning failure (Wayland no-op / backend rejection) must
+        never prevent the resize half of set_bounds from applying."""
+        app = _app_with_window(1)
+        win = cast_any(app._entries[0].window)
+
+        def broken_position(x: float, y: float) -> None:
+            raise RuntimeError("positioning not supported here")
+
+        win._tao.set_outer_position = broken_position  # type: ignore[method-assign]
+
+        wins = _run(app, monkeypatch, "set_bounds", 100.0, 200.0, 640.0, 480.0)
+
+        assert wins[0].sizes == [(640.0, 480.0)]
+
     def test_show_requires_created_window(self, monkeypatch: pytest.MonkeyPatch):
         app = NeonApplication(Config())
         fake = FakeLumiApp()

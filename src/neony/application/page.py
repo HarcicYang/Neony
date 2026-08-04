@@ -45,6 +45,8 @@ class Page:
     ) -> None:
         self._children: list[Component | DOMElement] = []
         self._shortcut_handlers: list[tuple[str, Callable]] = []
+        self._keydown_handlers: list[Callable[[DomEvent], Any]] = []
+        self._keyup_handlers: list[Callable[[DomEvent], Any]] = []
         self._close_handlers: list[Callable] = []
         self._focus_handlers: list[Callable] = []
         self._blur_handlers: list[Callable] = []
@@ -100,6 +102,50 @@ class Page:
         """
         self._blur_handlers.append(fn)
         return self
+
+    # ---- window-level key events ----
+
+    def on_keydown(self, fn: Callable[[DomEvent], Any]) -> Self:
+        """Register *fn* — sync or async, called with the ``DomEvent`` —
+        for every keydown anywhere in this window, no matter which
+        element has focus.  Chainable.
+
+        Unlike an element's ``on_keydown`` (which only fires while that
+        element is focused), window-level key handlers receive keys typed
+        into any input or pressed on the bare page.  The event carries
+        the usual ``key`` / ``value`` and modifier fields.
+        """
+        self._keydown_handlers.append(fn)
+        return self
+
+    def on_keyup(self, fn: Callable[[DomEvent], Any]) -> Self:
+        """Register *fn* — sync or async, called with the ``DomEvent`` —
+        for every keyup anywhere in this window.  Chainable.  See
+        :meth:`on_keydown`.
+        """
+        self._keyup_handlers.append(fn)
+        return self
+
+    async def _dispatch_key_handlers(self, evt: DomEvent, handlers: list[Callable[[DomEvent], Any]]) -> None:
+        """Run every registered key handler (sync or async) with the
+        event — one raising must not break the chain."""
+        for fn in handlers:
+            try:
+                result = fn(evt)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                import logging
+
+                logging.getLogger("neony.page").exception("key handler failed")
+
+    async def _dispatch_keydown(self, evt: DomEvent) -> None:
+        """Root keydown listener — forward to the registered handlers."""
+        await self._dispatch_key_handlers(evt, self._keydown_handlers)
+
+    async def _dispatch_keyup(self, evt: DomEvent) -> None:
+        """Root keyup listener — forward to the registered handlers."""
+        await self._dispatch_key_handlers(evt, self._keyup_handlers)
 
     # ---- shortcuts ----
 
@@ -256,10 +302,16 @@ class Page:
             container.append(child.build() if isinstance(child, Component) else child)
 
         root = Div(styles=outer, container=[Div(styles=inner, container=container)])
-        if self._shortcut_handlers:
-            # Shortcuts must fire while typing in any input, so keydown
-            # anywhere in the tree bubbles to the root (opt-in bubbling
-            # via `_bubble_events`); the root's own keydowns match too.
+        if self._shortcut_handlers or self._keydown_handlers or self._keyup_handlers:
+            # Window-level keys must fire while typing in any input, so
+            # keydown/keyup anywhere in the tree bubbles to the root
+            # (opt-in bubbling via `_bubble_events`); the root's own
+            # keydowns match too.
             root._bubble_events = True
-            root.on("keydown", self._dispatch_shortcuts)
+            if self._shortcut_handlers:
+                root.on("keydown", self._dispatch_shortcuts)
+            if self._keydown_handlers:
+                root.on("keydown", self._dispatch_keydown)
+            if self._keyup_handlers:
+                root.on("keyup", self._dispatch_keyup)
         return root

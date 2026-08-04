@@ -32,6 +32,10 @@ _GLASS_FIELD = _FIELD.model_copy(
 
 
 class Input(Component):
+    #: Event types wired internally (via _bind / custom handlers) —
+    #: Component.on() must not wire these again.
+    _bound_events: frozenset[str] = frozenset({"input", "change", "focus", "blur"})
+
     """Single-line text field with internal value state.
 
     - ``input.value`` reads / sets the current text (immediate DOM write)

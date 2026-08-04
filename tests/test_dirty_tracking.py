@@ -6,7 +6,7 @@ and, via parent pointers, every ancestor — dirty, otherwise a parent's
 cached snapshot (holding the stale child) would be reused.
 """
 
-from neony.dom import Div, Span, Styles
+from neony.dom import Color, Div, Span, Styles
 from neony.dom.base import NodeDescriptor
 
 
@@ -61,6 +61,27 @@ class TestDirtyMarking:
         a.container.remove(b)
         assert a._dirty
         assert b._parent is None  # parent pointer dropped
+
+    def test_in_place_styles_field_mutation_marks_dirty(self):
+        """`el.styles.foo = X` (a field on the existing Styles model)
+        must mark the element dirty — the gallery's set_dot() pattern."""
+        root, a, _b, _c = self._clean(*build_tree())
+        a.styles.background_color = Color(var="--color-accent")
+        assert a._dirty
+        assert root._dirty  # propagated to ancestors
+
+    def test_styles_field_mutation_after_full_reassignment(self):
+        """model_copy reassignment re-hooks the new Styles instance."""
+        root, a, _b, _c = self._clean(*build_tree())
+        a.styles = a.styles.model_copy(update={"padding": "8px"})
+        assert a._dirty  # the reassignment itself marks dirty
+        # A render clears the flags; the *new* Styles instance must
+        # still report mutations against the same element.
+        root.to_node(_cache())
+        assert not a._dirty
+        a.styles.padding = "16px"
+        assert a._dirty
+        assert root._dirty
 
     def test_parent_pointers_maintained_on_append(self):
         root, a, b, _c = build_tree()

@@ -7,7 +7,7 @@ from typing import Any, ClassVar, Literal, Self, SupportsIndex
 from pydantic import BaseModel, PrivateAttr, model_serializer
 from pydantic.fields import Field
 
-from neony.dom.reactive import Effect, Signal, effect
+from neony.dom.reactive import Computed, Effect, Signal, effect
 
 
 def _new_key() -> str:
@@ -48,6 +48,23 @@ class Styles(BaseModel):
 
     Only non-None values are rendered into the style attribute.
     """
+
+    # The owning element, hooked on assignment — in-place field
+    # mutations (`el.styles.foo = X`) must mark it dirty, or the change
+    # never renders (the snapshot cache would be reused as-is).
+    _owner: DOMElement | None = PrivateAttr(default=None)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        super().__setattr__(name, value)
+        if name.startswith("_"):
+            return
+        try:
+            owner = object.__getattribute__(self, "_owner")
+        except AttributeError:
+            return  # still under construction — the element hooks us later
+        if owner is not None:
+            owner._dirty_type |= owner._DIRTY_STYLES
+            owner._mark_dirty()
 
     # --- Colors ---
     color: Color | None = Field(default=None)
@@ -302,13 +319,19 @@ class DomEvent(BaseModel):
     offset_x: float | None = None
     offset_y: float | None = None
 
-    # Wheel delta (WheelEvent).
+    # Wheel delta (WheelEvent).  delta_mode: 0 = pixels, 1 = lines,
+    # 2 = pages (WebKitGTK mouse wheels deliver line deltas).
     delta_x: float | None = None
     delta_y: float | None = None
+    delta_mode: int | None = None
 
     # Clipboard data (paste events only).
     clipboard_text: str | None = None
     clipboard_html: str | None = None
+
+    # Dropped files (drop events only): one dict per file with keys
+    # ``name``, ``path`` (empty string on WKWebView), ``size``, ``type``.
+    drop_files: list[dict[str, Any]] | None = None
 
 
 class NodeDescriptor(BaseModel):
@@ -489,6 +512,9 @@ class DOMElement(BaseModel):
         """Replace the plain container list with the parent-aware proxy."""
         # object.__setattr__: the swap itself is not a mutation.
         object.__setattr__(self, "container", _Children(self, self.container))
+        # Field-level styles mutations must reach the dirty tracker.
+        if self.styles is not None:
+            object.__setattr__(self.styles, "_owner", self)
 
     def __setattr__(self, name: str, value: Any) -> None:
         super().__setattr__(name, value)
@@ -498,6 +524,8 @@ class DOMElement(BaseModel):
             # serialization + diff path.
             if name == "styles":
                 self._dirty_type |= self._DIRTY_STYLES
+                if isinstance(value, Styles):
+                    object.__setattr__(value, "_owner", self)
             elif name == "args":
                 self._dirty_type |= self._DIRTY_ATTRS
             else:
@@ -541,7 +569,7 @@ class DOMElement(BaseModel):
         if node is not None and node._render_request is not None:
             node._render_request()
 
-    def bind_text(self, signal: Signal[Any], fmt: Callable[[Any], str] = str) -> Self:
+    def bind_text(self, signal: Signal[Any] | Computed[Any], fmt: Callable[[Any], str] = str) -> Self:
         """Bind *signal* to this element's text: ``fmt(signal())`` now and
         on every change, replacing the children with a single string."""
         self._bind(lambda: self._set_text(fmt(signal())))
@@ -549,7 +577,7 @@ class DOMElement(BaseModel):
 
     def bind_style(
         self,
-        signal: Signal[Any],
+        signal: Signal[Any] | Computed[Any],
         prop: str,
         fmt: Callable[[Any], Any] | None = None,
     ) -> Self:
@@ -559,12 +587,12 @@ class DOMElement(BaseModel):
         self._bind(lambda: self._set_style(prop, apply(signal())))
         return self
 
-    def bind_attr(self, signal: Signal[Any], name: str, fmt: Callable[[Any], str] = str) -> Self:
+    def bind_attr(self, signal: Signal[Any] | Computed[Any], name: str, fmt: Callable[[Any], str] = str) -> Self:
         """Bind *signal* to an HTML attribute (written into ``args``)."""
         self._bind(lambda: self._set_attr(name, fmt(signal())))
         return self
 
-    def bind_visible(self, signal: Signal[Any]) -> Self:
+    def bind_visible(self, signal: Signal[Any] | Computed[Any]) -> Self:
         """Truthy → shown (restoring the pre-binding ``display``),
         falsy → ``display: none``."""
         self._visible_display = self.styles.display
@@ -639,6 +667,28 @@ class DOMElement(BaseModel):
     def on_mouseout(self, fn: Callable[..., Any]) -> DOMElement:
         return self.on("mouseout", fn)
 
+    def on_mousedown(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("mousedown", fn)
+
+    def on_mouseup(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("mouseup", fn)
+
+    def on_contextmenu(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("contextmenu", fn)
+
+    def on_wheel(self, fn: Callable[..., Any]) -> DOMElement:
+        """Wheel — ``event.delta_x`` / ``event.delta_y`` carry the deltas."""
+        return self.on("wheel", fn)
+
+    def on_dragover(self, fn: Callable[..., Any]) -> DOMElement:
+        """Dragover — fires continuously while a drag hovers this
+        element; ``preventDefault`` (allowing the drop) is handled by
+        the engine."""
+        return self.on("dragover", fn)
+
+    def on_dragleave(self, fn: Callable[..., Any]) -> DOMElement:
+        return self.on("dragleave", fn)
+
     def on_paste(self, fn: Callable[..., Any]) -> DOMElement:
         """Paste — ``event.clipboard_text`` / ``event.clipboard_html``
         carry the clipboard contents."""
@@ -649,6 +699,11 @@ class DOMElement(BaseModel):
 
     def on_cut(self, fn: Callable[..., Any]) -> DOMElement:
         return self.on("cut", fn)
+
+    def on_drop(self, fn: Callable[..., Any]) -> DOMElement:
+        """Drop — ``event.drop_files`` carries a ``{name, path, size,
+        type}`` dict per dropped file (``path`` empty on WKWebView)."""
+        return self.on("drop", fn)
 
     # ---- internal helpers ----
 

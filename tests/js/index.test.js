@@ -110,6 +110,38 @@ describe("event delegation", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
+  it("routes body-focused keydowns through the engine root", () => {
+    // With nothing focused, keys land on <body> — no data-neony-key
+    // ancestor.  Window-level key listeners live on the root, so
+    // keyboard events must fall back to it.
+    mountTree({ key: "root", tag: "div" });
+    document.body.dispatchEvent(
+      new window.KeyboardEvent("keydown", { key: "b", ctrlKey: true, bubbles: true })
+    );
+    expect(invoke).toHaveBeenCalledWith(
+      "neony.event",
+      expect.objectContaining({ key: "root", event_type: "keydown", value: "b", ctrl_key: true })
+    );
+  });
+
+  it("routes body-focused keyups through the engine root", () => {
+    mountTree({ key: "root", tag: "div" });
+    document.body.dispatchEvent(new window.KeyboardEvent("keyup", { key: "b", bubbles: true }));
+    expect(invoke).toHaveBeenCalledWith(
+      "neony.event",
+      expect.objectContaining({ key: "root", event_type: "keyup", value: "b" })
+    );
+  });
+
+  it("does not route body-focused non-keyboard events", () => {
+    mountTree({ key: "root", tag: "div" });
+    document.body.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    // The body click still has no keyed target (only keyboard events
+    // fall back to the root) — mount's "neony.ready" ack aside, no
+    // neony.event payload may be sent.
+    expect(invoke.mock.calls.filter(([name]) => name === "neony.event")).toHaveLength(0);
+  });
+
   it("routes window-control actions through lumiview.window on click", () => {
     mountTree({ key: "close-btn", tag: "button", attrs: { "data-window-action": "close" } });
     const el = document.querySelector("[data-neony-key='close-btn']");
@@ -191,6 +223,13 @@ describe("rich event payload", () => {
     expect(lastPayload()).toEqual(expect.objectContaining({ delta_x: 10, delta_y: -3 }));
   });
 
+  it("carries the wheel delta mode", () => {
+    mountTree({ key: "scroller", tag: "div" });
+    const el = document.querySelector("[data-neony-key='scroller']");
+    el.dispatchEvent(new window.WheelEvent("wheel", { deltaY: 3, deltaMode: 1, bubbles: true }));
+    expect(lastPayload()).toEqual(expect.objectContaining({ delta_y: 3, delta_mode: 1 }));
+  });
+
   it("forwards paste clipboard data as plain text and HTML", () => {
     mountTree({ key: "inp", tag: "input" });
     const el = document.querySelector("[data-neony-key='inp']");
@@ -214,6 +253,63 @@ describe("rich event payload", () => {
     const payload = lastPayload();
     expect(payload.clipboard_text).toBeUndefined();
     expect(payload.clipboard_html).toBeUndefined();
+  });
+
+  it("forwards dropped files with name, path, size and type", () => {
+    mountTree({ key: "drop-zone", tag: "div" });
+    const el = document.querySelector("[data-neony-key='drop-zone']");
+    const dataTransfer = {
+      getData: () => "",
+      files: [
+        { name: "a.png", path: "/home/user/a.png", size: 1024, type: "image/png" },
+        { name: "b.txt", path: "", size: 12, type: "text/plain" }, // WKWebView: no path
+      ],
+    };
+    const event = new window.Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+    el.dispatchEvent(event);
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({
+        drop_files: [
+          { name: "a.png", path: "/home/user/a.png", size: 1024, type: "image/png" },
+          { name: "b.txt", path: "", size: 12, type: "text/plain" },
+        ],
+      })
+    );
+  });
+
+  it("falls back to text/uri-list when File.path is missing", () => {
+    // WebKitGTK >= 2.52 removed File.path; the drag's text/uri-list is
+    // the path source there (and on WKWebView).
+    mountTree({ key: "drop-zone", tag: "div" });
+    const el = document.querySelector("[data-neony-key='drop-zone']");
+    const dataTransfer = {
+      getData: () => "file:///home/user/a%20file.png\r\nfile:///tmp/b.txt\r\n",
+      files: [
+        { name: "a file.png", path: "", size: 1024, type: "image/png" },
+        { name: "b.txt", path: "", size: 12, type: "text/plain" },
+      ],
+    };
+    const event = new window.Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+    el.dispatchEvent(event);
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({
+        drop_files: [
+          { name: "a file.png", path: "/home/user/a file.png", size: 1024, type: "image/png" },
+          { name: "b.txt", path: "/tmp/b.txt", size: 12, type: "text/plain" },
+        ],
+      })
+    );
+  });
+
+  it("fires dragover as a notification without drop_files", () => {
+    mountTree({ key: "drop-zone", tag: "div" });
+    const el = document.querySelector("[data-neony-key='drop-zone']");
+    el.dispatchEvent(new window.Event("dragover", { bubbles: true, cancelable: true }));
+    const payload = lastPayload();
+    expect(payload.drop_files).toBeUndefined();
+    expect(payload.event_type).toBe("dragover");
   });
 
   it("does not include modifier keys when no modifier is pressed", () => {

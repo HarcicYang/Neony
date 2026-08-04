@@ -12,6 +12,12 @@ from .base import Component
 
 
 class Button(Component):
+    #: Event types wired internally (via _bind / custom handlers) —
+    #: Component.on() must not wire these again.
+    _bound_events: frozenset[str] = frozenset(
+        {"click", "mouseover", "mouseout", "mousedown", "mouseup", "focus", "blur"}
+    )
+
     """A themed push button with hover / press feedback.
 
     ``variant`` selects a token-based palette: ``"primary"`` (accent bg),

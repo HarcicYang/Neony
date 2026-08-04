@@ -48,6 +48,10 @@ _GLASS_PANEL_ACTIVE = _GLASS_PANEL_BASE.model_copy(update={"display": "flex"})
 
 
 class Tabs(Component):
+    #: Event types wired internally (via _bind / custom handlers) —
+    #: Component.on() must not wire these again.
+    _bound_events: frozenset[str] = frozenset({"click"})
+
     """A set of named tabs; exactly one panel is visible at a time.
 
     Usage::

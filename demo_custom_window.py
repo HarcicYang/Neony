@@ -123,10 +123,27 @@ pane_roots = {k: p.build() for k, p in panes.items()}
 
 def switch_pane(key: str) -> None:
     content_holder.container = [pane_roots.get(key, pane_roots["home"])]
+    sidebar.active_key = key
 
 
 switch_pane("home")
 sidebar.on_change(lambda e: switch_pane(e.value))
+
+# ── shortcuts: Ctrl+1 / Ctrl+2 / Ctrl+3 switch panes by keyboard ──
+# Registered on the Page (window-level): they fire even while an input
+# has focus.  The per-platform dict form maps Meta on macOS to Ctrl
+# elsewhere; a plain string would apply everywhere.
+
+_PANE_BY_KEY = {"1": "home", "2": "settings", "3": "stats"}
+
+
+def pane_shortcut(index: str):
+    def handle() -> None:
+        if index in _PANE_BY_KEY:
+            switch_pane(_PANE_BY_KEY[index])
+
+    return handle
+
 
 # ── assemble: TitleBar / (Sidebar + content) — no gaps, one frame ─
 # fill=True stretches the page to the window; the VStack grows to fill
@@ -137,6 +154,9 @@ sidebar.on_change(lambda e: switch_pane(e.value))
 # radius rounds the whole window frame (the chrome stack is clipped to
 # it); the sidebar's own corner_radius rounds the inner join.
 page = Page(gap="0px", padding="0px", max_width="100%", fill=True, radius="12px")
+page.on_shortcut("Ctrl+1", pane_shortcut("1"))
+page.on_shortcut({"darwin": "Meta+2", "default": "Ctrl+2"}, pane_shortcut("2"))
+page.on_shortcut("Ctrl+3", pane_shortcut("3"))
 page.add(
     VStack(
         titlebar,

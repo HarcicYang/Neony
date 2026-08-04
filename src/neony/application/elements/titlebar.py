@@ -23,6 +23,10 @@ _ICONS = {"minimize": "—", "maximize": "□", "close": "✕"}
 
 
 class TitleBar(Component):
+    #: Event types wired internally (via _bind / custom handlers) —
+    #: Component.on() must not wire these again.
+    _bound_events: frozenset[str] = frozenset({"click", "mouseover", "mouseout"})
+
     """Draggable glass titlebar with minimize / maximize / close controls.
 
     The root carries ``data-lumiview-drag-region``; control buttons are

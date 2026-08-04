@@ -19,9 +19,10 @@ Planned work, roughly in priority order.
 
 ## Events
 
-- [ ] **Scroll & wheel events** — `wheel` and `scroll` in the delegation table, with delta values in the event payload
+- [x] **Wheel events** — `wheel` in the delegation table, `delta_x` / `delta_y` in the payload (part of the rich event payload batch)
+- [ ] **Scroll events** — `scroll` delegation (high-frequency; would ride the deferred render path)
 - [ ] **Pointer move events** — `pointermove` / `mousemove` for sliders, drawing, tooltip-follow, drag feedback
-- [ ] **File drop** — `drop` / `dragenter` / `dragover` / `dragleave` in the delegation table; `DomEvent.files` carries `dataTransfer.files` as `[{path, name, size, type}]` (`File.path` works on WebView2 / WebKitGTK, empty on macOS WKWebView — tolerate `null`); `on_drop(fn)` on components; must `preventDefault()` or the webview navigates to the file (already blocked by the navigation defaults)
+- [x] **File drop** — `drop` / `dragover` / `dragleave` delegated; `DomEvent.drop_files` carries `dataTransfer.files` as `[{path, name, size, type}]` (`File.path` works on WebView2 / WebKitGTK, empty on macOS WKWebView); `on_drop()` / `on_dragover()` / `on_dragleave()` on elements and components; the engine `preventDefault()`s dragover/drop so the webview never navigates to the dropped file
 - [ ] **In-app drag reorder** — `dragstart` / `dragover` / `drop`; needs a user hook (via `eval_js` or a future API) to call `dataTransfer.setData(...)`, since the delegate can't know the drag payload
 - [x] **Clipboard events** — `paste` / `copy` / `cut` delegated; paste carries `clipboard_text` / `clipboard_html`, copy/cut are notifications
 - [x] **Rich event payload** — `DomEvent` carries modifier keys (`ctrl_key` / `shift_key` / `alt_key` / `meta_key`), mouse coordinates (`x` / `y` / `offset_x` / `offset_y`), and wheel delta (`delta_x` / `delta_y`) — shortcut keys, right-click menus, and scroll-aware UIs work without `eval_js`

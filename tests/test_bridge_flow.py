@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from wryview import DragDropEvent
 
 from neony.application import Config, NeonApplication
 from neony.application.app import _Entry
@@ -347,6 +348,222 @@ class TestRichPayload:
         assert received[0].clipboard_text == "hi"
         assert received[0].clipboard_html == "<b>hi</b>"
 
+    def test_drop_files_reach_handler(self):
+        """Dropped files flow from the JS payload through _on_event into
+        DomEvent.drop_files (a list of {name, path, size, type} dicts)."""
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        div = Div(key="drop-zone")
+        received: list[DomEvent] = []
+        div.on_drop(lambda e: received.append(e))
+        _setup_entry(app, div, fake)
+
+        files = [
+            {"name": "a.png", "path": "/home/user/a.png", "size": 1024, "type": "image/png"},
+            {"name": "b.txt", "path": "", "size": 12, "type": "text/plain"},
+        ]
+        asyncio.run(_fire(app, div.key, "drop", None, drop_files=files))
+
+        assert len(received) == 1
+        assert received[0].drop_files == files
+        assert received[0].drop_files is not None
+        assert received[0].drop_files[0]["path"] == "/home/user/a.png"
+
+
+class TestNativeDropBackfill:
+    """Empty ``path`` entries in drop_files are backfilled from the
+    window's native drag-drop handler (WebKitGTK ≥ 2.52 removed
+    ``File.path``) — matched by base name, positionally as a fallback."""
+
+    def _drop_app(self) -> tuple[NeonApplication, FakeWindow, Div, list[DomEvent]]:
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        div = Div(key="drop-zone")
+        received: list[DomEvent] = []
+        div.on_drop(lambda e: received.append(e))
+        _setup_entry(app, div, fake)
+        return app, fake, div, received
+
+    def test_paths_backfilled_by_basename(self):
+        app, _fake, div, received = self._drop_app()
+        app._entries[0].neony.native_drop_paths[:] = ["/home/user/a.png", "/tmp/b.txt"]
+
+        files = [
+            {"name": "b.txt", "path": "", "size": 12, "type": "text/plain"},
+            {"name": "a.png", "path": "", "size": 1024, "type": "image/png"},
+        ]
+        asyncio.run(_fire(app, div.key, "drop", None, drop_files=files))
+
+        assert received[0].drop_files is not None
+        paths = [f["path"] for f in received[0].drop_files]
+        assert paths == ["/tmp/b.txt", "/home/user/a.png"]
+
+    def test_positional_fallback_when_names_differ(self):
+        """No base-name match and equal counts → paths fill in drop order
+        (the JS File.name can be an alias of the real file name)."""
+        app, _fake, div, received = self._drop_app()
+        app._entries[0].neony.native_drop_paths[:] = ["/data/photo 1.jpg", "/data/notes.txt"]
+
+        files = [
+            {"name": "photo", "path": "", "size": 100, "type": "image/jpeg"},
+            {"name": "notes", "path": "", "size": 200, "type": "text/plain"},
+        ]
+        asyncio.run(_fire(app, div.key, "drop", None, drop_files=files))
+
+        assert received[0].drop_files is not None
+        paths = [f["path"] for f in received[0].drop_files]
+        assert paths == ["/data/photo 1.jpg", "/data/notes.txt"]
+
+    def test_existing_paths_left_untouched(self):
+        """WebView2 exposes File.path — backfill must not overwrite."""
+        app, _fake, div, received = self._drop_app()
+        app._entries[0].neony.native_drop_paths[:] = ["/native/a.png"]
+
+        files = [{"name": "a.png", "path": "/real/a.png", "size": 1, "type": "image/png"}]
+        asyncio.run(_fire(app, div.key, "drop", None, drop_files=files))
+
+        assert received[0].drop_files is not None
+        assert received[0].drop_files[0]["path"] == "/real/a.png"
+
+    def test_no_native_paths_leaves_empty(self):
+        app, _fake, div, received = self._drop_app()
+
+        files = [{"name": "a.png", "path": "", "size": 1, "type": "image/png"}]
+        asyncio.run(_fire(app, div.key, "drop", None, drop_files=files))
+
+        assert received[0].drop_files is not None
+        assert received[0].drop_files[0]["path"] == ""
+
+
+class TestNativeDragDropHandler:
+    """NeonApplication._make_drag_drop_handler: native takeover of file
+    drops.  WebKitGTK delivers an *empty* JS drop when the handler is
+    installed (verified in the real environment), so the handler blocks
+    the OS default (returns True — wry docs) and re-dispatches the file
+    list from Python with real paths."""
+
+    def _handler(self) -> tuple[NeonApplication, Neony]:
+        app = NeonApplication(Config())
+        neony = Neony(name="neony", mount_selector="body")
+        app._entries.append(_Entry(neony, Div()))
+        return app, neony
+
+    def test_drop_blocks_default_and_builds_file_info(self):
+        app, neony = self._handler()
+        handler = app._make_drag_drop_handler(app._entries[0])
+
+        result = handler(DragDropEvent.Drop, ["/home/user/a.png", "/tmp/b.txt"], (100, 200))
+
+        assert result is True, "True blocks the OS default (the empty JS drop)"
+        assert neony.native_drop_paths == ["/home/user/a.png", "/tmp/b.txt"]
+
+    def test_enter_records_paths_without_blocking(self):
+        app, neony = self._handler()
+        handler = app._make_drag_drop_handler(app._entries[0])
+
+        result = handler(DragDropEvent.Enter, ["/home/user/a.png"], (0, 0))
+
+        assert result is False
+        assert neony.native_drop_paths == ["/home/user/a.png"]
+
+    def test_motion_events_leave_paths_untouched(self):
+        app, neony = self._handler()
+        handler = app._make_drag_drop_handler(app._entries[0])
+        handler(DragDropEvent.Enter, ["/home/user/a.png"], (0, 0))
+
+        result = handler(DragDropEvent.Over, [], (5, 5))
+
+        assert result is False
+        assert neony.native_drop_paths == ["/home/user/a.png"]
+
+    def test_file_info_from_real_path(self, tmp_path):
+        from neony.application.app import _file_info
+
+        target = tmp_path / "photo 1.png"
+        target.write_bytes(b"12345")
+
+        info = _file_info(str(target))
+
+        assert info == {
+            "name": "photo 1.png",
+            "path": str(target),
+            "size": 5,
+            "type": "image/png",
+        }
+
+    def test_dispatch_native_drop_hit_tests_and_delivers(self):
+        """_dispatch_native_drop resolves the element under the pointer
+        (eval_js returns the JSON-quoted key) and dispatches a drop event
+        with the real file info."""
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        div = Div(key="drop-zone")
+        received: list[DomEvent] = []
+        div.on_drop(lambda e: received.append(e))
+        _setup_entry(app, div, fake)
+        # The hit-test script's result arrives JSON-quoted, like the
+        # real WebKitGTK backend (key "drop-zone").
+        scripts: list[str] = []
+
+        async def hit_test_eval(script: str) -> str:
+            scripts.append(script)
+            return '"drop-zone"'
+
+        fake.eval_js = hit_test_eval  # type: ignore[method-assign]
+
+        files = [{"name": "a.png", "path": "/home/user/a.png", "size": 5, "type": "image/png"}]
+        asyncio.run(app._dispatch_native_drop(app._entries[0], files, (10, 20)))
+
+        assert len(received) == 1
+        assert received[0].drop_files is not None
+        assert received[0].drop_files[0]["path"] == "/home/user/a.png"
+        assert "elementFromPoint(10, 20)" in scripts[0]
+
+
+class TestComponentEventWiring:
+    """Component.on() lazily wires DOM event types its internals don't
+    bind — on_keydown on an Input must reach callbacks (regression: the
+    callback was stored but nothing forwarded keydown through it)."""
+
+    def test_component_keydown_reaches_callbacks(self):
+        from neony.application.elements import Input
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        inp = Input(placeholder="x")
+        received: list[DomEvent] = []
+        inp.on_keydown(lambda e: received.append(e))
+        _setup_entry(app, inp.build(), fake)
+
+        asyncio.run(_fire(app, inp._root.key, "keydown", "s", ctrl_key=True))
+
+        assert len(received) == 1
+        assert received[0].ctrl_key is True
+
+    def test_bound_event_types_do_not_double_fire(self):
+        """Focus is wired by Input itself — a registered on_focus
+        callback must fire exactly once, not once per wiring."""
+        from neony.application.elements import Input
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        inp = Input(placeholder="x")
+        calls: list[str] = []
+        inp.on_focus(lambda e: calls.append("focus"))
+        _setup_entry(app, inp.build(), fake)
+
+        asyncio.run(_fire(app, inp._root.key, "focus"))
+
+        assert calls == ["focus"]
+
+    def test_pseudo_events_do_not_wire_the_root(self):
+        """Non-DOM types (TitleBar's "close") never get a root wire."""
+        from neony.application.elements import TitleBar
+
+        titlebar = TitleBar("t")
+        titlebar.on_close(lambda: None)
+        assert "close" not in titlebar._raw_wired
+
 
 class TestEventBubbling:
     """Opt-in bubbling: events on handler-less children route to a
@@ -386,8 +603,11 @@ class TestEventBubbling:
         asyncio.run(_fire(app, "parent", "click"))
         assert calls == ["parent"]
 
-    def test_bubbles_only_events_without_exact_match(self):
-        """A child with its own handler keeps it — no double dispatch."""
+    def test_bubbles_even_when_target_has_handler(self):
+        """A child's own handler fires first, then the event bubbles to
+        the nearest _bubble_events ancestor — window-level listeners
+        (page key handlers, shortcuts) must see keys typed in inputs
+        that handle their own events."""
         app = NeonApplication(Config(auto_render=True))
         fake = FakeWindow()
 
@@ -403,7 +623,10 @@ class TestEventBubbling:
         _setup_entry(app, parent, fake)
 
         asyncio.run(_fire(app, "child", "click"))
-        assert calls == ["child"], "child handler wins; parent must not double-fire"
+        assert calls == ["child", "parent"], "target handler then bubbled ancestor"
+        # The parent's own key routes directly — no duplicate bubble pass.
+        asyncio.run(_fire(app, "parent", "click"))
+        assert calls == ["child", "parent", "parent"]
 
 
 class TestTypedState:
@@ -455,6 +678,31 @@ class TestTypedState:
 
 class TestHandlerIsolation:
     """One failing handler must not break the event chain."""
+
+    def test_sync_handler_runs_and_renders(self):
+        """A plain (sync) raw-element handler must not crash the wrapper
+        (regression: ``await fn(evt)`` raised TypeError on sync handlers,
+        so the handler ran but auto-render was skipped — the UI never
+        refreshed)."""
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        calls: list[str] = []
+
+        from neony.dom import Div
+
+        div = Div(key="btn", container=["before"])
+        div.on_click(lambda e: (calls.append("clicked"), div.container.__setitem__(0, "after")))
+        _setup_entry(app, div, fake)
+
+        async def run():
+            await app.render()  # mount rev 1
+            await _fire(app, div.key, "click")
+            return [p["rev"] for p in fake.patches]
+
+        revs = asyncio.run(run())
+
+        assert calls == ["clicked"]
+        assert revs == [2], "auto-render must run after a sync handler (no TypeError)"
 
     def test_failing_handler_does_not_block_others(self):
         app = NeonApplication(Config(auto_render=True))

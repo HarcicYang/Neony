@@ -13,6 +13,38 @@ from collections.abc import Callable
 from typing import Any, Self
 
 from neony.dom import DOMElement, DomEvent, Signal, Styles
+from neony.dom.reactive import Computed
+
+# Every event type the JS engine delegates (mirrors DELEGATED_EVENTS in
+# src/neony/javascript/index.js).  Component.on() lazily wires these to
+# the root element so unbound types (keydown, wheel, paste, drop, ...)
+# reach component callbacks; non-DOM pseudo-events like TitleBar's
+# "close" / "minimize" are excluded.
+_DOM_EVENTS = frozenset(
+    {
+        "click",
+        "dblclick",
+        "input",
+        "change",
+        "submit",
+        "keydown",
+        "keyup",
+        "focus",
+        "blur",
+        "contextmenu",
+        "mouseover",
+        "mouseout",
+        "mousedown",
+        "mouseup",
+        "wheel",
+        "paste",
+        "copy",
+        "cut",
+        "dragover",
+        "dragleave",
+        "drop",
+    }
+)
 
 
 class Component:
@@ -21,9 +53,15 @@ class Component:
     sync state in :meth:`_on_event`, and expose chainable ``on_*``
     methods (via :meth:`_bind`)."""
 
+    #: Event types the subclass wires itself (via :meth:`_bind` or
+    #: custom raw handlers); :meth:`on` must not wire these again or
+    #: callbacks would double-fire.
+    _bound_events: frozenset[str] = frozenset()
+
     def __init__(self) -> None:
         self._root: DOMElement
         self._callbacks: dict[str, list[Callable[..., Any]]] = {}
+        self._raw_wired: set[str] = set()
         self._built = False
 
     # ---- build ----
@@ -51,22 +89,22 @@ class Component:
 
     # ---- signal bindings (proxy to the root element) ----
 
-    def bind_text(self, signal: Signal[Any], fmt: Callable[[Any], str] = str) -> Self:
+    def bind_text(self, signal: Signal[Any] | Computed[Any], fmt: Callable[[Any], str] = str) -> Self:
         """Bind *signal* to the component's text content (see DOMElement.bind_text)."""
         self._root.bind_text(signal, fmt)
         return self
 
-    def bind_style(self, signal: Signal[Any], prop: str, fmt: Callable[[Any], str] = str) -> Self:
+    def bind_style(self, signal: Signal[Any] | Computed[Any], prop: str, fmt: Callable[[Any], str] = str) -> Self:
         """Bind *signal* to a root style property (see DOMElement.bind_style)."""
         self._root.bind_style(signal, prop, fmt)
         return self
 
-    def bind_attr(self, signal: Signal[Any], name: str, fmt: Callable[[Any], str] = str) -> Self:
+    def bind_attr(self, signal: Signal[Any] | Computed[Any], name: str, fmt: Callable[[Any], str] = str) -> Self:
         """Bind *signal* to a root HTML attribute (see DOMElement.bind_attr)."""
         self._root.bind_attr(signal, name, fmt)
         return self
 
-    def bind_visible(self, signal: Signal[Any]) -> Self:
+    def bind_visible(self, signal: Signal[Any] | Computed[Any]) -> Self:
         """Bind *signal* to the root's visibility (see DOMElement.bind_visible)."""
         self._root.bind_visible(signal)
         return self
@@ -80,9 +118,25 @@ class Component:
 
     def on(self, event_type: str, fn: Callable[..., Any]) -> Self:
         """Register a callback for *event_type* (chainable), called with
-        a :class:`DomEvent` with ``source == "user"``."""
+        a :class:`DomEvent` with ``source == "user"``.
+
+        DOM event types the component doesn't bind itself (keydown,
+        wheel, paste, drop, ...) are lazily wired to the root element
+        on first registration — so ``component.on_keydown(...)`` works
+        even though the component only wires its own events.
+        """
         self._callbacks.setdefault(event_type, []).append(fn)
+        if event_type in _DOM_EVENTS and event_type not in type(self)._bound_events:
+            self._wire_root(event_type)
         return self
+
+    def _wire_root(self, event_type: str) -> None:
+        """Attach the source-aware dispatcher to the root element, once
+        per type — DOM events targeting the root (or bubbling to it via
+        ``_bubble_events``) then reach the component's callbacks."""
+        if event_type not in self._raw_wired:
+            self._raw_wired.add(event_type)
+            self._root.on(event_type, self._make_handler(event_type))
 
     def on_click(self, fn: Callable[..., Any]) -> Self:
         return self.on("click", fn)
@@ -107,6 +161,36 @@ class Component:
 
     def on_keyup(self, fn: Callable[..., Any]) -> Self:
         return self.on("keyup", fn)
+
+    def on_mousedown(self, fn: Callable[..., Any]) -> Self:
+        return self.on("mousedown", fn)
+
+    def on_mouseup(self, fn: Callable[..., Any]) -> Self:
+        return self.on("mouseup", fn)
+
+    def on_contextmenu(self, fn: Callable[..., Any]) -> Self:
+        return self.on("contextmenu", fn)
+
+    def on_wheel(self, fn: Callable[..., Any]) -> Self:
+        return self.on("wheel", fn)
+
+    def on_paste(self, fn: Callable[..., Any]) -> Self:
+        return self.on("paste", fn)
+
+    def on_copy(self, fn: Callable[..., Any]) -> Self:
+        return self.on("copy", fn)
+
+    def on_cut(self, fn: Callable[..., Any]) -> Self:
+        return self.on("cut", fn)
+
+    def on_drop(self, fn: Callable[..., Any]) -> Self:
+        return self.on("drop", fn)
+
+    def on_dragover(self, fn: Callable[..., Any]) -> Self:
+        return self.on("dragover", fn)
+
+    def on_dragleave(self, fn: Callable[..., Any]) -> Self:
+        return self.on("dragleave", fn)
 
     # ---- internals ----
 

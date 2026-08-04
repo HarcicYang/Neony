@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from lumiview._scope import BridgeContext, InitContext, Plugin
@@ -209,6 +209,45 @@ class DiffEngine:
         return patches
 
 
+# ---- dropped-file path backfill ----
+
+
+def _basename(name: str) -> str:
+    """Last path segment, handling both ``/`` and ``\\`` separators
+    (WebView2 aliases paths as ``C:\\fakepath\\...``)."""
+    return name.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def _backfill_drop_paths(
+    files: Iterable[dict[str, Any]],
+    native_paths: list[str],
+) -> list[dict[str, Any]]:
+    """Fill empty ``path`` entries in a drop's file list from the paths
+    captured by the window's native drag-drop handler.
+
+    ``File.path`` is empty on WebKitGTK ≥ 2.52 and on WKWebView; the
+    native handler (tao's ``drag_drop_handler``) is the reliable path
+    source there.  Files are matched by base name first; when *no* name
+    matched and the counts agree, paths are filled positionally.
+    """
+    files = [dict(f) for f in files]
+    missing = [f for f in files if not (f.get("path") or "").strip()]
+    if not missing or not native_paths:
+        return files
+    remaining = list(native_paths)
+    for f in missing:
+        for i, p in enumerate(remaining):
+            if _basename(p) == _basename(f.get("name") or ""):
+                f["path"] = remaining.pop(i)
+                break
+    if len(files) == len(native_paths) and not any(f.get("path") for f in missing):
+        # No base-name match at all (e.g. aliased names) — same counts,
+        # fill in drop order.
+        for f, p in zip(files, native_paths, strict=True):
+            f["path"] = p
+    return files
+
+
 # ---- reactive bridge ----
 
 
@@ -240,6 +279,11 @@ class Neony(Plugin):
         # and replaced on each new request.
         self._render_task: asyncio.Task | None = None
         self._render_debounce: float = 0.016  # ~1 frame at 60fps
+        # Real file paths from the window's native drag-drop handler,
+        # filled in by ``NeonApplication`` (see ``_make_drag_drop_handler``).
+        # Mutated in place on every drag-enter/drop; ``_on_event`` uses it
+        # to backfill ``drop_files`` entries whose ``path`` is empty.
+        self.native_drop_paths: list[str] = []
 
         # Register JS→Python IPC commands on this scope
         self.command(self._on_event, name="event")
@@ -290,18 +334,29 @@ class Neony(Plugin):
         offset_y: Any = None,
         delta_x: Any = None,
         delta_y: Any = None,
+        delta_mode: Any = None,
         clipboard_text: str | None = None,
         clipboard_html: str | None = None,
+        # Dropped files: list of {name, path, size, type} dicts from the
+        # drop event.  ``Any`` for the same strict-conversion reasons as
+        # the numeric fields; DomEvent.drop_files is the typed surface.
+        drop_files: Any = None,
     ) -> None:
-        """Handle a DOM event from JavaScript.  Events with no handler on
-        their own element bubble to the nearest ``_bubble_events`` ancestor
-        (SidebarItem's icon/label spans); each handler runs independently —
-        one raising must not break the chain."""
+        """Handle a DOM event from JavaScript.  The event dispatches to
+        its own element's handlers, then bubbles to the nearest
+        ``_bubble_events`` ancestor with a matching handler — even when
+        the target handled it, so window-level listeners (page key
+        handlers, shortcuts) see keys typed in any input.  Each handler
+        runs independently — one raising must not break the chain."""
         import logging
 
         from lumiview._task import _run_async
 
         log = logging.getLogger("neony.bridge")
+        # ``File.path`` is empty on WebKitGTK ≥ 2.52 — backfill the
+        # native handler's paths (matched by base name) before dispatch.
+        if event_type == "drop" and drop_files:
+            drop_files = _backfill_drop_paths(drop_files, self.native_drop_paths)
         extra: dict[str, Any] = {
             "ctrl_key": ctrl_key,
             "shift_key": shift_key,
@@ -313,22 +368,23 @@ class Neony(Plugin):
             "offset_y": offset_y,
             "delta_x": delta_x,
             "delta_y": delta_y,
+            "delta_mode": delta_mode,
             "clipboard_text": clipboard_text,
             "clipboard_html": clipboard_html,
+            "drop_files": drop_files,
         }
-        dispatched = False
         for (ekey, etype), fns in self._handlers.items():
             if etype == event_type and (ekey is None or ekey == key):
-                dispatched = True
                 for fn in fns:
                     try:
                         await _run_async(fn, key=key, event_type=event_type, value=value, **extra)
                     except Exception:
                         log.exception(f"Event handler for {event_type} on {key} failed")
-        if dispatched:
-            return
 
-        # No exact match — bubble to the nearest _bubble_events ancestor.
+        # Bubble to the nearest _bubble_events ancestor with a matching
+        # handler — regardless of whether the target handled the event,
+        # so window-level listeners see keys typed in inputs.  The first
+        # matching ancestor wins (real DOM bubbling, opt-in per element).
         el = self._key_map.get(key)
         while el is not None and el._parent is not None:
             el = el._parent

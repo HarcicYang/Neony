@@ -37,6 +37,7 @@
         "keydown", "keyup", "focus", "blur", "contextmenu",
         "mouseover", "mouseout", "mousedown", "mouseup",
         "wheel", "paste", "copy", "cut",
+        "dragover", "dragleave", "drop",
     ];
 
     function captureValue(el, event) {
@@ -53,8 +54,22 @@
     }
 
     function eventHandler(event) {
-        var el = event.target.closest("[data-neony-key]");
+        var el = event.target.closest ? event.target.closest("[data-neony-key]") : null;
+        // Keys typed while no element is focused land on <body> — no
+        // data-neony-key ancestor to trace to.  Window-level key
+        // listeners (Page.on_keydown / on_keyup, shortcuts) must still
+        // fire, so route keyboard events through the engine root.
+        if (!el && (event.type === "keydown" || event.type === "keyup")) {
+            el = engine.root;
+        }
         if (!el) return;
+
+        // Drag-and-drop: the browser refuses to drop onto a page that
+        // never calls preventDefault on dragover.  The drop itself must
+        // also be prevented, or the browser navigates to the dropped file.
+        if (event.type === "dragover" || event.type === "drop") {
+            event.preventDefault();
+        }
 
         // Window-control buttons: on *click* only, run the native
         // `lumiview.window.*` action (a plain hover must never close a
@@ -89,10 +104,14 @@
             payload.offset_y = event.offsetY;
         }
 
-        // Wheel delta (WheelEvent only)
+        // Wheel delta (WheelEvent only).  delta_mode tells the units:
+        // 0 = pixels, 1 = lines, 2 = pages — WebKitGTK wheels deliver
+        // one event per notch in pixel mode (mode=0, constant ±delta),
+        // trackpads deliver continuous fractional deltas.
         if (event.deltaX !== undefined) {
             payload.delta_x = event.deltaX;
             payload.delta_y = event.deltaY;
+            payload.delta_mode = event.deltaMode;
         }
 
         // Clipboard data — paste only.  getData() works only during the
@@ -106,6 +125,51 @@
             try {
                 payload.clipboard_html = event.clipboardData.getData("text/html");
             } catch (e) {}
+        }
+
+        // Dropped files — one entry per file: name, local filesystem
+        // path, size, MIME.  File.path exists on WebView2 but is empty
+        // on WKWebView and REMOVED in recent WebKitGTK (≥2.52) — parse
+        // the drag's text/uri-list as the fallback path source, matched
+        // to each file by base name.
+        if (event.type === "drop" && event.dataTransfer && event.dataTransfer.files) {
+            var uriPaths = [];
+            try {
+                var uriList = event.dataTransfer.getData("text/uri-list");
+                if (uriList) {
+                    var lines = uriList.split(/\r?\n/);
+                    for (var u = 0; u < lines.length; u++) {
+                        var uri = lines[u].trim();
+                        if (uri.indexOf("file://") === 0) {
+                            try {
+                                uriPaths.push(decodeURIComponent(uri.slice(7)));
+                            } catch (e2) {}
+                        }
+                    }
+                }
+            } catch (e1) {}
+
+            var files = [];
+            var fileList = event.dataTransfer.files;
+            for (var f = 0; f < fileList.length; f++) {
+                var file = fileList[f];
+                var path = file.path || "";
+                if (!path) {
+                    for (var p = 0; p < uriPaths.length; p++) {
+                        if (uriPaths[p].split("/").pop() === file.name) {
+                            path = uriPaths[p];
+                            break;
+                        }
+                    }
+                }
+                files.push({
+                    name: file.name,
+                    path: path,
+                    size: file.size,
+                    type: file.type,
+                });
+            }
+            if (files.length > 0) payload.drop_files = files;
         }
 
         window.lumiview.invoke("neony.event", payload).catch(function () {

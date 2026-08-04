@@ -65,6 +65,10 @@ _CHECKED = _BOX.model_copy(
 
 
 class Checkbox(Component):
+    #: Event types wired internally (via _bind / custom handlers) —
+    #: Component.on() must not wire these again.
+    _bound_events: frozenset[str] = frozenset({"change", "focus", "blur"})
+
     """A labelled checkbox with internal ``checked`` state.
 
     - ``checkbox.checked`` reads / sets state (immediate DOM write,

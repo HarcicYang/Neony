@@ -283,6 +283,77 @@ class TestShortcuts:
             Page().on_shortcut({"darwin": "Meta+K"}, lambda: None)
 
 
+class TestPageKeyEvents:
+    """Page.on_keydown / on_keyup — window-level key listeners that fire
+    wherever keys land, even while an input handles its own events."""
+
+    @staticmethod
+    def _make() -> tuple[NeonApplication, str, list[str]]:
+        from neony.dom import Div
+
+        events: list[str] = []
+        page = Page()
+        page.on_keydown(lambda e: events.append(f"down:{e.value}"))
+        page.on_keyup(lambda e: events.append(f"up:{e.value}"))
+        page.add(Div(key="inner-child"))
+        app = NeonApplication(Config())
+        entry = _entry(page)
+        app._entries.append(entry)
+        app._collect_handlers(entry.neony, entry.tree, 0)
+        return app, entry.tree.key, events
+
+    def test_fires_for_keys_on_the_bare_page(self):
+        app, root, events = self._make()
+
+        _fire_event(app, root, "keydown", "x")
+
+        assert events == ["down:x"]
+
+    def test_fires_for_keys_typed_in_an_input(self):
+        """A keydown targeting an inner element bubbles to the root —
+        window-level listeners see it even though the input handles it."""
+        app, _root, events = self._make()
+
+        _fire_event(app, "inner-child", "keydown", "x", ctrl_key=True)
+
+        assert events == ["down:x"]
+
+    def test_keyup_dispatched(self):
+        app, root, events = self._make()
+
+        _fire_event(app, root, "keyup", "x")
+
+        assert events == ["up:x"]
+
+    def test_async_handler_awaited(self):
+        import asyncio
+
+        from neony.dom import Div
+
+        calls: list[str] = []
+        page = Page()
+
+        async def on_key(e) -> None:
+            await asyncio.sleep(0)
+            calls.append("done")
+
+        page.on_keydown(on_key)
+        page.add(Div(key="inner-child"))
+        app = NeonApplication(Config())
+        entry = _entry(page)
+        app._entries.append(entry)
+        app._collect_handlers(entry.neony, entry.tree, 0)
+
+        _fire_event(app, entry.tree.key, "keydown", "x")
+
+        assert calls == ["done"]
+
+    def test_chainable(self):
+        page = Page()
+        result = page.on_keydown(lambda e: None).on_keyup(lambda e: None)
+        assert result is page
+
+
 def _wire_policies(
     page: Page | None, monkeypatch: pytest.MonkeyPatch
 ) -> tuple[NeonApplication, FakeLumiApp, FakeWindow]:

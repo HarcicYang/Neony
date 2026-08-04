@@ -146,6 +146,10 @@ class SidebarItem(Component):
 
 
 class Sidebar(Component):
+    #: Event types wired internally (via _bind / custom handlers) —
+    #: Component.on() must not wire these again.
+    _bound_events: frozenset[str] = frozenset({"click", "mouseover", "mouseout"})
+
     """Vertical navigation rail; exactly one item is active at a time.
 
     Usage::

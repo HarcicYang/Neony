@@ -158,6 +158,12 @@ class GlassPanel(Component):
         background: str | None = None,
         grow: bool = False,
         radius: str | None = None,
+        # Per-corner radii override parts of *radius* — for joining
+        # rounded chrome pieces (e.g. the titlebar seam).
+        border_top_left_radius: str | None = None,
+        border_top_right_radius: str | None = None,
+        border_bottom_left_radius: str | None = None,
+        border_bottom_right_radius: str | None = None,
     ) -> None:
         super().__init__()
         from neony.application.theme import Theme
@@ -180,6 +186,10 @@ class GlassPanel(Component):
             background_color=Color(var="--color-surface-panel-glass-bg"),
             backdrop_filter="blur(16px)",
             box_shadow=shadow,
+            border_top_left_radius=border_top_left_radius,
+            border_top_right_radius=border_top_right_radius,
+            border_bottom_left_radius=border_bottom_left_radius,
+            border_bottom_right_radius=border_bottom_right_radius,
         )
         if grow:
             # Stretch to the full available height.
