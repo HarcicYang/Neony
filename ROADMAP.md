@@ -69,3 +69,17 @@ Planned work, roughly in priority order.
 > NOTE:
 > For Linux, we won't test on x11, please do it yourself
 > For macOS, we don't have a device to test on, please do it yourself too.
+
+## Distribution
+
+- [x] **Demo smoke test** — every `demo_*.py` spawns under `xvfb-run` in CI
+  (`tests/smoke_demos.py`); a demo that fails to reach the event loop
+  fails the build
+- [x] **PyInstaller packaging workflow** — `packaging.yml` builds
+  `demo_gallery` as a one-file executable on Linux / Windows / macOS
+  (`workflow_dispatch` for test builds, `v*` tags for releases); Windows
+  and macOS are fully self-contained, Linux needs `libwebkit2gtk-4.1`
+- [ ] **Nuitka packaging verification** — Linux-only experimental job;
+  promote to all platforms once it proves out
+- [ ] **Briefcase** — if native installers (MSI / AppImage / .app) are
+  wanted later, re-evaluate BeeWare as an alternative to PyInstaller

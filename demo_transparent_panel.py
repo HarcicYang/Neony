@@ -2,9 +2,10 @@
 """TransparentPanel demo — floating glass panel with native blur.
 
 A small, always-on-top, frameless window (360x280) with a fully
-transparent background and the native blur material applied behind it
-(:meth:`NeonApplication.apply_blur`).  The whole panel is a drag region
-and the close button uses the built-in window action.
+transparent background.  ``transparent=True`` automatically applies the
+platform's native frosted material behind the window — Acrylic on
+Windows, Blur on macOS (Linux/GTK has none).  The whole panel is a drag
+region and the close button uses the built-in window action.
 
 Usage:
     python demo_transparent_panel.py

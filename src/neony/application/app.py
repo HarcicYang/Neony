@@ -20,6 +20,15 @@ from neony.application.theme import Theme
 from neony.dom import DOMElement, DomEvent
 from neony.dom.bridge import Neony
 
+# Transparent windows get their platform's frosted material applied
+# automatically — Acrylic on Windows, Blur on macOS (lumiview's native
+# window-background materials; see ``apply_effect``).  Linux/GTK has no
+# system effect, so nothing is applied there.
+_TRANSPARENT_EFFECTS: dict[str, WindowEffect] = {
+    "win32": WindowEffect.Acrylic,
+    "darwin": WindowEffect.Blur,
+}
+
 # margin:0 — the browser default 8px body margin would leave a white
 # ring around the page.  height:100% chain — vh units lag the real
 # window size under tiling WMs (e.g. hyprland), percentages follow it.
@@ -218,6 +227,7 @@ class NeonApplication(Generic[_S]):
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
             await self._inject_theme(entry)
+            await self._apply_transparent_effect(entry.window)
             await self._wire_close_hook(entry, entry.window)
             await self._wire_focus_hook(entry, entry.window)
             await self._wire_navigation_policy(entry, entry.window)
@@ -350,6 +360,27 @@ class NeonApplication(Generic[_S]):
             f"{body_bg} }})()"
         )
         await entry.window.eval_js(js)
+
+    async def _apply_transparent_effect(self, window: Window) -> None:
+        """Give transparent windows their platform material automatically.
+
+        ``WindowConfig.transparent=True`` requests a see-through window;
+        on Windows that reads as black glass without a material, and on
+        macOS as plain alpha.  Apply the platform's native effect so the
+        transparency actually looks frosted — Acrylic on Windows, Blur
+        on macOS (see ``_TRANSPARENT_EFFECTS``).  Linux/GTK has no
+        system material, so nothing is applied.  A failure is logged,
+        never fatal: the window keeps working, just without the effect.
+        """
+        if not self.config.window.transparent:
+            return
+        effect = _TRANSPARENT_EFFECTS.get(sys.platform)
+        if effect is None:
+            return
+        try:
+            await App.get().call_on_main(window.apply_effect, effect, None)
+        except Exception:
+            logging.getLogger("neony.app").exception(f"apply_effect({effect}) failed on {sys.platform}")
 
     # ---- background image ----
 
