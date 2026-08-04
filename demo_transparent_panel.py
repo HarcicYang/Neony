@@ -83,24 +83,6 @@ page.add(
 )
 
 
-# ── ready: transparent body + native blur behind the window ──────
-
-
-async def on_ready() -> None:
-    await app.eval_js(
-        "document.body.style.background = 'transparent';"
-        "document.body.style.borderRadius = '12px';"
-        "document.body.style.overflow = 'hidden';"
-    )
-    try:
-        await app.apply_blur()
-    except NotImplementedError:
-        print("[panel] apply_blur not supported on this platform — skipping")
-
-
-app.ready_handler = on_ready
-
-
 def main() -> None:
     app.run(page)
 

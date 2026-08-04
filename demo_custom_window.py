@@ -144,18 +144,6 @@ page.add(
 )
 
 
-# ── ready: rounded transparent window + background image ─────────
-
-
-async def on_ready() -> None:
-    # Body stays transparent (sync_theme skips its background for
-    # transparent windows); the window frame is rounded by the page.
-    await app.eval_js("document.body.style.background = 'transparent';")
-
-
-app.ready_handler = on_ready
-
-
 def main() -> None:
     app.run(page)
 
