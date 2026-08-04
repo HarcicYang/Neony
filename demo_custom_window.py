@@ -9,7 +9,7 @@ sidebar switches the content pane; the background image shows through
 the frosted surfaces.
 
 Usage:
-    python test_custom_window.py
+    python demo_custom_window.py
 """
 
 from neony.application import Config, NeonApplication, Page, WebViewConfig, WindowConfig

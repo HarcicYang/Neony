@@ -7,7 +7,7 @@ transparent background and the native blur material applied behind it
 and the close button uses the built-in window action.
 
 Usage:
-    python test_transparent_panel.py
+    python demo_transparent_panel.py
 """
 
 from neony.application import Config, NeonApplication, Page, WebViewConfig, WindowConfig

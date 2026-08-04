@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Reactive Neony demo — the signal-based API.
 
-The same components as test_reactive.py, but state flows through
-Signals with declarative bindings instead of hand-written refresh
-calls.  Compare:
+State flows through Signals with declarative bindings instead of
+hand-written refresh calls.  Compare:
 
     # v1 — manual sync (every mutation needs a DOM write)
     app_state["count"] += 1
@@ -13,7 +12,7 @@ calls.  Compare:
     counter_value.bind_text(count)
 
 Usage:
-    python test_reactive_v2.py
+    python demo_reactive.py
 """
 
 from neony.application import Page, launch

@@ -2,26 +2,35 @@
 """Multi-window demo — two windows sharing one app state.
 
 Both windows run in the same LumiView event loop and reference the same
-``app.state`` namespace. Buttons in the counter window bump the count;
+``app.state``. State is a plain dataclass here — ``NeonApplication``
+accepts any object via ``state=`` (default: ``SimpleNamespace``), giving
+typed attribute access. Buttons in the counter window bump the count;
 the display window shows it. Any window's event handler mutates shared
 state, and only the originating window re-renders.
 
 Usage:
-    python test_multi_window.py
+    python demo_multi_window.py
 """
+
+from dataclasses import dataclass
 
 from neony.application import Config, NeonApplication, Page, WebViewConfig, WindowConfig
 from neony.application.elements import Button, Heading, HStack, Text, VStack
 from neony.dom import DomEvent
 
+
+@dataclass
+class AppState:
+    count: int = 0
+
+
 app = NeonApplication(
     Config(
         window=WindowConfig(title="Neony — Multi Window", width=360, height=240),
         webview=WebViewConfig(devtools=True),
-    )
+    ),
+    state=AppState(),
 )
-
-app.state.count = 0
 
 # ── window 0: counter ────────────────────────────────────────────
 
