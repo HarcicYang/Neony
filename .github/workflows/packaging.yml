@@ -1,10 +1,14 @@
 name: Packaging
 
-# Build standalone executables of the gallery demo, one per platform.
-# Triggered manually (workflow_dispatch) for test builds, or by a v* tag
-# push (release) — not on every commit: PyInstaller x3 + Nuitka costs
-# ~15 CI minutes per run, and ci.yml's smoke-demos job already catches
-# demo breakage on every push.
+# Build standalone executables of the gallery demo, per platform, with
+# both PyInstaller and Nuitka.  Triggered manually (workflow_dispatch)
+# for test builds, or by a v* tag push (release) — not on every commit:
+# 6 builds cost ~20 CI minutes per run, and ci.yml's smoke-demos job
+# already catches demo breakage on every push.
+#
+# Artifact naming: <os>_<arch>_<version>_<builder>[.exe]
+#   e.g. linux_x86_64_0.1.0_nuitka, win_x86_64_0.1.0_pyinstaller.exe
+# Version comes from pyproject.toml (works for workflow_dispatch too).
 on:
   workflow_dispatch:
   push:
@@ -12,15 +16,18 @@ on:
 
 jobs:
   pyinstaller:
-    name: pyinstaller-${{ matrix.os }}
+    name: pyinstaller-${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # macOS arm64 needs a lumiview macOS arm64 wheel; if the build
-        # fails on the missing wheel, switch that entry to macos-13
-        # (Intel) or wait for an arm64 wheel from upstream.
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            label: linux_x86_64
+          - os: windows-latest
+            label: win_x86_64
+          - os: macos-latest
+            label: macos_arm64
     steps:
       - uses: actions/checkout@v4
 
@@ -51,6 +58,14 @@ jobs:
             --hidden-import lumiview._task \
             demo_gallery.py
 
+      - name: Rename artifact
+        shell: bash
+        run: |
+          version="$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          ext=""
+          if [ "${{ runner.os }}" = "Windows" ]; then ext=".exe"; fi
+          mv "dist/neony-gallery${ext}" "dist/neony-gallery_${{ matrix.label }}_${version}_pyinstaller${ext}"
+
       - name: Write Linux runtime README
         if: runner.os == 'Linux'
         run: |
@@ -70,23 +85,30 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: neony-gallery-${{ matrix.os }}
+          name: neony-gallery_${{ matrix.label }}_pyinstaller
           path: |
-            dist/neony-gallery*
+            dist/neony-gallery_*
             README-linux.md
           if-no-files-found: error
 
-  # Experimental: verify Nuitka can bundle the same demo (Rust native
-  # extensions + lazy imports). Linux only for now — Windows/macOS
-  # follow once this proves out. Independent job: a failure here never
-  # blocks the PyInstaller builds.
-  nuitka-linux:
-    name: nuitka-linux (experiment)
-    runs-on: ubuntu-latest
+  nuitka:
+    name: nuitka-${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux_x86_64
+          - os: windows-latest
+            label: win_x86_64
+          - os: macos-latest
+            label: macos_arm64
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libgtk-3-dev
@@ -109,11 +131,22 @@ jobs:
             --include-module=lumiview.plugins.window_controls \
             demo_gallery.py
 
+      - name: Rename artifact
+        shell: bash
+        run: |
+          version="$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          # Nuitka emits demo_gallery.bin (Linux/macOS) or demo_gallery.exe
+          # (Windows) for --onefile builds.
+          src="demo_gallery.bin"
+          ext=""
+          if [ "${{ runner.os }}" = "Windows" ]; then src="demo_gallery.exe"; ext=".exe"; fi
+          mv "$src" "neony-gallery_${{ matrix.label }}_${version}_nuitka${ext}"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: neony-gallery-nuitka-linux
-          path: demo_gallery.bin
+          name: neony-gallery_${{ matrix.label }}_nuitka
+          path: neony-gallery_*
           if-no-files-found: error
 
   # Tag pushes only: collect every platform's artifact and attach them
@@ -121,7 +154,7 @@ jobs:
   release:
     name: attach-to-release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [pyinstaller, nuitka-linux]
+    needs: [pyinstaller, nuitka]
     runs-on: ubuntu-latest
     permissions:
       contents: write

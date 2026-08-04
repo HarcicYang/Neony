@@ -75,11 +75,11 @@ Planned work, roughly in priority order.
 - [x] **Demo smoke test** — every `demo_*.py` spawns under `xvfb-run` in CI
   (`tests/smoke_demos.py`); a demo that fails to reach the event loop
   fails the build
-- [x] **PyInstaller packaging workflow** — `packaging.yml` builds
+- [x] **Executable packaging workflow** — `packaging.yml` builds
   `demo_gallery` as a one-file executable on Linux / Windows / macOS
-  (`workflow_dispatch` for test builds, `v*` tags for releases); Windows
-  and macOS are fully self-contained, Linux needs `libwebkit2gtk-4.1`
-- [ ] **Nuitka packaging verification** — Linux-only experimental job;
-  promote to all platforms once it proves out
+  with both **PyInstaller and Nuitka** (`workflow_dispatch` for test
+  builds, `v*` tags for releases, artifacts named
+  `<os>_<arch>_<version>_<builder>[.exe]`); Windows and macOS are fully
+  self-contained, Linux needs `libwebkit2gtk-4.1`
 - [ ] **Briefcase** — if native installers (MSI / AppImage / .app) are
   wanted later, re-evaluate BeeWare as an alternative to PyInstaller
