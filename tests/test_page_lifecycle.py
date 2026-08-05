@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import Any, cast
 
 import pytest
-from lumiview import WindowEvent
+from lumiview import WindowBaseEvent, WindowEvent
 
 from neony.application import Config, NeonApplication, Page
 from neony.application.app import _Entry
@@ -56,7 +56,7 @@ def cast_any(win: HookWindow) -> Any:
     return win
 
 
-def _fire(win: HookWindow, event: type[WindowEvent.FocusedEvent]) -> None:
+def _fire(win: HookWindow, event: type[WindowBaseEvent]) -> None:
     asyncio.run(win.hooks[event][0](event()))
 
 

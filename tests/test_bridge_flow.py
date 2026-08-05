@@ -954,7 +954,7 @@ class TestAnimationStyle:
         class CaptureWindow(FakeWindow):
             async def eval_js(self, script: str) -> str:
                 capture["script"] = script
-                return super().eval_js(script)
+                return await super().eval_js(script)
 
         app = NeonApplication(Config(auto_render=True))
         fake = CaptureWindow()

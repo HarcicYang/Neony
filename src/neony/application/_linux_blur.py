@@ -3,9 +3,9 @@
 Applies the ``ext-background-effect-v1`` Wayland protocol (wayland-protocols
 staging) so the compositor blurs the desktop behind a transparent window —
 the Linux counterpart of the Acrylic/Blur materials on Windows/macOS.
-KWin (KDE Plasma, DDE) and Hyprland implement this protocol; compositors
-without it keep the window transparent without a blur.  X11 has no
-equivalent protocol and is intentionally unsupported.
+KWin (KDE Plasma, DDE) implements this protocol; compositors without it
+keep the window transparent without a blur.  X11 has no equivalent
+protocol and is intentionally unsupported.
 
 How it works
 ------------
@@ -30,19 +30,31 @@ the effect in ``ext-background-effect-v1`` (unlike the older
 required, otherwise the compositor stops blurring.
 
 Compositors that already blur transparent windows by default (Hyprland
-with ``decoration:blur:enabled``) are skipped entirely: Hyprland
-switches a surface to the protocol pipeline the moment
-``get_background_effect`` is sent (its ``shouldBlur`` then depends
-solely on the effect region and the global blur is bypassed), and its
-explicit-region blur does not render on fully transparent windows.  The
-window keeps the compositor's default blur instead — which is what it
-had before the protocol call.
+with ``decoration:blur:enabled``) are skipped: Hyprland switches a
+surface to the protocol pipeline the moment ``get_background_effect`` is
+sent (its ``shouldBlur`` then depends solely on the effect region and
+the global blur is bypassed), and its explicit-region blur does not
+render on fully transparent windows.  The window keeps the compositor's
+default blur instead — which is what it had before the protocol call.
+
+Hyprland is detected in three layers, so the harmful call can never slip
+through on a Hyprland session:
+
+1. ``HYPRLAND_INSTANCE_SIGNATURE`` — injected by Hyprland itself, so it
+   survives systemd user services / D-Bus activation / containers / SSH
+   sessions (unlike ``XDG_CURRENT_DESKTOP``, which such environments
+   routinely drop and which is case-sensitive free text anyway).
+2. ``XDG_CURRENT_DESKTOP`` starting with ``Hyprland`` — fallback.
+3. ``hyprland_*``-prefixed globals on the registry — protocol-level
+   backstop for the stripped environments above.
 
 Everything is implemented with ctypes against ``libwayland-client.so``
 and ``libgdk-3.so`` — no C compilation and no Python dependencies beyond
 the compositor itself.  Every step is defensive: any failure returns
 ``False`` (the window stays transparent, just unblurred) and never
-raises.
+raises.  Once the effect object exists, every failure path rolls it
+back (destroy + commit), because the pipeline switch is one-way until
+the effect is destroyed *and* the surface committed.
 """
 
 from __future__ import annotations
@@ -54,12 +66,17 @@ import socket
 import struct
 from typing import Any, ClassVar
 
+from lumiview import Window
+from lumiview._core import WindowHandleKind
+
 _LOGGER = logging.getLogger("neony.app.blur")
 
 _BLUR_MANAGER_IFACE_NAME = "ext_background_effect_manager_v1"
 
-# Client-allocated object IDs start at 2 and count up (libwayland 1.24+
-# "stable ids").  The probe connection's registry is its first object.
+# Client-side new_id values start at 2 — 0 is the null object and 1 is
+# the wl_display itself.  The probe connection's registry is its first
+# object, hence id 2.  (libwayland 1.24+ "stable ids" changed id reuse,
+# not the starting value.)
 _PROBE_REGISTRY_ID = 2
 
 # ``wl_display.get_registry`` opcode.
@@ -89,7 +106,12 @@ class _WlMessage(ctypes.Structure):
 
 
 class _WlInterface(ctypes.Structure):
-    """``struct wl_interface`` — name, version, methods, events."""
+    """``struct wl_interface`` — name, version, methods, events.
+
+    Reading instances back (``from_address``) relies on ctypes' native
+    alignment — the C struct has 4 bytes of padding after ``event_count``
+    on 64-bit, which a manual ``struct.unpack`` would get wrong.
+    """
 
     _fields_: ClassVar = [
         ("name", ctypes.c_char_p),
@@ -117,12 +139,15 @@ class _WlArgument(ctypes.Union):
 
 
 # Message signatures follow wayland-scanner output: 'n' = new_id,
-# 'o' = object, '?' = nullable, 's' = string, 'u' = uint32, 'i' = int32.
-# Events MUST be declared — libwayland fails dispatching beyond
-# ``event_count``.
+# 'o' = object, '?' = nullable *before* the type it applies to, 's' =
+# string, 'u' = uint32, 'i' = int32.  libwayland walks the signature
+# character by character — a misplaced '?' falls into its ``default``
+# branch and the request silently fails (EINVAL).  Events MUST be
+# declared — libwayland fails dispatching beyond ``event_count``.
 
 # ---- ext_background_effect_manager_v1 ----
-# destroy=0  get_background_effect=1  event: capabilities
+# destroy=0  get_background_effect=1 ("no": new_id, wl_surface)
+# event: capabilities
 _BLUR_MANAGER_METHODS = (_WlMessage * 2)(
     _WlMessage(b"destroy", b"", None),
     _WlMessage(b"get_background_effect", b"no", None),
@@ -133,10 +158,10 @@ _BLUR_MANAGER_IFACE = _WlInterface(
 )
 
 # ---- ext_background_effect_surface_v1 ----
-# destroy=0  set_blur_region=1 (o? — wl_region or NULL)
+# destroy=0  set_blur_region=1 ("?o" — nullable wl_region)
 _BLUR_SURFACE_METHODS = (_WlMessage * 2)(
     _WlMessage(b"destroy", b"", None),
-    _WlMessage(b"set_blur_region", b"o?", None),
+    _WlMessage(b"set_blur_region", b"?o", None),
 )
 _BLUR_SURFACE_IFACE = _WlInterface(b"ext_background_effect_surface_v1", 1, 2, _BLUR_SURFACE_METHODS, 0, None)
 
@@ -163,26 +188,37 @@ _wl_registry_interface: int | None = None
 _wl_compositor_interface: int | None = None
 _wl_region_interface: int | None = None
 _wl_surface_interface: int | None = None
-_compositor_create_region: int = 2  # 1.25: destroy was removed, opcodes shifted
+_compositor_create_region: int = 1  # wl_compositor: create_surface=0, create_region=1 (release=2 since v6)
 _region_add: int = 1
 _surface_commit: int = 6
+
+# Surfaces that successfully received the effect.  The protocol raises a
+# fatal ``background_effect_exists`` error (it kills the connection) if
+# the same surface is given an effect object twice, so re-application
+# must be detected instead of sent.
+_APPLIED_SURFACES: set[int] = set()
+
+# The capabilities listener struct.  libwayland keeps a raw pointer to
+# the listener for event dispatch; without a strong Python reference it
+# would be freed as soon as ``_verify_blur_capabilities`` returns
+# (use-after-free when the compositor dispatches to it).  The manager
+# proxy lives for the process lifetime, so the listener does too.
+_CAPS_LISTENER: _CapsListener | None = None
 
 
 def _interface_methods(iface_ptr: int) -> dict[str, int]:
     """Map method names to opcodes for a libwayland ``wl_interface``.
 
-    libwayland 1.24+ reordered some core interfaces (``wl_compositor``
-    lost ``destroy``, shifting every opcode down by one), so opcodes are
-    resolved from the built-in definitions instead of hardcoded.
+    libwayland 1.25 reordered some core interfaces (``wl_compositor``
+    gained ``release``, ``wl_surface`` gained ``damage_buffer``, ...),
+    so opcodes are resolved from the built-in definitions instead of
+    hardcoded.
     """
-    ibuf = ctypes.string_at(ctypes.c_void_p(iface_ptr), 48)
-    _, _, mcount, methods_ptr, _, _ = struct.unpack_from("<QiiQiq", ibuf, 0)
+    iface = _WlInterface.from_address(iface_ptr)
     methods: dict[str, int] = {}
-    for i in range(mcount):
-        mbuf = ctypes.string_at(ctypes.c_void_p(methods_ptr + i * 24), 24)
-        mn, _, _ = struct.unpack_from("<QQQ", mbuf, 0)
-        name = ctypes.string_at(mn, 64).split(b"\x00", 1)[0].decode()
-        methods[name] = i
+    for i in range(iface.method_count):
+        msg = iface.methods[i]
+        methods[msg.name.decode() if msg.name else ""] = i
     return methods
 
 
@@ -211,9 +247,9 @@ def _load_libs() -> bool:
         _wl_surface_interface = sym("wl_surface_interface")
 
         # Resolve opcodes from the built-in layouts (defensive fallbacks
-        # keep the classic pre-1.24 values when resolution fails).
+        # keep the classic values when resolution fails).
         if _wl_compositor_interface:
-            _compositor_create_region = _interface_methods(_wl_compositor_interface).get("create_region", 2)
+            _compositor_create_region = _interface_methods(_wl_compositor_interface).get("create_region", 1)
         if _wl_region_interface:
             _region_add = _interface_methods(_wl_region_interface).get("add", 1)
         if _wl_surface_interface:
@@ -231,8 +267,10 @@ def _marshal_flags(proxy: int, opcode: int, iface: int | None, version: int, *ar
 
     ``args`` are the request arguments; a ``new_id`` slot must be passed
     as ``ctypes.c_void_p(0)`` — libwayland creates the proxy itself.
-    Returns the new proxy pointer for messages with a ``new_id``, else
-    NULL-ish.
+    Every pointer argument must be wrapped in ``ctypes.c_void_p`` too:
+    ctypes converts bare Python ints in varargs to 32-bit C ints, which
+    truncates 64-bit pointers.  Returns the new proxy pointer for
+    messages with a ``new_id``, else NULL-ish.
     """
     wl = _libwayland
     assert wl is not None
@@ -284,14 +322,6 @@ def _display_error(display: int) -> int:
     return wl.wl_display_get_error(display)
 
 
-def _proxy_id(proxy: int) -> int:
-    wl = _libwayland
-    assert wl is not None
-    wl.wl_proxy_get_id.restype = ctypes.c_uint32
-    wl.wl_proxy_get_id.argtypes = [ctypes.c_void_p]
-    return wl.wl_proxy_get_id(proxy)
-
-
 # ---------------------------------------------------------------------------
 # probe connection: read the compositor & blur manager global names
 # ---------------------------------------------------------------------------
@@ -321,19 +351,22 @@ def _recv_exact(sock: socket.socket, n: int) -> bytes | None:
     return buf
 
 
-def _probe_globals() -> tuple[int | None, int | None]:
-    """Return ``(wl_compositor_name, blur_manager_name)`` from the compositor.
+def _probe_globals() -> tuple[int | None, int | None, bool]:
+    """Return ``(wl_compositor_name, blur_manager_name, is_hyprland)``.
 
     Opens a throwaway connection, sends ``wl_display.get_registry`` and
     parses ``wl_registry.global`` announcements.  Global names are
     identical on every connection, so the result applies to GTK's
-    connection as well.
+    connection as well.  ``is_hyprland`` is True when any ``hyprland_*``
+    private global is announced — the protocol-level backstop for
+    detecting Hyprland in environments where the env vars were stripped.
     """
     path = _wayland_socket_path()
     if path is None:
-        return None, None
+        return None, None, False
     compositor_name: int | None = None
     blur_name: int | None = None
+    hyprland_seen = False
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
             sock.settimeout(2.0)
@@ -341,31 +374,33 @@ def _probe_globals() -> tuple[int | None, int | None]:
             # wl_display.get_registry: opcode 1, body = new_id.
             # Message size = 8 (header) + 4 (new_id) = 12.
             sock.sendall(struct.pack("<III", 1, (12 << 16) | 1, _PROBE_REGISTRY_ID))
-            while compositor_name is None or blur_name is None:
+            while not (hyprland_seen or (compositor_name is not None and blur_name is not None)):
                 header = _recv_exact(sock, 8)
                 if header is None:
-                    return compositor_name, blur_name
+                    break
                 object_id, size_opcode = struct.unpack("<II", header)
                 size = size_opcode >> 16
                 opcode = size_opcode & 0xFFFF
                 if size < 8:
-                    return compositor_name, blur_name
+                    break
                 body = _recv_exact(sock, size - 8)
                 if body is None:
-                    return compositor_name, blur_name
+                    break
                 if object_id == _PROBE_REGISTRY_ID and opcode == 0:
                     # registry.global: name (u32), interface (string), version (u32).
                     # String length INCLUDES the trailing NUL.
                     name = struct.unpack_from("<I", body, 0)[0]
                     slen = struct.unpack_from("<I", body, 4)[0]
                     interface = body[8 : 8 + slen].split(b"\x00", 1)[0].decode("utf-8", "replace")
-                    if interface == "wl_compositor":
+                    if interface.startswith("hyprland_"):
+                        hyprland_seen = True
+                    elif interface == "wl_compositor":
                         compositor_name = name
                     elif interface == _BLUR_MANAGER_IFACE_NAME:
                         blur_name = name
     except (OSError, TimeoutError):
         _LOGGER.debug("Wayland blur: probe connection failed", exc_info=True)
-    return compositor_name, blur_name
+    return compositor_name, blur_name, hyprland_seen
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +461,7 @@ class _CapsListener(ctypes.Structure):
 
 def _verify_blur_capabilities(display: int, manager: int) -> bool:
     """Roundtrip and check whether the compositor reports blur support."""
+    global _CAPS_LISTENER
     wl = _libwayland
     assert wl is not None
     caps: list[int] = []
@@ -435,6 +471,7 @@ def _verify_blur_capabilities(display: int, manager: int) -> bool:
         caps.append(flags)
 
     listener = _CapsListener(on_capabilities)
+    _CAPS_LISTENER = listener  # keep alive: libwayland holds a raw pointer (see module comment)
     wl.wl_proxy_add_listener.restype = ctypes.c_int
     wl.wl_proxy_add_listener.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
     wl.wl_proxy_add_listener(manager, ctypes.byref(listener), None)
@@ -465,14 +502,19 @@ def _create_region(compositor: int) -> int | None:
 
 
 def _get_background_effect(manager: int, surface: int) -> int | None:
-    """``get_background_effect(surface)`` → the blur surface proxy."""
+    """``get_background_effect(surface)`` → the blur surface proxy.
+
+    *surface* is a pointer and must be wrapped in ``c_void_p`` — a bare
+    Python int goes through ctypes varargs as a 32-bit C int and the
+    server receives a truncated object id.
+    """
     return _marshal_flags(
         manager,
         1,
         ctypes.addressof(_BLUR_SURFACE_IFACE),
         1,
         ctypes.c_void_p(0),  # new_id — libwayland creates the proxy
-        surface,
+        ctypes.c_void_p(surface),
     )
 
 
@@ -483,10 +525,59 @@ def _set_blur_region(blur_surface: int, region: int) -> None:
 
 
 def _commit_surface(surface: int) -> None:
-    """``wl_surface.commit`` — activate the double-buffered blur region."""
+    """``wl_surface.commit`` — activate the double-buffered blur region.
+
+    This runs outside GTK's own frame cycle, but only at window-creation
+    time — before GTK has drawn any frame, so there is no half-built
+    pending state to corrupt.  GTK's own subsequent frame commits carry
+    the same pending region anyway.
+    """
     if not _load_libs() or _wl_surface_interface is None:
         return
     _marshal_flags(surface, _surface_commit, _wl_surface_interface, 1)
+
+
+def _rollback(display: int, surface: int, blur_surface: int | None, region: int | None) -> None:
+    """Restore the pre-protocol state after a partial application.
+
+    The pipeline switch is one-way until the effect object is destroyed
+    *and* the surface committed, so any failure after the effect was
+    created must tear it down again — otherwise the window stays on the
+    protocol pipeline with the initial empty blur region (zero blur,
+    and the compositor's own default bypassed).  Never raises.
+    """
+    try:
+        if blur_surface is not None:
+            _marshal_flags(blur_surface, 0, ctypes.addressof(_BLUR_SURFACE_IFACE), 1)
+        if region is not None:
+            _marshal_flags(region, 0, _wl_region_interface, 1)
+        if surface:
+            _commit_surface(surface)
+            _roundtrip(display)
+    except Exception:
+        _LOGGER.debug("Wayland blur: rollback failed", exc_info=True)
+
+
+def _wayland_surface(window: Window) -> int | None:
+    """The window's ``wl_surface*``, verified by handle kind.
+
+    lumiview exposes the raw handle via ``native_handle()``: on Wayland
+    that is the ``wl_surface*`` itself (raw-window-handle), not a GTK
+    widget pointer — confirmed against ``native_handle_kind()`` so a
+    non-Wayland handle (X11 XID, GtkWindow) never reaches the protocol.
+    The accessors are ``@main_thread``: they run synchronously here
+    (we're on the main thread via ``call_on_main``) and their Task is
+    already complete, so ``.result()`` returns instantly.
+    """
+    try:
+        if window.native_handle_kind().result() is not WindowHandleKind.Wayland:
+            _LOGGER.info("Wayland blur: window handle is not a Wayland surface")
+            return None
+        surface = window.native_handle().result()
+    except Exception:
+        _LOGGER.warning("Wayland blur: no native surface handle", exc_info=True)
+        return None
+    return surface or None
 
 
 # ---------------------------------------------------------------------------
@@ -494,13 +585,29 @@ def _commit_surface(surface: int) -> None:
 # ---------------------------------------------------------------------------
 
 
-def apply_wayland_blur(window: object) -> bool:
+def _hyprland_by_environment() -> bool:
+    """Hyprland detection from the environment (fast path, no probing).
+
+    ``HYPRLAND_INSTANCE_SIGNATURE`` is injected by Hyprland into the
+    session environment unconditionally — unlike ``XDG_CURRENT_DESKTOP``,
+    which systemd user services, containers, D-Bus activation and SSH
+    sessions routinely drop (and which is case-sensitive free text).
+    The desktop variable stays as a fallback for derived sessions.
+    """
+    if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return True
+    current_desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
+    return current_desktop.split(":")[0] in _BLURRED_DEFAULT_COMPOSITORS
+
+
+def apply_wayland_blur(window: Window) -> bool:
     """Request compositor blur behind *window* (a lumiview Window).
 
     Safe to call from any thread — this runs on the GTK main loop via
-    ``App.call_on_main``.  Returns True when the blur was requested;
-    False otherwise (non-Wayland session, compositor without the
-    protocol, or any internal failure).  Never raises.
+    ``App.call_on_main``.  Returns True when the blur was requested (or
+    is already in place); False otherwise (non-Wayland session,
+    compositor without the protocol, or any internal failure).  Never
+    raises.
     """
     if not os.environ.get("WAYLAND_DISPLAY"):
         return False
@@ -508,14 +615,20 @@ def apply_wayland_blur(window: object) -> bool:
     # protocol call — requesting one would switch the window onto the
     # protocol pipeline and *remove* the blur it already has (see
     # _BLURRED_DEFAULT_COMPOSITORS).  Keep their default behaviour.
-    current_desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
-    if current_desktop.split(":")[0] in _BLURRED_DEFAULT_COMPOSITORS:
-        _LOGGER.info("Wayland blur: %s already blurs transparent windows — keeping its default", current_desktop)
+    if _hyprland_by_environment():
+        _LOGGER.info("Wayland blur: Hyprland detected — keeping its default blur")
         return True
     if not _load_libs():
         return False
+    region: int | None = None
+    blur_surface: int | None = None
+    surface = 0
+    display: int | None = None
     try:
-        compositor_name, blur_name = _probe_globals()
+        compositor_name, blur_name, hyprland_globals = _probe_globals()
+        if hyprland_globals:
+            _LOGGER.info("Wayland blur: Hyprland detected via registry globals — keeping its default blur")
+            return True
         if compositor_name is None or blur_name is None:
             _LOGGER.info("Wayland blur: compositor has no wl_compositor and/or ext_background_effect_manager_v1")
             return False
@@ -542,22 +655,31 @@ def apply_wayland_blur(window: object) -> bool:
         if region is None:
             _LOGGER.warning("Wayland blur: could not create wl_region")
             return False
-        surface = window._tao.native_handle()  # type: ignore[attr-defined]
+        surface = _wayland_surface(window) or 0
         if not surface:
             _LOGGER.warning("Wayland blur: no native surface handle")
+            _rollback(display, 0, None, region)
             return False
+        if surface in _APPLIED_SURFACES:
+            _rollback(display, 0, None, region)  # region was never committed
+            return True  # already blurred — idempotent
         blur_surface = _get_background_effect(manager, surface)
         if blur_surface is None:
             _LOGGER.warning("Wayland blur: get_background_effect failed")
+            _rollback(display, 0, None, region)
             return False
         _set_blur_region(blur_surface, region)
         _commit_surface(surface)
         _roundtrip(display)
         if _display_error(display):
             _LOGGER.warning("Wayland blur: compositor rejected the blur request")
+            _rollback(display, surface, blur_surface, region)
             return False
+        _APPLIED_SURFACES.add(surface)
         _LOGGER.info("Wayland blur: applied behind window (ext-background-effect-v1)")
         return True
     except Exception:  # blur is cosmetic; never crash the app
+        if display is not None:
+            _rollback(display, surface, blur_surface, region)
         _LOGGER.warning("Wayland blur failed", exc_info=True)
         return False
