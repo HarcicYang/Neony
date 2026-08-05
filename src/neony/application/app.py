@@ -11,7 +11,7 @@ from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any, Generic, Self, TypeVar, cast
 
-from lumiview import App, Bridge, Window, WindowEffect, WindowHookEvent
+from lumiview import App, AppEvent, Bridge, Window, WindowEffect, WindowEvent
 from wryview import DragDropEvent
 
 from neony.application.config import Config
@@ -206,16 +206,19 @@ class NeonApplication(Generic[_S]):
                 title=title if i == 0 else f"{title} {i + 1}",
                 html=_INITIAL_HTML,
                 bridge=Bridge(includes=includes),
-                drag_drop_handler=self._make_drag_drop_handler(entry),
+                # The native drag-drop channel: WebKitGTK cannot deliver
+                # file data to the page when a handler is installed, so
+                # Neony takes over drops (WindowEvent.DragEvent) and
+                # re-dispatches them from Python.
+                drag_drop=True,
                 **kwargs,
             )
+            entry.window.on(WindowEvent.DragEvent)(self._make_drag_drop_handler(entry))
             # Wait for the page (Bridge JS included) before mounting —
             # a fixed sleep would race slow machines.  5s guards against
             # the event never arriving.
             page_loaded = asyncio.Event()
-            # PageLoadFinished passes the loaded URL as an argument —
-            # ``*_args`` absorbs it.
-            entry.window.on(WindowHookEvent.PageLoadFinished)(lambda *_args, _loaded=page_loaded: _loaded.set())
+            entry.window.on(WindowEvent.PageLoadFinishedEvent)(lambda _event, _loaded=page_loaded: _loaded.set())
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
             await self._inject_theme(entry)
@@ -235,14 +238,15 @@ class NeonApplication(Generic[_S]):
         """Wire a Page's close handlers to the window's native close event.
 
         User code declares handlers on the Page; the framework maps
-        Page → Window here.  lumiview defers the actual close until every
-        handler finishes (exceptions are logged, never blocking close).
+        Page → Window here.  lumiview applies the close default only
+        after the handlers finish (exceptions are logged, never blocking
+        close).
         """
         if entry.page is None or not entry.page._close_handlers:
             return
         handlers = list(entry.page._close_handlers)
 
-        async def _on_window_close(*_args) -> None:
+        async def _on_window_close(_event: WindowEvent.CloseRequestedEvent) -> None:
             results = await asyncio.gather(
                 *[self._run_handler(h) for h in handlers],
                 return_exceptions=True,
@@ -250,81 +254,101 @@ class NeonApplication(Generic[_S]):
             for exc in (r for r in results if isinstance(r, BaseException)):
                 logging.getLogger("neony.app").error("Page close handler failed", exc_info=exc)
 
-        window.on(WindowHookEvent.CloseRequested)(_on_window_close)
+        window.on(WindowEvent.CloseRequestedEvent)(_on_window_close)
 
     async def _wire_focus_hook(self, entry: _Entry, window: Window) -> None:
         """Wire a Page's focus/blur handlers to the window's native
-        focus events (``Focused`` / ``Unfocused``)."""
+        focus events (``FocusedEvent`` / ``UnfocusedEvent``)."""
         if entry.page is None:
             return
         if entry.page._focus_handlers:
             handlers = list(entry.page._focus_handlers)
 
-            async def _on_focused(*_args) -> None:
+            async def _on_focused(_event: WindowEvent.FocusedEvent) -> None:
                 await asyncio.gather(
                     *[self._run_handler(h) for h in handlers],
                     return_exceptions=True,
                 )
 
-            window.on(WindowHookEvent.Focused)(_on_focused)
+            window.on(WindowEvent.FocusedEvent)(_on_focused)
         if entry.page._blur_handlers:
             handlers = list(entry.page._blur_handlers)
 
-            async def _on_unfocused(*_args) -> None:
+            async def _on_unfocused(_event: WindowEvent.UnfocusedEvent) -> None:
                 await asyncio.gather(
                     *[self._run_handler(h) for h in handlers],
                     return_exceptions=True,
                 )
 
-            window.on(WindowHookEvent.Unfocused)(_on_unfocused)
+            window.on(WindowEvent.UnfocusedEvent)(_on_unfocused)
 
     async def _wire_navigation_policy(self, entry: _Entry, window: Window) -> None:
         """Install navigation / new-window / download policies.
 
         Safe defaults are always installed — every navigation blocked,
-        every new-window request denied, every download cancelled — so an
-        in-page link can never navigate the app UI away.  Page-level
-        handlers registered via ``on_navigation`` & co. replace the
-        default (a policy is a single decision; the last handler wins).
+        every new-window request denied (no system-browser open), every
+        download cancelled — so an in-page link can never navigate the
+        app UI away.  Page-level handlers registered via ``on_navigation``
+        & co. replace the default (a policy is a single decision; the
+        last handler wins).  ``prevent()`` cancels the native default;
+        ``save_to()`` / ``open_in()`` redirect it.
         """
-        await App.get().call_on_main(window.set_on_navigation, lambda url: False)
-        await App.get().call_on_main(window.set_on_new_window, lambda url: "deny")
-        await App.get().call_on_main(window.set_on_download_started, lambda url, path: False)
-        if entry.page is None:
-            return
-        if entry.page._navigation_handler is not None:
-            await App.get().call_on_main(window.set_on_navigation, entry.page._navigation_handler)
-        if entry.page._new_window_handler is not None:
-            await App.get().call_on_main(window.set_on_new_window, entry.page._new_window_handler)
-        if entry.page._download_started_handler is not None:
-            await App.get().call_on_main(window.set_on_download_started, entry.page._download_started_handler)
-        if entry.page._download_completed_handlers:
+        nav_fn = entry.page._navigation_handler if entry.page is not None else None
+
+        def _on_navigation(event: WindowEvent.NavigationRequestedEvent) -> None:
+            if nav_fn is None or not nav_fn(event.url):
+                event.prevent()
+
+        new_window_fn = entry.page._new_window_handler if entry.page is not None else None
+
+        def _on_new_window(event: WindowEvent.NewWindowRequestedEvent) -> None:
+            if new_window_fn is None or new_window_fn(event.url) != "allow":
+                # Deny the in-webview window and don't open the system
+                # browser (the native default would open it).
+                event.prevent()
+
+        download_fn = entry.page._download_started_handler if entry.page is not None else None
+
+        def _on_download_started(event: WindowEvent.DownloadStartedEvent) -> None:
+            if download_fn is None:
+                event.prevent()  # cancel by default
+                return
+            decision = download_fn(event.url, event.suggested_path)
+            if decision is False:
+                event.prevent()
+            elif isinstance(decision, str):
+                event.save_to(decision)
+
+        window.on(WindowEvent.NavigationRequestedEvent)(_on_navigation)
+        window.on(WindowEvent.NewWindowRequestedEvent)(_on_new_window)
+        window.on(WindowEvent.DownloadStartedEvent)(_on_download_started)
+
+        if entry.page is not None and entry.page._download_completed_handlers:
             handlers = list(entry.page._download_completed_handlers)
 
-            # Native policy callbacks are synchronous (they run on the GUI
-            # thread and can't be awaited) — coroutine handlers would be
-            # silently dropped, so warn instead of pretending.
-            def _on_download_completed(url: str, path: str | None, success: bool) -> None:
+            # Event handlers run on the asyncio loop — async handlers are
+            # awaited (unlike the old native callback channel).
+            async def _on_download_completed(event: WindowEvent.DownloadCompletedEvent) -> None:
                 for fn in handlers:
                     try:
-                        result = fn(url, path, success)
+                        result = fn(event.url, event.saved_path, event.success)
                         if asyncio.iscoroutine(result):
-                            logging.getLogger("neony.app").warning(
-                                "Async Page.on_download_completed handlers are not "
-                                "supported (the native callback is synchronous); "
-                                "coroutine dropped."
-                            )
+                            await result
                     except Exception as exc:
                         logging.getLogger("neony.app").error("Page download-completed handler failed", exc_info=exc)
 
-            await App.get().call_on_main(window.set_on_download_completed, _on_download_completed)
+            window.on(WindowEvent.DownloadCompletedEvent)(_on_download_completed)
 
     async def _wire_close_handler(self) -> None:
-        """Register the app-level teardown hook on lumiview's Close event."""
+        """Register the app-level teardown hook on lumiview's
+        ``AppCloseEvent`` (fires once after all windows close, before
+        the asyncio loop stops; completion is awaited)."""
         if self.close_handler is not None:
-            from lumiview._events import AppHookEvent
 
-            App.get().on(AppHookEvent.Close)(self.close_handler)
+            async def _on_app_close(_event: AppEvent.AppCloseEvent) -> None:
+                await self._run_handler(self.close_handler)
+
+            App.get().on(AppEvent.AppCloseEvent)(_on_app_close)
 
     # ---- theme ----
 
@@ -566,32 +590,31 @@ class NeonApplication(Generic[_S]):
 
     # ---- native file drop channel ----
 
-    def _make_drag_drop_handler(self, entry: _Entry) -> Callable[[DragDropEvent, list[str], tuple[int, int]], bool]:
-        """Build the window's native drag-drop handler — a native takeover
-        of file drops, because WebKitGTK cannot deliver file data to the
-        page when the handler is installed (verified in the real
-        environment: the JS ``drop`` event fires with an *empty*
-        ``dataTransfer.files``; only the native handler receives the real
-        paths — ``File.path`` was removed in WebKitGTK ≥ 2.52 anyway).
+    def _make_drag_drop_handler(self, entry: _Entry) -> Callable[[WindowEvent.DragEvent], Any]:
+        """Build the window's native drag-drop listener — a native
+        takeover of file drops, because WebKitGTK cannot deliver file
+        data to the page when the handler is installed (verified in the
+        real environment: the JS ``drop`` event fires with an *empty*
+        ``dataTransfer.files``; only the native handler receives the
+        real paths — ``File.path`` was removed in WebKitGTK ≥ 2.52
+        anyway).
 
-        On ``Drop`` the handler returns ``True`` — wry's docs: returning
-        ``True`` *blocks the OS' default behavior*, which here is the
-        useless empty drop — and re-dispatches the file list as a normal
-        Neony ``drop`` event from Python (see :meth:`_dispatch_native_drop`),
-        with ``name``/``path``/``size``/``type`` filled from the real
-        paths.  ``dragover``/``dragleave`` still reach the page (separate
-        signals), so drop-zone highlighting keeps working.
+        lumiview forwards the wryview drag-drop callback as a
+        :class:`WindowEvent.DragEvent` (requires ``drag_drop=True`` at
+        window creation).  On ``Drop`` the file list is re-dispatched
+        as a normal Neony ``drop`` event from Python (see
+        :meth:`_dispatch_native_drop`), with ``name``/``path``/``size``/
+        ``type`` filled from the real paths.  ``dragover``/``dragleave``
+        still reach the page (separate signals), so drop-zone
+        highlighting keeps working.
         """
 
-        def handler(event: DragDropEvent, paths: list[str], position: tuple[int, int]) -> bool:
-            if event in (DragDropEvent.Enter, DragDropEvent.Drop):
-                entry.neony.native_drop_paths[:] = paths
-            if event is DragDropEvent.Drop:
-                if paths:
-                    files = [_file_info(p) for p in paths]
-                    self._schedule_on_loop(self._dispatch_native_drop(entry, files, position))
-                return True
-            return False
+        async def handler(event: WindowEvent.DragEvent) -> None:
+            if event.kind in (DragDropEvent.Enter, DragDropEvent.Drop):
+                entry.neony.native_drop_paths[:] = event.paths
+            if event.kind is DragDropEvent.Drop and event.paths:
+                files = [_file_info(p) for p in event.paths]
+                await self._dispatch_native_drop(entry, files, event.position)
 
         return handler
 
@@ -619,17 +642,6 @@ class NeonApplication(Generic[_S]):
         if key:
             await entry.neony._on_event(cast(Any, None), key=key, event_type="drop", value=None, drop_files=files)
 
-    @staticmethod
-    def _schedule_on_loop(coro: Any) -> None:
-        """Schedule *coro* on the app's asyncio loop from any thread
-        (the drag-drop callback runs on the GTK main thread)."""
-        try:
-            loop = App.get()._async_loop
-        except Exception:
-            return
-        if loop is not None:
-            loop.call_soon_threadsafe(lambda: asyncio.create_task(coro))
-
     # ---- window control ----
 
     def _require_window(self, window_index: int = 0) -> Window:
@@ -650,8 +662,7 @@ class NeonApplication(Generic[_S]):
         """Change a window's title (OS taskbar/dock label)."""
         window = self._require_window(window_index)
         self.config.window.title = title
-        if window._tao is not None:
-            await App.get().call_on_main(window._tao.set_title, title)
+        await App.get().call_on_main(window.set_title, title)
         await window.eval_js(f"document.title = {title!r}")
 
     async def set_size(self, width: int, height: int, window_index: int = 0) -> None:
@@ -696,18 +707,17 @@ class NeonApplication(Generic[_S]):
         """Move and resize a window: (*x*, *y*) is the top-left screen
         position in logical pixels, (*w*, *h*) the new inner size.
 
-        Position goes through tao's ``set_outer_position`` directly
-        (lumiview's own ``set_bounds`` only positions the webview child
-        inside the tao window); sizing reuses :meth:`set_size`.  Note
-        that Wayland forbids client-side positioning — there the window
-        only resizes.  A positioning failure never blocks the resize.
+        Position goes through lumiview's ``set_outer_position`` directly
+        (``set_bounds`` only positions the webview child inside the
+        window); sizing reuses :meth:`set_size`.  Note that Wayland
+        forbids client-side positioning — there the window only resizes.
+        A positioning failure never blocks the resize.
         """
         window = self._require_window(window_index)
-        if window._tao is not None:
-            try:
-                await App.get().call_on_main(window._tao.set_outer_position, x, y)
-            except Exception:
-                logging.getLogger("neony").exception("set_outer_position failed (no-op on Wayland) — resizing anyway")
+        try:
+            await App.get().call_on_main(window.set_outer_position, x, y)
+        except Exception:
+            logging.getLogger("neony").exception("set_outer_position failed (no-op on Wayland) — resizing anyway")
         await self.set_size(int(w), int(h), window_index=window_index)
 
     async def close(self, window_index: int = 0) -> None:

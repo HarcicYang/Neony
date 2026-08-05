@@ -1,10 +1,12 @@
 """App-level shutdown hook — ``app.close_handler`` registered on
-lumiview's ``AppHookEvent.Close`` (fires once after all windows close,
-before the asyncio loop stops; completion is awaited by lumiview)."""
+lumiview's ``AppEvent.AppCloseEvent`` (fires once after all windows
+close, before the asyncio loop stops; completion is awaited by
+lumiview)."""
 
 import asyncio
 
 import pytest
+from lumiview import AppEvent
 
 from neony.application import Config, NeonApplication
 
@@ -37,12 +39,10 @@ class TestShutdownHook:
 
         _wire(app, fake, monkeypatch)
 
-        from lumiview._events import AppHookEvent
-
-        handlers = fake.hooks.get(AppHookEvent.Close, [])
+        handlers = fake.hooks.get(AppEvent.AppCloseEvent, [])
         assert len(handlers) == 1
-        # Simulate lumiview emitting the Close event during shutdown.
-        handlers[0]()
+        # Simulate lumiview emitting the close event during shutdown.
+        asyncio.run(handlers[0](AppEvent.AppCloseEvent()))
         assert calls == ["shutdown"]
 
     def test_no_handler_registers_nothing(self, monkeypatch: pytest.MonkeyPatch):
@@ -66,7 +66,5 @@ class TestShutdownHook:
 
         _wire(app, fake, monkeypatch)
 
-        from lumiview._events import AppHookEvent
-
-        asyncio.run(fake.hooks[AppHookEvent.Close][0]())
+        asyncio.run(fake.hooks[AppEvent.AppCloseEvent][0](AppEvent.AppCloseEvent()))
         assert calls == ["async"]

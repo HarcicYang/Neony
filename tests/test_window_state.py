@@ -2,9 +2,9 @@
 set_bounds, dispatched through the same ``_require_window`` →
 ``call_on_main`` path as every other window-control method.
 
-``set_bounds`` positions the window on screen via tao's
-``set_outer_position`` (lumiview only wraps the webview-child bounds)
-and delegates sizing to ``set_size``.
+``set_bounds`` positions the window on screen via lumiview's
+``set_outer_position`` (its ``set_bounds`` only wraps the webview-child
+bounds) and delegates sizing to ``set_size``.
 """
 
 import asyncio
@@ -32,16 +32,6 @@ class FakeLumiApp:
         return result
 
 
-class FakeTao:
-    """The lumiview window's underlying tao window."""
-
-    def __init__(self) -> None:
-        self.positions: list[tuple[float, float]] = []
-
-    def set_outer_position(self, x: float, y: float) -> None:
-        self.positions.append((x, y))
-
-
 class FakeWindow:
     """Fake lumiview Window recording window-state calls."""
 
@@ -50,7 +40,7 @@ class FakeWindow:
         self.hidden = 0
         self.focused = 0
         self.sizes: list[tuple[float, float]] = []
-        self._tao = FakeTao()
+        self.positions: list[tuple[float, float]] = []
 
     def show(self) -> None:
         self.shown += 1
@@ -63,6 +53,9 @@ class FakeWindow:
 
     def set_size(self, width: float, height: float) -> None:
         self.sizes.append((width, height))
+
+    def set_outer_position(self, x: float, y: float) -> None:
+        self.positions.append((x, y))
 
 
 def _app_with_window(window_index: int = 1) -> NeonApplication:
@@ -123,7 +116,7 @@ class TestWindowState:
 
         wins = _run(app, monkeypatch, "set_bounds", 100.0, 200.0, 640.0, 480.0)
 
-        assert wins[0]._tao.positions == [(100.0, 200.0)]
+        assert wins[0].positions == [(100.0, 200.0)]
         assert wins[0].sizes == [(640.0, 480.0)]
 
     def test_set_bounds_targets_window_index(self, monkeypatch: pytest.MonkeyPatch):
@@ -131,9 +124,9 @@ class TestWindowState:
 
         wins = _run(app, monkeypatch, "set_bounds", 10.0, 20.0, 300.0, 200.0, 1)
 
-        assert wins[0]._tao.positions == []
+        assert wins[0].positions == []
         assert wins[0].sizes == []
-        assert wins[1]._tao.positions == [(10.0, 20.0)]
+        assert wins[1].positions == [(10.0, 20.0)]
         assert wins[1].sizes == [(300.0, 200.0)]
 
     def test_set_bounds_position_failure_does_not_block_resize(self, monkeypatch: pytest.MonkeyPatch):
@@ -145,7 +138,7 @@ class TestWindowState:
         def broken_position(x: float, y: float) -> None:
             raise RuntimeError("positioning not supported here")
 
-        win._tao.set_outer_position = broken_position  # type: ignore[method-assign]
+        win.set_outer_position = broken_position  # type: ignore[method-assign]
 
         wins = _run(app, monkeypatch, "set_bounds", 100.0, 200.0, 640.0, 480.0)
 

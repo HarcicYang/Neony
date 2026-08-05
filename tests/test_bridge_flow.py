@@ -293,7 +293,7 @@ class TestRichPayload:
         import typing
 
         from lumiview._binding import _converter, bind_arguments
-        from lumiview._scope import Command, Scope
+        from lumiview.scope import Command, Scope
 
         # The command system registers the *bound* method (no `self`),
         # exactly like ``self.command(self._on_event, ...)`` in __init__.
@@ -438,9 +438,9 @@ class TestNativeDropBackfill:
 class TestNativeDragDropHandler:
     """NeonApplication._make_drag_drop_handler: native takeover of file
     drops.  WebKitGTK delivers an *empty* JS drop when the handler is
-    installed (verified in the real environment), so the handler blocks
-    the OS default (returns True — wry docs) and re-dispatches the file
-    list from Python with real paths."""
+    installed (verified in the real environment), so lumiview's
+    ``WindowEvent.DragEvent`` (dev3) carries the real paths and Neony
+    re-dispatches the file list from Python."""
 
     def _handler(self) -> tuple[NeonApplication, Neony]:
         app = NeonApplication(Config())
@@ -448,32 +448,33 @@ class TestNativeDragDropHandler:
         app._entries.append(_Entry(neony, Div()))
         return app, neony
 
-    def test_drop_blocks_default_and_builds_file_info(self):
-        app, neony = self._handler()
+    def _drag(self, app: NeonApplication, kind, paths, position=(0, 0)) -> None:
+        """Run the DragEvent handler (async) with a real event object."""
         handler = app._make_drag_drop_handler(app._entries[0])
+        from lumiview import WindowEvent
 
-        result = handler(DragDropEvent.Drop, ["/home/user/a.png", "/tmp/b.txt"], (100, 200))
+        asyncio.run(handler(WindowEvent.DragEvent(kind=kind, paths=paths, position=position)))
 
-        assert result is True, "True blocks the OS default (the empty JS drop)"
+    def test_drop_records_paths_and_builds_file_info(self):
+        app, neony = self._handler()
+
+        self._drag(app, DragDropEvent.Drop, ["/home/user/a.png", "/tmp/b.txt"], (100, 200))
+
         assert neony.native_drop_paths == ["/home/user/a.png", "/tmp/b.txt"]
 
-    def test_enter_records_paths_without_blocking(self):
+    def test_enter_records_paths(self):
         app, neony = self._handler()
-        handler = app._make_drag_drop_handler(app._entries[0])
 
-        result = handler(DragDropEvent.Enter, ["/home/user/a.png"], (0, 0))
+        self._drag(app, DragDropEvent.Enter, ["/home/user/a.png"])
 
-        assert result is False
         assert neony.native_drop_paths == ["/home/user/a.png"]
 
     def test_motion_events_leave_paths_untouched(self):
         app, neony = self._handler()
-        handler = app._make_drag_drop_handler(app._entries[0])
-        handler(DragDropEvent.Enter, ["/home/user/a.png"], (0, 0))
+        self._drag(app, DragDropEvent.Enter, ["/home/user/a.png"])
 
-        result = handler(DragDropEvent.Over, [], (5, 5))
+        self._drag(app, DragDropEvent.Over, [])
 
-        assert result is False
         assert neony.native_drop_paths == ["/home/user/a.png"]
 
     def test_file_info_from_real_path(self, tmp_path):

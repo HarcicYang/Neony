@@ -8,10 +8,11 @@ completed is a stacking notification.
 """
 
 import asyncio
+from collections.abc import Callable
 from typing import Any, cast
 
 import pytest
-from lumiview import WindowHookEvent
+from lumiview import WindowEvent
 
 from neony.application import Config, NeonApplication, Page
 from neony.application.app import _Entry
@@ -32,43 +33,9 @@ class HookWindow:
         return decorator
 
 
-class FakeLumiApp:
-    """Minimal lumiview App stand-in: ``call_on_main`` runs the callable."""
-
-    def __init__(self) -> None:
-        self.calls: list[tuple] = []
-
-    async def call_on_main(self, fn, *args):
-        result = fn(*args)
-        if asyncio.iscoroutine(result):
-            await result
-        return result
-
-    def on(self, event):
-        def decorator(fn):
-            return fn
-
-        return decorator
-
-
 class FakeWindow(HookWindow):
-    """Fake lumiview Window with the policy setters recording handlers."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.policies: dict[str, Any] = {}
-
-    def set_on_navigation(self, handler):
-        self.policies["navigation"] = handler
-
-    def set_on_new_window(self, handler):
-        self.policies["new_window"] = handler
-
-    def set_on_download_started(self, handler):
-        self.policies["download_started"] = handler
-
-    def set_on_download_completed(self, handler):
-        self.policies["download_completed"] = handler
+    """Fake lumiview Window — the policy handlers register via ``on()``
+    like any other event (dev3 dropped the ``set_on_*`` setters)."""
 
 
 def _entry(page: Page) -> _Entry:
@@ -89,8 +56,8 @@ def cast_any(win: HookWindow) -> Any:
     return win
 
 
-def _fire(win: HookWindow, event: WindowHookEvent) -> None:
-    asyncio.run(win.hooks[event][0]())
+def _fire(win: HookWindow, event: type[WindowEvent.FocusedEvent]) -> None:
+    asyncio.run(win.hooks[event][0](event()))
 
 
 class TestFocusBlur:
@@ -100,7 +67,7 @@ class TestFocusBlur:
 
         _win = _wire_focus(page)[1]
 
-        _fire(_win, WindowHookEvent.Focused)
+        _fire(_win, WindowEvent.FocusedEvent)
         assert calls == ["focused"]
 
     def test_on_focus_handlers_stack(self):
@@ -111,7 +78,7 @@ class TestFocusBlur:
 
         _win = _wire_focus(page)[1]
 
-        _fire(_win, WindowHookEvent.Focused)
+        _fire(_win, WindowEvent.FocusedEvent)
         assert calls == ["first", "second"]
 
     def test_on_blur_fires(self):
@@ -120,7 +87,7 @@ class TestFocusBlur:
 
         _win = _wire_focus(page)[1]
 
-        _fire(_win, WindowHookEvent.Unfocused)
+        _fire(_win, WindowEvent.UnfocusedEvent)
         assert calls == ["unfocused"]
 
     def test_async_handler_awaited(self):
@@ -135,7 +102,7 @@ class TestFocusBlur:
 
         _win = _wire_focus(page)[1]
 
-        _fire(_win, WindowHookEvent.Focused)
+        _fire(_win, WindowEvent.FocusedEvent)
         assert calls == ["async"]
 
     def test_exception_in_handler_isolated(self):
@@ -146,7 +113,7 @@ class TestFocusBlur:
 
         _win = _wire_focus(page)[1]
 
-        _fire(_win, WindowHookEvent.Focused)  # must not raise
+        _fire(_win, WindowEvent.FocusedEvent)  # must not raise
         assert calls == ["survivor"]
 
     def test_chainable(self):
@@ -355,9 +322,9 @@ class TestPageKeyEvents:
 
 
 def _wire_policies(
-    page: Page | None, monkeypatch: pytest.MonkeyPatch
-) -> tuple[NeonApplication, FakeLumiApp, FakeWindow]:
-    """Wire (default + page) policies onto a fake window/app."""
+    page: Page | None,
+) -> FakeWindow:
+    """Wire (default + page) policies onto a fake window."""
     app = NeonApplication(Config())
     win = FakeWindow()
     # _wire_navigation_policy needs an _Entry; build one around the page
@@ -368,85 +335,168 @@ def _wire_policies(
         from neony.dom import Div
 
         entry = _Entry(Neony(name="neony"), Div(), None)
-    fake = FakeLumiApp()
-    monkeypatch.setattr("neony.application.app.App.get", classmethod(lambda cls: fake))
     asyncio.run(app._wire_navigation_policy(entry, cast_any(win)))
-    return app, fake, win
+    return win
+
+
+def _policy(win: FakeWindow, event_cls) -> Callable[[Any], None]:
+    """The registered policy handler for *event_cls* (dev3: policies are
+    plain event handlers; the decision is ``event.prevent()``)."""
+    return win.hooks[event_cls][0]
+
+
+def _run(handler, event_cls, **fields):
+    """Build *event_cls(**fields)*, run the handler, return the event."""
+    event = event_cls(**fields)
+    result = handler(event)
+    if asyncio.iscoroutine(result):
+        asyncio.run(result)
+    return event
 
 
 class TestNavigationPolicies:
-    def test_defaults_block_everything_without_page(self, monkeypatch: pytest.MonkeyPatch):
+    def test_defaults_block_everything_without_page(self):
         """No Page → safe defaults: block navigation, deny windows, cancel downloads."""
-        _app, _fake, win = _wire_policies(None, monkeypatch)
+        win = _wire_policies(None)
 
-        assert win.policies["navigation"]("https://evil.example") is False
-        assert win.policies["new_window"]("https://evil.example") == "deny"
-        assert win.policies["download_started"]("https://evil.example", "/tmp/a.bin") is False
+        nav = _run(
+            _policy(win, WindowEvent.NavigationRequestedEvent),
+            WindowEvent.NavigationRequestedEvent,
+            url="https://evil.example",
+        )
+        assert nav.prevented is True
+        nw = _run(
+            _policy(win, WindowEvent.NewWindowRequestedEvent),
+            WindowEvent.NewWindowRequestedEvent,
+            url="https://evil.example",
+        )
+        assert nw.prevented is True
+        dl = _run(
+            _policy(win, WindowEvent.DownloadStartedEvent),
+            WindowEvent.DownloadStartedEvent,
+            url="https://evil.example",
+            suggested_path="/tmp/a.bin",
+        )
+        assert dl.prevented is True
 
-    def test_defaults_block_with_page_but_no_handlers(self, monkeypatch: pytest.MonkeyPatch):
-        _app, _fake, win = _wire_policies(Page(), monkeypatch)
+    def test_defaults_block_with_page_but_no_handlers(self):
+        win = _wire_policies(Page())
 
-        assert win.policies["navigation"]("https://x.example") is False
-        assert win.policies["new_window"]("https://x.example") == "deny"
-        assert win.policies["download_started"]("https://x.example", "/tmp/x") is False
+        nav = _run(
+            _policy(win, WindowEvent.NavigationRequestedEvent),
+            WindowEvent.NavigationRequestedEvent,
+            url="https://x.example",
+        )
+        assert nav.prevented is True
+        dl = _run(
+            _policy(win, WindowEvent.DownloadStartedEvent),
+            WindowEvent.DownloadStartedEvent,
+            url="https://x.example",
+            suggested_path="/tmp/x",
+        )
+        assert dl.prevented is True
 
-    def test_on_navigation_replaces_and_fires(self, monkeypatch: pytest.MonkeyPatch):
+    def test_on_navigation_replaces_and_fires(self):
         """Last handler wins — policy is a single decision."""
         page = Page().on_navigation(lambda url: url.startswith("https://app.example"))
 
-        _app, _fake, win = _wire_policies(page, monkeypatch)
+        win = _wire_policies(page)
 
-        assert win.policies["navigation"]("https://app.example/page") is True
-        assert win.policies["navigation"]("https://evil.example") is False
+        allowed = _run(
+            _policy(win, WindowEvent.NavigationRequestedEvent),
+            WindowEvent.NavigationRequestedEvent,
+            url="https://app.example/page",
+        )
+        assert allowed.prevented is False
+        blocked = _run(
+            _policy(win, WindowEvent.NavigationRequestedEvent),
+            WindowEvent.NavigationRequestedEvent,
+            url="https://evil.example",
+        )
+        assert blocked.prevented is True
 
-    def test_on_navigation_second_call_replaces(self, monkeypatch: pytest.MonkeyPatch):
+    def test_on_navigation_second_call_replaces(self):
         page = Page()
         page.on_navigation(lambda url: True)
         page.on_navigation(lambda url: False)  # replaces
 
-        _app, _fake, win = _wire_policies(page, monkeypatch)
+        win = _wire_policies(page)
 
-        assert win.policies["navigation"]("https://x.example") is False
+        event = _run(
+            _policy(win, WindowEvent.NavigationRequestedEvent),
+            WindowEvent.NavigationRequestedEvent,
+            url="https://x.example",
+        )
+        assert event.prevented is True
 
-    def test_on_new_window_policy(self, monkeypatch: pytest.MonkeyPatch):
+    def test_on_new_window_policy(self):
         page = Page().on_new_window(lambda url: "allow" if url.startswith("https://app.example") else "deny")
 
-        _app, _fake, win = _wire_policies(page, monkeypatch)
+        win = _wire_policies(page)
 
-        assert win.policies["new_window"]("https://app.example") == "allow"
-        assert win.policies["new_window"]("https://evil.example") == "deny"
+        allowed = _run(
+            _policy(win, WindowEvent.NewWindowRequestedEvent),
+            WindowEvent.NewWindowRequestedEvent,
+            url="https://app.example",
+        )
+        assert allowed.prevented is False  # system-browser open (native default)
+        denied = _run(
+            _policy(win, WindowEvent.NewWindowRequestedEvent),
+            WindowEvent.NewWindowRequestedEvent,
+            url="https://evil.example",
+        )
+        assert denied.prevented is True
 
-    def test_on_download_started_policy(self, monkeypatch: pytest.MonkeyPatch):
+    def test_on_download_started_policy(self):
         page = Page().on_download_started(lambda url, path: "/custom/" if "report" in url else False)
 
-        _app, _fake, win = _wire_policies(page, monkeypatch)
+        win = _wire_policies(page)
 
-        assert win.policies["download_started"]("https://x/report.pdf", "/tmp/x") == "/custom/"
-        assert win.policies["download_started"]("https://x/song.mp3", "/tmp/x") is False
+        redirected = _run(
+            _policy(win, WindowEvent.DownloadStartedEvent),
+            WindowEvent.DownloadStartedEvent,
+            url="https://x/report.pdf",
+            suggested_path="/tmp/x",
+        )
+        assert redirected._save_path == "/custom/"
+        cancelled = _run(
+            _policy(win, WindowEvent.DownloadStartedEvent),
+            WindowEvent.DownloadStartedEvent,
+            url="https://x/song.mp3",
+            suggested_path="/tmp/x",
+        )
+        assert cancelled.prevented is True
 
-    def test_on_download_completed_stacks(self, monkeypatch: pytest.MonkeyPatch):
-        """Notification semantics — handlers stack, all fire."""
+    def test_on_download_completed_stacks(self):
+        """Notification semantics — handlers stack, all fire; async
+        handlers are awaited (event handlers run on the asyncio loop)."""
         calls: list[tuple] = []
         page = Page()
         page.on_download_completed(lambda url, path, ok: calls.append(("a", url, ok)))
         page.on_download_completed(lambda url, path, ok: calls.append(("b", path)))
 
-        _app, _fake, win = _wire_policies(page, monkeypatch)
+        win = _wire_policies(page)
 
-        handler = win.policies["download_completed"]
-        handler("https://x/file.bin", "/tmp/file.bin", True)  # sync (native callback)
+        handler = _policy(win, WindowEvent.DownloadCompletedEvent)
+        _run(
+            handler,
+            WindowEvent.DownloadCompletedEvent,
+            url="https://x/file.bin",
+            saved_path="/tmp/file.bin",
+            success=True,
+        )
         assert calls == [("a", "https://x/file.bin", True), ("b", "/tmp/file.bin")]
 
-    def test_on_download_completed_exception_isolated(self, monkeypatch: pytest.MonkeyPatch):
+    def test_on_download_completed_exception_isolated(self):
         calls: list[str] = []
         page = Page()
         page.on_download_completed(lambda url, path, ok: (_ for _ in ()).throw(RuntimeError("boom")))
         page.on_download_completed(lambda url, path, ok: calls.append("survivor"))
 
-        _app, _fake, win = _wire_policies(page, monkeypatch)
+        win = _wire_policies(page)
 
-        handler = win.policies["download_completed"]
-        handler("u", "p", True)  # must not raise
+        handler = _policy(win, WindowEvent.DownloadCompletedEvent)
+        _run(handler, WindowEvent.DownloadCompletedEvent, url="u", saved_path="p", success=True)  # must not raise
         assert calls == ["survivor"]
 
     def test_policy_methods_chainable(self):

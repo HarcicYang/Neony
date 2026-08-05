@@ -236,7 +236,9 @@ class Page:
         ``"deny"`` for ``target="_blank"`` links and ``window.open()``.
         Calling again replaces the previous handler.  Chainable.
 
-        Default (no handler): every new-window request is denied.
+        Default (no handler): every new-window request is denied.  The
+        webview cannot open a second in-app window, so ``"allow"`` opens
+        the URL in the system browser instead.
         """
         self._new_window_handler = fn
         return self

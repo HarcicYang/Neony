@@ -2,14 +2,14 @@
 
 User code declares handlers on the Page (like ``element.on_click(fn)``);
 the framework maps Page → Window and registers them on lumiview's
-``CloseRequested`` event internally.  Handlers run before the window
+``CloseRequestedEvent`` internally.  Handlers run before the window
 closes; exceptions are logged but never block the close.
 """
 
 import asyncio
 from typing import Any
 
-from lumiview import WindowHookEvent
+from lumiview import WindowEvent
 
 from neony.application import Config, NeonApplication, Page
 from neony.application.app import _Entry
@@ -47,7 +47,7 @@ def cast_any(win: HookWindow) -> Any:
 
 
 def _fire(win: HookWindow) -> None:
-    asyncio.run(win.hooks[WindowHookEvent.CloseRequested][0]())
+    asyncio.run(win.hooks[WindowEvent.CloseRequestedEvent][0](WindowEvent.CloseRequestedEvent()))
 
 
 class TestPageClose:

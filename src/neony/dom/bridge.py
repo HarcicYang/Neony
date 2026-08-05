@@ -6,13 +6,13 @@ import asyncio
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
-from lumiview._scope import BridgeContext, InitContext, Plugin
+from lumiview.scope import BridgeContext, InitContext, Plugin
 from pydantic import BaseModel, Field
 
 from neony.dom.base import DOMElement, NodeDescriptor
 
 if TYPE_CHECKING:
-    from lumiview._window import Window
+    from lumiview.window import Window
 
 # ---- patch operation models ----
 
@@ -357,7 +357,7 @@ class Neony(Plugin):
         runs independently — one raising must not break the chain."""
         import logging
 
-        from lumiview._task import _run_async
+        from lumiview.task import run_async as _run_async
 
         log = logging.getLogger("neony.bridge")
         # ``File.path`` is empty on WebKitGTK ≥ 2.52 — backfill the
