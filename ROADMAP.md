@@ -45,7 +45,7 @@ Planned work, roughly in priority order.
 
 ## Animation
 
-- [ ] **CSS `transition` support** in `Styles`
+- [x] **CSS `transition` support** in `Styles` — typed `Transition` descriptor (`property`/`duration`/`timing`/`delay`) or raw shorthand string; also `transform` and `outline` fields.  Existing components' transitions now actually reach the DOM.
 - [ ] **Built-in animated containers**
 - [ ] **Transition hooks**
 

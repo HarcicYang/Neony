@@ -6,7 +6,7 @@ from typing import Literal
 
 from neony.application.theme import Theme
 from neony.dom import Button as _ButtonElem
-from neony.dom import Color, DOMElement, DomEvent, Styles
+from neony.dom import Color, DOMElement, DomEvent, Styles, Transition
 
 from .base import Component
 
@@ -90,7 +90,7 @@ class Button(Component):
             font_size="14px",
             font_weight="500",
             cursor="pointer",
-            transition="all 0.15s ease",
+            transition=Transition(duration="0.15s", timing="ease"),
             color=Color(var="--color-text-primary"),
         )
 

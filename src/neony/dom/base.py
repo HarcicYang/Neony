@@ -43,6 +43,66 @@ class Color(BaseModel):
             raise NotImplementedError("At least one of name, rgb, rgba, hex, or var must be set")
 
 
+class Transition(BaseModel):
+    """A single CSS transition descriptor — the typed alternative to a
+    raw ``transition`` CSS string.  Serialises to
+    ``property duration timing delay``.
+
+    The 99 % case is one uniform transition; for different durations per
+    property a raw ``str`` can still be passed directly.  ``property``
+    and ``timing`` also accept ``str`` for properties not listed and for
+    ``cubic-bezier(...)`` / ``steps(...)`` timing functions.
+    """
+
+    property: (
+        Literal[
+            "all",
+            "none",
+            "opacity",
+            "transform",
+            "color",
+            "background-color",
+            "border-color",
+            "box-shadow",
+            "width",
+            "height",
+            "max-width",
+            "max-height",
+            "margin",
+            "padding",
+            "left",
+            "right",
+            "top",
+            "bottom",
+            "filter",
+            "backdrop-filter",
+            "outline-color",
+        ]
+        | str
+    ) = "all"
+    duration: str = "0.3s"
+    timing: (
+        Literal[
+            "ease",
+            "ease-in",
+            "ease-out",
+            "ease-in-out",
+            "linear",
+            "step-start",
+            "step-end",
+        ]
+        | str
+    ) = "ease"
+    delay: str = "0s"
+
+    @model_serializer
+    def to_css(self) -> str:
+        parts = [self.property, self.duration, self.timing]
+        if self.delay and self.delay != "0s":
+            parts.append(self.delay)
+        return " ".join(parts)
+
+
 class Styles(BaseModel):
     """CSS style properties for a DOM element.
 
@@ -225,6 +285,12 @@ class Styles(BaseModel):
     # --- Visual ---
     opacity: float | None = Field(default=None)
     box_shadow: str | None = Field(default=None)
+    # CSS transition — a typed descriptor or a raw shorthand string.
+    transition: Transition | str | None = Field(default=None)
+    # Transform functions (e.g. "translateX(10px) scale(1.2)").
+    transform: str | None = Field(default=None)
+    # Focus-ring outline (commonly "none"; input.py relies on this).
+    outline: str | None = Field(default=None)
     # Frosted glass; also emitted with the -webkit- prefix (WebKitGTK).
     backdrop_filter: str | None = Field(default=None)
     # Native control appearance reset (e.g. custom-styled checkboxes).

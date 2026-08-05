@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 
 from neony.application.theme import Theme
-from neony.dom import Color, DomEvent, Styles
+from neony.dom import Color, DomEvent, Styles, Transition
 from neony.dom import Input as _InputElem
 
 from .base import Component
@@ -19,7 +19,7 @@ _FIELD = Styles(
     color=Color(var="--color-text-primary"),
     font_size="15px",
     outline="none",
-    transition="border-color 0.15s ease",
+    transition=Transition(property="border-color", duration="0.15s", timing="ease"),
 )
 
 _GLASS_FIELD = _FIELD.model_copy(

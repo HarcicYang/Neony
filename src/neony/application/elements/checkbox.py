@@ -10,7 +10,7 @@ from __future__ import annotations
 import urllib.parse
 
 from neony.application.theme import Theme
-from neony.dom import Color, DomEvent, Span, Styles
+from neony.dom import Color, DomEvent, Span, Styles, Transition
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
@@ -34,7 +34,7 @@ _BOX = Styles(
     appearance="none",
     cursor="pointer",
     flex_shrink="0",
-    transition="all 0.15s ease",
+    transition=Transition(duration="0.15s", timing="ease"),
 )
 
 _GLASS_BOX = _BOX.model_copy(
