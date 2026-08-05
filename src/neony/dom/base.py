@@ -691,6 +691,21 @@ class DOMElement(BaseModel):
     # (SidebarItem's icon/label spans; layout containers keep strict routing).
     _bubble_events: bool = PrivateAttr(default=False)
 
+    @property
+    def bubble_events(self) -> bool:
+        """Public access to opt-in event bubbling.
+
+        When True, an event dispatched to a handler-less descendant also
+        reaches this element if it carries a matching handler — e.g. a
+        click on SidebarItem's icon/label span bubbles to the item.
+        Layout containers keep strict routing unless opted in.
+        """
+        return self._bubble_events
+
+    @bubble_events.setter
+    def bubble_events(self, value: bool) -> None:
+        self._bubble_events = value
+
     # Mutation classification for the direct-patch fast path: style/attr
     # changes patch in place; structural changes (children, text, key)
     # force the full serialization + diff.  The bitmask only escalates

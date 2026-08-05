@@ -351,7 +351,7 @@ class Neony(Plugin):
     ) -> None:
         """Handle a DOM event from JavaScript.  The event dispatches to
         its own element's handlers, then bubbles to the nearest
-        ``_bubble_events`` ancestor with a matching handler — even when
+        ``bubble_events`` ancestor with a matching handler — even when
         the target handled it, so window-level listeners (page key
         handlers, shortcuts) see keys typed in any input.  Each handler
         runs independently — one raising must not break the chain."""
@@ -394,14 +394,14 @@ class Neony(Plugin):
                     except Exception:
                         log.exception(f"Event handler for {event_type} on {key} failed")
 
-        # Bubble to the nearest _bubble_events ancestor with a matching
+        # Bubble to the nearest bubble_events ancestor with a matching
         # handler — regardless of whether the target handled the event,
         # so window-level listeners see keys typed in inputs.  The first
         # matching ancestor wins (real DOM bubbling, opt-in per element).
         el = self._key_map.get(key)
         while el is not None and el._parent is not None:
             el = el._parent
-            if not el._bubble_events:
+            if not el.bubble_events:
                 continue
             for (ekey, etype), fns in self._handlers.items():
                 if etype == event_type and ekey == el.key:

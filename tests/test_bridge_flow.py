@@ -568,13 +568,13 @@ class TestComponentEventWiring:
 
 class TestEventBubbling:
     """Opt-in bubbling: events on handler-less children route to a
-    `_bubble_events` ancestor (e.g. SidebarItem's icon/label spans)."""
+    `bubble_events` ancestor (e.g. SidebarItem's icon/label spans)."""
 
     def _make_tree(self, bubble: bool):
         from neony.dom import Div, Span
 
         parent = Div(key="parent", container=[Span(key="child", container=["text"])])
-        parent._bubble_events = bubble
+        parent.bubble_events = bubble
         calls: list[str] = []
         parent.on_click(lambda e: calls.append(e.key))
         return parent, calls
@@ -586,7 +586,7 @@ class TestEventBubbling:
         _setup_entry(app, parent, fake)
 
         # JS resolves the click to the child span's key; the span has no
-        # handler, so the event bubbles to the _bubble_events parent.
+        # handler, so the event bubbles to the bubble_events parent.
         asyncio.run(_fire(app, "child", "click"))
         assert calls == ["child"], "bubbled event must keep the original element's key"
         # The parent's own key still routes directly (exact match path).
@@ -600,13 +600,13 @@ class TestEventBubbling:
         _setup_entry(app, parent, fake)
 
         asyncio.run(_fire(app, "child", "click"))
-        assert calls == [], "no bubbling without _bubble_events"
+        assert calls == [], "no bubbling without bubble_events"
         asyncio.run(_fire(app, "parent", "click"))
         assert calls == ["parent"]
 
     def test_bubbles_even_when_target_has_handler(self):
         """A child's own handler fires first, then the event bubbles to
-        the nearest _bubble_events ancestor — window-level listeners
+        the nearest bubble_events ancestor — window-level listeners
         (page key handlers, shortcuts) must see keys typed in inputs
         that handle their own events."""
         app = NeonApplication(Config(auto_render=True))
@@ -616,7 +616,7 @@ class TestEventBubbling:
 
         calls: list[str] = []
         parent = Div(key="parent")
-        parent._bubble_events = True
+        parent.bubble_events = True
         child = Span(key="child", container=["text"])
         parent.container.append(child)
         child.on_click(lambda e: calls.append("child"))

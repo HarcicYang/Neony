@@ -454,7 +454,7 @@ TitleBar(icon=data_url("logo.svg"))""",
 # ── tab: events ──────────────────────────────────────────────────
 
 # Mouse tracker: mousedown anywhere inside the zone (even on its text
-# labels) bubbles to this _bubble_events Div.  The DomEvent carries the
+# labels) bubbles to this bubble_events Div.  The DomEvent carries the
 # viewport (x/y) and element-relative (offset_x/offset_y) coordinates.
 tracker_text = Text("Click anywhere in this box", role="secondary")
 click_pos = Mono()
@@ -473,7 +473,7 @@ tracker = Div(
     ),
     container=[tracker_text.build(), click_pos],
 )
-tracker._bubble_events = True
+tracker.bubble_events = True
 
 
 async def on_tracker_down(event: DomEvent) -> None:
@@ -532,7 +532,7 @@ wheel_zone = Div(
         )
     ],
 )
-wheel_zone._bubble_events = True
+wheel_zone.bubble_events = True
 
 
 async def on_wheel(event: DomEvent) -> None:
@@ -568,7 +568,7 @@ pointer_zone = Div(
     ),
     container=[pointer_readout],
 )
-pointer_zone._bubble_events = True
+pointer_zone.bubble_events = True
 
 
 async def on_pointer_move(event: DomEvent) -> None:
@@ -701,7 +701,7 @@ drop_zone = Div(
     ),
     container=[drop_hint.build(), drop_list],
 )
-drop_zone._bubble_events = True
+drop_zone.bubble_events = True
 
 
 def fmt_size(size: int) -> str:

@@ -137,7 +137,7 @@ class Component:
     def _wire_root(self, event_type: str) -> None:
         """Attach the source-aware dispatcher to the root element, once
         per type — DOM events targeting the root (or bubbling to it via
-        ``_bubble_events``) then reach the component's callbacks."""
+        ``bubble_events``) then reach the component's callbacks."""
         if event_type not in self._raw_wired:
             self._raw_wired.add(event_type)
             self._root.on(event_type, self._make_handler(event_type))

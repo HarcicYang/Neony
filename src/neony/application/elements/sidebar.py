@@ -79,7 +79,7 @@ class SidebarItem(Component):
             container=self._text_content(),
         )
         # Clicks land on the icon/label spans — bubble them to this item.
-        self._root._bubble_events = True
+        self._root.bubble_events = True
         self._bind(self._root, "click")
         self._bind(self._root, "mouseover")
         self._bind(self._root, "mouseout")

@@ -307,9 +307,9 @@ class Page:
         if self._shortcut_handlers or self._keydown_handlers or self._keyup_handlers:
             # Window-level keys must fire while typing in any input, so
             # keydown/keyup anywhere in the tree bubbles to the root
-            # (opt-in bubbling via `_bubble_events`); the root's own
+            # (opt-in bubbling via `bubble_events`); the root's own
             # keydowns match too.
-            root._bubble_events = True
+            root.bubble_events = True
             if self._shortcut_handlers:
                 root.on("keydown", self._dispatch_shortcuts)
             if self._keydown_handlers:

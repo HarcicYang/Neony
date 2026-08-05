@@ -35,7 +35,6 @@ async def main():
         height=640,
         devtools=True,
     )
-    title = await win.eval_js("document.title")
     print(f"Page title: {title}")
 
 
