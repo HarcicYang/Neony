@@ -1,0 +1,74 @@
+# git-cliff configuration — changelog generation from Conventional Commits.
+#
+# Used by .github/workflows/packaging.yml (tag push → release): generates
+# CHANGELOG.md entries and the GitHub Release description.
+#
+# Local preview:
+#   git cliff --tag vX.Y.Z --unreleased        # full section, with date
+#   git cliff --unreleased --strip all         # bare body (release notes)
+#
+# Reference: https://git-cliff.org/docs/configuration
+
+[changelog]
+# Keep this in sync with the first line of CHANGELOG.md — prepend mode
+# preserves the existing header and inserts new sections after it.
+header = "# Changelog\n\n"
+
+# Body template: version heading, then commits grouped by type with
+# scope in backticks.
+body = """{% if version %}## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% endif %}{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}
+- {% if commit.scope %}`{{ commit.scope }}`: {% endif %}{{ commit.message | upper_first }}
+{%- endfor %}
+{% endfor %}
+"""
+
+trim = true
+footer = ""
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+commit_preprocessors = []
+tag_pattern = "v[0-9]*"
+skip_tags = ""
+topo_order = false
+sort_commits = "oldest"
+
+[[git.commit_parsers]]
+message = "^feat"
+group = "Features"
+
+[[git.commit_parsers]]
+message = "^fix"
+group = "Bug Fixes"
+
+[[git.commit_parsers]]
+message = "^perf"
+group = "Performance"
+
+[[git.commit_parsers]]
+message = "^refactor"
+group = "Refactoring"
+
+[[git.commit_parsers]]
+message = "^docs"
+group = "Documentation"
+
+[[git.commit_parsers]]
+message = "^(chore|build|ci|style|test|revert)"
+group = "Other"
+
+# The release workflow's own "chore(changelog): update for vX.Y.Z" commit
+# must not show up in the next release's changelog.
+[[git.commit_parsers]]
+message = "^chore\\(changelog\\)"
+skip = true
+
+# Catch-all fallback.
+[[git.commit_parsers]]
+message = ".*"
+group = "Other"

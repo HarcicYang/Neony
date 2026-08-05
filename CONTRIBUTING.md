@@ -95,8 +95,12 @@ uv run pyrefly check                # type check
    the patterns).
 3. **Update docs** — README (both languages) when behaviour changes
    visibly; `docs/api.en.md` / `docs/api.zh.md` for API changes.
-4. **Update the changelog** — add an entry under the unreleased section
-   in `CHANGELOG.md`.
+4. **Follow Conventional Commits** — prefix commits with a type and
+   optional scope: `feat(scope):`, `fix(scope):`, `perf(scope):`,
+   `refactor(scope):`, `docs:`, `chore:`, ... The changelog
+   (`CHANGELOG.md`) and GitHub release description are generated
+   automatically from commit messages by git-cliff on each `v*` tag
+   push — no manual changelog editing.
 
 ## Pull request workflow
 

@@ -1,67 +1,48 @@
 """``NeonApplication.clipboard_write`` / ``clipboard_read`` — clipboard
-access that works across backends.
+access via the pyclip backend.
 
-Write uses the synchronous ``execCommand('copy')`` path (hidden
-textarea) plus a fire-and-forget ``navigator.clipboard.writeText()``;
-read runs the async read in-page into a global and polls it from
-Python, since the webview bridge may not await JS promises.
+Both methods lazy-load pyclip on first use (``_load_pyclip``) and run
+the synchronous ``pyclip.copy`` / ``pyclip.paste`` calls in a worker
+thread, so the event loop never blocks on the clipboard.  The tests
+fake the clipboard module and never touch the real system clipboard.
 """
 
 import asyncio
-from typing import Any, cast
+import sys
+from typing import Any
 
 import pytest
 
 from neony.application import Config, NeonApplication
-from neony.application.app import _Entry
-from neony.dom import Div
-from neony.dom.bridge import Neony
+from neony.application import app as app_module
 
 
-class FakeWindow:
-    """Fake lumiview Window: records eval_js scripts and serves canned
-    responses — the poll script returns the next queue item ('' while
-    the async read hasn't landed); ``err_result`` simulates a bridge
-    returning a failure."""
+class _FakeClip:
+    """Stand-in for the pyclip module: records calls, serves canned
+    results, and can be told to raise on copy/paste."""
 
-    def __init__(self) -> None:
-        self.scripts: list[str] = []
-        self.poll_queue: list[str] = []
-        self.err_result: str | None = None
+    def __init__(self, paste_result: Any = b"") -> None:
+        self.copy_calls: list[str] = []
+        self.paste_result: Any = paste_result
+        self.copy_error: BaseException | None = None
+        self.paste_error: BaseException | None = None
 
-    async def eval_js(self, script: str) -> str:
-        self.scripts.append(script)
-        if self.err_result is not None:
-            return self.err_result
-        # Only the short poll script hits the queue — the starter script
-        # (which also mentions the global) returns 'started'.
-        if script == "window.__neony_clip_read || ''":
-            return self.poll_queue.pop(0) if self.poll_queue else ""
-        if "execCommand" in script:
-            return "ok"
-        return "started"
+    def copy(self, text: str) -> None:
+        if self.copy_error is not None:
+            raise self.copy_error
+        self.copy_calls.append(text)
+
+    def paste(self) -> Any:
+        if self.paste_error is not None:
+            raise self.paste_error
+        return self.paste_result
 
 
-def _app_with_window(window_index: int = 1) -> NeonApplication:
+def _app(clip: _FakeClip | None = None) -> NeonApplication:
     app = NeonApplication(Config())
-    for _ in range(window_index):
-        entry = _Entry(Neony(name="neony"), Div())
-        entry.window = cast(Any, FakeWindow())
-        app._entries.append(entry)
+    if clip is not None:
+        app._clip = clip
     return app
-
-
-def _run(app: NeonApplication, monkeypatch: pytest.MonkeyPatch, method: str, *args) -> tuple[list[FakeWindow], Any]:
-    monkeypatch.setattr(
-        "neony.application.app.App.get",
-        classmethod(lambda cls: type("Fake", (), {"call_on_main": None})),
-    )
-    result = asyncio.run(getattr(app, method)(*args))
-    return [cast_any(e.window) for e in app._entries], result
-
-
-def cast_any(win: object) -> FakeWindow:
-    return cast(FakeWindow, win)
 
 
 class TestJsResultValue:
@@ -91,149 +72,89 @@ class TestJsResultValue:
         assert self._decode('""') == ""
 
 
-class TestClipboardAPI:
-    def test_write_uses_sync_execcommand_path(self, monkeypatch: pytest.MonkeyPatch):
-        app = _app_with_window(1)
+class TestClipboardBackend:
+    """clipboard_write / clipboard_read delegate to pyclip in a worker
+    thread — the webview is never involved."""
 
-        _run(app, monkeypatch, "clipboard_write", 'say "hi"\n\x00')
+    def test_write_calls_pyclip_copy_verbatim(self):
+        # Text goes to pyclip unchanged: no JS escaping, no injection.
+        text = 'say "hi"\n\x00'
+        clip = _FakeClip()
 
-        script = cast_any(app._entries[0].window).scripts[0]
-        # The text is JSON-escaped into both the writeText attempt and
-        # the textarea; the synchronous execCommand('copy') decides.
-        assert "execCommand('copy')" in script
-        assert '"say \\"hi\\"\\n\\u0000"' in script
-        assert "navigator.clipboard.writeText" in script
+        asyncio.run(_app(clip).clipboard_write(text))
 
-    def test_write_raises_on_rejected_copy(self, monkeypatch: pytest.MonkeyPatch):
-        app = _app_with_window(1)
-        # Simulate the bridge returning the execCommand result 'ERR:…'
-        cast_any(app._entries[0].window).err_result = "ERR:execCommand copy rejected"
+        assert clip.copy_calls == [text]
 
-        with pytest.raises(RuntimeError, match="clipboard_write failed"):
-            asyncio.run(app.clipboard_write("x"))
+    def test_read_returns_pyclip_paste_result(self):
+        clip = _FakeClip(paste_result="hello")
 
-    def test_read_polls_the_inpage_result(self, monkeypatch: pytest.MonkeyPatch):
-        app = _app_with_window(1)
-        win = cast_any(app._entries[0].window)
-        # First poll: the async read hasn't landed yet (''); second: OK.
-        win.poll_queue = ["", "OK\x01hello"]
-
-        _wins, result = _run(app, monkeypatch, "clipboard_read")
+        result = asyncio.run(_app(clip).clipboard_read())
 
         assert result == "hello"
-        assert "readText" in win.scripts[0]
 
-    def test_read_raises_on_backend_error(self, monkeypatch: pytest.MonkeyPatch):
-        from neony.application import app as app_module
+    def test_read_passes_bytes_through(self):
+        # paste may return bytes on some platforms — passed through as-is.
+        clip = _FakeClip(paste_result=b"raw bytes")
 
-        app = _app_with_window(1)
-        cast_any(app._entries[0].window).poll_queue = ["ERR\x01NotAllowedError"]
-        # The Linux fallback must not mask the error in this test.
-        monkeypatch.setattr(app_module, "_os_clipboard_read", lambda: None)
+        result = asyncio.run(_app(clip).clipboard_read())
 
-        with pytest.raises(RuntimeError, match="NotAllowedError"):
-            asyncio.run(app.clipboard_read())
+        assert result == b"raw bytes"
 
-    def test_read_times_out_without_result(self, monkeypatch: pytest.MonkeyPatch):
-        app = _app_with_window(1)
-        # Every poll returns '' — the async read never lands.
-        cast_any(app._entries[0].window).poll_queue = []
+    def test_copy_error_propagates(self):
+        clip = _FakeClip()
+        clip.copy_error = RuntimeError("clipboard is busy")
 
-        async def no_sleep(_delay: float) -> None:
-            return None
+        with pytest.raises(RuntimeError, match="clipboard is busy"):
+            asyncio.run(_app(clip).clipboard_write("x"))
 
-        monkeypatch.setattr("neony.application.app.asyncio.sleep", no_sleep)
+    def test_paste_error_propagates(self):
+        clip = _FakeClip()
+        clip.paste_error = OSError("no clipboard available")
 
-        with pytest.raises(RuntimeError, match="timed out"):
-            asyncio.run(app.clipboard_read())
+        with pytest.raises(OSError, match="no clipboard"):
+            asyncio.run(_app(clip).clipboard_read())
 
-    def test_write_requires_created_window(self, monkeypatch: pytest.MonkeyPatch):
+
+class TestLazyPyclipLoad:
+    """_clip starts None; the pyclip module is imported on first use and
+    cached for subsequent calls."""
+
+    def test_load_pyclip_imports_and_caches(self, monkeypatch: pytest.MonkeyPatch):
         app = NeonApplication(Config())
+        assert app._clip is None
+
+        fake = _FakeClip()
+        monkeypatch.setitem(sys.modules, "pyclip", fake)
+
+        app._load_pyclip()
+
+        assert app._clip is fake
+
+    def test_first_use_loads_once_and_caches(self, monkeypatch: pytest.MonkeyPatch):
+        app = NeonApplication(Config())
+        fake = _FakeClip()
+        loads: list[int] = []
+
+        def fake_load(self: NeonApplication) -> None:
+            loads.append(1)
+            self._clip = fake
+
+        monkeypatch.setattr(app_module.NeonApplication, "_load_pyclip", fake_load)
+
+        asyncio.run(app.clipboard_write("first"))
+        asyncio.run(app.clipboard_write("second"))
+
+        # Loaded exactly once — the second call found _clip already set.
+        assert loads == [1]
+        assert fake.copy_calls == ["first", "second"]
+
+    def test_read_lazy_loads_too(self, monkeypatch: pytest.MonkeyPatch):
+        app = NeonApplication(Config())
+        fake = _FakeClip(paste_result="hi")
         monkeypatch.setattr(
-            "neony.application.app.App.get",
-            classmethod(lambda cls: type("Fake", (), {"call_on_main": None})),
+            app_module.NeonApplication, "_load_pyclip", lambda self: setattr(self, "_clip", fake)
         )
 
-        with pytest.raises(RuntimeError, match="window not created yet"):
-            asyncio.run(app.clipboard_write("x"))
+        result = asyncio.run(app.clipboard_read())
 
-
-class TestOsClipboardFallback:
-    """Linux fallback in clipboard_read: the OS clipboard tool
-    (wl-paste on Wayland, xclip on X11) replaces the missing
-    navigator.clipboard.readText on WebKitGTK."""
-
-    def test_read_falls_back_to_os_tool(self, monkeypatch: pytest.MonkeyPatch):
-        from neony.application import app as app_module
-
-        app = _app_with_window(1)
-        cast_any(app._entries[0].window).poll_queue = ["ERR\x01clipboard API unavailable"]
-        monkeypatch.setattr(app_module, "_os_clipboard_read", lambda: "from-wl-paste")
-
-        _wins, result = _run(app, monkeypatch, "clipboard_read")
-
-        assert result == "from-wl-paste"
-
-    def test_read_keeps_error_when_os_tool_missing(self, monkeypatch: pytest.MonkeyPatch):
-        from neony.application import app as app_module
-
-        app = _app_with_window(1)
-        cast_any(app._entries[0].window).poll_queue = ["ERR\x01clipboard API unavailable"]
-        monkeypatch.setattr(app_module, "_os_clipboard_read", lambda: None)
-
-        with pytest.raises(RuntimeError, match="clipboard API unavailable"):
-            _run(app, monkeypatch, "clipboard_read")
-
-    def test_os_read_uses_wl_paste_on_wayland(self, monkeypatch: pytest.MonkeyPatch):
-        from types import SimpleNamespace
-
-        from neony.application import app as app_module
-
-        monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-1")
-        monkeypatch.delenv("DISPLAY", raising=False)
-        monkeypatch.setattr("shutil.which", lambda tool: f"/usr/bin/{tool}")
-        calls: list[list[str]] = []
-
-        def fake_run(args: list[str], **kwargs) -> SimpleNamespace:
-            calls.append(args)
-            return SimpleNamespace(returncode=0, stdout=b"hello")
-
-        monkeypatch.setattr("subprocess.run", fake_run)
-
-        assert app_module._os_clipboard_read() == "hello"
-        assert calls == [["wl-paste", "--no-newline"]]
-
-    def test_os_read_uses_xclip_on_x11(self, monkeypatch: pytest.MonkeyPatch):
-        from types import SimpleNamespace
-
-        from neony.application import app as app_module
-
-        monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
-        monkeypatch.setenv("DISPLAY", ":0")
-        monkeypatch.setattr("shutil.which", lambda tool: f"/usr/bin/{tool}")
-        calls: list[list[str]] = []
-
-        def fake_run(args: list[str], **kwargs) -> SimpleNamespace:
-            calls.append(args)
-            return SimpleNamespace(returncode=0, stdout=b"hello")
-
-        monkeypatch.setattr("subprocess.run", fake_run)
-
-        assert app_module._os_clipboard_read() == "hello"
-        assert calls == [["xclip", "-selection", "clipboard", "-o"]]
-
-    def test_os_read_returns_none_when_tool_fails(self, monkeypatch: pytest.MonkeyPatch):
-        import subprocess
-
-        from neony.application import app as app_module
-
-        monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-1")
-        monkeypatch.delenv("DISPLAY", raising=False)
-        monkeypatch.setattr("shutil.which", lambda tool: f"/usr/bin/{tool}")
-
-        def fake_run(args: list[str], **kwargs):
-            raise subprocess.TimeoutExpired(args, 2.0)
-
-        monkeypatch.setattr("subprocess.run", fake_run)
-
-        assert app_module._os_clipboard_read() is None
+        assert result == "hi"
