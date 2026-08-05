@@ -1,8 +1,10 @@
 """Automatic platform materials for transparent windows.
 
 ``WindowConfig.transparent=True`` gets the platform's native frosted
-effect applied at window creation: Acrylic on Windows, Blur on macOS
-(Linux/GTK has no system material).  Failures are logged, never fatal.
+effect applied at window creation: Acrylic on Windows, Blur on macOS,
+and on Linux a compositor blur via the Wayland
+``ext-background-effect-v1`` protocol (KWin).  Failures are logged,
+never fatal.
 """
 
 import asyncio
@@ -63,7 +65,26 @@ class TestTransparentEffects:
         win = _apply(monkeypatch, "darwin")
         assert win.effects == [(WindowEffect.Blur, None)]
 
-    def test_linux_transparent_applies_nothing(self, monkeypatch: pytest.MonkeyPatch):
+    def test_linux_transparent_requests_wayland_blur(self, monkeypatch: pytest.MonkeyPatch):
+        calls: list[object] = []
+        monkeypatch.setattr(
+            "neony.application._linux_blur.apply_wayland_blur",
+            lambda window: calls.append(window) or True,
+        )
+
+        win = _apply(monkeypatch, "linux")
+
+        # The compositor blur path is used; no lumiview effect is applied.
+        assert calls == [win]
+        assert win.effects == []
+
+    def test_linux_blur_failure_is_not_fatal(self, monkeypatch: pytest.MonkeyPatch):
+        def boom(_window: object) -> bool:
+            raise RuntimeError("no compositor")
+
+        monkeypatch.setattr("neony.application._linux_blur.apply_wayland_blur", boom)
+
+        # Must not raise — the window keeps working without the blur.
         win = _apply(monkeypatch, "linux")
         assert win.effects == []
 

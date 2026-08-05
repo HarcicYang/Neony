@@ -4,8 +4,12 @@
 A small, always-on-top, frameless window (360x280) with a fully
 transparent background.  ``transparent=True`` automatically applies the
 platform's native frosted material behind the window — Acrylic on
-Windows, Blur on macOS (Linux/GTK has none).  The whole panel is a drag
-region and the close button uses the built-in window action.
+Windows, Blur on macOS, and on Linux the compositor's background blur
+via the Wayland ``ext-background-effect-v1`` protocol (KWin;
+compositors with their own blur for transparent windows, like
+Hyprland, keep their default blur instead).  The whole
+panel is a drag region and the close button uses the built-in window
+action.
 
 Usage:
     python demo_transparent_panel.py

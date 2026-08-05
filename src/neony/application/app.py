@@ -22,8 +22,9 @@ from neony.dom.bridge import Neony
 
 # Transparent windows get their platform's frosted material applied
 # automatically — Acrylic on Windows, Blur on macOS (lumiview's native
-# window-background materials; see ``apply_effect``).  Linux/GTK has no
-# system effect, so nothing is applied there.
+# window-background materials; see ``apply_effect``).  Linux is handled
+# separately in ``_apply_transparent_effect`` via the Wayland
+# ``ext-background-effect-v1`` compositor protocol.
 _TRANSPARENT_EFFECTS: dict[str, WindowEffect] = {
     "win32": WindowEffect.Acrylic,
     "darwin": WindowEffect.Blur,
@@ -343,19 +344,31 @@ class NeonApplication(Generic[_S]):
         on Windows that reads as black glass without a material, and on
         macOS as plain alpha.  Apply the platform's native effect so the
         transparency actually looks frosted — Acrylic on Windows, Blur
-        on macOS (see ``_TRANSPARENT_EFFECTS``).  Linux/GTK has no
-        system material, so nothing is applied.  A failure is logged,
-        never fatal: the window keeps working, just without the effect.
+        on macOS (see ``_TRANSPARENT_EFFECTS``).  On Linux the
+        compositor blurs the desktop behind the window via the Wayland
+        ``ext-background-effect-v1`` protocol where supported (KWin);
+        compositors with their own blur for transparent windows
+        (Hyprland) keep that default blur untouched.  Elsewhere the
+        window stays transparent without a blur.  A failure is logged,
+        never fatal: the window keeps working, just without the
+        effect.
         """
         if not self.config.window.transparent:
             return
-        effect = _TRANSPARENT_EFFECTS.get(sys.platform)
-        if effect is None:
+        if sys.platform == "linux":
+            from neony.application._linux_blur import apply_wayland_blur
+
+            try:
+                await App.get().call_on_main(apply_wayland_blur, window)
+            except Exception:
+                logging.getLogger("neony.app").exception("Wayland blur failed")
             return
-        try:
-            await App.get().call_on_main(window.apply_effect, effect, None)
-        except Exception:
-            logging.getLogger("neony.app").exception(f"apply_effect({effect}) failed on {sys.platform}")
+        effect = _TRANSPARENT_EFFECTS.get(sys.platform)
+        if effect is not None:
+            try:
+                await App.get().call_on_main(window.apply_effect, effect, None)
+            except Exception:
+                logging.getLogger("neony.app").exception(f"apply_effect({effect}) failed on {sys.platform}")
 
     # ---- background image ----
 
