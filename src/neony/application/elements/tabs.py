@@ -32,7 +32,7 @@ _PANEL_BASE = Styles(
     gap="16px",
     padding="24px",
     background_color=Color(var="--color-surface"),
-    border_radius="0 8px 8px 8px",
+    border_radius="8px",
     width="100%",
 )
 
