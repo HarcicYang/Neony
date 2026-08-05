@@ -2,7 +2,7 @@
 
 Reactive desktop UI framework for Python, built on [LumiView](https://github.com/xiaosuawa/lumiview).
 
-[![License: LGPL-3.0](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#)
 
@@ -178,4 +178,4 @@ npm test                          # run the JS test suite (vitest)
 
 ## License
 
-[LGPL-3.0-or-later](LICENSE) © HarcicYang
+[Apache-2.0](LICENSE) © HarcicYang

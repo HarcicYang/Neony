@@ -111,5 +111,5 @@ uv run pyrefly check                # 类型检查
 
 ## 许可证
 
-提交贡献即表示你同意你的工作在项目的 [LGPL-3.0-or-later](LICENSE)
+提交贡献即表示你同意你的工作在项目的 [Apache-2.0](LICENSE)
 许可下发布。

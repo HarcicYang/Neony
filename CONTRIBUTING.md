@@ -128,4 +128,4 @@ welcome, but be explicit about what you verified.
 ## License
 
 By contributing you agree that your work is licensed under the project's
-[LGPL-3.0-or-later](LICENSE).
+[Apache-2.0](LICENSE).

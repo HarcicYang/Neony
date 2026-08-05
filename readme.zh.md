@@ -2,7 +2,7 @@
 
 基于 [LumiView](https://github.com/xiaosuawa/lumiview) 的响应式桌面 UI 框架。
 
-[![License: LGPL-3.0](https://img.shields.io/badge/license-LGPL--3.0-blue.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#)
 
@@ -172,4 +172,4 @@ npm test                          # 运行 JS 测试(vitest)
 
 ## 许可证
 
-[LGPL-3.0-or-later](LICENSE) © HarcicYang
+[Apache-2.0](LICENSE) © HarcicYang

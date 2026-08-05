@@ -7,8 +7,9 @@ app = App(name="HelloLumiView")
 
 
 async def main():
-    win = await Window.create(
-        title="Hello LumiView!",
+    title = "Hello LumiView!"
+    await Window.create(
+        title=title,
         html=Html(
             container=[
                 Body(
