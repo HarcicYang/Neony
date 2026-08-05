@@ -37,6 +37,9 @@ _DOM_EVENTS = frozenset(
         "mousedown",
         "mouseup",
         "pointermove",
+        "transitionend",
+        "animationstart",
+        "animationend",
         "wheel",
         "paste",
         "copy",
@@ -171,6 +174,15 @@ class Component:
 
     def on_pointermove(self, fn: Callable[..., Any]) -> Self:
         return self.on("pointermove", fn)
+
+    def on_transitionend(self, fn: Callable[..., Any]) -> Self:
+        return self.on("transitionend", fn)
+
+    def on_animationstart(self, fn: Callable[..., Any]) -> Self:
+        return self.on("animationstart", fn)
+
+    def on_animationend(self, fn: Callable[..., Any]) -> Self:
+        return self.on("animationend", fn)
 
     def on_contextmenu(self, fn: Callable[..., Any]) -> Self:
         return self.on("contextmenu", fn)

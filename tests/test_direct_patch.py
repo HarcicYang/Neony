@@ -320,3 +320,29 @@ class TestStyleDirectPatch:
         msg = asyncio.run(run())
         assert msg["rev"] == 2
         assert msg["ops"][0]["op"] == "update_styles"
+
+
+class TestAnimationDirectPatch:
+    """Animation style changes take the same direct-patch fast path."""
+
+    def test_animation_change_uses_direct_patch(self):
+        """Changing only the animation style emits update_styles — no
+        serialization, no diff engine."""
+        from neony.dom import Animation
+
+        div = Div(key="d", container=["x"])
+        app, fake, _ = _build_app(div)
+
+        async def run() -> dict:
+            await app.render()  # mount (rev 1)
+            div.styles.animation = Animation(name="fade", duration="0.5s")
+            patcher, calls = _spy_to_node()
+            with patcher:
+                await app.render()
+                assert calls == []  # fast path — no serialization
+            return fake.patches[-1]
+
+        msg = asyncio.run(run())
+        assert msg["rev"] == 2
+        assert [op["op"] for op in msg["ops"]] == ["update_styles"]
+        assert msg["ops"][0]["set"] == {"animation": "fade 0.5s ease"}

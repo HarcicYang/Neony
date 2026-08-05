@@ -9,7 +9,7 @@ import logging
 import sys
 from collections.abc import Callable
 from types import SimpleNamespace
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, Generic, Self, TypeVar, cast
 
 from lumiview import App, Bridge, Window, WindowEffect, WindowHookEvent
 from wryview import DragDropEvent
@@ -17,7 +17,7 @@ from wryview import DragDropEvent
 from neony.application.config import Config
 from neony.application.page import Page
 from neony.application.theme import Theme
-from neony.dom import DOMElement, DomEvent
+from neony.dom import DOMElement, DomEvent, KeyFrame
 from neony.dom.bridge import Neony
 
 # Transparent windows get their platform's frosted material applied
@@ -159,6 +159,9 @@ class NeonApplication(Generic[_S]):
         self.close_handler: Any = None  # optional async callable, run when the app exits
 
         self._clip: object | None = None  # clipboard (pyclip)
+        # Registered @keyframes: name → full CSS text, injected into a
+        # <style id="neony-keyframes"> in every window's <head>.
+        self._keyframes: dict[str, str] = {}
 
     # ---- lifecycle ----
 
@@ -205,6 +208,7 @@ class NeonApplication(Generic[_S]):
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
             await self._inject_theme(entry)
+            await self._inject_keyframes(entry)
             await self._apply_transparent_effect(entry.window)
             await self._wire_close_hook(entry, entry.window)
             await self._wire_focus_hook(entry, entry.window)
@@ -336,6 +340,46 @@ class NeonApplication(Generic[_S]):
             f"if (el) el.textContent = {css!r}; else {{ const s = document.createElement('style'); "
             f"s.id = 'neony-theme'; s.textContent = {css!r}; document.head.appendChild(s); }} "
             f"{body_bg} }})()"
+        )
+        await entry.window.eval_js(js)
+
+    def register_keyframe(self, kf: KeyFrame) -> Self:
+        """Register a :class:`KeyFrame` for injection into every window
+        (chainable).  Registering another KeyFrame with the same name
+        replaces the first (later-wins).  Open windows are updated
+        immediately; windows created later pick it up on startup.
+
+        Usage::
+
+            spin = KeyFrame("spin").set("0%", Props(transform="rotate(0deg)"))
+                                   .set("100%", Props(transform="rotate(360deg)"))
+            app.register_keyframe(spin)
+        """
+        self._keyframes[kf.name] = kf.to_css()
+        for entry in self._entries:
+            if entry.window is not None:
+                # Held in a set so the task isn't garbage-collected mid-run.
+                self._render_tasks.add(asyncio.create_task(self._inject_keyframes(entry)))
+        return self
+
+    async def sync_keyframes(self) -> None:
+        """Re-inject every registered ``@keyframes`` rule into all open
+        windows — call after replacing keyframes at runtime."""
+        for entry in self._entries:
+            if entry.window is not None:
+                await self._inject_keyframes(entry)
+
+    async def _inject_keyframes(self, entry: _Entry) -> None:
+        """Inject all registered ``@keyframes`` CSS into one window's
+        page, creating or updating ``<style id="neony-keyframes">``."""
+        if not self._keyframes:
+            return
+        assert entry.window is not None
+        css = "\n".join(self._keyframes.values())
+        js = (
+            f"(() => {{ const el = document.getElementById('neony-keyframes'); "
+            f"if (el) el.textContent = {css!r}; else {{ const s = document.createElement('style'); "
+            f"s.id = 'neony-keyframes'; s.textContent = {css!r}; document.head.appendChild(s); }} }})()"
         )
         await entry.window.eval_js(js)
 

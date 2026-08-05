@@ -37,6 +37,7 @@
         "keydown", "keyup", "focus", "blur", "contextmenu",
         "mouseover", "mouseout", "mousedown", "mouseup",
         "pointermove",
+        "transitionend", "animationstart", "animationend",
         "wheel", "paste", "copy", "cut",
         "dragover", "dragleave", "drop",
     ];
@@ -119,6 +120,18 @@
             if (event.pointerType !== undefined) {
                 payload.pointer_type = event.pointerType;
             }
+        }
+
+        // CSS transition end — which property finished and how long it
+        // took.  Gate on `propertyName` (only TransitionEvent has it).
+        if (event.propertyName !== undefined) {
+            payload.transition_property = event.propertyName;
+            payload.elapsed_time = event.elapsedTime;
+        }
+        // CSS animation start / end — carries the animation name.
+        if (event.animationName !== undefined) {
+            payload.animation_name = event.animationName;
+            payload.elapsed_time = event.elapsedTime;
         }
 
         // Wheel delta (WheelEvent only).  delta_mode tells the units:

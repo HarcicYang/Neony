@@ -20,7 +20,18 @@ Example::
     print(tree.build())
 """
 
-from .base import Color, DOMElement, DomEvent, NodeDescriptor, Styles, Transition
+from .base import (
+    Animation,
+    Color,
+    DOMElement,
+    DomEvent,
+    KeyFrame,
+    KeyFrameStop,
+    NodeDescriptor,
+    Props,
+    Styles,
+    Transition,
+)
 from .bridge import (
     CreatePatch,
     DiffEngine,
@@ -124,6 +135,7 @@ __all__ = [
     "H5",
     "H6",
     "Anchor",
+    "Animation",
     "Article",
     "Aside",
     "Audio",
@@ -157,6 +169,8 @@ __all__ = [
     "Img",
     "Input",
     "Italic",
+    "KeyFrame",
+    "KeyFrameStop",
     "Label",
     "Legend",
     "Link",
@@ -173,6 +187,7 @@ __all__ = [
     "Paragraph",
     "PatchMessage",
     "Pre",
+    "Props",
     "RemovePatch",
     "ReorderPatch",
     "ReplacePatch",

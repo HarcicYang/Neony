@@ -835,6 +835,71 @@ class TestPointermove:
         assert n == 1, f"expected 1 coalesced patch, got {n}"
 
 
+class TestTransitionHooks:
+    """transitionend / animationstart / animationend carry the CSS
+    property or animation name plus the elapsed time."""
+
+    @staticmethod
+    def _event_app(event_type: str) -> tuple[NeonApplication, FakeWindow, str, list[DomEvent]]:
+        from neony.dom import Div
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        div = Div(key="animated")
+        received: list[DomEvent] = []
+        div.on(event_type, lambda e: received.append(e))
+        _setup_entry(app, div, fake)
+        return app, fake, div.key, received
+
+    def test_transitionend_carries_property_and_time(self):
+        app, _fake, key, received = self._event_app("transitionend")
+
+        asyncio.run(_fire(app, key, "transitionend", None, transition_property="opacity", elapsed_time=0.15))
+
+        assert len(received) == 1
+        evt = received[0]
+        assert evt.transition_property == "opacity"
+        assert evt.elapsed_time == 0.15
+
+    def test_animationend_carries_name_and_time(self):
+        app, _fake, key, received = self._event_app("animationend")
+
+        asyncio.run(_fire(app, key, "animationend", None, animation_name="spin", elapsed_time=2.0))
+
+        assert len(received) == 1
+        evt = received[0]
+        assert evt.animation_name == "spin"
+        assert evt.elapsed_time == 2.0
+
+    def test_animationstart_carries_name(self):
+        app, _fake, key, received = self._event_app("animationstart")
+
+        asyncio.run(_fire(app, key, "animationstart", None, animation_name="spin"))
+
+        assert len(received) == 1
+        evt = received[0]
+        assert evt.animation_name == "spin"
+        assert evt.elapsed_time is None
+
+    def test_transition_fields_default_to_none(self):
+        """Non-transition events carry no transition/animation payload."""
+        from neony.dom import Div
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        div = Div(key="btn")
+        received: list[DomEvent] = []
+        div.on_click(lambda e: received.append(e))
+        _setup_entry(app, div, fake)
+
+        asyncio.run(_fire(app, div.key, "click", None, x=42, y=17))
+
+        evt = received[0]
+        assert evt.transition_property is None
+        assert evt.elapsed_time is None
+        assert evt.animation_name is None
+
+
 class TestReuseGuard:
     """Elements and components cannot be mounted into two trees — the
     framework raises with a clear message instead of silently corrupting
@@ -874,3 +939,31 @@ class TestReuseGuard:
         object.__setattr__(child, "_parent", Div())
         with pytest.raises(RuntimeError, match="not a child of this container"):
             owner.container.remove(child)
+
+
+class TestAnimationStyle:
+    """Animation styles flow through mount and the direct-patch path."""
+
+    def test_animation_style_in_mount_payload(self):
+        """The mount message carries the flattened animation shorthand."""
+        from neony.dom import Animation, Styles
+
+        capture: dict = {}
+
+        class CaptureWindow(FakeWindow):
+            async def eval_js(self, script: str) -> str:
+                capture["script"] = script
+                return super().eval_js(script)
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = CaptureWindow()
+        div = Div(key="d", container=["spin me"], styles=Styles())
+        div.styles.animation = Animation(name="spin", duration="2s", iteration_count="infinite")
+        tree = VStack(div).build()
+        _setup_entry(app, tree, fake)
+
+        async def run() -> None:
+            await app.render()
+
+        asyncio.run(run())
+        assert '"animation":"spin 2s ease infinite"' in capture["script"]

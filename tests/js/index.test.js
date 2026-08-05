@@ -392,3 +392,87 @@ describe("pointermove events", () => {
     expect(payload.pointer_type).toBeUndefined();
   });
 });
+
+describe("transition and animation events", () => {
+  let invoke;
+  let win;
+
+  beforeEach(() => {
+    win = { minimize: vi.fn(), toggleMaximize: vi.fn(), close: vi.fn() };
+    invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { listen, invoke, window: win };
+  });
+
+  function lastPayload() {
+    return invoke.mock.calls.find(([name]) => name === "neony.event")[1];
+  }
+
+  // jsdom has no TransitionEvent/AnimationEvent constructors — build an
+  // Event and define the interface properties, same pattern as the
+  // paste/drop/pointermove tests above.
+  function defineProps(event, props) {
+    for (const [name, value] of Object.entries(props)) {
+      Object.defineProperty(event, name, { value });
+    }
+    return event;
+  }
+
+  it("delegates transitionend with property and elapsed time", () => {
+    mountTree({ key: "box", tag: "div" });
+    const el = document.querySelector("[data-neony-key='box']");
+    el.dispatchEvent(
+      defineProps(new window.Event("transitionend", { bubbles: true }), {
+        propertyName: "opacity",
+        elapsedTime: 0.15,
+      })
+    );
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({
+        event_type: "transitionend",
+        transition_property: "opacity",
+        elapsed_time: 0.15,
+      })
+    );
+  });
+
+  it("delegates animationend with name and elapsed time", () => {
+    mountTree({ key: "box", tag: "div" });
+    const el = document.querySelector("[data-neony-key='box']");
+    el.dispatchEvent(
+      defineProps(new window.Event("animationend", { bubbles: true }), {
+        animationName: "spin",
+        elapsedTime: 2.0,
+      })
+    );
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({
+        event_type: "animationend",
+        animation_name: "spin",
+        elapsed_time: 2.0,
+      })
+    );
+  });
+
+  it("delegates animationstart with name", () => {
+    mountTree({ key: "box", tag: "div" });
+    const el = document.querySelector("[data-neony-key='box']");
+    el.dispatchEvent(
+      defineProps(new window.Event("animationstart", { bubbles: true }), {
+        animationName: "spin",
+      })
+    );
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({ event_type: "animationstart", animation_name: "spin" })
+    );
+  });
+
+  it("omits transition fields on plain events", () => {
+    mountTree({ key: "btn", tag: "button" });
+    const el = document.querySelector("[data-neony-key='btn']");
+    el.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    const payload = lastPayload();
+    expect(payload.transition_property).toBeUndefined();
+    expect(payload.elapsed_time).toBeUndefined();
+    expect(payload.animation_name).toBeUndefined();
+  });
+});

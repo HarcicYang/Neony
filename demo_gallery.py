@@ -38,7 +38,7 @@ from neony.application.elements import (
     TitleBar,
     VStack,
 )
-from neony.dom import Color, Computed, Div, DOMElement, DomEvent, Signal, Styles, effect
+from neony.dom import Animation, Color, Computed, Div, DOMElement, DomEvent, KeyFrame, Props, Signal, Styles, effect
 
 # Frameless + transparent: the gallery gets its own glass TitleBar, and
 # the desktop shows through the frosted chrome.
@@ -607,6 +607,77 @@ div.on_pointermove(lambda e: f"{e.movement_x}, {e.movement_y} — {e.pointer_typ
     pointer_zone,
 )
 
+# ── tab: animations ──────────────────────────────────────────────
+
+# Typed @keyframes — chainable builder; register_keyframe injects the
+# CSS into <style id="neony-keyframes"> in every window (later-wins on
+# name collision).
+spin = KeyFrame("spin").set("0%", Props(transform="rotate(0deg)")).set("100%", Props(transform="rotate(360deg)"))
+app.register_keyframe(spin)
+
+fade_slide = (
+    KeyFrame("fade-slide")
+    .set("0%", Props(opacity=0, transform="translateY(8px)"))
+    .set("100%", Props(opacity=1, transform="translateY(0)"))
+)
+app.register_keyframe(fade_slide)
+
+# Spinner: a border ring spun by the keyframe above.  The Animation
+# model references the KeyFrame by name — the browser resolves the
+# @keyframes block automatically.
+spinner = Div(
+    styles=Styles(
+        width="36px",
+        height="36px",
+        border="3px solid var(--color-border)",
+        border_top="3px solid var(--color-accent)",
+        border_radius="50%",
+        animation=Animation(name="spin", duration="1s", timing="linear", iteration_count="infinite"),
+    )
+)
+spin_state = Text("running", size="12px", role="secondary")
+
+
+async def on_spin_toggle(event: DomEvent) -> None:
+    anim = spinner.styles.animation
+    paused = isinstance(anim, Animation) and anim.play_state == "paused"
+    if isinstance(anim, Animation):
+        spinner.styles.animation = anim.model_copy(update={"play_state": "paused" if not paused else "running"})
+    spin_state.text = "paused" if not paused else "running"
+
+
+spin_toggle = Button("Pause", variant="ghost")
+spin_toggle.on_click(on_spin_toggle)
+
+# A card that plays its enter animation once, on mount.
+enter_card = Div(
+    styles=Styles(
+        border="1px solid var(--color-border)",
+        border_radius="8px",
+        padding="16px",
+        background_color=Color(var="--color-surface"),
+        animation=Animation(name="fade-slide", duration="0.4s", timing="ease-out"),
+    ),
+    container=["Fades + slides in on mount"],
+)
+
+animations_panel = Section(
+    "Animations",
+    "Typed @keyframes: build a KeyFrame with the chainable .set() "
+    "builder, register it once, and reference it from any element's "
+    "Animation model — multi-stop, named, and injected into a global "
+    "<style> like the theme. The spinner loops forever; the card plays "
+    "a one-shot fade-slide on mount. Pause/resume toggles play-state.",
+    """spin = KeyFrame("spin").set("0%", Props(transform="rotate(0deg)"))
+                     .set("100%", Props(transform="rotate(360deg)"))
+app.register_keyframe(spin)
+icon.styles.animation = Animation(name="spin", duration="1s",
+                                  timing="linear",
+                                  iteration_count="infinite")""",
+    HStack(spinner, spin_state, spin_toggle, gap="12px", align="center"),
+    enter_card,
+)
+
 # ── tab: drop ────────────────────────────────────────────────────
 
 drop_hint = Text("Drop files anywhere in this box", role="secondary")
@@ -1133,6 +1204,7 @@ tabs.add("Type", typography_panel)
 tabs.add("Glass", glass_panel)
 tabs.add("Icon", icon_panel)
 tabs.add("Events", events_panel)
+tabs.add("Animations", animations_panel)
 tabs.add("Drop", drop_panel)
 tabs.add("Clipboard", clipboard_panel)
 tabs.add("Shortcuts", shortcuts_panel)
