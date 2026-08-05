@@ -116,33 +116,6 @@ def _clipboard_read_hint(reason: str) -> str:
     return " — the read was rejected; clipboard-read needs a user gesture (call it from a click handler)"
 
 
-def _os_clipboard_read() -> str | None:
-    """Read the clipboard text via the platform's clipboard tool.
-
-    WebKitGTK has no ``navigator.clipboard.readText`` — on Linux the OS
-    tool is the only programmatic read.  ``wl-paste`` (Wayland) and
-    ``xclip`` (X11) are tried in turn; Wayland grants clipboard access to
-    the focused surface only, which a click-driven read satisfies.
-    Returns ``None`` when no tool is installed or the read fails /
-    comes back empty within 2s.
-    """
-    import os
-    import shutil
-    import subprocess
-
-    for tool, env_var in (("wl-paste", "WAYLAND_DISPLAY"), ("xclip", "DISPLAY")):
-        if not os.environ.get(env_var) or shutil.which(tool) is None:
-            continue
-        try:
-            args = [tool, "--no-newline"] if tool == "wl-paste" else [tool, "-selection", "clipboard", "-o"]
-            out = subprocess.run(args, capture_output=True, timeout=2.0)
-        except (subprocess.SubprocessError, OSError):
-            continue
-        if out.returncode == 0 and out.stdout:
-            return out.stdout.decode("utf-8", "replace")
-    return None
-
-
 def _set_linux_app_name(name: str) -> None:
     """Set the GLib program name so the taskbar shows *name* instead of
     ``python3`` (WM_CLASS defaults to ``argv[0]``; lumiview's
@@ -181,6 +154,8 @@ class NeonApplication(Generic[_S]):
         self.theme: Theme = Theme()
         self.ready_handler: Any = None  # optional async callable, run after windows ready
         self.close_handler: Any = None  # optional async callable, run when the app exits
+
+        self._clip: object | None = None  # clipboard (pyclip)
 
     # ---- lifecycle ----
 
@@ -591,6 +566,11 @@ class NeonApplication(Generic[_S]):
             raise RuntimeError("NeonApplication: window not created yet")
         return window
 
+    def _load_pyclip(self) -> None:
+        import pyclip
+
+        self._clip = pyclip
+
     async def set_title(self, title: str, window_index: int = 0) -> None:
         """Change a window's title (OS taskbar/dock label)."""
         window = self._require_window(window_index)
@@ -691,96 +671,23 @@ class NeonApplication(Generic[_S]):
 
     # ---- clipboard ----
 
-    async def clipboard_write(self, text: str, window_index: int = 0) -> None:
-        """Write *text* to the system clipboard.
-
-        Uses the synchronous ``document.execCommand('copy')`` path (hidden
-        textarea) — it works on WebKitGTK and WebView2 without the async
-        clipboard API, and its result is verifiable — plus a fire-and-forget
-        ``navigator.clipboard.writeText()`` attempt.  Requires transient
-        user activation: call from a click / keypress handler, not a timer.
-        Raises :class:`RuntimeError` when the write was rejected.
+    async def clipboard_write(self, text: str) -> None:
         """
-        import json
-
-        escaped = json.dumps(text)
-        script = (
-            "(function () {"
-            "  if (navigator.clipboard && navigator.clipboard.writeText) {"
-            "    navigator.clipboard.writeText(" + escaped + ").catch(function () {});"
-            "  }"
-            "  try {"
-            "    var ta = document.createElement('textarea');"
-            "    ta.value = " + escaped + ";"
-            "    ta.style.position = 'fixed'; ta.style.left = '-9999px'; ta.style.top = '0';"
-            "    document.body.appendChild(ta);"
-            "    ta.focus(); ta.select();"
-            "    var ok = document.execCommand('copy');"
-            "    document.body.removeChild(ta);"
-            "    return ok ? 'ok' : 'ERR:execCommand copy rejected';"
-            "  } catch (e) { return 'ERR:' + (e && e.message || e); }"
-            "})()"
-        )
-        result = _js_result_value(await self._require_window(window_index).eval_js(script))
-        if isinstance(result, str) and result.startswith("ERR:"):
-            raise RuntimeError(f"clipboard_write failed: {result[4:]}")
-
-    async def clipboard_read(self, window_index: int = 0) -> str:
-        """Read text from the system clipboard and return it.
-
-        Runs the async read in-page (the value lands in a page global)
-        and polls it from Python, because the webview bridge may not
-        await JS promises.  Requires transient user activation (a click /
-        keypress handler, not a timer).  On Linux, when the in-page read
-        is rejected (WebKitGTK has no ``readText``), falls back to the
-        OS clipboard tool (``wl-paste`` on Wayland, ``xclip`` on X11) —
-        which works from a click handler because the window is focused.
-        Raises :class:`RuntimeError` when every path failed or timed out.
+        Write *text* to the system clipboard.
         """
-        window = self._require_window(window_index)
-        await window.eval_js(
-            "(function () {"
-            "  try {"
-            "    if (navigator.clipboard && navigator.clipboard.readText) {"
-            "      navigator.clipboard.readText().then("
-            "        function (t) { window.__neony_clip_read = 'OK' + '\\u0001' + t; },"
-            "        function (e) {"
-            "          var reason = e && (e.name || e.message) || String(e);"
-            "          window.__neony_clip_read = 'ERR' + '\\u0001' + reason;"
-            "        }"
-            "      );"
-            "    } else {"
-            "      window.__neony_clip_read = 'ERR' + '\\u0001' + 'clipboard API unavailable';"
-            "    }"
-            "  } catch (e) {"
-            "    window.__neony_clip_read = 'ERR' + '\\u0001' + e;"
-            "  }"
-            "  return 'started';"
-            "})()"
-        )
-        import asyncio
+        if self._clip is None:
+            self._load_pyclip()
 
-        for _ in range(50):  # ~2.5s for the async read to land
-            await asyncio.sleep(0.05)
-            # JSON-encoded result — decode before parsing the separator.
-            raw = _js_result_value(await window.eval_js("window.__neony_clip_read || ''"))
-            if not raw:
-                continue
-            # 'OK' / 'ERR' + \x01 + payload (see the script above).
-            kind, _, value = raw.partition("\x01")
-            if kind == "OK":
-                return value
-            reason = value or "unknown error"
-            # WebKitGTK has no readText — the OS clipboard tool is the
-            # only programmatic read on Linux (the window is focused,
-            # which is what Wayland requires).
-            if sys.platform == "linux":
-                os_text = _os_clipboard_read()
-                if os_text is not None:
-                    return os_text
-            hint = _clipboard_read_hint(reason)
-            raise RuntimeError(f"clipboard_read failed: {reason}{hint}")
-        raise RuntimeError("clipboard_read timed out — the async clipboard API may be unavailable")
+        await asyncio.to_thread(self._clip.copy, text)  # type: ignore
+
+    async def clipboard_read(self) -> bytes | str:
+        """
+        Read text from the system clipboard and return it.
+        """
+        if self._clip is None:
+            self._load_pyclip()
+
+        return await asyncio.to_thread(self._clip.paste)  # type: ignore
 
 
 def launch(

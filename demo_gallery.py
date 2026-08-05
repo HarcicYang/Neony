@@ -717,7 +717,6 @@ async def on_copy_click(event: DomEvent) -> None:
         clip_log_line(f"clipboard_write() failed: {exc}")
         return
     clip_line.container = ['wrote "Neony wrote this from Python!"']
-    clip_log_line("clipboard_write() — verified via execCommand")
 
 
 async def on_read_click(event: DomEvent) -> None:
@@ -728,7 +727,6 @@ async def on_read_click(event: DomEvent) -> None:
         clip_log_line(f"clipboard_read() failed: {exc}")
         return
     clip_line.container = [f"read: {text!r}"]
-    clip_log_line("clipboard_read() — needs a user gesture")
 
 
 copy_btn.on_click(on_copy_click)
@@ -736,19 +734,11 @@ read_btn.on_click(on_read_click)
 
 clipboard_panel = Section(
     "Clipboard",
-    "Paste into the field and the clipboard contents reach Python via "
-    "the paste event (plain text + HTML, when the backend exposes it). "
-    "Ctrl+C / Ctrl+X in the field fire copy/cut notifications. The "
-    "buttons drive the system clipboard directly — writes use the "
-    "synchronous execCommand path with an async clipboard attempt; "
-    "reads poll the in-page async result, falling back to the OS "
-    "clipboard tool (wl-paste / xclip) on Linux, where WebKitGTK "
-    "has no readText. Both need a user gesture (a click is one), "
-    "like the browser.",
+    """APIs for clipboard is impled in the backend to avoid the need of user gesture""",
     """inp.on_paste(lambda e: print(e.clipboard_text, e.clipboard_html))
 inp.on_copy(lambda e: print("copy"))
-await app.clipboard_write("hello")   # needs a gesture (a click is one)
-text = await app.clipboard_read()    # needs a gesture too""",
+await app.clipboard_write("hello")
+text = await app.clipboard_read()""",
     paste_input,
     clip_line,
     HStack(copy_btn, read_btn, gap="8px"),
