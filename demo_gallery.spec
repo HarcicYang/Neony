@@ -33,8 +33,8 @@ binaries = collect_dynamic_libs("lumiview") + collect_dynamic_libs("wryview")
 # Lazy-imported lumiview internals that static analysis cannot see.
 hiddenimports = [
     "lumiview.plugins.window_controls",
-    "lumiview._events",
-    "lumiview._task",
+    "lumiview.events",
+    "lumiview.task",
 ]
 
 a = Analysis(

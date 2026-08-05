@@ -131,8 +131,8 @@ jobs:
             --onefile \
             --assume-yes-for-downloads \
             --include-package-data=neony \
-            --include-module=lumiview._events \
-            --include-module=lumiview._task \
+            --include-module=lumiview.events \
+            --include-module=lumiview.task \
             --include-module=lumiview.plugins.window_controls \
             demo_gallery.py
 
