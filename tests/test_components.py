@@ -1,7 +1,7 @@
 """Test the component library: build, state, events, theming."""
 
 from neony.application import Page, Theme
-from neony.application.elements import Button, Checkbox, Input, Tabs, Text, VStack
+from neony.application.elements import Button, Checkbox, Input, SidebarItem, Tabs, Text, VStack
 from neony.dom import DomEvent, NodeDescriptor
 
 
@@ -70,6 +70,38 @@ class TestComponentBuild:
         bar = node.children[0]
         assert bar.children[0].styles["background-color"] == "var(--color-accent)"
         assert bar.children[1].styles["background-color"] == "var(--color-surface)"
+
+    def test_tabs_active_panel_animates(self):
+        """The visible panel carries the built-in rise-in animation."""
+        tabs = Tabs()
+        tabs.add("One", Text("p1"))
+        tabs.add("Two", Text("p2"))
+        node = tabs.build().to_node()
+        active_panel, inactive_panel = node.children[1], node.children[2]
+        assert active_panel.styles["display"] == "flex"
+        assert active_panel.styles["animation"] == "neony-rise-in 0.25s ease-out"
+        assert inactive_panel.styles["display"] == "none"
+        assert "animation" not in inactive_panel.styles
+
+    def test_tabs_glass_panel_animates(self):
+        tabs = Tabs(glass=True)
+        tabs.add("One", Text("p1"))
+        node = tabs.build().to_node()
+        panel = node.children[1]
+        assert panel.styles["animation"] == "neony-rise-in 0.25s ease-out"
+
+    def test_tabs_tab_button_transitions(self):
+        tabs = Tabs()
+        tabs.add("One", Text("p1"))
+        node = tabs.build().to_node()
+        tab = node.children[0].children[0]
+        assert tab.styles["transition"] == "all 0.15s ease"
+
+    def test_sidebar_item_transitions(self):
+        """Active-state style swaps interpolate instead of snapping."""
+        item = SidebarItem("Home")
+        node = item.build().to_node()
+        assert node.styles["transition"] == "all 0.15s ease"
 
 
 class TestComponentState:

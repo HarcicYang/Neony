@@ -17,7 +17,7 @@ from wryview import DragDropEvent
 from neony.application.config import Config
 from neony.application.page import Page
 from neony.application.theme import Theme
-from neony.dom import DOMElement, DomEvent, KeyFrame
+from neony.dom import DOMElement, DomEvent, KeyFrame, Props
 from neony.dom.bridge import Neony
 
 # Transparent windows get their platform's frosted material applied
@@ -61,6 +61,17 @@ class _Entry:
 _DEFERRED_EVENTS = frozenset(
     {"mouseover", "mouseout", "focus", "blur", "input", "dragover", "dragleave", "pointermove"}
 )
+
+# Built-in @keyframes injected into every window (like theme variables),
+# so standalone components can reference them by convention name —
+# ``Animation(name="neony-rise-in", ...)``.  User-registered keyframes
+# with the same name override these (later-wins in ``_inject_keyframes``).
+_BUILTIN_KEYFRAMES: list[KeyFrame] = [
+    KeyFrame("neony-rise-in")
+    .set("0%", Props(opacity=0, transform="translateY(8px)"))
+    .set("100%", Props(opacity=1, transform="translateY(0)")),
+    KeyFrame("neony-fade-in").set("0%", Props(opacity=0)).set("100%", Props(opacity=1)),
+]
 
 # User state type: inferred from the ``state=`` constructor argument
 # (dataclass, pydantic model, ...).  Falls back to SimpleNamespace.
@@ -370,12 +381,17 @@ class NeonApplication(Generic[_S]):
                 await self._inject_keyframes(entry)
 
     async def _inject_keyframes(self, entry: _Entry) -> None:
-        """Inject all registered ``@keyframes`` CSS into one window's
-        page, creating or updating ``<style id="neony-keyframes">``."""
-        if not self._keyframes:
+        """Inject all ``@keyframes`` CSS into one window's page, creating
+        or updating ``<style id="neony-keyframes">``.  Built-ins first,
+        then user-registered keyframes (later-wins on name collision)."""
+        css_blocks: dict[str, str] = {}
+        for kf in _BUILTIN_KEYFRAMES:
+            css_blocks[kf.name] = kf.to_css()
+        css_blocks.update(self._keyframes)
+        if not css_blocks:
             return
         assert entry.window is not None
-        css = "\n".join(self._keyframes.values())
+        css = "\n".join(css_blocks.values())
         js = (
             f"(() => {{ const el = document.getElementById('neony-keyframes'); "
             f"if (el) el.textContent = {css!r}; else {{ const s = document.createElement('style'); "

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from neony.dom import Color, Div, DOMElement, DomEvent, Styles
+from neony.dom import Animation, Color, Div, DOMElement, DomEvent, Styles, Transition
 
 from .base import Component
 
@@ -14,6 +14,8 @@ _TAB_BASE = Styles(
     cursor="pointer",
     background_color=Color(var="--color-surface"),
     color=Color(var="--color-text-secondary"),
+    # Smooth the active/inactive background switch.
+    transition=Transition(duration="0.15s", timing="ease"),
 )
 
 _TAB_ACTIVE = _TAB_BASE.model_copy(
@@ -34,7 +36,16 @@ _PANEL_BASE = Styles(
     width="100%",
 )
 
-_PANEL_ACTIVE = _PANEL_BASE.model_copy(update={"display": "flex"})
+# Entering panels fade + slide up from the built-in "neony-rise-in"
+# keyframe (injected by the app with every window).  The switch from
+# _PANEL_BASE (no animation) to _PANEL_ACTIVE changes the animation value,
+# so the browser replays it on every activation.
+_PANEL_ACTIVE = _PANEL_BASE.model_copy(
+    update={
+        "display": "flex",
+        "animation": Animation(name="neony-rise-in", duration="0.25s", timing="ease-out"),
+    }
+)
 
 _GLASS_PANEL_BASE = _PANEL_BASE.model_copy(
     update={
@@ -44,7 +55,12 @@ _GLASS_PANEL_BASE = _PANEL_BASE.model_copy(
     }
 )
 
-_GLASS_PANEL_ACTIVE = _GLASS_PANEL_BASE.model_copy(update={"display": "flex"})
+_GLASS_PANEL_ACTIVE = _GLASS_PANEL_BASE.model_copy(
+    update={
+        "display": "flex",
+        "animation": Animation(name="neony-rise-in", duration="0.25s", timing="ease-out"),
+    }
+)
 
 
 class Tabs(Component):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Self
 
-from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles
+from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles, Transition
 
 from .base import Component
 
@@ -21,6 +21,8 @@ _ITEM_BASE = Styles(
     color=Color(var="--color-text-secondary"),
     # Always-present left border avoids a layout shift on activation.
     border_left="3px solid transparent",
+    # Smooth the active/inactive background + border-color switch.
+    transition=Transition(duration="0.15s", timing="ease"),
 )
 
 _ITEM_ACTIVE = _ITEM_BASE.model_copy(

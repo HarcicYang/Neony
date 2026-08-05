@@ -46,8 +46,9 @@ Planned work, roughly in priority order.
 ## Animation
 
 - [x] **CSS `transition` support** in `Styles` — typed `Transition` descriptor (`property`/`duration`/`timing`/`delay`) or raw shorthand string; also `transform` and `outline` fields.  Existing components' transitions now actually reach the DOM.
+- [x] **Transition hooks** — `transitionend` / `animationstart` / `animationend` delegated events with `transition_property` / `animation_name` / `elapsed_time` payloads.
+- [x] **Typed `@keyframes`** — chainable `KeyFrame(name).set(...)` / `Props` / `Animation` models; `app.register_keyframe()` injects into a global `<style id="neony-keyframes">` (built-in `neony-rise-in` / `neony-fade-in` always injected for components).
 - [ ] **Built-in animated containers**
-- [ ] **Transition hooks**
 
 ## Platform integration
 
