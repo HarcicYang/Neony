@@ -151,9 +151,7 @@ class TestLazyPyclipLoad:
     def test_read_lazy_loads_too(self, monkeypatch: pytest.MonkeyPatch):
         app = NeonApplication(Config())
         fake = _FakeClip(paste_result="hi")
-        monkeypatch.setattr(
-            app_module.NeonApplication, "_load_pyclip", lambda self: setattr(self, "_clip", fake)
-        )
+        monkeypatch.setattr(app_module.NeonApplication, "_load_pyclip", lambda self: setattr(self, "_clip", fake))
 
         result = asyncio.run(app.clipboard_read())
 
