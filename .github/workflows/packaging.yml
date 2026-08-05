@@ -122,7 +122,10 @@ jobs:
           python-version: "3.12"
 
       - run: uv sync --group dev
-      - run: uv pip install nuitka
+      # Nuitka[onefile] pulls in zstandard — without it the onefile
+      # payload is stored uncompressed (Linux was 48 MB vs 13 MB on
+      # win/mac, whose runners happen to ship zstandard).
+      - run: uv pip install "nuitka[onefile]"
 
       - name: Build executable (Nuitka)
         shell: bash

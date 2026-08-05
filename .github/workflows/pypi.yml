@@ -2,7 +2,7 @@ name: PyPi Upload
 
 on:
   release:
-    types: [ created ]
+    types: [created]
 
 jobs:
   deploy:
@@ -21,7 +21,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Build package
         run: uv build
