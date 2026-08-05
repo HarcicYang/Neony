@@ -21,7 +21,7 @@ Planned work, roughly in priority order.
 
 - [x] **Wheel events** — `wheel` in the delegation table, `delta_x` / `delta_y` in the payload (part of the rich event payload batch)
 - [ ] **Scroll events** — `scroll` delegation (high-frequency; would ride the deferred render path)
-- [ ] **Pointer move events** — `pointermove` / `mousemove` for sliders, drawing, tooltip-follow, drag feedback
+- [x] **Pointer move events** — `pointermove` delegated; `event.movement_x` / `event.movement_y` carry the delta since the last event, `event.pointer_type` distinguishes mouse / pen / touch; rides the deferred render path
 - [x] **File drop** — `drop` / `dragover` / `dragleave` delegated; `DomEvent.drop_files` carries `dataTransfer.files` as `[{path, name, size, type}]` (`File.path` works on WebView2 / WebKitGTK, empty on macOS WKWebView); `on_drop()` / `on_dragover()` / `on_dragleave()` on elements and components; the engine `preventDefault()`s dragover/drop so the webview never navigates to the dropped file
 - [ ] **In-app drag reorder** — `dragstart` / `dragover` / `drop`; needs a user hook (via `eval_js` or a future API) to call `dataTransfer.setData(...)`, since the delegate can't know the drag payload
 - [x] **Clipboard events** — `paste` / `copy` / `cut` delegated; paste carries `clipboard_text` / `clipboard_html`, copy/cut are notifications

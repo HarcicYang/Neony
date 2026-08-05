@@ -323,3 +323,72 @@ describe("rich event payload", () => {
     expect(payload.meta_key).toBeUndefined();
   });
 });
+
+describe("pointermove events", () => {
+  let invoke;
+  let win;
+
+  beforeEach(() => {
+    win = { minimize: vi.fn(), toggleMaximize: vi.fn(), close: vi.fn() };
+    invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { listen, invoke, window: win };
+  });
+
+  function lastPayload() {
+    return invoke.mock.calls.find(([name]) => name === "neony.event")[1];
+  }
+
+  // jsdom has no PointerEvent constructor — build a MouseEvent and
+  // define the pointer-only properties, same pattern as the paste/drop
+  // tests above.
+  function pointerMoveEvent(init) {
+    const event = new window.MouseEvent("pointermove", { bubbles: true });
+    Object.defineProperty(event, "clientX", { value: init.clientX });
+    Object.defineProperty(event, "clientY", { value: init.clientY });
+    Object.defineProperty(event, "pointerId", { value: 1 });
+    Object.defineProperty(event, "movementX", { value: init.movementX });
+    Object.defineProperty(event, "movementY", { value: init.movementY });
+    Object.defineProperty(event, "pointerType", { value: init.pointerType });
+    return event;
+  }
+
+  it("delegates pointermove with coordinates, delta and pointer type", () => {
+    mountTree({ key: "drag-area", tag: "div" });
+    const el = document.querySelector("[data-neony-key='drag-area']");
+    el.dispatchEvent(
+      pointerMoveEvent({ clientX: 100, clientY: 200, movementX: 5, movementY: -3, pointerType: "mouse" })
+    );
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({
+        key: "drag-area",
+        event_type: "pointermove",
+        x: 100,
+        y: 200,
+        movement_x: 5,
+        movement_y: -3,
+        pointer_type: "mouse",
+      })
+    );
+  });
+
+  it("carries pointer_type for touch pointers", () => {
+    mountTree({ key: "area", tag: "div" });
+    const el = document.querySelector("[data-neony-key='area']");
+    el.dispatchEvent(
+      pointerMoveEvent({ clientX: 50, clientY: 60, movementX: 1, movementY: 1, pointerType: "touch" })
+    );
+    expect(lastPayload()).toEqual(expect.objectContaining({ pointer_type: "touch" }));
+  });
+
+  it("omits pointer fields on plain mouse events", () => {
+    // movementX exists on plain MouseEvents too (0) — the payload must
+    // not carry movement/type for non-pointer events.
+    mountTree({ key: "btn", tag: "button" });
+    const el = document.querySelector("[data-neony-key='btn']");
+    el.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    const payload = lastPayload();
+    expect(payload.movement_x).toBeUndefined();
+    expect(payload.movement_y).toBeUndefined();
+    expect(payload.pointer_type).toBeUndefined();
+  });
+});

@@ -319,6 +319,15 @@ class DomEvent(BaseModel):
     offset_x: float | None = None
     offset_y: float | None = None
 
+    # Pointer movement delta (PointerEvent) — change in coordinates
+    # since the last pointermove; useful for drag tracking without
+    # manual deltas.
+    movement_x: float | None = None
+    movement_y: float | None = None
+
+    # Pointer type: "mouse", "pen", or "touch" (PointerEvent only).
+    pointer_type: str | None = None
+
     # Wheel delta (WheelEvent).  delta_mode: 0 = pixels, 1 = lines,
     # 2 = pages (WebKitGTK mouse wheels deliver line deltas).
     delta_x: float | None = None
@@ -672,6 +681,12 @@ class DOMElement(BaseModel):
 
     def on_mouseup(self, fn: Callable[..., Any]) -> DOMElement:
         return self.on("mouseup", fn)
+
+    def on_pointermove(self, fn: Callable[..., Any]) -> DOMElement:
+        """Pointer movement — ``event.movement_x`` / ``event.movement_y``
+        carry the delta since the last event; ``event.pointer_type`` is
+        ``"mouse"``, ``"pen"``, or ``"touch"``."""
+        return self.on("pointermove", fn)
 
     def on_contextmenu(self, fn: Callable[..., Any]) -> DOMElement:
         return self.on("contextmenu", fn)

@@ -726,6 +726,115 @@ class TestHandlerIsolation:
         assert calls == ["good"]
 
 
+class TestPointermove:
+    """Pointermove events carry movement deltas and pointer type, and
+    ride the deferred render path (they fire at frame rate)."""
+
+    @staticmethod
+    def _pointermove_app() -> tuple[NeonApplication, FakeWindow, str, list[DomEvent]]:
+        from neony.dom import Div
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        div = Div(key="drag-area", container=["label"])
+        received: list[DomEvent] = []
+
+        def on_move(e: DomEvent) -> None:
+            # Mutate the DOM (like a drag label would), so the deferred
+            # render diff produces a real patch.
+            received.append(e)
+            div.container[0] = f"({e.movement_x}, {e.movement_y})"
+
+        div.on_pointermove(on_move)
+        _setup_entry(app, div, fake)
+        return app, fake, div.key, received
+
+    def test_movement_delta_reaches_handler(self):
+        """movement_x / movement_y / pointer_type flow through to the
+        handler's DomEvent."""
+        app, _fake, key, received = self._pointermove_app()
+
+        asyncio.run(
+            _fire(
+                app,
+                key,
+                "pointermove",
+                x=100,
+                y=200,
+                movement_x=5,
+                movement_y=-3,
+                pointer_type="mouse",
+            )
+        )
+
+        assert len(received) == 1
+        evt = received[0]
+        assert evt.x == 100
+        assert evt.y == 200
+        assert evt.movement_x == 5
+        assert evt.movement_y == -3
+        assert evt.pointer_type == "mouse"
+
+    def test_missing_pointer_fields_default_to_none(self):
+        """Non-pointermove events don't carry movement or pointer_type —
+        the defaults must stay None for backward compatibility."""
+        from neony.dom import Div
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        div = Div(key="btn")
+        received: list[DomEvent] = []
+        div.on_click(lambda e: received.append(e))
+        _setup_entry(app, div, fake)
+
+        asyncio.run(_fire(app, div.key, "click", None, x=42, y=17))
+
+        evt = received[0]
+        assert evt.movement_x is None
+        assert evt.movement_y is None
+        assert evt.pointer_type is None
+
+    def test_pointermove_is_deferred(self):
+        """Pointermove must not render synchronously — it rides the
+        deferred path with one frame of coalescing."""
+        app, fake, key, _received = self._pointermove_app()
+
+        async def run():
+            await app.render()  # mount rev 1
+            await _fire(app, key, "pointermove", None, x=100, y=200, movement_x=1, movement_y=0, pointer_type="mouse")
+            assert fake.patches == [], "pointermove must not render synchronously"
+            await asyncio.sleep(0.05)  # > debounce window (16ms)
+            return len(fake.patches)
+
+        n = asyncio.run(run())
+        assert n == 1, f"expected 1 deferred patch, got {n}"
+
+    def test_pointermove_burst_coalesces(self):
+        """A burst of pointermoves within the debounce window produces
+        exactly one render, not one per event."""
+        app, fake, key, _received = self._pointermove_app()
+
+        async def run():
+            await app.render()  # mount rev 1
+            for i in range(4):
+                await _fire(
+                    app,
+                    key,
+                    "pointermove",
+                    None,
+                    x=100 + i,
+                    y=200 + i,
+                    movement_x=1,
+                    movement_y=1,
+                    pointer_type="mouse",
+                )
+            await asyncio.sleep(0.05)
+            return len(fake.patches)
+
+        n = asyncio.run(run())
+        assert n == 1, f"expected 1 coalesced patch, got {n}"
+
+
 class TestReuseGuard:
     """Elements and components cannot be mounted into two trees — the
     framework raises with a clear message instead of silently corrupting

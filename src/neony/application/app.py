@@ -58,7 +58,9 @@ class _Entry:
 
 # Style-only events: deferred one frame of coalescing so a mouse sweep
 # doesn't trigger a full-tree render per event.
-_DEFERRED_EVENTS = frozenset({"mouseover", "mouseout", "focus", "blur", "input", "dragover", "dragleave"})
+_DEFERRED_EVENTS = frozenset(
+    {"mouseover", "mouseout", "focus", "blur", "input", "dragover", "dragleave", "pointermove"}
+)
 
 # User state type: inferred from the ``state=`` constructor argument
 # (dataclass, pydantic model, ...).  Falls back to SimpleNamespace.

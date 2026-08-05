@@ -548,15 +548,50 @@ async def on_wheel(event: DomEvent) -> None:
 
 wheel_zone.on_wheel(on_wheel)
 
+# Pointer move: live tracking.  movement_x/y are the delta since the
+# last pointermove — no manual position bookkeeping needed — and
+# pointer_type tells mouse / pen / touch apart.  Pointermove rides the
+# deferred render path, so the readout coalesces to one render per
+# frame instead of one per event.
+pointer_readout = Mono()
+pointer_readout.container = ["—"]
+pointer_zone = Div(
+    styles=Styles(
+        border="1px solid var(--color-border)",
+        border_radius="8px",
+        padding="16px",
+        min_height="90px",
+        display="flex",
+        flex_direction="column",
+        gap="8px",
+        justify_content="center",
+    ),
+    container=[pointer_readout],
+)
+pointer_zone._bubble_events = True
+
+
+async def on_pointer_move(event: DomEvent) -> None:
+    pointer_readout.container = [
+        f"({event.x:.0f}, {event.y:.0f})   "
+        f"movement ({event.movement_x:+.0f}, {event.movement_y:+.0f})   "
+        f"{event.pointer_type or '?'}"
+    ]
+
+
+pointer_zone.on_pointermove(on_pointer_move)
+
 events_panel = Section(
     "Rich Events",
     "Every delegated event carries the full payload: modifier keys "
     "(ctrl/shift/alt/meta), viewport and element-relative mouse "
-    "coordinates, and wheel deltas. Click the box, hold modifiers while "
-    "typing, scroll the zone.",
+    "coordinates, wheel deltas, and pointer movement — live delta and "
+    "device type. Click the box, hold modifiers while typing, scroll "
+    "the zone, move the pointer across the bottom box.",
     """div.on_mousedown(lambda e: f"{e.x}, {e.y} — {e.offset_x}, {e.offset_y}")
 div.on_keydown(lambda e: e.ctrl_key or e.meta_key)
-div.on_wheel(lambda e: f"dx: {e.delta_x}  dy: {e.delta_y}")""",
+div.on_wheel(lambda e: f"dx: {e.delta_x}  dy: {e.delta_y}")
+div.on_pointermove(lambda e: f"{e.movement_x}, {e.movement_y} — {e.pointer_type}")""",
     tracker,
     HStack(mod_input, gap="8px"),
     HStack(ctrl_chip, shift_chip, alt_chip, meta_chip, gap="16px"),
@@ -569,6 +604,7 @@ div.on_wheel(lambda e: f"dx: {e.delta_x}  dy: {e.delta_y}")""",
     ),
     wheel_zone,
     wheel_delta,
+    pointer_zone,
 )
 
 # ── tab: drop ────────────────────────────────────────────────────

@@ -36,6 +36,7 @@
         "click", "dblclick", "input", "change", "submit",
         "keydown", "keyup", "focus", "blur", "contextmenu",
         "mouseover", "mouseout", "mousedown", "mouseup",
+        "pointermove",
         "wheel", "paste", "copy", "cut",
         "dragover", "dragleave", "drop",
     ];
@@ -102,6 +103,22 @@
             payload.y = event.clientY;
             payload.offset_x = event.offsetX;
             payload.offset_y = event.offsetY;
+        }
+
+        // Pointer movement delta (PointerEvent).  Gated on pointerId —
+        // the one property only PointerEvents have: movementX exists on
+        // plain MouseEvents too (0), and gating on it would pollute
+        // every click/mousedown payload.  movementX/Y are the change in
+        // coordinates since the last pointermove event.
+        if (event.pointerId !== undefined) {
+            if (event.movementX !== undefined) {
+                payload.movement_x = event.movementX;
+                payload.movement_y = event.movementY;
+            }
+            // Pointer type: "mouse", "pen", or "touch".
+            if (event.pointerType !== undefined) {
+                payload.pointer_type = event.pointerType;
+            }
         }
 
         // Wheel delta (WheelEvent only).  delta_mode tells the units:
