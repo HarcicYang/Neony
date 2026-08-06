@@ -91,6 +91,10 @@ Pydantic 配置模型。`WindowConfig` 负责几何与外观
 无边框窗口没有 OS 装饰——内联图标见 [`TitleBar`](#titlebar) 的 `icon`
 参数，运行时更换见 [`set_icon()`](#neonapplication)。
 
+**`WebViewConfig.default_context_menus`** — 默认关闭：应用自绘菜单
+（`Menu` 组件、`contextmenu` 事件），webview 的原生右键菜单会盖住
+它们。需要平台默认菜单时设为 `True`。
+
 ### `Page`
 
 顶层弹性列容器。两层结构:全屏背景层 + 限宽居中的内容列。
@@ -358,6 +362,68 @@ Progress(label="扫描中…", indeterminate=True)  # 滑动扫掠动画
 圆角轨道 + accent 填充，值变化时宽度过渡
 （`indeterminate=True` 播放内置 `neony-indeterminate` 扫掠动画）。
 条上携带 ARIA `role="progressbar"` + `aria-valuenow/min/max`。
+
+### `Dialog`
+
+```python
+dlg = Dialog(
+    title="确认",
+    content=Text("..."),
+    width="380px",
+    actions=[
+        DialogAction("确认", on_click=confirm_handler),  # 执行后关闭
+        DialogAction("取消", variant="ghost"),
+        DialogAction("关闭", close_on_click=False),  # 执行后保持打开
+    ],
+)
+dlg.open = True  # 或读取该属性
+dlg.on_close(lambda d: print("closed"))  # 回调接收对话框自身
+```
+
+固定全屏 scrim 层（`--color-bg-overlay`，跟随主题）+ 居中面板。
+关闭途径：scrim 点击、Escape（焦点在对话框内时）、点击外部
+（`outsideclick`）。`closable=False` 仅禁用 scrim。`actions` 渲染为
+底部一排主题按钮 —— `DialogAction` 接受标签（位置参数）、
+`variant`（`primary`/`ghost`/`danger`）、`on_click` 回调（收对话框
+自身，同步或异步）与 `close_on_click`（默认 True）。注意：任何
+`backdrop-filter` / `transform` 祖先会成为 `position: fixed` 的
+containing block —— Dialog 应挂页面根或非过滤容器。
+
+### `Tooltip`
+
+```python
+tip = Tooltip("提示", anchor=Button("悬停"), placement="top", delay=0.4)
+```
+
+包装 anchor（组件在构造时 build；字符串包进 Span），悬停 `delay`
+秒后显示气泡，按 `placement`（`top` / `bottom` / `left` / `right`）
+锚定 —— 纯 CSS 偏移，零测量。wrapper 会冒泡 anchor 的悬停事件；
+点击 anchor（聚焦）立即显示气泡，失焦隐藏。
+
+### `Dropdown`
+
+```python
+dd = Dropdown("主题", items=[("dark", "深色"), ("light", "浅色")])
+dd.value  # 选中的值
+dd.on_change(lambda e: print(e.value))
+```
+
+trigger + 主题化玻璃弹出面板（原生 button 行，与 `Select` 同模式）。
+完整键盘导航（Enter/Space 打开、方向键两端钳制、PageUp/PageDown
+首尾、Enter 选中、Escape/Tab 与点击外部关闭）。`items` 可设置。
+
+### `Menu`
+
+```python
+menu = Menu(("rename", "重命名"), ("delete", "删除"))
+btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y))  # 光标位置
+menu.on_change(lambda e: print(e.value))
+```
+
+`open_at(x, y)` 定位的 fixed 弹出面板 —— 通常用 `contextmenu` 事件的
+视口坐标，无需测量。键盘导航与 `Dropdown` 相同；选中、Escape 或
+点击外部关闭。面板**向上弹出**——底边锚在光标上方 8px——并通过
+`calc()` 的 max-width/height 钳制在视口内，靠近屏幕边缘也不会溢出。
 
 ---
 

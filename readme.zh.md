@@ -89,6 +89,10 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `ComboBox`                | 可编辑文本 + 主题化建议面板                                    |
 | `Slider`                  | 动画填充滑块 — 有级或无级（`step="any"`）                     |
 | `Progress`                | 动画填充进度条 — 确定值或滑动 `indeterminate`                  |
+| `Dialog`                  | 固定 scrim + 居中玻璃面板 — scrim / Escape / ✕ / 点击外部关闭   |
+| `Tooltip`                 | 包裹 anchor 的悬停气泡，placement 偏移 + 悬停延迟               |
+| `Dropdown`                | trigger 下的主题化弹出面板 — 完整键盘导航 + 点击外部关闭        |
+| `Menu`                    | 光标定位的固定弹出菜单（`open_at(x, y)` 来自 contextmenu）      |
 | `Input`                   | 单行输入框 — text / password / email / number…                 |
 | `Heading`                 | 主题标题(h1–h6)，自动字号                                      |
 | `Text`                    | 内联文本，支持语义角色(primary / secondary / danger / success) |

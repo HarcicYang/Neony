@@ -32,6 +32,10 @@
     // `document.body` may not exist yet), trace each event to the
     // nearest data-neony-key ancestor, forward via lumiview.invoke.
 
+    // mouseenter/mouseleave are deliberately NOT here: they do not
+    // propagate (no capture, no bubble), so a document listener can
+    // never receive them — components detect enter/leave from the
+    // bubbling mouseover/mouseout pair via the related_key payload.
     var DELEGATED_EVENTS = [
         "click", "dblclick", "input", "change", "submit",
         "keydown", "keyup", "focus", "blur", "contextmenu",
@@ -104,6 +108,19 @@
             payload.y = event.clientY;
             payload.offset_x = event.offsetX;
             payload.offset_y = event.offsetY;
+        }
+
+        // Hover pair (mouseover/mouseout): the keyed element the
+        // pointer moved from/to.  Components use it to detect real
+        // boundary crossings — enter when related_target is outside
+        // their subtree, leave when it is — instead of the child-to-
+        // child hops these bubbling events fire on every inner element.
+        if (event.type === "mouseover" || event.type === "mouseout") {
+            var relatedEl =
+                event.relatedTarget && event.relatedTarget.closest
+                    ? event.relatedTarget.closest("[data-neony-key]")
+                    : null;
+            payload.related_key = relatedEl ? relatedEl.getAttribute("data-neony-key") : null;
         }
 
         // Pointer movement delta (PointerEvent).  Gated on pointerId —

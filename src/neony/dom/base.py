@@ -388,6 +388,11 @@ class DOMElement(BaseModel):
     def on_mouseup(self, fn: Callable[..., Any]) -> DOMElement:
         return self.on("mouseup", fn)
 
+    # NOTE: no on_mouseenter / on_mouseleave — native mouseenter/
+    # mouseleave do not propagate, so the engine can never delegate
+    # them.  Detect enter/leave from on_mouseover / on_mouseout via
+    # ``DomEvent.related_key`` (the Tooltip component does this).
+
     def on_pointermove(self, fn: Callable[..., Any]) -> DOMElement:
         """Pointer movement — ``event.movement_x`` / ``event.movement_y``
         carry the delta since the last event; ``event.pointer_type`` is

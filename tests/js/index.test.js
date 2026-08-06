@@ -110,6 +110,38 @@ describe("event delegation", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
+  it("carries the related key on mouseover/mouseout", () => {
+    // Native mouseenter/mouseleave never reach document listeners (they
+    // don't propagate), so enter/leave must be derived from the
+    // bubbling mouseover/mouseout pair: the payload carries the keyed
+    // element the pointer moved from/to.
+    mountTree({
+      key: "wrap",
+      tag: "div",
+      children: [{ key: "btn", tag: "button", text: "a" }],
+    });
+    const btn = document.querySelector("[data-neony-key='btn']");
+
+    // Entered from off-page / an unkeyed part — no related key.
+    btn.dispatchEvent(
+      new window.MouseEvent("mouseover", { bubbles: true, relatedTarget: document.body })
+    );
+    expect(invoke).toHaveBeenCalledWith(
+      "neony.event",
+      expect.objectContaining({ key: "btn", event_type: "mouseover", related_key: null })
+    );
+
+    // Leaving toward a keyed element carries its key.
+    invoke.mockClear();
+    btn.dispatchEvent(
+      new window.MouseEvent("mouseout", { bubbles: true, relatedTarget: btn.parentElement })
+    );
+    expect(invoke).toHaveBeenCalledWith(
+      "neony.event",
+      expect.objectContaining({ key: "btn", event_type: "mouseout", related_key: "wrap" })
+    );
+  });
+
   it("routes body-focused keydowns through the engine root", () => {
     // With nothing focused, keys land on <body> — no data-neony-key
     // ancestor.  Window-level key listeners live on the root, so

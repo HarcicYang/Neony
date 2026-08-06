@@ -32,7 +32,7 @@ where = ["src"]
 include = ["neony*"]
 
 [tool.setuptools.package-data]
-neony = ["javascript/*.js"]
+neony = ["javascript/*.js", "py.typed"]
 
 [tool.ruff]
 target-version = "py311"
