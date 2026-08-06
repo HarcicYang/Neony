@@ -44,7 +44,8 @@ pip install neony
 
 Requires Python 3.11+ and the platform WebView stack (WebKitGTK on Linux,
 WebView2 on Windows, WKWebView on macOS). X11 is not supported — see the
-[Roadmap](ROADMAP.md).
+[Roadmap](ROADMAP.md). The system tray needs
+`libayatana-appindicator` on Linux.
 
 ---
 
@@ -123,6 +124,11 @@ All components share a fluent, chainable API — see the
 - **Multi-window** — `run(*pages)` opens one window per page, all
   sharing one event loop and `app.state`. `launch([...])` accepts a list.
   See [`demo_multi_window.py`](demo_multi_window.py).
+- **System tray** — `app.tray = Tray(icon, tooltip, items=[...])` adds
+  a tray icon with a native context menu; `close_to_tray=True` hides
+  the app instead of quitting on close. Linux needs
+  `libayatana-appindicator`. See
+  [`demo_tray.py`](demo_tray.py).
 
 ---
 
@@ -148,6 +154,7 @@ Run from the repository root:
 | `demo_transparent_panel.py`   | Floating transparent panel with native blur                      |
 | `demo_multi_window.py`        | Two windows sharing one app state                                |
 | `demo_reactive.py`            | Signal-based API: declarative bindings instead of manual refresh |
+| `demo_tray.py`                | System tray: native menu + close-to-tray pattern                 |
 | `demo_builder.py`             | Raw DOM builder without the app layer                            |
 
 ```bash

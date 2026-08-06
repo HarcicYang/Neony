@@ -78,6 +78,19 @@
     "save": "none"
   },
   {
+    "label": "Run tray demo",
+    "command": "uv run demo_tray.py",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "reveal_target": "dock",
+    "hide": "never",
+    "shell": "system",
+    "show_summary": true,
+    "show_command": true,
+    "save": "none"
+  },
+  {
     "label": "Local",
     "command": "uv run demo_hello.py",
     "use_new_terminal": true,

@@ -27,6 +27,7 @@ from neony.application._helpers import (
 from neony.application.config import Config
 from neony.application.page import Page
 from neony.application.theme import Theme
+from neony.application.tray import Tray
 from neony.dom import DOMElement, DomEvent, KeyFrame
 from neony.dom.bridge import Neony
 
@@ -66,6 +67,11 @@ class NeonApplication(Generic[_S]):
         # Registered @keyframes: name → full CSS text, injected into a
         # <style id="neony-keyframes"> in every window's <head>.
         self._keyframes: dict[str, str] = {}
+        # System tray — set before run(); materialized in _main.
+        self.tray: Tray | None = None
+        self._tray_icon: Any = None
+        self._lumiview_app: Any = None
+        self._exit_code: int | None = None
 
     # ---- lifecycle ----
 
@@ -83,8 +89,8 @@ class NeonApplication(Generic[_S]):
             self._arm_render_request(tree, idx)
         # Linux: taskbar/dock shows the app name, not ``python3``.
         _set_linux_app_name(self.config.window.title)
-        app = App(name=self.config.window.title.replace(" ", ""))
-        app.run(self._main)
+        self._lumiview_app = App(name=self.config.window.title.replace(" ", ""))
+        self._lumiview_app.run(self._main)
 
     async def _main(self) -> None:
         kwargs = self.config.to_window_kwargs()
@@ -125,6 +131,8 @@ class NeonApplication(Generic[_S]):
             await self.render(window_index=i)
         if self.ready_handler is not None:
             await self.ready_handler()
+        if self.tray is not None:
+            await self._setup_tray()
         # App-level teardown: fires once after all windows close, before
         # lumiview stops the asyncio loop (completion awaited, 5s guard).
         await self._wire_close_handler()
@@ -238,12 +246,96 @@ class NeonApplication(Generic[_S]):
         """Register the app-level teardown hook on lumiview's
         ``AppCloseEvent`` (fires once after all windows close, before
         the asyncio loop stops; completion is awaited)."""
-        if self.close_handler is not None:
+        if self.close_handler is not None or self._tray_icon is not None:
 
             async def _on_app_close(_event: AppEvent.AppCloseEvent) -> None:
-                await self._run_handler(self.close_handler)
+                if self._tray_icon is not None:
+                    self._tray_icon.close()
+                    self._tray_icon = None
+                if self.close_handler is not None:
+                    await self._run_handler(self.close_handler)
 
             App.get().on(AppEvent.AppCloseEvent)(_on_app_close)
+
+    # ---- system tray ----
+
+    async def _setup_tray(self) -> None:
+        """Materialize the configured tray icon + native menu (needs the
+        main thread, so it runs after the windows are up).
+
+        A tray that fails to create (headless, missing appindicator on
+        Linux) is logged and skipped — the windowed app still runs.
+        """
+        from lumiview.menu import Menu
+        from lumiview.tray import TrayIcon, TrayIconOptions
+
+        assert self.tray is not None
+        try:
+            menu = None
+            if self.tray.items:
+                menu = await Menu.create(items=self.tray._to_lumiview_items())
+            self._tray_icon = await TrayIcon.create(
+                TrayIconOptions(
+                    icon=self.tray.icon,
+                    tooltip=self.tray.tooltip,
+                    menu=menu,
+                    menu_on_left_click=self.tray.menu_on_left_click,
+                )
+            )
+        except Exception:
+            logging.getLogger(__name__).exception("tray unavailable — continuing without it")
+            self._tray_icon = None
+            return
+        if self.tray.on_left_click is not None and not self.tray.menu_on_left_click:
+            from lumiview._core import ElementState, MouseButton
+
+            self._lumiview_app.on(AppEvent.TrayIconClickEvent)(self._make_tray_click_handler(ElementState, MouseButton))
+        if self.tray.close_to_tray:
+            await self._wire_close_to_tray()
+
+    async def _wire_close_to_tray(self) -> None:
+        """Close-to-tray: intercept every window's close request and
+        hide the whole app instead of quitting (Page.on_close handlers
+        still run first — they were wired earlier).  On macOS a Dock
+        click restores the app (ReopenEvent)."""
+        for entry in self._entries:
+            if entry.window is None:
+                continue
+            entry.window.on(WindowEvent.CloseRequestedEvent)(self._make_close_to_tray_handler())
+        if sys.platform == "darwin" and self._lumiview_app is not None:
+            self._lumiview_app.on(AppEvent.ReopenEvent)(self._make_reopen_handler())
+
+    def _make_close_to_tray_handler(self) -> Callable[[Any], Any]:
+        async def handler(event: Any) -> None:
+            event.prevent()
+            await self._lumiview_app.hide()
+
+        return handler
+
+    def _make_tray_click_handler(self, element_state: Any, mouse_button: Any) -> Callable[[Any], Any]:
+        """Dispatch a released left-click on the tray icon to
+        ``tray.on_left_click`` (fires for the app's own icon id)."""
+        assert self.tray is not None
+
+        async def handler(event: Any) -> None:
+            if event.button == mouse_button.Left and event.button_state == element_state.Released:
+                fn = self.tray.on_left_click
+                if fn is not None:
+                    await self._run_handler(fn, event)
+
+        return handler
+
+    def _make_reopen_handler(self) -> Callable[[Any], Any]:
+        async def handler(event: Any) -> None:
+            # Fires on any Dock click; only restore when hidden.
+            if event.has_visible_windows:
+                return
+            window = self._entries[0].window
+            if window is not None:
+                await window.show()
+                await window.focus()
+
+        return handler
 
     # ---- theme ----
 
@@ -637,6 +729,20 @@ class NeonApplication(Generic[_S]):
     async def close(self, window_index: int = 0) -> None:
         """Request a window close, honouring the configured close behavior."""
         await App.get().call_on_main(self._require_window(window_index).request_close)
+
+    def exit(self, code: int = 0) -> None:
+        """Request a graceful app shutdown — the way out of
+        ``close_to_tray``.
+
+        With ``close_to_tray=True`` window closes hide the app instead
+        of quitting, so ``close()`` cannot exit; ``exit()`` requests the
+        app-level shutdown directly (``run()`` returns *code*, the tray
+        icon is cleaned up via AppCloseEvent).  Typical use: a tray
+        "Quit" menu item.
+        """
+        if self._lumiview_app is not None:
+            self._exit_code = code
+            self._lumiview_app.exit(code)
 
     async def apply_blur(self, color: tuple[int, int, int, int] | None = None, window_index: int = 0) -> None:
         """Apply a native blur material behind a window (macOS/Windows)."""

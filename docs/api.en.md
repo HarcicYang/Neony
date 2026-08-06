@@ -58,6 +58,10 @@ counterpart to [`SharedSignal`](#sharedsignal) for cross-window data.
 `apply_blur(color?)`, `apply_acrylic(color?)`, `apply_mica()`,
 `clear_effect(effect)`, `eval_js(script)`, `set_icon(icon)`
 
+**App methods:** `exit(code=0)` — graceful app shutdown (sync). With
+`close_to_tray=True` window closes hide the app instead of quitting, so
+`exit()` is the way out — e.g. a tray "Quit" menu item.
+
 **Theme / rendering:**
 `sync_theme()`, `set_background(url)`, `render()`
 
@@ -171,6 +175,43 @@ page = Page()
 page.on_focus(lambda: print("active"))
 page.on_blur(lambda: print("inactive"))
 ```
+
+### `Tray` & `TrayItem` — system tray (native menu)
+
+A tray icon with a native context menu, backed by lumiview .dev4
+(muda menus + TrayIcon). Assign `app.tray` before `run()`; the icon
+materializes once the app is up.
+
+```python
+from neony.application import Tray, TrayItem
+
+app.tray = Tray(
+    icon="tray.png",  # file path or raw RGBA (bytes, width, height)
+    tooltip="My App",
+    items=[
+        TrayItem("Show Window", id="show", on_activate=show_handler),
+        TrayItem.separator(),
+        TrayItem("Quit", id="quit", accelerator="CmdOrCtrl+Q", on_activate=quit_handler),
+    ],
+    menu_on_left_click=False,  # free the left button for on_left_click
+    on_left_click=toggle_handler,  # sync or async
+    close_to_tray=True,  # close hides the app instead of quitting
+)
+```
+
+- `TrayItem` — `text`, optional `id` (carried by activation
+  callbacks), `accelerator` (muda syntax; Windows may not fire it from
+  the keyboard), `on_activate` (sync or async, run on the asyncio
+  loop), `checked=True` for a check item; `TrayItem.separator()` for a
+  divider.
+- `close_to_tray=True` — every window's close request is prevented and
+  the app hides (restore from the menu / tray click; on macOS a Dock
+  click via `ReopenEvent`). `Page.on_close` handlers still run.
+- `on_left_click` — fires on a released left click when
+  `menu_on_left_click=False` (typical use: toggle the window).
+- Platform notes: **Linux needs libayatana-appindicator**; the tooltip
+  is unsupported there and the menu cannot be replaced after creation.
+  See [`demo_tray.py`](../../demo_tray.py).
 
 ---
 

@@ -57,7 +57,7 @@ Planned work, roughly in priority order.
 - [ ] **Window state query** — `show()` / `hide()` / `focus()` / `set_bounds()` (screen position via tao `set_outer_position`) are exposed; only the query half (`get_size()` / `get_bounds()`) remains, needs lumiview upstream
 - [x] **Clipboard API** — `clipboard_write(text)` / `clipboard_read()` wrap `navigator.clipboard` (text; read needs a user gesture)
 - [x] **Local resource URL helper** — `file_url()` / `data_url()` for Windows paths, spaces, non-ASCII filenames
-- [ ] **System tray** — tray icon with context menu (tao-supported, needs lumiview upstream)
+- [x] **System tray** — `Tray` / `TrayItem`: native menu (muda) + tray icon via lumiview .dev4; `close_to_tray` hides the app on window close (macOS Dock click restores); Linux needs libayatana-appindicator
 - [ ] **Global shortcuts** — app-wide keybindings that work even when the window is *not* focused. No JS API can observe keys outside a focused window, so this needs native code: tao 0.9.1+ has `platform::global_shortcut`, needs lumiview upstream. Caveat: the Linux hotkey ecosystem is X11-only — Wayland gets nothing
 
 ## Platform verification
