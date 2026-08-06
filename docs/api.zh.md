@@ -58,6 +58,10 @@ app.state.user_name = "Ada"
 `apply_blur(color?)`， `apply_acrylic(color?)`， `apply_mica()`，
 `clear_effect(effect)`， `eval_js(script)`， `set_icon(icon)`
 
+**应用方法:** `exit(code=0)` — 优雅退出整个应用(同步)。`close_to_tray=True`
+时关窗只会隐藏应用，`exit()` 才是真正的退出途径——例如托盘菜单的
+"退出"项。
+
 **主题与渲染:**
 `sync_theme()`， `set_background(url)`， `render()`
 
@@ -190,6 +194,40 @@ app.ready_handler = on_ready
 
 每个窗口控制方法都接受 `window_index`(默认 0)。
 `launch([page_one, page_two], ...)` 也接受列表。
+
+### `Tray` & `TrayItem` — 系统托盘（原生菜单）
+
+托盘图标 + 原生右键菜单，基于 lumiview .dev4（muda 菜单 + TrayIcon）。
+`run()` 前赋值 `app.tray`，应用启动后图标自动创建。
+
+```python
+from neony.application import Tray, TrayItem
+
+app.tray = Tray(
+    icon="tray.png",  # 文件路径或原始 RGBA(bytes, width, height)
+    tooltip="我的应用",
+    items=[
+        TrayItem("显示窗口", id="show", on_activate=show_handler),
+        TrayItem.separator(),
+        TrayItem("退出", id="quit", accelerator="CmdOrCtrl+Q", on_activate=quit_handler),
+    ],
+    menu_on_left_click=False,  # 把左键留给 on_left_click
+    on_left_click=toggle_handler,  # 同步或异步
+    close_to_tray=True,  # 关窗隐藏应用而非退出
+)
+```
+
+- `TrayItem` — `text`，可选 `id`（激活回调携带）、`accelerator`（muda
+  语法；Windows 可能无法从键盘触发）、`on_activate`（同步或异步，在
+  asyncio 循环执行）、`checked=True` 渲染勾选项；
+  `TrayItem.separator()` 为分隔线。
+- `close_to_tray=True` — 拦截所有窗口的关闭请求并隐藏整个应用
+  （从菜单 / 托盘点击恢复；macOS 上 Dock 点击经 `ReopenEvent`）。
+  `Page.on_close` 处理器仍会执行。
+- `on_left_click` — `menu_on_left_click=False` 时左键松开触发
+  （典型用途：切换窗口）。
+- 平台注意：**Linux 需要 libayatana-appindicator**；tooltip 不支持、
+  菜单创建后不可替换。参见 [`demo_tray.py`](../../demo_tray.py)。
 
 ---
 

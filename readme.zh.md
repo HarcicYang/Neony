@@ -42,7 +42,7 @@ pip install neony
 
 需要 Python 3.11+，以及对应平台的 WebView 运行时(Linux 为 WebKitGTK，
 Windows 为 WebView2，macOS 为 WKWebView)。不支持 X11 — 见
-[路线图](ROADMAP.md)。
+[路线图](ROADMAP.md)。系统托盘在 Linux 需要 `libayatana-appindicator`。
 
 ---
 
@@ -119,6 +119,10 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 - **多窗口** — `run(*pages)` 每个页面一个窗口，共享同一事件循环与
   `app.state`。`launch([...])` 也接受列表。
   见 [`demo_multi_window.py`](demo_multi_window.py)。
+- **系统托盘** — `app.tray = Tray(icon, tooltip, items=[...])` 添加
+  托盘图标与原生右键菜单；`close_to_tray=True` 关窗时隐藏应用而非退出。
+  Linux 需要 `libayatana-appindicator`。见
+  [`demo_tray.py`](demo_tray.py)。
 
 ---
 
@@ -143,6 +147,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `demo_transparent_panel.py`     | 带原生模糊的透明悬浮面板               |
 | `demo_multi_window.py`          | 共享同一 app 状态的双窗口              |
 | `demo_reactive.py`              | Signal API:声明式绑定替代手动刷新      |
+| `demo_tray.py`                  | 系统托盘:原生菜单 + 关闭到托盘模式     |
 | `demo_builder.py`               | 不含应用层的原始 DOM 构建              |
 
 ```bash

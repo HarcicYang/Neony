@@ -12,6 +12,7 @@ from neony.application.app import NeonApplication, launch
 from neony.application.config import Config, WebViewConfig, WindowConfig
 from neony.application.page import Page
 from neony.application.theme import DARK, DEEP_BLUE, LIGHT, Theme
+from neony.application.tray import Tray, TrayItem
 from neony.application.urls import data_url, file_url
 
 __all__ = [
@@ -22,6 +23,8 @@ __all__ = [
     "NeonApplication",
     "Page",
     "Theme",
+    "Tray",
+    "TrayItem",
     "WebViewConfig",
     "WindowConfig",
     "data_url",

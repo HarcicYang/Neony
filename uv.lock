@@ -53,20 +53,20 @@ wheels = [
 
 [[package]]
 name = "lumiview"
-version = "0.1.0.dev3"
+version = "0.1.0.dev4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cattrs" },
     { name = "typing-extensions" },
     { name = "wryview" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4a/f2/764d77410e48e49cda3760b272c9535a17e20af54593801aee503fc10c06/lumiview-0.1.0.dev3.tar.gz", hash = "sha256:48f023e132be9b5ecc7128dd4e9bd1dafc32544c15e509ada68f58a5d02df8f2", size = 117134, upload-time = "2026-08-05T09:12:21.502Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c6/f4/67110a1f6328a8333259a4828e184fa9efb766033a8e684b92f5fd95159f/lumiview-0.1.0.dev4.tar.gz", hash = "sha256:ce2bf5ad1252cb6ae6433e1f497c8ab990501042e7dc89cb5e5357e9c202313f", size = 142879, upload-time = "2026-08-06T08:05:59.007Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/06/9f/cdda191b25f8e06a80f317a34bc9db091372ac44735fcdf09f79fe4b3b80/lumiview-0.1.0.dev3-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:bed3dfea7368a1d65790d69ad66410da21c2c26181893edaab52427173d6d83d", size = 701382, upload-time = "2026-08-05T09:12:14.307Z" },
-    { url = "https://files.pythonhosted.org/packages/aa/d4/2609ee1ae23b70f86ae51b9a9e9ffb709bbe7f0a161b7eb46528738db832/lumiview-0.1.0.dev3-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:c6c5a208171689f3bfc815b78ad0757caed91acd5b1c8257300433d4b85eb122", size = 669185, upload-time = "2026-08-05T09:12:15.678Z" },
-    { url = "https://files.pythonhosted.org/packages/69/90/e6f923bf7e259fbe890101f679bcd0b2a6d7abe9b33e94ecb69e5ce1f030/lumiview-0.1.0.dev3-cp310-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:526d04eadffee4a6b5ad5cb162642a67c59e28a2c56ab033cb1eb6f99026b645", size = 618893, upload-time = "2026-08-05T09:12:17.117Z" },
-    { url = "https://files.pythonhosted.org/packages/d4/59/7d1c21c47babef78a360dbc446817e5cd64defaa115dc7a428c76cf26ec7/lumiview-0.1.0.dev3-cp310-abi3-win32.whl", hash = "sha256:31fdaa35a5fcd9d0563040dd05726197a41d2062281edd29038cbb8f2e37ab64", size = 485606, upload-time = "2026-08-05T09:12:18.723Z" },
-    { url = "https://files.pythonhosted.org/packages/e2/61/01c3157c97b44266aebc552970381ccb92b327ef303e5d0667e70ff2e534/lumiview-0.1.0.dev3-cp310-abi3-win_amd64.whl", hash = "sha256:bf04c4ebb4c6ca073bfc7b6f3ab321f4da6fd9147e651ecde635e85578685f25", size = 520473, upload-time = "2026-08-05T09:12:20.097Z" },
+    { url = "https://files.pythonhosted.org/packages/33/d9/bc4a2a87dc6e90ac49bce506196fcf8bc7d31bbcc01c1c9be68f21e8b2e8/lumiview-0.1.0.dev4-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:ab44bb4e713501ebdf677c0b664bf4c03daeb0ec737a6141239c42645b2a00ed", size = 899935, upload-time = "2026-08-06T08:05:52.233Z" },
+    { url = "https://files.pythonhosted.org/packages/90/fe/f1234a85e76e98f796e7f1e38b82e08a0dc92f53344d50994bb46407e29c/lumiview-0.1.0.dev4-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:97773eb0f273e76f09fd5d52cd7940c5e2f0225a1b631a446d224cdb47a25c74", size = 857622, upload-time = "2026-08-06T08:05:53.927Z" },
+    { url = "https://files.pythonhosted.org/packages/34/b0/71eea08ba2d36ec16703480dff060ce40ba8896b8b248b6074b0467cc644/lumiview-0.1.0.dev4-cp310-abi3-manylinux_2_34_x86_64.whl", hash = "sha256:b3cf79dbcab5006197e06cf1da912cbc0b19032b7d613e6d486ddb2f6fdb7181", size = 850152, upload-time = "2026-08-06T08:05:55.181Z" },
+    { url = "https://files.pythonhosted.org/packages/19/4a/41096f5af2a235c829f3d1426f2b5ff0cd00aa8e5f7d101577faecbaac75/lumiview-0.1.0.dev4-cp310-abi3-win32.whl", hash = "sha256:8a618a1250b73a4dd28f0aa98601ad66677f8e9278aeb1fc2fc949f09fcfef61", size = 596658, upload-time = "2026-08-06T08:05:56.346Z" },
+    { url = "https://files.pythonhosted.org/packages/78/02/cad4faea8af9a3a25a0f152567d33d7d81049a8fea7fbc48d4c205daec38/lumiview-0.1.0.dev4-cp310-abi3-win_amd64.whl", hash = "sha256:884df4015afea411a4f03c81ffa079b0b1876428ee1b6d2b7520458df9606147", size = 646199, upload-time = "2026-08-06T08:05:57.578Z" },
 ]
 
 [[package]]
@@ -88,7 +88,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "lumiview", specifier = "==0.1.0.dev3" },
+    { name = "lumiview", specifier = "==0.1.0.dev4" },
     { name = "pyclip", specifier = ">=0.7.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
 ]
