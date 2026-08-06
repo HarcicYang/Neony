@@ -250,6 +250,9 @@ class Styles(BaseModel):
     # --- Colors ---
     color: Color | None = Field(default=None)
     background_color: Color | None = Field(default=None)
+    # Native control tint (range sliders, progress bars, checkboxes) —
+    # the only pseudo-element-free way to theme WebKitGTK controls.
+    accent_color: Color | None = Field(default=None)
 
     # --- Dimensions ---
     width: str | None = Field(default=None)

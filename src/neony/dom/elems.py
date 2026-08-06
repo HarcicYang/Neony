@@ -235,6 +235,22 @@ class Option(DOMElement):
     disabled: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
 
 
+class Datalist(DOMElement):
+    """Suggestion list for an ``<input list="...">`` combo box."""
+
+    _tag: str = "datalist"
+
+
+class Progress(DOMElement):
+    """Native progress bar with typed ``value`` / ``max`` (omitting
+    ``value`` renders the indeterminate animated state)."""
+
+    _tag: str = "progress"
+
+    value: float | None = Field(default=None, json_schema_extra={"html_attr": True})
+    max: float | None = Field(default=None, json_schema_extra={"html_attr": True})
+
+
 class Textarea(DOMElement):
     """Multiline text input.  ``value`` is a Python-side record only —
     content renders via ``container``, and the live value is read back
@@ -356,6 +372,7 @@ class Input(DOMElement):
     placeholder: str | None = Field(default=None, json_schema_extra={"html_attr": True})
     value: str | None = Field(default=None, json_schema_extra={"html_attr": True})
     name: str | None = Field(default=None, json_schema_extra={"html_attr": True})
+    list: str | None = Field(default=None, json_schema_extra={"html_attr": True})
     checked: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
     disabled: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
     readonly: bool | None = Field(default=None, json_schema_extra={"html_attr": True})
