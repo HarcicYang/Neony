@@ -14,7 +14,7 @@ import pytest
 from wryview import DragDropEvent
 
 from neony.application import Config, NeonApplication
-from neony.application.app import _Entry
+from neony.application._helpers import _Entry
 from neony.application.elements import Button, Input, Text, VStack
 from neony.dom import Div, DomEvent
 from neony.dom.bridge import Neony
@@ -478,7 +478,7 @@ class TestNativeDragDropHandler:
         assert neony.native_drop_paths == ["/home/user/a.png"]
 
     def test_file_info_from_real_path(self, tmp_path):
-        from neony.application.app import _file_info
+        from neony.application._helpers import _file_info
 
         target = tmp_path / "photo 1.png"
         target.write_bytes(b"12345")

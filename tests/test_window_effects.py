@@ -15,7 +15,7 @@ from lumiview import WindowEffect
 
 from neony.application import Config, NeonApplication, WindowConfig
 from neony.application import app as app_module
-from neony.application.app import _Entry
+from neony.application._helpers import _Entry
 from neony.dom import Div
 from neony.dom.bridge import Neony
 

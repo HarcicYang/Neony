@@ -1,6 +1,6 @@
 """Table-driven tests for DiffEngine.diff()."""
 
-from neony.dom.base import NodeDescriptor
+from neony.dom import NodeDescriptor
 from neony.dom.bridge import (
     CreatePatch,
     DiffEngine,

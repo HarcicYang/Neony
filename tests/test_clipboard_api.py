@@ -51,7 +51,7 @@ class TestJsResultValue:
 
     @staticmethod
     def _decode(raw: str) -> str:
-        from neony.application.app import _js_result_value
+        from neony.application._helpers import _js_result_value
 
         return _js_result_value(raw)
 

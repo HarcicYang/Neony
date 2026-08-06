@@ -151,7 +151,7 @@ class TestRenderIntegration:
 
     def test_signal_write_renders_patch(self):
         from neony.application import Config, NeonApplication
-        from neony.application.app import _Entry
+        from neony.application._helpers import _Entry
         from neony.application.elements import Text
         from neony.dom.bridge import Neony
 

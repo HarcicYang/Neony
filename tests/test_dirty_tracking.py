@@ -6,8 +6,7 @@ and, via parent pointers, every ancestor — dirty, otherwise a parent's
 cached snapshot (holding the stale child) would be reused.
 """
 
-from neony.dom import Color, Div, Span, Styles
-from neony.dom.base import NodeDescriptor
+from neony.dom import Color, Div, NodeDescriptor, Span, Styles
 
 
 def _cache() -> dict[str, NodeDescriptor]:

@@ -9,7 +9,8 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal
 from lumiview.scope import BridgeContext, InitContext, Plugin
 from pydantic import BaseModel, Field
 
-from neony.dom.base import DOMElement, NodeDescriptor
+from neony.dom.base import DOMElement
+from neony.dom.nodes import NodeDescriptor
 
 if TYPE_CHECKING:
     from lumiview.window import Window

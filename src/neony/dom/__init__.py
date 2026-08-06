@@ -20,18 +20,7 @@ Example::
     print(tree.build())
 """
 
-from .base import (
-    Animation,
-    Color,
-    DOMElement,
-    DomEvent,
-    KeyFrame,
-    KeyFrameStop,
-    NodeDescriptor,
-    Props,
-    Styles,
-    Transition,
-)
+from .base import DOMElement
 from .bridge import (
     CreatePatch,
     DiffEngine,
@@ -44,6 +33,15 @@ from .bridge import (
     SetTextPatch,
     UpdateAttrsPatch,
     UpdateStylesPatch,
+)
+from .css import (
+    Animation,
+    Color,
+    KeyFrame,
+    KeyFrameStop,
+    Props,
+    Styles,
+    Transition,
 )
 from .elems import (
     # Headings
@@ -125,6 +123,8 @@ from .elems import (
     UnorderedList,
     Video,
 )
+from .events import DomEvent
+from .nodes import NodeDescriptor
 from .reactive import Computed, Effect, SharedSignal, Signal, batch, effect, untrack
 
 __all__ = [

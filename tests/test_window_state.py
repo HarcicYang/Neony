@@ -13,7 +13,7 @@ from typing import Any, cast
 import pytest
 
 from neony.application import Config, NeonApplication
-from neony.application.app import _Entry
+from neony.application._helpers import _Entry
 from neony.dom import Div
 from neony.dom.bridge import Neony
 

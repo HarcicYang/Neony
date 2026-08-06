@@ -1,0 +1,71 @@
+"""The event payload model forwarded from the JavaScript engine."""
+
+from __future__ import annotations
+
+from typing import Any, Literal
+
+from pydantic import BaseModel
+
+
+class DomEvent(BaseModel):
+    """Event payload forwarded from JavaScript: ``key`` (element identity),
+    ``type`` (DOM event name), ``value`` (``el.value`` for inputs,
+    ``el.checked`` for checkboxes, else ``None``).  ``source`` tells real
+    user interaction ("user") from programmatic changes ("program"),
+    which must not fire user callbacks.
+
+    Rich fields: modifier keys (``ctrl_key`` ... — ``True`` only when
+    pressed), mouse coordinates (``x``/``y`` viewport-relative,
+    ``offset_x``/``offset_y`` element-relative), wheel delta
+    (``delta_x``/``delta_y``), and clipboard data (``clipboard_text`` /
+    ``clipboard_html`` — paste events only).  Absent on events that
+    don't carry them.
+    """
+
+    key: str
+    type: str
+    value: Any = None
+    source: Literal["user", "program"] = "program"
+
+    # Modifier keys.
+    ctrl_key: bool = False
+    shift_key: bool = False
+    alt_key: bool = False
+    meta_key: bool = False
+
+    # Mouse coordinates (MouseEvent / WheelEvent).
+    x: float | None = None
+    y: float | None = None
+    offset_x: float | None = None
+    offset_y: float | None = None
+
+    # Pointer movement delta (PointerEvent) — change in coordinates
+    # since the last pointermove; useful for drag tracking without
+    # manual deltas.
+    movement_x: float | None = None
+    movement_y: float | None = None
+
+    # Pointer type: "mouse", "pen", or "touch" (PointerEvent only).
+    pointer_type: str | None = None
+
+    # Wheel delta (WheelEvent).  delta_mode: 0 = pixels, 1 = lines,
+    # 2 = pages (WebKitGTK mouse wheels deliver line deltas).
+    delta_x: float | None = None
+    delta_y: float | None = None
+    delta_mode: int | None = None
+
+    # CSS transition end (TransitionEvent) — which property finished
+    # and how long it took.
+    transition_property: str | None = None
+    elapsed_time: float | None = None
+
+    # CSS animation start / end (AnimationEvent) — the animation name.
+    animation_name: str | None = None
+
+    # Clipboard data (paste events only).
+    clipboard_text: str | None = None
+    clipboard_html: str | None = None
+
+    # Dropped files (drop events only): one dict per file with keys
+    # ``name``, ``path`` (empty string on WKWebView), ``size``, ``type``.
+    drop_files: list[dict[str, Any]] | None = None

@@ -1,6 +1,6 @@
 """Tests for the typed KeyFrame / Props / Animation API."""
 
-from neony.dom import Animation, Color, Div, KeyFrame, Props, Styles
+from neony.dom import Animation, Color, Div, KeyFrame, KeyFrameStop, Props, Styles
 
 
 class TestProps:
@@ -29,15 +29,11 @@ class TestKeyFrameStop:
     """One stop holds a percent and a Props."""
 
     def test_default_props(self):
-        from neony.dom.base import KeyFrameStop
-
         stop = KeyFrameStop(percent="50%")
         assert stop.percent == "50%"
         assert stop.props == Props()
 
     def test_populated_props(self):
-        from neony.dom.base import KeyFrameStop
-
         stop = KeyFrameStop(percent="100%", props=Props(opacity=0))
         assert stop.props.opacity == 0
 
@@ -131,14 +127,14 @@ class TestBuiltinKeyframes:
     """The app's always-on keyframes that components reference by name."""
 
     def test_expected_names_exist(self):
-        from neony.application.app import _BUILTIN_KEYFRAMES
+        from neony.application._helpers import _BUILTIN_KEYFRAMES
 
         names = [kf.name for kf in _BUILTIN_KEYFRAMES]
         assert "neony-rise-in" in names
         assert "neony-fade-in" in names
 
     def test_rise_in_starts_offset(self):
-        from neony.application.app import _BUILTIN_KEYFRAMES
+        from neony.application._helpers import _BUILTIN_KEYFRAMES
 
         rise = next(kf for kf in _BUILTIN_KEYFRAMES if kf.name == "neony-rise-in")
         css = rise.to_css()
@@ -148,7 +144,7 @@ class TestBuiltinKeyframes:
 
     def test_builtins_then_user_later_wins(self):
         """User registration with a builtin name overrides the default."""
-        from neony.application.app import _BUILTIN_KEYFRAMES
+        from neony.application._helpers import _BUILTIN_KEYFRAMES
 
         blocks: dict[str, str] = {kf.name: kf.to_css() for kf in _BUILTIN_KEYFRAMES}
         override = KeyFrame("neony-rise-in").set("0%", Props(opacity=1)).to_css()

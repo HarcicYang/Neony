@@ -12,7 +12,7 @@ from typing import Any
 from lumiview import WindowEvent
 
 from neony.application import Config, NeonApplication, Page
-from neony.application.app import _Entry
+from neony.application._helpers import _Entry
 from neony.dom.bridge import Neony
 
 

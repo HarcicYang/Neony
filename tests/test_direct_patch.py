@@ -10,7 +10,7 @@ import asyncio
 from typing import Any, cast
 
 from neony.application import Config, NeonApplication
-from neony.application.app import _Entry
+from neony.application._helpers import _Entry
 from neony.application.elements import Button, Input, VStack
 from neony.dom import Color, Div, DOMElement, Span, Styles
 from neony.dom.bridge import Neony

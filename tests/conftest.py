@@ -7,10 +7,10 @@ from neony.dom import (
     Color,
     Div,
     Html,
+    NodeDescriptor,
     Span,
     Styles,
 )
-from neony.dom.base import NodeDescriptor
 
 
 @pytest.fixture
