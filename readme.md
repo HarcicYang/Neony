@@ -92,6 +92,10 @@ Import from `neony.application.elements`.
 | `ComboBox`                | Editable text with a themed suggestion popup                                   |
 | `Slider`                  | Slider with animated accent fill — stepped or stepless (`step="any"`)          |
 | `Progress`                | Progress bar with animated fill — determinate or sliding `indeterminate`      |
+| `Dialog`                  | Fixed scrim + centered glass panel — scrim / Escape / ✕ / click-away close    |
+| `Tooltip`                 | Hover bubble wrapped around an anchor, placement offsets, hover delay        |
+| `Dropdown`                | Themed popup under a trigger — full keyboard nav + click-away close          |
+| `Menu`                    | Fixed popup positioned at the cursor (`open_at(x, y)` from contextmenu)      |
 | `Input`                   | Single-line text field — text / password / email / number…                     |
 | `Heading`                 | Themed heading (h1–h6) with automatic sizing                                   |
 | `Text`                    | Inline body copy with semantic roles (primary / secondary / danger / success)  |

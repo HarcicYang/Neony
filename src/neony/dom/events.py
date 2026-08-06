@@ -48,6 +48,12 @@ class DomEvent(BaseModel):
     # Pointer type: "mouse", "pen", or "touch" (PointerEvent only).
     pointer_type: str | None = None
 
+    # mouseover/mouseout only: the key of the keyed element the pointer
+    # moved from/to (None when it came from off-page or an unkeyed
+    # part).  Enter/leave detection — a component's subtree boundary is
+    # crossed exactly when this key is not one of its own descendants.
+    related_key: str | None = None
+
     # Wheel delta (WheelEvent).  delta_mode: 0 = pixels, 1 = lines,
     # 2 = pages (WebKitGTK mouse wheels deliver line deltas).
     delta_x: float | None = None

@@ -343,6 +343,10 @@ class Neony(Plugin):
         movement_x: Any = None,
         movement_y: Any = None,
         pointer_type: str | None = None,
+        # mouseover/mouseout only: the key of the keyed element the
+        # pointer moved from/to (None when it came from off-page or an
+        # unkeyed part) — components detect enter/leave boundaries.
+        related_key: str | None = None,
         # CSS transition / animation events.
         transition_property: str | None = None,
         elapsed_time: Any = None,
@@ -384,6 +388,7 @@ class Neony(Plugin):
             "movement_x": movement_x,
             "movement_y": movement_y,
             "pointer_type": pointer_type,
+            "related_key": related_key,
             "transition_property": transition_property,
             "elapsed_time": elapsed_time,
             "animation_name": animation_name,

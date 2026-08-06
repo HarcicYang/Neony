@@ -72,6 +72,12 @@ _BUILTIN_KEYFRAMES: list[KeyFrame] = [
     KeyFrame("neony-rise-in")
     .set("0%", Props(opacity=0, transform="translateY(8px)"))
     .set("100%", Props(opacity=1, transform="translateY(0)")),
+    # Fade + slide-up appearance — the gallery's section enter
+    # animation; Dialog panels play it on open and, reversed, on
+    # close.  Same stops as neony-rise-in with a longer duration.
+    KeyFrame("fade-slide")
+    .set("0%", Props(opacity=0, transform="translateY(8px)"))
+    .set("100%", Props(opacity=1, transform="translateY(0)")),
     KeyFrame("neony-fade-in").set("0%", Props(opacity=0)).set("100%", Props(opacity=1)),
     # Sweep for indeterminate progress: a 40%-wide fill translates
     # past the track's overflow-hidden edges (-100% → 300% of its own

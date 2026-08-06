@@ -92,6 +92,11 @@ windows. Frameless windows have no OS chrome — see the
 [`TitleBar`](#titlebar) `icon` parameter for inline icons, and
 [`set_icon()`](#neonapplication) to swap at runtime.
 
+**`WebViewConfig.default_context_menus`** — off by default: the app
+draws its own menus (the `Menu` component, `contextmenu` events) and
+the webview's native right-click menu would cover them. Set `True` for
+the platform default menu.
+
 ### `Page`
 
 Top-level flex-column container. Two layers: a full-viewport backdrop
@@ -381,6 +386,75 @@ A rounded track with an accent fill that transitions on value changes
 (`indeterminate=True` plays the built-in `neony-indeterminate` sweep).
 ARIA `role="progressbar"` + `aria-valuenow/min/max` are carried on the
 bar.
+
+### `Dialog`
+
+```python
+dlg = Dialog(
+    title="Confirm",
+    content=Text("..."),
+    width="380px",
+    actions=[
+        DialogAction("确认", on_click=confirm_handler),  # runs, then closes
+        DialogAction("取消", variant="ghost"),
+        DialogAction("关闭", close_on_click=False),  # runs, stays open
+    ],
+)
+dlg.open = True  # or read the property
+dlg.on_close(lambda d: print("closed"))  # called with the dialog
+```
+
+A fixed full-page scrim (`--color-bg-overlay`, theme-following) with a
+centered panel. Close paths: scrim click, Escape (while focus is
+inside), or click-away (`outsideclick`). `closable=False` disables only
+the scrim. `actions` render as a row of themed buttons — `DialogAction`
+takes a label (positional), a `variant` (`primary`/`ghost`/`danger`),
+an `on_click` callback (called with the dialog, sync or async) and
+`close_on_click` (default True). NOTE: any `backdrop-filter` /
+`transform` ancestor becomes the containing block for
+`position: fixed` — mount the dialog at the page root or in a
+non-filtered container.
+
+### `Tooltip`
+
+```python
+tip = Tooltip("hint", anchor=Button("Hover"), placement="top", delay=0.4)
+```
+
+Wraps its anchor (a component is built on construction; a string is
+wrapped in a Span) and shows a bubble after `delay` seconds of hover,
+anchored per `placement` (`top` / `bottom` / `left` / `right`) — pure
+CSS offsets, no measurement. The wrapper bubbles hover events from the
+anchor; clicking the anchor (focus) shows the bubble immediately, blur
+hides it.
+
+### `Dropdown`
+
+```python
+dd = Dropdown("Theme", items=[("dark", "Dark"), ("light", "Light")])
+dd.value  # selected value
+dd.on_change(lambda e: print(e.value))
+```
+
+A trigger with a themed glass popup of native button rows (the same
+pattern as `Select`). Full keyboard nav (Enter/Space opens, arrows
+clamp at the ends, PageUp/PageDown jump to first/last, Enter picks,
+Escape/Tab and click-away close). `items` is settable.
+
+### `Menu`
+
+```python
+menu = Menu(("rename", "Rename"), ("delete", "Delete"))
+btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y))  # cursor position
+menu.on_change(lambda e: print(e.value))
+```
+
+A fixed popup positioned with `open_at(x, y)` — typically a
+`contextmenu` event's viewport coordinates, so no measurement is
+needed. Same keyboard nav as `Dropdown`; closes on selection, Escape,
+or click-away. The panel pops upward — its bottom edge anchors 8px
+above the cursor — and clamps to the viewport via `calc()` max
+width/height, so it never overflows an edge.
 
 ---
 

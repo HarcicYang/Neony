@@ -16,7 +16,7 @@ from wryview import DragDropEvent
 from neony.application import Config, NeonApplication
 from neony.application._helpers import _Entry
 from neony.application.elements import Button, Input, Text, VStack
-from neony.dom import Div, DomEvent
+from neony.dom import Div, DOMElement, DomEvent
 from neony.dom.bridge import Neony
 
 
@@ -1089,5 +1089,73 @@ class TestComboPickRenders:
             inp = find(node, cb._input.key)
             assert inp is not None
             assert inp.attrs["value"] == "work"
+
+        asyncio.run(run())
+
+
+class TestTooltipHoverFlow:
+    """mouseover/mouseout on the keyed anchor must bubble to the
+    tooltip's wrapper and respect the related-key boundary — the
+    component's full event chain, bridge included."""
+
+    def test_entering_anchor_reaches_wrapper(self):
+        from neony.application.elements import Button, Tooltip
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        tip = Tooltip("hint", anchor=Button("a"), delay=0.01)
+        _setup_entry(app, tip.build(), fake)
+
+        async def run() -> None:
+            await app.render()
+            anchor = tip._root.container[0]  # the built button element
+            assert isinstance(anchor, DOMElement)
+            await _fire(app, anchor.key, "mouseover", related_key=None)
+            assert tip._task is not None  # the wrapper handler ran
+            await asyncio.sleep(0.03)
+            assert tip._bubble.styles.display == "block"
+
+        asyncio.run(run())
+
+    def test_leaving_hides(self):
+        from neony.application.elements import Button, Tooltip
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        tip = Tooltip("hint", anchor=Button("a"), delay=0.01)
+        _setup_entry(app, tip.build(), fake)
+
+        async def run() -> None:
+            await app.render()
+            anchor = tip._root.container[0]
+            assert isinstance(anchor, DOMElement)
+            await _fire(app, anchor.key, "mouseover", related_key=None)
+            await asyncio.sleep(0.03)
+            assert tip._bubble.styles.display == "block"
+            await _fire(app, anchor.key, "mouseout", related_key=None)
+            assert tip._bubble.styles.display == "none"
+
+        asyncio.run(run())
+
+    def test_inner_hop_does_not_fire(self):
+        """A hop between inner elements (related key inside the wrapper)
+        reaches the wrapper but must not toggle the bubble."""
+        from neony.application.elements import Button, Tooltip
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        tip = Tooltip("hint", anchor=Button("a"), delay=0.01)
+        _setup_entry(app, tip.build(), fake)
+
+        async def run() -> None:
+            await app.render()
+            anchor = tip._root.container[0]
+            assert isinstance(anchor, DOMElement)
+            await _fire(app, anchor.key, "mouseover", related_key=None)
+            await asyncio.sleep(0.03)
+            assert tip._bubble.styles.display == "block"
+            await _fire(app, anchor.key, "mouseover", related_key=anchor.key)
+            await _fire(app, anchor.key, "mouseout", related_key=anchor.key)
+            assert tip._bubble.styles.display == "block"  # untouched
 
         asyncio.run(run())

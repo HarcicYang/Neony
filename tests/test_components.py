@@ -5,7 +5,10 @@ from neony.application.elements import (
     Button,
     Checkbox,
     ComboBox,
+    Dialog,
+    Dropdown,
     Input,
+    Menu,
     Progress,
     Radio,
     RadioGroup,
@@ -15,9 +18,10 @@ from neony.application.elements import (
     Switch,
     Tabs,
     Text,
+    Tooltip,
     VStack,
 )
-from neony.dom import DomEvent, NodeDescriptor
+from neony.dom import Animation, DomEvent, NodeDescriptor
 
 
 def _find_by_key(node: NodeDescriptor, key: str) -> NodeDescriptor | None:
@@ -1553,3 +1557,409 @@ class TestComboStaleChange:
             assert fired == ["work", "work"]
 
         asyncio.run(run())
+
+
+class TestDialogBuild:
+    """Dialog is a fixed scrim layer with a centered panel."""
+
+    def test_dialog_build_closed(self):
+        dlg = Dialog(title="T", content=Text("body"))
+        node = dlg.build().to_node()
+        assert node.styles["position"] == "fixed"
+        assert node.styles["z-index"] == "1000"
+        assert node.styles["display"] == "none"  # closed by default
+        scrim = _find_by_key(node, dlg._scrim.key)
+        panel = _find_by_key(node, dlg._panel.key)
+        assert scrim is not None and panel is not None
+        assert "data-neony-outside" not in node.attrs
+
+    def test_open_sets_display_and_marker(self):
+        import asyncio
+
+        dlg = Dialog(content=Text("x"))
+
+        async def run() -> None:
+            dlg.open = True
+            assert dlg._root.styles.display == "flex"
+            assert dlg._root.args.get("data-neony-outside") == "true"
+            assert dlg._scrim.styles.opacity == 1.0  # scrim fades in
+            dlg.open = False
+            # Two-phase close: the panel replays its entrance keyframe
+            # in reverse (the same fade-slide, no exit animation) while
+            # the scrim fades out, then display:none.
+            assert dlg._root.styles.display == "flex"
+            assert dlg._scrim.styles.opacity == 0.0
+            assert "data-neony-outside" not in dlg._root.args
+            closing = dlg._panel.styles.animation
+            assert isinstance(closing, Animation)
+            assert closing.name == "fade-slide"
+            assert closing.direction == "reverse"
+            assert dlg._panel.styles.width == "480px"  # closing keeps the open geometry
+            await asyncio.sleep(0.45)
+            assert dlg._root.styles.display == "none"
+            # The forward entrance animation is restored for next open.
+            restored = dlg._panel.styles.animation
+            assert isinstance(restored, Animation)
+            assert restored.direction == "normal"
+
+        asyncio.run(run())
+
+    def test_open_panel_animates(self):
+        dlg = Dialog(content=Text("x"), open=True)
+        node = dlg.build().to_node()
+        panel = _find_by_key(node, dlg._panel.key)
+        assert panel is not None
+        assert panel.styles["animation"] == "fade-slide 0.4s ease-out"
+
+    def test_content_component_built(self):
+        dlg = Dialog(content=Button("OK"))
+        node = dlg.build().to_node()
+        assert node is not None  # builds cleanly
+
+    def test_actions_render_themed_buttons(self):
+        from neony.application.elements import DialogAction
+
+        dlg = Dialog(
+            title="T",
+            content=Text("x"),
+            actions=[DialogAction("确认", variant="danger"), DialogAction("取消", variant="ghost")],
+        )
+        node = dlg.build().to_node()
+        panel = _find_by_key(node, dlg._panel.key)
+        assert panel is not None
+        bar = panel.children[-1]  # the action bar is the last panel child
+        assert bar.styles["display"] == "flex"
+        assert [b.text for b in bar.children] == ["确认", "取消"]
+
+
+class TestDialogEvents:
+    def test_scrim_click_closes(self):
+        import asyncio
+
+        dlg = Dialog(open=True)
+        asyncio.run(dlg._scrim._handlers["click"][0](DomEvent(key=dlg._scrim.key, type="click")))
+        assert dlg.open is False
+
+    def test_closable_false_ignores_scrim_click(self):
+        import asyncio
+
+        dlg = Dialog(open=True, closable=False)
+        asyncio.run(dlg._scrim._handlers["click"][0](DomEvent(key=dlg._scrim.key, type="click")))
+        assert dlg.open is True
+
+    def test_action_click_runs_callback_and_closes(self):
+        import asyncio
+
+        from neony.application.elements import DialogAction
+
+        calls: list = []
+        dlg = Dialog(open=True, actions=[DialogAction("确认", on_click=lambda d: calls.append(d))])
+        action_btn = dlg._actions_buttons[0]
+        asyncio.run(action_btn._btn._handlers["click"][0](DomEvent(key=action_btn._btn.key, type="click")))
+        assert calls == [dlg]
+        assert dlg.open is False
+
+    def test_action_close_on_click_false_keeps_open(self):
+        import asyncio
+
+        from neony.application.elements import DialogAction
+
+        dlg = Dialog(open=True, actions=[DialogAction("Keep", close_on_click=False)])
+        action_btn = dlg._actions_buttons[0]
+        asyncio.run(action_btn._btn._handlers["click"][0](DomEvent(key=action_btn._btn.key, type="click")))
+        assert dlg.open is True
+
+    def test_escape_closes(self):
+        import asyncio
+
+        dlg = Dialog(open=True)
+        asyncio.run(dlg._root._handlers["keydown"][0](DomEvent(key=dlg._root.key, type="keydown", value="Escape")))
+        assert dlg.open is False
+
+    def test_other_keys_do_not_close(self):
+        import asyncio
+
+        dlg = Dialog(open=True)
+        asyncio.run(dlg._root._handlers["keydown"][0](DomEvent(key=dlg._root.key, type="keydown", value="Enter")))
+        assert dlg.open is True
+
+    def test_outsideclick_closes(self):
+        import asyncio
+
+        dlg = Dialog(open=True)
+        asyncio.run(dlg._root._handlers["outsideclick"][0](DomEvent(key=dlg._root.key, type="outsideclick")))
+        assert dlg.open is False
+
+    def test_on_open_on_close_fire(self):
+        dlg = Dialog()
+        fired: list[bool] = []
+        dlg.on_open(lambda d: fired.append(d.open))
+        dlg.on_close(lambda d: fired.append(d.open))
+        dlg.open = True
+        dlg.open = False
+        dlg._cancel_close()  # stop the pending fade task before the loop exits
+        assert fired == [True, False]
+
+
+class TestTooltipBuild:
+    def test_tooltip_build(self):
+        tip = Tooltip("hint", anchor=Button("Hover"))
+        node = tip.build().to_node()
+        bubble = _find_by_key(node, tip._bubble.key)
+        assert bubble is not None
+        assert bubble.styles["display"] == "none"
+        assert bubble.styles["position"] == "absolute"
+        assert bubble.styles["z-index"] == "300"
+        assert bubble.text == "hint"
+
+    def test_placement_offsets(self):
+        top = Tooltip("x", anchor=Button("a"), placement="top")
+        assert top._bubble.styles.bottom == "calc(100% + 8px)"
+        assert top._bubble.styles.transform == "translateX(-50%)"
+        right = Tooltip("x", anchor=Button("a"), placement="right")
+        assert right._bubble.styles.left == "calc(100% + 8px)"
+        assert right._bubble.styles.transform == "translateY(-50%)"
+
+    def test_string_anchor_wrapped_in_span(self):
+        tip = Tooltip("x", anchor="hover me")
+        node = tip.build().to_node()
+        assert len(node.children) == 2  # span anchor + bubble
+        assert node.children[0].tag == "span"
+
+    def test_wrapper_bubbles_anchor_events(self):
+        """Hover events target the keyed anchor — the wrapper must
+        bubble them or the tooltip never sees a mouseover."""
+        tip = Tooltip("x", anchor=Button("a"))
+        assert tip._root.bubble_events is True
+
+
+class TestTooltipEvents:
+    def test_mouseover_entering_shows_after_delay(self):
+        """A real enter — mouseover whose related key is outside the
+        wrapper — starts the delay timer."""
+        import asyncio
+
+        tip = Tooltip("x", anchor=Button("a"), delay=0.01)
+
+        async def run() -> None:
+            await tip._root._handlers["mouseover"][0](DomEvent(key=tip._root.key, type="mouseover", related_key=None))
+            await asyncio.sleep(0.03)  # same loop as the delay task
+
+        asyncio.run(run())
+        assert tip._bubble.styles.display == "block"
+
+    def test_mouseout_leaving_hides_immediately(self):
+        """A real leave — mouseout whose related key is outside the
+        wrapper — hides right away (no grace period needed)."""
+        import asyncio
+
+        tip = Tooltip("x", anchor=Button("a"), delay=0.01)
+
+        async def run() -> None:
+            await tip._root._handlers["mouseover"][0](DomEvent(key=tip._root.key, type="mouseover", related_key=None))
+            await asyncio.sleep(0.03)
+            assert tip._bubble.styles.display == "block"
+            await tip._root._handlers["mouseout"][0](DomEvent(key=tip._root.key, type="mouseout", related_key=None))
+            assert tip._bubble.styles.display == "none"
+
+        asyncio.run(run())
+
+    def test_inner_hops_stay_silent(self):
+        """Moving between the anchor's own elements (related key inside
+        the wrapper subtree) must NOT restart the timer or hide the
+        bubble — this was the original hover bug."""
+        import asyncio
+
+        from neony.dom import DOMElement
+
+        tip = Tooltip("x", anchor=Button("a"), delay=0.01)
+        anchor = tip._root.container[0]
+        assert isinstance(anchor, DOMElement)
+
+        async def run() -> None:
+            # Enter from outside, wait for the bubble.
+            await tip._root._handlers["mouseover"][0](DomEvent(key=anchor.key, type="mouseover", related_key=None))
+            await asyncio.sleep(0.03)
+            assert tip._bubble.styles.display == "block"
+            # Hop to an inner element — related key inside the wrapper.
+            await tip._root._handlers["mouseover"][0](
+                DomEvent(key=anchor.key, type="mouseover", related_key=anchor.key)
+            )
+            assert tip._bubble.styles.display == "block"
+            # Hop out to another inner element — still no leave.
+            await tip._root._handlers["mouseout"][0](DomEvent(key=anchor.key, type="mouseout", related_key=anchor.key))
+            assert tip._bubble.styles.display == "block"  # still shown
+            # A real leave finally hides.
+            await tip._root._handlers["mouseout"][0](DomEvent(key=anchor.key, type="mouseout", related_key=None))
+            assert tip._bubble.styles.display == "none"
+
+        asyncio.run(run())
+
+
+class TestDropdownBuild:
+    def test_dropdown_build(self):
+        dd = Dropdown("Size", items=[("s", "Small"), ("m", "Medium")])
+        node = dd.build().to_node()
+        trigger = _find_by_key(node, dd._trigger.key)
+        popup = _find_by_key(node, dd._popup.key)
+        assert trigger is not None and popup is not None
+        assert trigger.attrs["tabindex"] == "0"
+        assert trigger.attrs["role"] == "combobox"
+        assert popup.styles["display"] == "none"
+        assert popup.styles["z-index"] == "500"
+        assert [row.text for row in popup.children] == ["Small", "Medium"]
+        assert [row.attrs["role"] for row in popup.children] == ["option", "option"]
+
+    def test_items_setter_rebuilds(self):
+        dd = Dropdown(items=["a"])
+        dd.items = ["x", "y"]
+        assert [str(row.container[0]) for _value, row in dd._rows] == ["x", "y"]
+
+    def test_value_shows_label_on_trigger(self):
+        dd = Dropdown("Pick", items=[("s", "Small")])
+        dd.value = "s"
+        assert str(dd._label_span.container[0]) == "Small"
+
+
+class TestDropdownEvents:
+    def _click_trigger(self, dd):
+        import asyncio
+
+        asyncio.run(dd._trigger._handlers["click"][0](DomEvent(key=dd._trigger.key, type="click")))
+
+    def test_trigger_toggles_popup_and_marker(self):
+        dd = Dropdown(items=["a"])
+        self._click_trigger(dd)
+        assert dd._open is True
+        assert dd._popup.styles.display == "flex"
+        assert dd._wrapper.args.get("data-neony-outside") == "true"
+        self._click_trigger(dd)
+        assert dd._open is False
+
+    def test_row_click_selects_and_fires(self):
+        import asyncio
+
+        dd = Dropdown(items=[("a", "A"), ("b", "B")])
+        fired: list[tuple] = []
+
+        async def handler(event: DomEvent):
+            fired.append((event.value, event.source))
+
+        dd.on_change(handler)
+        row = dd._rows[1][1]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert dd.value == "b"
+        assert fired == [("b", "user")]
+        assert dd._open is False
+
+    def test_keyboard_navigation(self):
+        import asyncio
+
+        dd = Dropdown(items=["a", "b", "c"])
+        keydown = dd._wrapper._handlers["keydown"][0]
+
+        async def key(k: str) -> None:
+            await keydown(DomEvent(key=dd._trigger.key, type="keydown", value=k))
+
+        asyncio.run(key("Enter"))
+        assert dd._open is True
+        asyncio.run(key("ArrowDown"))
+        assert dd._active_index == 1
+        asyncio.run(key("ArrowUp"))
+        asyncio.run(key("ArrowUp"))
+        assert dd._active_index == 0  # clamped, no wrap
+        asyncio.run(key("PageDown"))
+        assert dd._active_index == 2
+        asyncio.run(key("Escape"))
+        assert dd._open is False
+
+    def test_enter_picks_active(self):
+        import asyncio
+
+        dd = Dropdown(items=["a", "b"])
+        keydown = dd._wrapper._handlers["keydown"][0]
+
+        async def key(k: str) -> None:
+            await keydown(DomEvent(key=dd._trigger.key, type="keydown", value=k))
+
+        fired: list = []
+        dd.on_change(lambda e: fired.append(e.value))
+        asyncio.run(key("ArrowDown"))
+        asyncio.run(key("ArrowDown"))
+        asyncio.run(key("Enter"))
+        assert dd.value == "b"
+        assert fired == ["b"]
+
+    def test_outsideclick_closes(self):
+        import asyncio
+
+        dd = Dropdown(items=["a"])
+        self._click_trigger(dd)
+        asyncio.run(dd._wrapper._handlers["outsideclick"][0](DomEvent(key=dd._wrapper.key, type="outsideclick")))
+        assert dd._open is False
+
+
+class TestMenuBuild:
+    def test_menu_build(self):
+        menu = Menu(("a", "Action A"), ("b", "Action B"))
+        node = menu.build().to_node()
+        assert node.styles["position"] == "fixed"
+        assert node.styles["z-index"] == "600"
+        assert node.styles["display"] == "none"
+        assert [row.text for row in node.children] == ["Action A", "Action B"]
+        assert node.children[0].attrs["role"] == "menuitem"
+
+
+class TestMenuEvents:
+    def test_open_at_positions_and_opens(self):
+        menu = Menu("a", "b")
+        menu.open_at(120, 80)
+        assert menu._open is True
+        assert menu._root.styles.left == "120px"
+        assert menu._root.styles.top is None  # pops upward
+        assert menu._root.styles.bottom == "calc(100% - 80px - 8px)"
+        assert menu._root.styles.display == "flex"
+        assert menu._root.args.get("data-neony-outside") == "true"
+        # clamped to the space right/above the cursor, no measurement
+        assert menu._root.styles.max_width == "calc(100% - 120px - 8px)"
+        assert menu._root.styles.max_height == "calc(72px)"
+        menu.close()
+        assert menu._open is False
+        assert menu._root.styles.display == "none"
+
+    def test_row_click_selects_and_fires(self):
+        import asyncio
+
+        menu = Menu(("a", "A"), ("b", "B"))
+        menu.open_at(0, 0)
+        fired: list = []
+        menu.on_change(lambda e: fired.append(e.value))
+        row = menu._rows[1][1]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert fired == ["b"]
+        assert menu._open is False
+
+    def test_keyboard_navigation(self):
+        import asyncio
+
+        menu = Menu("a", "b", "c")
+        menu.open_at(0, 0)
+        keydown = menu._root._handlers["keydown"][0]
+
+        async def key(k: str) -> None:
+            await keydown(DomEvent(key=menu._root.key, type="keydown", value=k))
+
+        asyncio.run(key("ArrowDown"))
+        assert menu._active_index == 1
+        asyncio.run(key("PageUp"))
+        assert menu._active_index == 0
+        asyncio.run(key("Escape"))
+        assert menu._open is False
+
+    def test_outsideclick_closes(self):
+        import asyncio
+
+        menu = Menu("a")
+        menu.open_at(0, 0)
+        asyncio.run(menu._root._handlers["outsideclick"][0](DomEvent(key=menu._root.key, type="outsideclick")))
+        assert menu._open is False

@@ -61,7 +61,10 @@ class WebViewConfig(BaseModel):
     javascript: bool = True
     back_forward_gestures: bool = False
     https_scheme: bool = True
-    default_context_menus: bool = True
+    # Off by default: the app draws its own menus (Menu component,
+    # contextmenu events) — the webview's native right-click menu would
+    # cover them.  Set True for the platform default menu.
+    default_context_menus: bool = False
     headers: dict[str, str] | None = None
 
 

@@ -27,11 +27,15 @@ from neony.application.elements import (
     Checkbox,
     ComboBox,
     Component,
+    Dialog,
+    DialogAction,
+    Dropdown,
     Flex,
     GlassPanel,
     Heading,
     HStack,
     Input,
+    Menu,
     Progress,
     Radio,
     RadioGroup,
@@ -45,6 +49,7 @@ from neony.application.elements import (
     Tabs,
     Text,
     TitleBar,
+    Tooltip,
     VStack,
 )
 from neony.dom import (
@@ -1541,6 +1546,110 @@ page.on_shortcut({"darwin": "Meta+K", "default": "Ctrl+K"}, theme)
     HStack(b_chip, g_chip, d_chip, k_chip, gap="16px"),
 )
 
+# ── tab: overlays ────────────────────────────────────────────────
+
+# Dialog: a fixed full-page scrim + centered panel.  Mounted at the
+# PAGE ROOT — a transform / backdrop-filter ancestor (like a Tabs
+# panel's rise-in animation) would hijack `position: fixed` in WebKit.
+# Closes via scrim / Escape / click-away; the action buttons run their
+# callbacks and close by default.
+dialog = Dialog(
+    title="Confirm",
+    content=VStack(Text("Try the scrim, Escape, click-away, or the buttons below.")),
+    width="380px",
+    actions=[
+        DialogAction("Confirm", variant="danger", on_click=lambda d: setattr(dialog_status, "text", "Confirm clicked")),
+        DialogAction("Cancel", variant="ghost"),
+        DialogAction("Close"),
+    ],
+)
+dialog_status = Text("closed", role="secondary")
+dialog_open_btn = Button("Open dialog")
+
+
+async def on_dialog_open(_event: DomEvent) -> None:
+    dialog.open = True
+
+
+dialog_open_btn.on_click(on_dialog_open)
+dialog.on_open(lambda _d: setattr(dialog_status, "text", "open"))
+dialog.on_close(lambda _d: setattr(dialog_status, "text", "closed"))
+
+# Tooltip: anchor-relative bubble, placement offsets, hover delay.
+tip_top = Tooltip("Tooltip on top", anchor=Button("Hover (top)"), placement="top", delay=1)
+tip_bottom = Tooltip("Tooltip below", anchor=Button("Hover (bottom)"), placement="bottom", delay=1)
+
+# Dropdown: themed popup under a trigger (Select's pattern).
+theme_dd = Dropdown("Theme", items=[("dark", "Dark"), ("light", "Light"), ("deep-blue", "Deep Blue")], width="160px")
+dd_echo = Text("", role="secondary")
+
+
+async def on_dd_change(event: DomEvent) -> None:
+    dd_echo.text = f"Dropdown: {event.value}"
+
+
+theme_dd.on_change(on_dd_change)
+
+# Menu: fixed at the cursor — right-click the button.  Also mounted at
+# the page root so no ancestor transform can hijack `position: fixed`.
+ctx_menu = Menu(("rename", "Rename"), ("duplicate", "Duplicate"), ("delete", "Delete"))
+menu_echo = Text("", role="secondary")
+menu_btn = Button("Right-click me", variant="ghost")
+
+
+async def on_menu_contextmenu(event: DomEvent) -> None:
+    ctx_menu.open_at(event.x or 0, event.y or 0)
+
+
+async def on_menu_change(event: DomEvent) -> None:
+    menu_echo.text = f"Menu: {event.value}"
+
+
+menu_btn.on_contextmenu(on_menu_contextmenu)
+ctx_menu.on_change(on_menu_change)
+
+overlays_panel = Section(
+    "Overlays",
+    "Four positioned layers — all CSS-anchored, zero measurement. "
+    "Dialog dims the whole page with a themed scrim and centers a "
+    "panel with configurable action buttons (scrim / Escape / "
+    "click-away close); Tooltip wraps its anchor with placement "
+    "offsets and a hover delay; Dropdown reuses the popup pattern "
+    "(outsideclick close, full keyboard nav); Menu is fixed at the "
+    "cursor via open_at() — right-click the button.",
+    """dialog = Dialog(
+    title="Confirm", content=Text("..."), width="380px",
+    actions=[DialogAction("Confirm", on_click=fn), DialogAction("Cancel", variant="ghost")],  # click → close
+)
+dialog.open = True                        # or read the property
+dialog.on_close(lambda d: print("closed"))
+
+tip = Tooltip("hint", anchor=Button("Hover"), placement="top", delay=0.4)
+
+dd = Dropdown("Theme", items=[("dark", "Dark"), ("light", "Light")])
+dd.on_change(lambda e: print(e.value))    # selected value
+
+menu = Menu(("rename", "Rename"), ("delete", "Delete"))
+btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y))  # cursor position
+menu.on_change(lambda e: print(e.value))""",
+    HStack(Text("Dialog", weight="600"), Spacer(), dialog_open_btn, gap="8px"),
+    dialog_status,
+    Separator(),
+    HStack(tip_top, tip_bottom, gap="12px"),
+    Separator(),
+    HStack(Text("Dropdown", weight="600"), Spacer(), theme_dd, gap="8px"),
+    dd_echo,
+    Separator(),
+    menu_btn,
+    menu_echo,
+)
+
+# Fixed overlays must not live inside the Tabs panel (its rise-in
+# animation transforms would hijack `position: fixed` in WebKit) —
+# mount them at the page root.
+page.add(dialog)
+page.add(ctx_menu)
+
 tabs = Tabs(glass=True)
 tabs.add("Buttons", buttons_panel)
 tabs.add("Inputs", inputs_panel)
@@ -1555,6 +1664,7 @@ tabs.add("Animations", animations_panel)
 tabs.add("Drop", drop_panel)
 tabs.add("Clipboard", clipboard_panel)
 tabs.add("Shortcuts", shortcuts_panel)
+tabs.add("Overlays", overlays_panel)
 tabs.add("Reactive", reactive_panel)
 tabs.add("Sidebar", sidebar_panel)
 tabs.add("Window", window_panel)
