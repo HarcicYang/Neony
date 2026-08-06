@@ -73,6 +73,12 @@ _BUILTIN_KEYFRAMES: list[KeyFrame] = [
     .set("0%", Props(opacity=0, transform="translateY(8px)"))
     .set("100%", Props(opacity=1, transform="translateY(0)")),
     KeyFrame("neony-fade-in").set("0%", Props(opacity=0)).set("100%", Props(opacity=1)),
+    # Sweep for indeterminate progress: a 40%-wide fill translates
+    # past the track's overflow-hidden edges (-100% → 300% of its own
+    # width) for a left-to-right indeterminate slide.
+    KeyFrame("neony-indeterminate")
+    .set("0%", Props(transform="translateX(-100%)"))
+    .set("100%", Props(transform="translateX(300%)")),
 ]
 
 

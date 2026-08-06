@@ -4,6 +4,7 @@ bind_visible on DOMElement and Component."""
 import asyncio
 from typing import Any, cast
 
+from neony.application.elements import Button
 from neony.dom import Div, Signal, Span, Styles
 
 
@@ -193,3 +194,30 @@ class TestRenderIntegration:
         texts = [op for op in fake.patches[-1]["ops"] if op["op"] == "set_text"]
         assert len(texts) == 1
         assert texts[0]["text"] == "1"
+
+
+class TestBindAttrBool:
+    """bind_attr with a bool signal must not leave a "False" attribute
+    behind — disabled="False" would permanently disable a button."""
+
+    def test_true_renders_bare_false_removes(self):
+        from neony.dom import Signal
+
+        btn = Button("x")
+        busy = Signal(False)
+        btn.bind_attr(busy, "disabled")
+        assert "disabled" not in btn.build().to_node().attrs
+
+        busy.set(True)
+        assert btn._btn.to_node().attrs["disabled"] == ""
+
+        busy.set(False)
+        assert "disabled" not in btn._btn.to_node().attrs
+
+    def test_none_removes_attribute(self):
+        from neony.dom import Signal
+
+        div = Div(args={"title": "x"})
+        sig = Signal(None)
+        div.bind_attr(sig, "title")
+        assert "title" not in div.args

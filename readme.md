@@ -85,6 +85,12 @@ Import from `neony.application.elements`.
 | ------------------------- | ------------------------------------------------------------------------------ |
 | `Button`                  | Themed push button — primary / ghost / danger variants, hover & press feedback |
 | `Checkbox`                | Custom-styled checkbox with label and `change` event                           |
+| `Radio` / `RadioGroup`    | Mutual-exclusion radio options with group `change` carrying the value          |
+| `Switch`                  | Track + thumb toggle built on a native checkbox                                |
+| `Select`                  | Themed dropdown — `str` or `(value, label)` options                            |
+| `ComboBox`                | Editable text with a themed suggestion popup                                   |
+| `Slider`                  | Slider with animated accent fill — stepped or stepless (`step="any"`)          |
+| `Progress`                | Progress bar with animated fill — determinate or sliding `indeterminate`      |
 | `Input`                   | Single-line text field — text / password / email / number…                     |
 | `Heading`                 | Themed heading (h1–h6) with automatic sizing                                   |
 | `Text`                    | Inline body copy with semantic roles (primary / secondary / danger / success)  |

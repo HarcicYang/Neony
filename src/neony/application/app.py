@@ -53,6 +53,10 @@ class NeonApplication(Generic[_S]):
         self._entries: list[_Entry] = []
         # Fire-and-forget render tasks scheduled by signal bindings.
         self._render_tasks: set[asyncio.Task] = set()
+        # Per-window (key, event_type) pairs already registered on the
+        # bridge — dynamic elements created after startup (popup rows,
+        # ...) register their handlers on the next render.
+        self._registered: list[set[tuple[str, str]]] = []
         self.state: _S = state if state is not None else cast(_S, SimpleNamespace())
         self.theme: Theme = Theme()
         self.ready_handler: Any = None  # optional async callable, run after windows ready
@@ -68,12 +72,14 @@ class NeonApplication(Generic[_S]):
     def run(self, *pages: Page | DOMElement) -> None:
         """Blocking entry point — one window per *page*, all sharing one
         event loop and the app's ``state`` namespace."""
+        self._registered = []
         for page in pages:
             tree = page.build() if isinstance(page, Page) else page
             neony = Neony(name="neony", mount_selector=self.config.mount_selector)
             idx = len(self._entries)
             self._entries.append(_Entry(neony, tree, page if isinstance(page, Page) else None))
-            self._collect_handlers(neony, tree, idx)
+            self._registered.append(set())
+            self._collect_handlers(neony, tree, idx, self._registered[idx])
             self._arm_render_request(tree, idx)
         # Linux: taskbar/dock shows the app name, not ``python3``.
         _set_linux_app_name(self.config.window.title)
@@ -419,6 +425,12 @@ class NeonApplication(Generic[_S]):
                 if "WebView is not initialized" in str(exc):
                     return  # window closing — drop the patch
                 raise
+            # Elements created after the startup sweep (dynamic popup
+            # rows, ...) have no handlers on the bridge yet — register
+            # any new keys and handlers so their events aren't dropped.
+            while len(self._registered) <= i:
+                self._registered.append(set())
+            self._collect_handlers(entry.neony, entry.tree, i, self._registered[i])
 
     # ---- handler collection ----
 
@@ -437,17 +449,30 @@ class NeonApplication(Generic[_S]):
 
         tree._render_request = request
 
-    def _collect_handlers(self, neony: Neony, element: DOMElement, idx: int) -> None:
+    def _collect_handlers(
+        self, neony: Neony, element: DOMElement, idx: int, registered: set[tuple[str, str]] | None = None
+    ) -> None:
         """Register element handlers on one window's bridge; every element
         also lands in the key map so opt-in bubbling can walk the parent
-        chain from any handler-less key."""
+        chain from any handler-less key.
+
+        Idempotent: *registered* tracks (key, event_type) pairs already
+        on the bridge, so re-runs (after every render) only add handlers
+        for elements created since the last sweep — re-registering the
+        same pair would double-fire.  A single-shot call (tests) passes
+        no set and registers everything."""
+        if registered is None:
+            registered = set()
         neony._key_map[element.key] = element
         for event_type, fns in element._handlers.items():
+            if (element.key, event_type) in registered:
+                continue
+            registered.add((element.key, event_type))
             for fn in fns:
                 neony.on(event_type, key=element.key)(self._make_wrapper(fn, element, idx))
         for child in element.container:
             if isinstance(child, DOMElement):
-                self._collect_handlers(neony, child, idx)
+                self._collect_handlers(neony, child, idx, registered)
 
     @staticmethod
     async def _run_handler(fn: Any, *args: Any) -> None:

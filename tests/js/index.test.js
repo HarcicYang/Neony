@@ -393,6 +393,69 @@ describe("pointermove events", () => {
   });
 });
 
+describe("outsideclick", () => {
+  let invoke;
+  let win;
+
+  beforeEach(() => {
+    win = { minimize: vi.fn(), toggleMaximize: vi.fn(), close: vi.fn() };
+    invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { listen, invoke, window: win };
+  });
+
+  function outsidePayloads() {
+    return invoke.mock.calls
+      .filter(([name, payload]) => name === "neony.event" && payload.event_type === "outsideclick")
+      .map(([, payload]) => payload);
+  }
+
+  it("fires outsideclick for a marked overlay when a click lands outside it", () => {
+    mountTree({
+      key: "dd",
+      tag: "div",
+      attrs: { "data-neony-outside": "true" },
+    });
+    document.body.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    expect(outsidePayloads()).toEqual([{ key: "dd", event_type: "outsideclick", value: null }]);
+  });
+
+  it("does not fire outsideclick for clicks inside the overlay", () => {
+    mountTree({
+      key: "dd",
+      tag: "div",
+      attrs: { "data-neony-outside": "true" },
+      children: [{ key: "row", tag: "button", text: "pick" }],
+    });
+    const row = document.querySelector("[data-neony-key='row']");
+    row.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    expect(outsidePayloads()).toEqual([]);
+  });
+
+  it("fires outsideclick alongside the normal click on a keyed element elsewhere", () => {
+    mountTree({
+      key: "root",
+      tag: "div",
+      children: [
+        { key: "dd", tag: "div", attrs: { "data-neony-outside": "true" } },
+        { key: "btn", tag: "button", text: "x" },
+      ],
+    });
+    const btn = document.querySelector("[data-neony-key='btn']");
+    btn.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    expect(invoke).toHaveBeenCalledWith(
+      "neony.event",
+      expect.objectContaining({ key: "btn", event_type: "click" })
+    );
+    expect(outsidePayloads()).toEqual([{ key: "dd", event_type: "outsideclick", value: null }]);
+  });
+
+  it("ignores overlays without the marker", () => {
+    mountTree({ key: "dd", tag: "div" });
+    document.body.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    expect(outsidePayloads()).toEqual([]);
+  });
+});
+
 describe("transition and animation events", () => {
   let invoke;
   let win;

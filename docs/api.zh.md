@@ -244,6 +244,83 @@ tabs.active = 1  # 编程切换
 tabs.active_key  # 当前面板 key
 ```
 
+### `Radio` & `RadioGroup`
+
+```python
+group = RadioGroup(Radio("披萨"), Radio("塔可"))
+group.value  # 选中的值（默认小写 label）
+group.on_change(lambda e: print(e.value))  # value = 选中的值字符串
+group.value = "tacos"  # 编程设置 — 不触发回调
+```
+
+同一时刻只有一个选项被选中；组会给选项分配共享 `name`，屏幕阅读器
+将其视为一个控件。单独使用的 `Radio` 是普通开关，`on_change` 携带
+布尔值。
+
+### `Switch`
+
+```python
+sw = Switch("Wi-Fi")
+sw.checked = True  # 编程设置 — 不触发回调
+sw.on_change(lambda e: print(e.value))  # value = 是否开启
+```
+
+原生 checkbox 样式化为轨道 + 滑块（38×22px，`glass=True` 磨砂轨道）。
+
+### `Select`
+
+```python
+sel = Select("尺寸", options=[("s", "小"), ("m", "中")], placeholder="请选择…")
+sel.value  # 选中的选项值（"m"）
+sel.on_change(lambda e: print(e.value))  # value = 选中的选项值
+```
+
+选项为 `str`（值即标签）或 `(value, label)` 元组。弹出列表由组件自绘
+——主题化玻璃面板——因为 WebKitGTK 的原生弹出层忽略 option 的
+`background-color`。键盘：Enter/Space 打开，方向键高亮，Enter 选中，
+Escape/Tab 关闭；点击外部经引擎的 `outsideclick` 事件关闭。
+
+### `ComboBox`
+
+```python
+box = ComboBox("标签", options=["work", "personal"], placeholder="输入或选择…")
+box.on_input(lambda e: print(e.value))  # 实时文本
+```
+
+可编辑文本框 + 主题化建议面板（原生 `<datalist>` 弹出层无法主题化）。
+聚焦即弹出全部选项（单击即可见）；建议按输入前缀实时过滤；方向键
+高亮、**Tab 或 Enter 自动补全**高亮建议、**PageUp/PageDown 一键选中
+首/尾建议**、Escape / 点击外部关闭。值语义与 `Input` 一致：
+`on_input` 只记录状态，`on_change` 在选中建议或失焦时触发。
+
+### `Slider`
+
+```python
+sl = Slider("音量", min=0, max=100, step=5, value=40)
+sl = Slider("音量", min=0, max=100, step="any")  # 无级
+sl.value  # 40.0 — 已限制在 [min, max]
+sl.on_input(lambda e: print(e.value))  # float，拖动中持续触发
+sl.on_change(lambda e: print(e.value))  # float，松开时触发
+```
+
+轨道、accent 填充和滑块由组件自绘（顶层的原生 range 输入不可见，
+负责拖动与键盘）。拖动时填充实时跟随滑块，程序化设置时 0.2s 平滑
+过渡。`step="any"` 可达任意浮点值。PageUp/PageDown 按页步进（10×
+step，无级时为范围 10%）——组件纠正了原生 range 反向的页方向
+（WebKit 规范怪癖）。
+
+### `Progress`
+
+```python
+bar = Progress(value=35, max=100, label="下载中…")
+bar.value = 50  # 限制在 [0, max]；填充 0.3s 平滑过渡
+Progress(label="扫描中…", indeterminate=True)  # 滑动扫掠动画
+```
+
+圆角轨道 + accent 填充，值变化时宽度过渡
+（`indeterminate=True` 播放内置 `neony-indeterminate` 扫掠动画）。
+条上携带 ARIA `role="progressbar"` + `aria-valuenow/min/max`。
+
 ---
 
 ## 布局
@@ -503,9 +580,36 @@ panel.bind_visible(count)  # 假值时 display: none
   绑定前的 display 值
 - `unbind()` — 释放元素上的所有绑定
 
-四个方法在 `Component` 上同样可用(代理到组件的根元素)。绑定写入会把
-元素标记为 dirty 并为其窗口调度一次渲染 — 因此无论 Signal 在哪里被
-修改(事件处理、定时器、其他窗口)，都无需显式调用 `render()` 就能上屏。
+五个方法在 `Component` 上同样可用(前四个代理到组件的根元素)。绑定
+写入会把元素标记为 dirty 并为其窗口调度一次渲染 — 因此无论 Signal
+在哪里被修改(事件处理、定时器、其他窗口)，都无需显式调用 `render()`
+就能上屏。
+
+### `Component.bind_value` — 值双向绑定
+
+`bind_value(signal)` 把 Signal 绑定到组件的**值**上，双向同步：
+
+```python
+name = Signal("")
+inp = Input()
+inp.bind_value(name)  # 输入 → name.set()；name.set() → 输入框
+
+vol = Signal(40)
+slider.bind_value(vol)  # 拖动回写(float)
+bar = Progress()
+bar.bind_value(vol)  # 只写跟随
+
+flag = Signal(False)
+cb = Checkbox("x")
+cb.bind_value(flag)  # 绑定的是 checked 而非 value
+```
+
+- Signal 写入立即更新组件值并随变化继续更新；用户改值回写 Signal
+- `Computed` 只读绑定(不回写)
+- 用户通道是组件的 `_value_event`(`input`：Input/ComboBox/Slider，
+  `change`：Select/Checkbox)；Progress 无用户通道，只写
+- `unbind_value()` / `unbind()` 释放绑定；程序化写值不触发回调，
+  循环天然闭合(用户 → Signal → 写回相同值不再分发)
 
 ### 脏子树追踪
 

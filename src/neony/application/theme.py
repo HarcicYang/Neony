@@ -68,7 +68,7 @@ _DARK = {
 _LIGHT = {
     "bg": "#f4f5f7",
     "surface": "#ffffff",
-    "surface_raised": "#fafafa",
+    "surface_raised": "#ebebeb",
     "text_primary": "#1a1a2e",
     "text_secondary": "#5a5a72",
     "accent": "#3a7bc8",

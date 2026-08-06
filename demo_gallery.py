@@ -4,12 +4,14 @@
 Each tab pairs a live component demo with a short description and the
 Python snippet that produced it, so the gallery doubles as a reference.
 
-Showcases: Button variants, Input types, Checkbox state, layout
-primitives (HStack/Flex/Spacer), typography roles, frosted glass,
-window icon, rich event payloads (modifiers / coordinates / wheel),
-file drag-and-drop, clipboard events + API, in-app shortcuts, reactive
-primitives (Signal / Computed / Effect / bindings), the Sidebar
-component, and window-state control (show / hide / focus / set_bounds).
+Showcases: Button variants, Input types, Checkbox state, form controls
+(radio groups, switches, selects, combo boxes, sliders, progress bars),
+layout primitives (HStack/Flex/Spacer), typography roles, frosted
+glass, window icon, rich event payloads (modifiers / coordinates /
+wheel), file drag-and-drop, clipboard events + API, in-app shortcuts,
+reactive primitives (Signal / Computed / Effect / bindings), the
+Sidebar component, and window-state control (show / hide / focus /
+set_bounds).
 
 Usage:
     python demo_gallery.py
@@ -23,22 +25,43 @@ from neony.application import Config, NeonApplication, Page, WebViewConfig, Wind
 from neony.application.elements import (
     Button,
     Checkbox,
+    ComboBox,
     Component,
     Flex,
     GlassPanel,
     Heading,
     HStack,
     Input,
+    Progress,
+    Radio,
+    RadioGroup,
+    Select,
     Separator,
     Sidebar,
     SidebarItem,
+    Slider,
     Spacer,
+    Switch,
     Tabs,
     Text,
     TitleBar,
     VStack,
 )
-from neony.dom import Animation, Color, Computed, Div, DOMElement, DomEvent, KeyFrame, Props, Signal, Styles, effect
+from neony.dom import (
+    Animation,
+    Color,
+    Computed,
+    Div,
+    DOMElement,
+    DomEvent,
+    KeyFrame,
+    Props,
+    Signal,
+    Styles,
+    batch,
+    effect,
+    untrack,
+)
 
 # Frameless + transparent: the gallery gets its own glass TitleBar, and
 # the desktop shows through the frosted chrome.
@@ -59,6 +82,9 @@ _BACKGROUND_URL = "https://harcic.is-a.dev/resource/backgrounds/8.webp"
 _ICON_URL = "https://harcic.is-a.dev/resource/favicon.svg"
 
 _MONO = "ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+
+# Shared across tabs: bumped in the Reactive tab, observed in Forms.
+heat = Signal(30)
 
 
 def CodeBlock(code: str) -> DOMElement:
@@ -160,6 +186,14 @@ ghost_btn = Button("Ghost Button", variant="ghost")
 danger_btn = Button("Delete", variant="danger")
 disabled_btn = Button("Disabled", disabled=True)
 
+# Signal-driven counter: the click handler only bumps the signal; the
+# label follows via bind_text — the reactive way to hold UI state.
+clicks = Signal(0)
+clicks_btn = Button("Click me")
+clicks_btn.on_click(lambda _e: clicks.update(lambda n: n + 1))
+clicks_text = Text("0 clicks", role="secondary")
+clicks_text.bind_text(clicks, fmt=lambda n: f"{n} clicks")
+
 # reset_styles demo: custom green button, hover feedback still works
 custom_btn = Button("Custom").reset_styles(
     Styles(
@@ -179,18 +213,26 @@ buttons_panel = Section(
     "Three variants (primary, ghost, danger) with hover / press feedback "
     "and colour-matched glows — hover lifts with a halo in the variant's "
     "own colour, focus draws a tinted ring. reset_styles() replaces the "
-    "base look while keeping the feedback.",
+    "base look while keeping the feedback. The counter holds its state "
+    "in a Signal — the click only bumps it, bind_text redraws the label.",
     """Button("Primary Action")
 Button("Ghost Button", variant="ghost")
 Button("Delete", variant="danger")
 Button("Disabled", disabled=True)
 Button("Custom").reset_styles(
-    Styles(background_color=Color(hex="#2fa89a"), ...))""",
+    Styles(background_color=Color(hex="#2fa89a"), ...))
+
+clicks = Signal(0)
+btn.on_click(lambda _e: clicks.update(lambda n: n + 1))
+label.bind_text(clicks, fmt=lambda n: f"{n} clicks")""",
     primary_btn,
     ghost_btn,
     danger_btn,
     disabled_btn,
     custom_btn,
+    Separator(),
+    clicks_btn,
+    clicks_text,
 )
 
 # ── tab: inputs ──────────────────────────────────────────────────
@@ -224,11 +266,15 @@ email_input.on_input(on_email_input)
 inputs_panel = Section(
     "Inputs",
     "Text, password and email fields. The on_input event carries the live "
-    "value; echoing it back is the standard pattern.",
+    "value; echoing it back is the standard pattern (password/email use "
+    "the same event with their own readouts).",
     """inp = Input(placeholder="Your name…")
 async def on_text_input(event: DomEvent) -> None:
     text_echo.text = f"Hello, {event.value}!"
-inp.on_input(on_text_input)""",
+inp.on_input(on_text_input)
+
+pwd = Input(placeholder="Password", type="password")   # email / number …
+pwd.on_input(lambda e: print(len(e.value)))""",
     text_input,
     text_echo,
     password_input,
@@ -239,40 +285,193 @@ inp.on_input(on_text_input)""",
 
 # ── tab: checks ──────────────────────────────────────────────────
 
+# The signals are the single source of truth: each checkbox is bound
+# two-way, "Select all" is a Computed driven by an effect, and the
+# status line is a bound text — no manual refresh calls.
 FOODS = ["Pizza", "Tacos", "Ramen"]
+food_flags = {name: Signal(False) for name in FOODS}
 food_checks = [Checkbox(name) for name in FOODS]
+for cb, name in zip(food_checks, FOODS, strict=True):
+    cb.bind_value(food_flags[name])
+
+all_selected = Computed(lambda: all(food_flags[name]() for name in FOODS))
 check_all = Checkbox("Select all")
+check_all_effect = effect(lambda: setattr(check_all, "checked", all_selected()))
 check_status = Text("0 of 3 selected", role="secondary")
-
-
-def refresh_checks() -> None:
-    n = sum(1 for cb in food_checks if cb.checked)
-    check_all.checked = n == len(FOODS)
-    check_status.text = f"{n} of {len(FOODS)} selected"
-
-
-for cb in food_checks:
-    cb.on_change(lambda _e: refresh_checks())
+check_status.bind_text(Computed(lambda: f"{sum(1 for name in FOODS if food_flags[name]())} of {len(FOODS)} selected"))
 
 
 async def on_check_all(event: DomEvent) -> None:
-    for cb in food_checks:
-        cb.checked = bool(event.value)
-    refresh_checks()
+    for name in FOODS:
+        food_flags[name].set(bool(event.value))
 
 
 check_all.on_change(on_check_all)
 
 checks_panel = Section(
     "Checkboxes",
-    "Custom-styled toggles with a change event. Setting .checked "
-    "programmatically updates the view but never fires callbacks.",
-    """cb = Checkbox("Pizza")
-cb.checked = True  # programmatic — no callback fires
-cb.on_change(lambda e: print(e.value))""",
+    "Custom-styled toggles with a change event. Signals are the single "
+    "source of truth: each food checkbox is bound two-way via "
+    'bind_value, "Select all" is a Computed driven by an effect, and '
+    "the status line is a bound text — nothing refreshes by hand.",
+    """flag = Signal(False)
+cb = Checkbox("Pizza")
+cb.bind_value(flag)      # two-way: toggling writes the signal
+
+all_selected = Computed(lambda: all(f[name]() for name in FOODS))
+effect(lambda: setattr(check_all, "checked", all_selected()))
+status.bind_text(Computed(lambda: f"{n} of 3 selected"))""",
     check_all,
     *food_checks,
     check_status,
+)
+
+# ── tab: forms ───────────────────────────────────────────────────
+
+meal_group = RadioGroup(
+    Radio("Pizza", value="pizza"),
+    Radio("Tacos", value="tacos"),
+    Radio("Ramen", value="ramen"),
+)
+meal_echo = Text("Picked: pizza", role="secondary")
+
+
+async def on_meal_change(event: DomEvent) -> None:
+    meal_echo.text = f"Picked: {event.value}"
+
+
+meal_group.on_change(on_meal_change)
+
+wifi_switch = Switch("Wi-Fi")
+wifi_status = Text("Off", role="secondary")
+
+
+async def on_wifi_change(event: DomEvent) -> None:
+    wifi_status.text = "On" if event.value else "Off"
+
+
+wifi_switch.on_change(on_wifi_change)
+
+size_select = Select(
+    "Size",
+    options=[("s", "Small"), ("m", "Medium"), ("l", "Large")],
+    placeholder="Pick a size…",
+    value="m",
+)
+size_echo = Text("Selected: m", role="secondary")
+
+
+async def on_size_change(event: DomEvent) -> None:
+    size_echo.text = f"Selected: {event.value}"
+
+
+size_select.on_change(on_size_change)
+
+tag_combobox = ComboBox("Tag", options=["work", "personal", "travel"], placeholder="Type or pick…")
+tag_echo = Text("", role="secondary")
+
+
+async def on_tag_input(event: DomEvent) -> None:
+    tag_echo.text = f"Tag: {event.value}" if event.value else ""
+
+
+async def on_tag_change(event: DomEvent) -> None:
+    # auto-complete (Tab/Enter/PageUp/PageDown) fires change, not input —
+    # the readout must follow picks too
+    tag_echo.text = f"Tag: {event.value}" if event.value else ""
+
+
+tag_combobox.on_input(on_tag_input)
+tag_combobox.on_change(on_tag_change)
+
+# One signal drives three widgets: the slider writes it (bind_value is
+# two-way), the readout and the progress bar follow (bind_text /
+# bind_value write-only).  No manual refresh anywhere.
+volume = Signal(40)
+volume_slider = Slider("Volume (stepped)", min=0, max=100, step=5, value=40)
+volume_slider.bind_value(volume)
+volume_readout = Mono()
+volume_readout.bind_text(volume, fmt=lambda v: f"{v:.0f}%")
+volume_progress = Progress(label="The progress bar follows the same signal")
+volume_progress.bind_value(volume)
+
+# step="any" → stepless: every float is reachable, the fill follows the
+# thumb instantly while dragging and glides on programmatic sets.
+smooth_volume = Signal(40.0)
+smooth_slider = Slider("Volume (continuous)", min=0, max=100, step="any", value=40)
+smooth_slider.bind_value(smooth_volume)
+smooth_readout = Mono()
+smooth_readout.bind_text(smooth_volume, fmt=lambda v: f"{v:.1f}%")
+
+# Cross-tab reactivity: this readout follows the `heat` signal that the
+# Reactive tab's buttons drive — switch tabs and bump it there.
+heat_share = Text("", role="secondary", size="12px")
+heat_share.bind_text(heat, fmt=lambda n: f"shared heat signal (from the Reactive tab): {n}%")
+
+load_bar = Progress(value=35, label="Downloading…")
+scan_bar = Progress(label="Scanning…", indeterminate=True)
+advance_btn = Button("+15%", variant="ghost")
+
+
+async def on_advance(_event: DomEvent) -> None:
+    load_bar.value = min(100.0, load_bar.value + 15)
+
+
+advance_btn.on_click(on_advance)
+
+forms_panel = Section(
+    "Forms",
+    "Radio groups, switches, dropdowns, combo boxes, sliders and "
+    "progress bars. State is owned by the component: programmatic "
+    "writes never fire callbacks, user-driven events carry "
+    'source == "user". Sliders draw their own fill track; step="any" '
+    "makes one stepless. The volume slider, its readout and a progress "
+    "bar all share one Signal via bind_value — drag and watch the "
+    "others follow. The heat readout at the bottom follows the Reactive "
+    "tab's shared signal.",
+    """group = RadioGroup(Radio("Pizza"), Radio("Tacos"))
+group.on_change(lambda e: print(e.value))  # value string
+
+sw = Switch("Wi-Fi")
+sw.on_change(lambda e: print(e.value))  # bool
+
+sel = Select("Size", options=[("s", "Small"), ("m", "Medium")],
+             placeholder="Pick…")
+sel.on_change(lambda e: print(e.value))  # option value
+
+box = ComboBox("Tag", options=["work", "personal"])
+box.on_input(lambda e: print(e.value))  # live text
+
+vol = Signal(40)
+slider.bind_value(vol)                  # two-way: drag writes back
+readout.bind_text(vol, fmt=lambda v: f"{v:.0f}%")
+follow = Progress(); follow.bind_value(vol)  # write-only follower
+
+bar = Progress(value=35)
+bar.value = 50  # fill glides; no callback
+Progress(indeterminate=True)  # sliding sweep animation""",
+    meal_group,
+    meal_echo,
+    Separator(),
+    wifi_switch,
+    wifi_status,
+    Separator(),
+    size_select,
+    size_echo,
+    Separator(),
+    tag_combobox,
+    tag_echo,
+    Separator(),
+    volume_slider,
+    volume_readout,
+    volume_progress,
+    smooth_slider,
+    smooth_readout,
+    heat_share,
+    Separator(),
+    load_bar,
+    scan_bar,
+    advance_btn,
 )
 
 # ── tab: layout ──────────────────────────────────────────────────
@@ -295,9 +494,14 @@ wrap_example = Flex(
 
 layout_panel = Section(
     "Layout",
-    "HStack rows with Spacer pushing content; Flex gives full control, including wrapping.",
+    "HStack rows with Spacer pushing content; Flex gives full control, "
+    "including wrapping. VStack stacks vertically, Separator divides, "
+    "GlassPanel frosts.",
     """HStack(Text("Title"), Spacer(), Button("Edit"), gap="8px")
-Flex(*items, direction="row", wrap="wrap", gap="8px")""",
+Flex(*items, direction="row", wrap="wrap", gap="8px")
+VStack(a, b, gap="12px")
+Separator()
+GlassPanel("Frosted", role="accent")""",
     row_example,
     wrap_example,
 )
@@ -315,10 +519,11 @@ typography_panel = Section(
     "Six heading levels plus semantic text roles that follow the theme. "
     "user_select controls text selection: the first row below cannot be "
     "highlighted, the second can.",
-    """Heading("Title", level=1)
+    """Heading("Title", level=1)   # level 1-6
 Text("Body copy")
 Text("Muted copy", role="secondary")
 Text("Danger", role="danger")
+Text("OK", role="success")
 Div(styles=Styles(user_select="none"), ...)""",
     Heading("Heading 1", level=1),
     Heading("Heading 2", level=2),
@@ -673,7 +878,11 @@ animations_panel = Section(
 app.register_keyframe(spin)
 icon.styles.animation = Animation(name="spin", duration="1s",
                                   timing="linear",
-                                  iteration_count="infinite")""",
+                                  iteration_count="infinite")
+icon.styles.animation = anim.model_copy(update={"play_state": "paused"})  # pause/resume
+
+fade = KeyFrame("fade-slide").set("0%", Props(opacity=0, transform="translateY(8px)"))
+card.styles.animation = Animation(name="fade-slide", duration="0.5s")""",
     HStack(spinner, spin_state, spin_toggle, gap="12px", align="center"),
     enter_card,
 )
@@ -841,9 +1050,13 @@ read_btn.on_click(on_read_click)
 
 clipboard_panel = Section(
     "Clipboard",
-    """APIs for clipboard is impled in the backend to avoid the need of user gesture""",
+    "Clipboard events carry data into Python: paste delivers "
+    "clipboard_text / clipboard_html, copy / cut fire as notifications. "
+    "The write/read API lives in the backend (no user gesture needed to "
+    "write); read still needs the window focused.",
     """inp.on_paste(lambda e: print(e.clipboard_text, e.clipboard_html))
 inp.on_copy(lambda e: print("copy"))
+inp.on_cut(lambda e: print("cut"))
 await app.clipboard_write("hello")
 text = await app.clipboard_read()""",
     paste_input,
@@ -869,7 +1082,6 @@ count = Signal(0)
 count_value = Text("0", size="40px", weight="bold")
 count_value.bind_text(count)
 
-heat = Signal(30)
 heat_bar = Div(
     styles=Styles(
         height="14px",
@@ -973,12 +1185,110 @@ async def on_secret_toggle(event: DomEvent) -> None:
 
 secret_check.on_change(on_secret_toggle)
 
+# batch(): two signals changed together flush ONE effect run.
+batch_a = Signal(0)
+batch_b = Signal(0)
+batch_runs = {"n": 0}
+batch_count = Mono()
+
+
+def batch_sync() -> None:
+    batch_runs["n"] += 1
+    batch_count.container = [f"effect runs: {batch_runs['n']}  (a={batch_a()}, b={batch_b()})"]
+
+
+batch_effect = effect(batch_sync)
+batch_single_btn = Button("a + 1", variant="ghost")
+batch_both_btn = Button("a + 1, b + 1 inside batch()", variant="ghost")
+
+
+async def on_batch_single(_event: DomEvent) -> None:
+    batch_a.update(lambda n: n + 1)
+
+
+async def on_batch_both(_event: DomEvent) -> None:
+    with batch():
+        batch_a.update(lambda n: n + 1)
+        batch_b.update(lambda n: n + 1)
+
+
+batch_single_btn.on_click(on_batch_single)
+batch_both_btn.on_click(on_batch_both)
+
+# untrack(): reading a signal inside an effect without subscribing.
+untrack_tracked = Signal(0)
+untrack_ignored = Signal(0)
+untrack_runs = {"n": 0}
+untrack_count = Mono()
+
+
+def untrack_sync() -> None:
+    untrack_runs["n"] += 1
+    value = untrack(untrack_ignored.get)
+    untrack_count.container = [
+        f"effect runs: {untrack_runs['n']}  (tracked={untrack_tracked()}, "
+        f"ignored={value} read via untrack — no subscription)"
+    ]
+
+
+untrack_effect = effect(untrack_sync)
+untrack_track_btn = Button("tracked + 1", variant="ghost")
+untrack_ignore_btn = Button("ignored + 1 (untracked — no re-run)", variant="ghost")
+untrack_track_btn.on_click(lambda _e: untrack_tracked.update(lambda n: n + 1))
+untrack_ignore_btn.on_click(lambda _e: untrack_ignored.update(lambda n: n + 1))
+
+# bind_attr: a signal drives an HTML attribute (the button's disabled).
+busy = Signal(False)
+busy_btn = Button("Save")
+busy_btn.bind_attr(busy, "disabled")
+busy_state = Text("busy: false — the disabled attribute follows the signal", role="secondary")
+busy_state.bind_text(busy, fmt=lambda b: f"busy: {b} — disabled={' ' if b else ' not '}set on the button")
+busy_toggle = Button("Toggle busy", variant="ghost")
+busy_toggle.on_click(lambda _e: busy.update(lambda b: not b))
+
+# Computed chain: two derived values, one bound label.
+price = Signal(10.0)
+qty = Signal(2)
+rate = Signal(0.9)
+subtotal = Computed(lambda: price() * qty())
+total = Computed(lambda: subtotal() * rate())
+price_up = Button("price +1", variant="ghost")
+price_down = Button("price -1", variant="ghost")
+qty_up = Button("qty +1", variant="ghost")
+qty_down = Button("qty -1", variant="ghost")
+rate_up = Button("rate +0.1", variant="ghost")
+rate_down = Button("rate -0.1", variant="ghost")
+price_up.on_click(lambda _e: price.update(lambda v: v + 1))
+price_down.on_click(lambda _e: price.update(lambda v: max(0.0, v - 1)))
+qty_up.on_click(lambda _e: qty.update(lambda v: v + 1))
+qty_down.on_click(lambda _e: qty.update(lambda v: max(1, v - 1)))
+rate_up.on_click(lambda _e: rate.update(lambda v: min(1.0, v + 0.1)))
+rate_down.on_click(lambda _e: rate.update(lambda v: max(0.1, v - 0.1)))
+total_text = Text("", size="16px", weight="600")
+total_text.bind_text(
+    total,
+    fmt=lambda v: f"total: ¥{v:.2f}   (subtotal ¥{subtotal():.2f} x rate {rate():.1f})",
+)
+
+# bind_value: signal ↔ component value, both ways.
+name_signal = Signal("")
+bind_input = Input(placeholder="Type — the signal follows every keystroke…")
+bind_input.bind_value(name_signal)
+bind_echo_one = Text("", role="secondary")
+bind_echo_two = Text("", role="secondary")
+bind_echo_one.bind_text(name_signal, fmt=lambda v: f"echo 1: {v}")
+bind_echo_two.bind_text(name_signal, fmt=lambda v: f"echo 2: {v}")
+bind_set_btn = Button("Set signal → component", variant="ghost")
+bind_set_btn.on_click(lambda _e: name_signal.set("written from the signal side"))
+
 reactive_panel = Section(
     "Reactive",
     "Signal, Computed and Effect with declarative bindings — no manual "
-    "refresh calls. bind_text / bind_style / bind_visible follow their "
-    "signal: bump the heat bar (width AND colour), type a name, toggle "
-    "visibility, or dispose the effect and watch the level sync stop.",
+    "refresh calls. bind_text / bind_style / bind_visible / bind_attr "
+    "/ bind_value follow their signal; batch() coalesces writes into "
+    "one flush, untrack() reads without subscribing, computed chains "
+    "compose. The heat bar is shared across tabs — bump it here, watch "
+    "the Forms tab.",
     """count = Signal(0)
 label.bind_text(count)
 
@@ -991,7 +1301,16 @@ echo.bind_text(full)
 
 box.bind_visible(flag)
 eff = effect(sync)   # re-runs on dependency change
-eff.dispose()        # stops it""",
+eff.dispose()        # stops it
+
+with batch():        # several writes → ONE effect run
+    a.set(1); b.set(2)
+untrack(ignored.get) # read without subscribing
+
+btn.bind_attr(busy, "disabled")            # signal → attribute
+total = Computed(lambda: subtotal() * rate())  # chains compose
+
+inp.bind_value(name) # two-way: signal ↔ component value""",
     HStack(Text("Heat bar", weight="600"), Spacer(), minus_btn, plus_btn, gap="8px"),
     heat_bar,
     heat_label,
@@ -1005,6 +1324,33 @@ eff.dispose()        # stops it""",
     Separator(),
     secret_check,
     secret_block,
+    Separator(),
+    HStack(Text("batch()", weight="600"), Spacer(), batch_single_btn, batch_both_btn, gap="8px"),
+    batch_count,
+    Separator(),
+    HStack(Text("untrack()", weight="600"), Spacer(), untrack_track_btn, untrack_ignore_btn, gap="8px"),
+    untrack_count,
+    Separator(),
+    HStack(Text("bind_attr", weight="600"), Spacer(), busy_toggle, gap="8px"),
+    HStack(busy_btn, busy_state, gap="12px", align="center"),
+    Separator(),
+    HStack(
+        Text("Computed chain", weight="600"),
+        Spacer(),
+        price_down,
+        price_up,
+        qty_down,
+        qty_up,
+        rate_down,
+        rate_up,
+        gap="8px",
+    ),
+    total_text,
+    Separator(),
+    bind_input,
+    bind_echo_one,
+    bind_echo_two,
+    HStack(Spacer(), bind_set_btn, gap="8px"),
 )
 
 # ── tab: sidebar ─────────────────────────────────────────────────
@@ -1199,6 +1545,7 @@ tabs = Tabs(glass=True)
 tabs.add("Buttons", buttons_panel)
 tabs.add("Inputs", inputs_panel)
 tabs.add("Checks", checks_panel)
+tabs.add("Forms", forms_panel)
 tabs.add("Layout", layout_panel)
 tabs.add("Type", typography_panel)
 tabs.add("Glass", glass_panel)
