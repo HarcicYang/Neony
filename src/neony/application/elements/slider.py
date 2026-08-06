@@ -79,10 +79,12 @@ _INPUT = Styles(
 )
 
 
-def _clamp(value: float, lo: float, hi: float) -> float:
+def _clamp(value: float | int, lo: float | int, hi: float | int) -> float:
     """Clamp *value* to ``[lo, hi]`` (always a float) — module-level
     because ``min`` / ``max`` are constructor parameters here and
-    shadow the builtins."""
+    shadow the builtins.  The parameters accept ints: component
+    constructors store raw user arguments, which are commonly whole
+    numbers, and the serialized value must still read ``"10.0"``."""
     return float(lo if value < lo else hi if value > hi else value)
 
 

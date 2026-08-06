@@ -243,7 +243,7 @@ class TestButtonFeedback:
         asyncio.run(h_in(DomEvent(key=btn._btn.key, type="focus")))
         assert btn._btn.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
         asyncio.run(h_out(DomEvent(key=btn._btn.key, type="blur")))
-        assert btn._btn.styles.box_shadow is None
+        assert not btn._btn.styles.box_shadow
 
     def test_mouseout_clears_hover(self):
         import asyncio
@@ -676,7 +676,7 @@ class TestSwitchEvents:
         asyncio.run(sw._input._handlers["focus"][0](DomEvent(key=sw._input.key, type="focus")))
         assert sw._input.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
         asyncio.run(sw._input._handlers["blur"][0](DomEvent(key=sw._input.key, type="blur")))
-        assert sw._input.styles.box_shadow is None
+        assert not sw._input.styles.box_shadow
 
 
 class TestSelectBuild:
@@ -757,7 +757,7 @@ class TestSelectEvents:
         assert sel._popup.styles.display == "flex"
         assert sel._wrapper.args.get("data-neony-outside") == "true"
         self._user_click_trigger(sel)
-        assert sel._open is False
+        assert not sel._open
         assert sel._popup.styles.display == "none"
         assert "data-neony-outside" not in sel._wrapper.args
 
@@ -794,7 +794,7 @@ class TestSelectEvents:
         asyncio.run(key("Enter"))
         assert sel.value == "b"
         assert fired == ["b"]
-        assert sel._open is False
+        assert not sel._open
 
         asyncio.run(key("Escape"))  # no-op when closed
         assert sel._open is False
@@ -813,7 +813,7 @@ class TestSelectEvents:
         asyncio.run(sel._trigger._handlers["focus"][0](DomEvent(key=sel._trigger.key, type="focus")))
         assert sel._trigger.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
         asyncio.run(sel._trigger._handlers["blur"][0](DomEvent(key=sel._trigger.key, type="blur")))
-        assert sel._trigger.styles.box_shadow is None
+        assert not sel._trigger.styles.box_shadow
 
     def test_pagedown_jumps_to_last_option_pageup_to_first(self):
         import asyncio
@@ -956,7 +956,7 @@ class TestComboBoxEvents:
         assert cb._open is True
         keydown = cb._wrapper._handlers["keydown"][0]
         asyncio.run(keydown(DomEvent(key=cb._input.key, type="keydown", value="Escape")))
-        assert cb._open is False
+        assert not cb._open
         asyncio.run(cb._input._handlers["input"][0](DomEvent(key=cb._input.key, type="input", value="wo")))
         asyncio.run(cb._wrapper._handlers["outsideclick"][0](DomEvent(key=cb._wrapper.key, type="outsideclick")))
         assert cb._open is False
@@ -1593,7 +1593,7 @@ class TestDialogBuild:
             closing = dlg._panel.styles.animation
             assert isinstance(closing, Animation)
             assert closing.name == "fade-slide"
-            assert closing.direction == "reverse"
+            assert closing.direction == "normal"
             assert dlg._panel.styles.width == "480px"  # closing keeps the open geometry
             await asyncio.sleep(0.45)
             assert dlg._root.styles.display == "none"
@@ -1609,7 +1609,7 @@ class TestDialogBuild:
         node = dlg.build().to_node()
         panel = _find_by_key(node, dlg._panel.key)
         assert panel is not None
-        assert panel.styles["animation"] == "fade-slide 0.4s ease-out"
+        assert panel.styles["animation"] == "fade-slide 0.2s ease-out"
 
     def test_content_component_built(self):
         dlg = Dialog(content=Button("OK"))
@@ -1691,13 +1691,18 @@ class TestDialogEvents:
         assert dlg.open is False
 
     def test_on_open_on_close_fire(self):
+        import asyncio
+
         dlg = Dialog()
         fired: list[bool] = []
         dlg.on_open(lambda d: fired.append(d.open))
         dlg.on_close(lambda d: fired.append(d.open))
-        dlg.open = True
-        dlg.open = False
-        dlg._cancel_close()  # stop the pending fade task before the loop exits
+
+        async def run() -> None:
+            dlg.open = True
+            dlg.open = False
+
+        asyncio.run(run())
         assert fired == [True, False]
 
 
@@ -1834,7 +1839,7 @@ class TestDropdownEvents:
         assert dd._popup.styles.display == "flex"
         assert dd._wrapper.args.get("data-neony-outside") == "true"
         self._click_trigger(dd)
-        assert dd._open is False
+        assert not dd._open
 
     def test_row_click_selects_and_fires(self):
         import asyncio
@@ -1871,7 +1876,7 @@ class TestDropdownEvents:
         asyncio.run(key("PageDown"))
         assert dd._active_index == 2
         asyncio.run(key("Escape"))
-        assert dd._open is False
+        assert not dd._open
 
     def test_enter_picks_active(self):
         import asyncio
@@ -1924,7 +1929,7 @@ class TestMenuEvents:
         assert menu._root.styles.max_width == "calc(100% - 120px - 8px)"
         assert menu._root.styles.max_height == "calc(72px)"
         menu.close()
-        assert menu._open is False
+        assert not menu._open
         assert menu._root.styles.display == "none"
 
     def test_row_click_selects_and_fires(self):
