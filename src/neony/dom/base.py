@@ -281,9 +281,21 @@ class DOMElement(BaseModel):
         self._bind(lambda: self._set_style(prop, apply(signal())))
         return self
 
-    def bind_attr(self, signal: Signal[Any] | Computed[Any], name: str, fmt: Callable[[Any], str] = str) -> Self:
-        """Bind *signal* to an HTML attribute (written into ``args``)."""
-        self._bind(lambda: self._set_attr(name, fmt(signal())))
+    def bind_attr(
+        self,
+        signal: Signal[Any] | Computed[Any],
+        name: str,
+        fmt: Callable[[Any], Any] | None = None,
+    ) -> Self:
+        """Bind *signal* to an HTML attribute (written into ``args``).
+
+        The default formatter passes bools through — ``True`` renders
+        as a bare attribute, ``False`` / ``None`` removes it (a bool
+        stringified to ``"False"`` would leave the attribute present,
+        e.g. a permanently disabled button).  Other values are
+        stringified; pass a custom ``fmt`` for anything else."""
+        apply = fmt if fmt is not None else (lambda v: v if isinstance(v, bool) or v is None else str(v))
+        self._bind(lambda: self._set_attr(name, apply(signal())))
         return self
 
     def bind_visible(self, signal: Signal[Any] | Computed[Any]) -> Self:
@@ -310,7 +322,10 @@ class DOMElement(BaseModel):
         self._dirty_type |= self._DIRTY_STYLES
 
     def _set_attr(self, name: str, value: Any) -> None:
-        self.args[name] = str(value)
+        if value is None:
+            self.args.pop(name, None)  # None removes the attribute
+        else:
+            self.args[name] = value  # bools render bare via _build_attrs
         self._dirty_type |= self._DIRTY_ATTRS
 
     def _set_visible(self, visible: bool) -> None:
@@ -330,6 +345,12 @@ class DOMElement(BaseModel):
 
     def on_click(self, fn: Callable[..., Any]) -> DOMElement:
         return self.on("click", fn)
+
+    def on_outsideclick(self, fn: Callable[..., Any]) -> DOMElement:
+        """Register for the synthetic ``outsideclick`` — fires when a
+        click lands outside this element's subtree while it carries the
+        ``data-neony-outside`` marker (see the JS engine)."""
+        return self.on("outsideclick", fn)
 
     def on_dblclick(self, fn: Callable[..., Any]) -> DOMElement:
         return self.on("dblclick", fn)

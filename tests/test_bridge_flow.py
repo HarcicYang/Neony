@@ -43,7 +43,8 @@ def _setup_entry(app: NeonApplication, tree, fake: FakeWindow) -> Neony:
     entry.window = cast(Any, fake)  # render() gates on entry.window
     app._entries.append(entry)
     neony._win = cast(Any, fake)  # wire the fake window into the bridge
-    app._collect_handlers(neony, tree, 0)
+    app._registered.append(set())
+    app._collect_handlers(neony, tree, 0, app._registered[0])
     return neony
 
 
@@ -968,3 +969,125 @@ class TestAnimationStyle:
 
         asyncio.run(run())
         assert '"animation":"spin 2s ease infinite"' in capture["script"]
+
+
+class TestLateElementHandlers:
+    """Elements created after the startup sweep must still receive events.
+
+    Dynamic content (ComboBox suggestion rows, future overlays, ...) is
+    appended to the tree inside event handlers — those elements were not
+    in the startup handler collection, so the bridge dropped their
+    events entirely.  The render loop re-sweeps and registers new
+    (key, event_type) pairs; this locks that in.
+    """
+
+    def test_combo_popup_rows_receive_clicks_after_render(self):
+        from neony.application.elements import ComboBox
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        cb = ComboBox(options=["work", "personal"])
+        tree = cb.build()
+        _setup_entry(app, tree, fake)
+
+        async def run() -> None:
+            await app.render()  # mount
+            # typing rebuilds the popup rows (created post-startup)
+            await _fire(app, cb._input.key, "input", "wo")
+            await asyncio.sleep(0.05)  # flush the deferred render
+            row = cb._rows[0]
+            assert row.key in app._entries[0].neony._key_map
+            fired: list = []
+            cb.on_change(lambda e: fired.append(e.value))
+            await _fire(app, row.key, "click")
+            assert fired == ["work"]
+            assert cb.value == "work"
+
+        asyncio.run(run())
+
+    def test_handlers_are_not_double_registered(self):
+        """The render re-sweep must not re-register startup handlers —
+        the same (key, type) pair would double-fire."""
+        from neony.application.elements import Button
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        btn = Button("x")
+        tree = btn.build()
+        _setup_entry(app, tree, fake)
+
+        async def run() -> None:
+            await app.render()  # mount → re-sweep
+            await app.render()  # empty re-render → re-sweep again
+            fired: list = []
+            btn.on_click(lambda e: fired.append(1))
+            await _fire(app, btn._btn.key, "click")
+            assert fired == [1]
+
+        asyncio.run(run())
+
+
+class TestComboPickRenders:
+    """The auto-complete write-back must reach the DOM through the
+    render pipeline — a pick that only updates Python state would leave
+    the input showing the pre-pick text."""
+
+    def test_pick_sends_input_value_patch(self):
+        from neony.application.elements import ComboBox
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        cb = ComboBox(options=["work", "personal"])
+        tree = cb.build()
+        _setup_entry(app, tree, fake)
+
+        async def run() -> None:
+            await app.render()  # mount rev 1
+            await _fire(app, cb._input.key, "input", "wo")
+            await asyncio.sleep(0.05)  # flush the deferred render
+            # Enter picks "work" — the follow-up render must patch the
+            # input's value attribute
+            await _fire(app, cb._input.key, "keydown", "Enter")
+            assert cb.value == "work"
+            patch = fake.patches[-1]
+            assert patch["rev"] == fake.patches[-1]["rev"]
+            value_ops = [op for op in patch["ops"] if op.get("op") == "update_attrs" and op.get("key") == cb._input.key]
+            assert value_ops, f"no value patch for the input in {patch['ops']}"
+            assert value_ops[-1]["set"].get("value") == "work"
+
+        asyncio.run(run())
+
+    def test_pick_value_reaches_the_serialized_tree(self):
+        """After a pick, a re-render (any event) keeps the picked value
+        in the tree — the diff must not revert it."""
+        from neony.application.elements import ComboBox
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        cb = ComboBox(options=["work", "personal"])
+        tree = cb.build()
+        _setup_entry(app, tree, fake)
+
+        async def run() -> None:
+            await app.render()
+            await _fire(app, cb._input.key, "input", "wo")
+            await asyncio.sleep(0.05)
+            await _fire(app, cb._input.key, "keydown", "Enter")
+            # any further event-driven render keeps value="work"
+            node = tree.to_node()
+            from neony.dom import NodeDescriptor
+
+            def find(n: NodeDescriptor, key: str) -> NodeDescriptor | None:
+                if n.key == key:
+                    return n
+                for c in n.children:
+                    found = find(c, key)
+                    if found:
+                        return found
+                return None
+
+            inp = find(node, cb._input.key)
+            assert inp is not None
+            assert inp.attrs["value"] == "work"
+
+        asyncio.run(run())

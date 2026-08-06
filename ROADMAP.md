@@ -38,8 +38,8 @@ Planned work, roughly in priority order.
 
 ## Components
 
-- [ ] **Form controls** — Radio, Switch, Select/ComboBox, Slider, Progress
-- [ ] **Overlays** — Dialog/Modal, Tooltip, Dropdown, Menu (depend on pointer-move events and rich event payload for positioning)
+- [x] **Form controls** — Radio/RadioGroup, Switch, Select, ComboBox, Slider, Progress
+- [ ] **Overlays** — Dialog/Modal, Tooltip, Dropdown, Menu (depend on pointer-move events and rich event payload for positioning; the `outsideclick` engine event landed with the Select/ComboBox popups — their glass panel + row pattern is the Dropdown reference)
 - [ ] **Data views** — DataTable, List, Tree
 - [ ] **Content** — Card, Avatar, Badge, Image
 

@@ -210,4 +210,30 @@
     for (var i = 0; i < DELEGATED_EVENTS.length; i++) {
         document.addEventListener(DELEGATED_EVENTS[i], eventHandler, true);
     }
+
+    // Synthetic `outsideclick`: every element marked with
+    // data-neony-outside="true" (an open overlay wrapper — trigger +
+    // panel) receives one event per click that lands OUTSIDE its
+    // subtree, so overlays can close on click-away.  Bubble phase on
+    // document: the capture-phase handler above early-returns for
+    // clicks with no keyed ancestor (blank page space) — precisely the
+    // outside case this listener exists for.
+    document.addEventListener(
+        "click",
+        function (event) {
+            var roots = document.querySelectorAll('[data-neony-outside="true"]');
+            for (var i = 0; i < roots.length; i++) {
+                var root = roots[i];
+                if (root.contains(event.target)) continue;
+                var key = root.getAttribute("data-neony-key");
+                if (!key) continue;
+                window.lumiview
+                    .invoke("neony.event", { key: key, event_type: "outsideclick", value: null })
+                    .catch(function () {
+                        // Fire-and-forget — ignore delivery failures
+                    });
+            }
+        },
+        false
+    );
 })();

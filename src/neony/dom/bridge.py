@@ -394,7 +394,10 @@ class Neony(Plugin):
             "clipboard_html": clipboard_html,
             "drop_files": drop_files,
         }
-        for (ekey, etype), fns in self._handlers.items():
+        # Snapshot: a handler may render, and the render registers
+        # handlers for elements created since the last sweep — mutating
+        # _handlers mid-iteration would raise.
+        for (ekey, etype), fns in list(self._handlers.items()):
             if etype == event_type and (ekey is None or ekey == key):
                 for fn in fns:
                     try:
@@ -411,7 +414,7 @@ class Neony(Plugin):
             el = el._parent
             if not el.bubble_events:
                 continue
-            for (ekey, etype), fns in self._handlers.items():
+            for (ekey, etype), fns in list(self._handlers.items()):
                 if etype == event_type and ekey == el.key:
                     for fn in fns:
                         try:

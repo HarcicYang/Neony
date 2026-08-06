@@ -256,6 +256,91 @@ tabs.active = 1  # programmatic switch
 tabs.active_key  # key of active panel
 ```
 
+### `Radio` & `RadioGroup`
+
+```python
+group = RadioGroup(Radio("Pizza"), Radio("Tacos"))
+group.value  # selected value (defaults to lowercased label)
+group.on_change(lambda e: print(e.value))  # value = selected value string
+group.value = "tacos"  # programmatic — no callback
+```
+
+Exactly one option is checked at a time; the group assigns a shared
+`name` so screen readers treat it as one control. A `Radio` used alone
+is a plain toggle with `on_change` carrying the bool.
+
+### `Switch`
+
+```python
+sw = Switch("Wi-Fi")
+sw.checked = True  # programmatic — no callback
+sw.on_change(lambda e: print(e.value))  # value = checked bool
+```
+
+A native checkbox styled as a track + thumb (38×22px, `glass=True` for
+a frosted track).
+
+### `Select`
+
+```python
+sel = Select("Size", options=[("s", "Small"), ("m", "Medium")], placeholder="Pick…")
+sel.value  # selected option value ("m")
+sel.on_change(lambda e: print(e.value))  # value = selected option value
+```
+
+Options are `str` (value == label) or `(value, label)` tuples. The
+popup is drawn by the component — a themed glass panel of rows — since
+WebKitGTK's native popup ignores option `background-color`. Keyboard:
+Enter/Space opens, ArrowDown/Up highlights, Enter picks, Escape/Tab
+closes; click-away closes via the engine's `outsideclick` event.
+
+### `ComboBox`
+
+```python
+box = ComboBox("Tag", options=["work", "personal"], placeholder="Type or pick…")
+box.on_input(lambda e: print(e.value))  # live text
+```
+
+Editable text with a themed suggestion popup (the native `<datalist>`
+popup cannot be themed). The popup opens on focus — a single click
+shows every option; suggestions filter by prefix as you type.
+ArrowDown/Up highlights, **Tab or Enter auto-completes** the
+highlighted suggestion, **PageUp/PageDown pick the first/last
+suggestion in one keypress**, Escape / click-away closes. Value
+semantics match `Input`: `on_input` records state only, `on_change`
+fires on a pick or blur.
+
+### `Slider`
+
+```python
+sl = Slider("Volume", min=0, max=100, step=5, value=40)
+sl = Slider("Volume", min=0, max=100, step="any")  # stepless
+sl.value  # 40.0 — clamped to [min, max]
+sl.on_input(lambda e: print(e.value))  # float, while dragging
+sl.on_change(lambda e: print(e.value))  # float, on release
+```
+
+The visible track, accent fill and knob are drawn by the component
+(the native range input on top is invisible and owns drag / keyboard).
+The fill follows the thumb instantly while dragging and glides over
+0.2s on programmatic sets. `step="any"` reaches every float.
+PageUp/PageDown move by a page step (10× step, or 10% of the range
+when stepless) — the component corrects the native range input's
+reversed page direction (WebKit spec quirk).
+
+### `Progress`
+
+```python
+bar = Progress(value=35, max=100, label="Downloading…")
+bar.value = 50  # clamped to [0, max]; the fill glides over 0.3s
+Progress(label="Scanning…", indeterminate=True)  # sliding sweep animation
+```
+
+A rounded track with an accent fill that transitions on value changes
+(`indeterminate=True` plays the built-in `neony-indeterminate` sweep).
+ARIA `role="progressbar"` + `aria-valuenow/min/max` are carried on the
+bar.
+
 ---
 
 ## Layout
@@ -525,11 +610,41 @@ panel.bind_visible(count)  # display: none when falsy
   the pre-binding display value when truthy
 - `unbind()` — dispose every binding on the element
 
-All four are also available on `Component` (they proxy to the component's
-root element). A binding write marks the element dirty and schedules a
-render for its window, so a signal changed from anywhere — an event
-handler, a timer, another window — reaches the screen without an explicit
-`render()` call.
+All five are also available on `Component` (the first four proxy to the
+component's root element). A binding write marks the element dirty and
+schedules a render for its window, so a signal changed from anywhere —
+an event handler, a timer, another window — reaches the screen without
+an explicit `render()` call.
+
+### `Component.bind_value` — two-way value binding
+
+`bind_value(signal)` binds a signal to a component's *value*, both
+ways:
+
+```python
+name = Signal("")
+inp = Input()
+inp.bind_value(name)  # typing → name.set(); name.set() → field
+
+vol = Signal(40)
+slider.bind_value(vol)  # drags write back (floats)
+bar = Progress()
+bar.bind_value(vol)  # write-only follower
+
+flag = Signal(False)
+cb = Checkbox("x")
+cb.bind_value(flag)  # binds `checked`, not `value`
+```
+
+- signal writes update the component value immediately and on change;
+  user value changes write back to the signal
+- `Computed` binds read-only (no write-back)
+- the user channel is the component's `_value_event` (`input` on
+  Input/ComboBox/Slider, `change` on Select/Checkbox); Progress has no
+  user channel and binds write-only
+- `unbind_value()` / `unbind()` dispose the binding; programmatic value
+  writes never fire callbacks, so the loop closes (user → signal →
+  write-back re-applies the same value without re-dispatching)
 
 ### Dirty-subtree tracking
 

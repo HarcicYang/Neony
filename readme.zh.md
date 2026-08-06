@@ -83,6 +83,12 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | ------------------------- | -------------------------------------------------------------- |
 | `Button`                  | 主题按钮 — primary / ghost / danger 变体，悬停与按压反馈       |
 | `Checkbox`                | 自定义复选框，含标签与 change 事件                             |
+| `Radio` / `RadioGroup`    | 互斥单选组，组 change 携带选中值                               |
+| `Switch`                  | 轨道 + 滑块开关，基于原生 checkbox                             |
+| `Select`                  | 主题下拉框 — `str` 或 `(value, label)` 选项                    |
+| `ComboBox`                | 可编辑文本 + 主题化建议面板                                    |
+| `Slider`                  | 动画填充滑块 — 有级或无级（`step="any"`）                     |
+| `Progress`                | 动画填充进度条 — 确定值或滑动 `indeterminate`                  |
 | `Input`                   | 单行输入框 — text / password / email / number…                 |
 | `Heading`                 | 主题标题(h1–h6)，自动字号                                      |
 | `Text`                    | 内联文本，支持语义角色(primary / secondary / danger / success) |

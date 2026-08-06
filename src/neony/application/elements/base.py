@@ -13,7 +13,7 @@ from collections.abc import Callable
 from typing import Any, Self
 
 from neony.dom import DOMElement, DomEvent, Signal, Styles
-from neony.dom.reactive import Computed
+from neony.dom.reactive import Computed, Effect, effect
 
 # Every event type the JS engine delegates (mirrors DELEGATED_EVENTS in
 # src/neony/javascript/index.js).  Component.on() lazily wires these to
@@ -24,6 +24,7 @@ _DOM_EVENTS = frozenset(
     {
         "click",
         "dblclick",
+        "outsideclick",
         "input",
         "change",
         "submit",
@@ -62,11 +63,22 @@ class Component:
     #: callbacks would double-fire.
     _bound_events: frozenset[str] = frozenset()
 
+    #: Name of the attribute :meth:`bind_value` reads / writes
+    #: (``"value"`` on most inputs; Checkbox overrides to ``"checked"``).
+    _value_prop: str = "value"
+    #: Event that carries the component's value on user change; ``None``
+    #: means no user channel — :meth:`bind_value` writes only (Progress).
+    _value_event: str | None = None
+
     def __init__(self) -> None:
         self._root: DOMElement
         self._callbacks: dict[str, list[Callable[..., Any]]] = {}
         self._raw_wired: set[str] = set()
         self._built = False
+        # bind_value state — disposed/removed by unbind().
+        self._value_effect: Effect | None = None
+        self._value_writer: Callable[[DomEvent], Any] | None = None
+        self._value_event_bound: str | None = None
 
     # ---- build ----
 
@@ -103,8 +115,15 @@ class Component:
         self._root.bind_style(signal, prop, fmt)
         return self
 
-    def bind_attr(self, signal: Signal[Any] | Computed[Any], name: str, fmt: Callable[[Any], str] = str) -> Self:
-        """Bind *signal* to a root HTML attribute (see DOMElement.bind_attr)."""
+    def bind_attr(
+        self, signal: Signal[Any] | Computed[Any], name: str, fmt: Callable[[Any], Any] | None = None
+    ) -> Self:
+        """Bind *signal* to a root HTML attribute (see DOMElement.bind_attr).
+
+        The default formatter passes bools through (True → bare
+        attribute, False/None → removed) — a stringified ``"False"``
+        would leave the attribute present, e.g. a permanently disabled
+        button."""
         self._root.bind_attr(signal, name, fmt)
         return self
 
@@ -113,10 +132,61 @@ class Component:
         self._root.bind_visible(signal)
         return self
 
+    def bind_value(self, signal: Signal[Any] | Computed[Any]) -> Self:
+        """Bind *signal* to the component's value, both ways.
+
+        Signal writes update the component value immediately and on
+        every change; user value changes write back to the signal
+        (:class:`Computed` is read-only — no write-back).  The user
+        channel is the component's ``_value_event`` (``input`` /
+        ``change``), carrying the value on ``_value_prop`` — Checkbox
+        binds ``checked``, Progress has no user channel and binds
+        write-only.  Programmatic value writes never fire callbacks,
+        so the loop closes: user → signal → component write-back
+        re-applies the same value without re-dispatching.
+        """
+        self.unbind_value()
+        prop = type(self)._value_prop
+
+        def write() -> None:
+            setattr(self, prop, signal())
+
+        self._value_effect = effect(write)
+        event_type = type(self)._value_event
+        if event_type is not None and isinstance(signal, Signal):
+            self._value_writer = self._make_value_writer(signal)
+            self._value_event_bound = event_type
+            self.on(event_type, self._value_writer)
+        return self
+
+    def unbind_value(self) -> Self:
+        """Dispose the :meth:`bind_value` binding (signal → component
+        effect and the user-event write-back), keeping other bindings."""
+        if self._value_effect is not None:
+            self._value_effect.dispose()
+            self._value_effect = None
+        if self._value_writer is not None and self._value_event_bound is not None:
+            callbacks = self._callbacks.get(self._value_event_bound, [])
+            if self._value_writer in callbacks:
+                callbacks.remove(self._value_writer)
+        self._value_writer = None
+        self._value_event_bound = None
+        return self
+
     def unbind(self) -> Self:
-        """Dispose every signal binding on the root element."""
+        """Dispose every signal binding on the root element (DOM
+        bindings and the :meth:`bind_value` binding)."""
+        self.unbind_value()
         self._root.unbind()
         return self
+
+    def _make_value_writer(self, signal: Signal[Any]) -> Callable[[DomEvent], Any]:
+        """Write a user value change back into *signal*."""
+
+        def writer(event: DomEvent) -> None:
+            signal.set(event.value)
+
+        return writer
 
     # ---- event API ----
 
@@ -144,6 +214,12 @@ class Component:
 
     def on_click(self, fn: Callable[..., Any]) -> Self:
         return self.on("click", fn)
+
+    def on_outsideclick(self, fn: Callable[..., Any]) -> Self:
+        """Register for the synthetic ``outsideclick`` — fires when a
+        click lands outside the component's root while it carries the
+        ``data-neony-outside`` marker (see the JS engine)."""
+        return self.on("outsideclick", fn)
 
     def on_dblclick(self, fn: Callable[..., Any]) -> Self:
         return self.on("dblclick", fn)

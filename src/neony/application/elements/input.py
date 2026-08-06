@@ -36,6 +36,9 @@ class Input(Component):
     #: Component.on() must not wire these again.
     _bound_events: frozenset[str] = frozenset({"input", "change", "focus", "blur"})
 
+    #: bind_value user channel — live keystrokes.
+    _value_event: str | None = "input"
+
     """Single-line text field with internal value state.
 
     - ``input.value`` reads / sets the current text (immediate DOM write)

@@ -21,7 +21,7 @@ Usage::
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Generic, TypeVar, cast
 
@@ -247,7 +247,7 @@ def _flush() -> None:
 
 
 @contextmanager
-def batch() -> Iterator[None]:
+def batch() -> Generator[None]:
     """Coalesce writes: effects queued inside the block run once on exit.
 
     Works with or without a running event loop.
