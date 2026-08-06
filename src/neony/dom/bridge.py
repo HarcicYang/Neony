@@ -198,13 +198,20 @@ class DiffEngine:
             if k not in new_map:
                 patches.append(RemovePatch(key=k))
 
-        for i, c in enumerate(new_children):
+        for c in new_children:
             if c.key not in old_map:
-                patches.append(CreatePatch(key=c.key, node=c, parent=parent_key, index=i))
+                # index=None: append to end temporarily; ReorderPatch will fix
+                # the final order. Avoids index misalignment when DOM still
+                # contains elements that will be removed.
+                patches.append(CreatePatch(key=c.key, node=c, parent=parent_key, index=None))
             else:
                 patches.extend(DiffEngine._diff_node(old_map[c.key], c))
 
-        if old_keys != new_keys and set(old_keys) == set(new_keys):
+        # Reorder only when the relative order of common elements changes.
+        # Pure append/remove (no reorder) skips this for efficiency.
+        old_common = [k for k in old_keys if k in new_map]
+        new_common = [k for k in new_keys if k in old_map]
+        if old_common != new_common:
             patches.append(ReorderPatch(parent=parent_key, ordered_keys=new_keys))
 
         return patches

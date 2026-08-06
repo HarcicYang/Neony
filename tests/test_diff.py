@@ -219,3 +219,114 @@ class TestCombinedChanges:
         patches = DiffEngine.diff(old, new)
         assert has_patch(patches, UpdateStylesPatch)
         assert has_patch(patches, SetTextPatch)
+
+
+class TestReorderWithAddRemove:
+    """Reorder + add/remove combinations produce correct patches.
+
+    The diff algorithm must handle scenarios where elements are added,
+    removed, and reordered simultaneously. The strategy:
+    1. Remove elements not in new_children
+    2. Create new elements (temporarily appended, index=None)
+    3. ReorderPatch fixes the final order for all elements
+    """
+
+    def test_reorder_with_add(self):
+        """Adding an element and reordering triggers ReorderPatch."""
+        old = nd("r", "div", children=[nd("a", "span"), nd("b", "span"), nd("c", "span")])
+        new = nd("r", "div", children=[nd("b", "span"), nd("c", "span"), nd("a", "span"), nd("d", "span")])
+        patches = DiffEngine.diff(old, new)
+
+        assert has_patch(patches, CreatePatch)
+        create = next(p for p in patches if isinstance(p, CreatePatch))
+        assert create.key == "d"
+        assert create.index is None  # Appended to end, Reorder fixes position
+
+        assert has_patch(patches, ReorderPatch)
+        reorder = next(p for p in patches if isinstance(p, ReorderPatch))
+        assert reorder.ordered_keys == ["b", "c", "a", "d"]
+
+    def test_reorder_with_remove(self):
+        """Removing an element and reordering triggers ReorderPatch."""
+        old = nd("r", "div", children=[nd("a", "span"), nd("b", "span"), nd("c", "span"), nd("d", "span")])
+        new = nd("r", "div", children=[nd("b", "span"), nd("d", "span"), nd("a", "span")])
+        patches = DiffEngine.diff(old, new)
+
+        assert has_patch(patches, RemovePatch)
+        remove = next(p for p in patches if isinstance(p, RemovePatch))
+        assert remove.key == "c"
+
+        assert has_patch(patches, ReorderPatch)
+        reorder = next(p for p in patches if isinstance(p, ReorderPatch))
+        assert reorder.ordered_keys == ["b", "d", "a"]
+
+    def test_reorder_with_add_and_remove(self):
+        """Adding, removing, and reordering simultaneously."""
+        old = nd("r", "div", children=[nd("a", "span"), nd("b", "span"), nd("c", "span"), nd("d", "span")])
+        new = nd("r", "div", children=[nd("b", "span"), nd("d", "span"), nd("e", "span"), nd("a", "span")])
+        patches = DiffEngine.diff(old, new)
+
+        # Remove c
+        removes = [p for p in patches if isinstance(p, RemovePatch)]
+        assert len(removes) == 1
+        assert removes[0].key == "c"
+
+        # Create e
+        creates = [p for p in patches if isinstance(p, CreatePatch)]
+        assert len(creates) == 1
+        assert creates[0].key == "e"
+        assert creates[0].index is None
+
+        # Reorder all remaining
+        assert has_patch(patches, ReorderPatch)
+        reorder = next(p for p in patches if isinstance(p, ReorderPatch))
+        assert reorder.ordered_keys == ["b", "d", "e", "a"]
+
+    def test_complex_reorder_scenario(self):
+        """Complex scenario: multiple adds, removes, and reorders."""
+        old = nd(
+            "r",
+            "div",
+            children=[nd("a", "span"), nd("b", "span"), nd("c", "span"), nd("d", "span"), nd("e", "span")],
+        )
+        new = nd(
+            "r",
+            "div",
+            children=[nd("e", "span"), nd("c", "span"), nd("a", "span"), nd("f", "span"), nd("g", "span")],
+        )
+        patches = DiffEngine.diff(old, new)
+
+        # Remove b and d
+        removes = [p for p in patches if isinstance(p, RemovePatch)]
+        remove_keys = {p.key for p in removes}
+        assert remove_keys == {"b", "d"}
+
+        # Create f and g
+        creates = [p for p in patches if isinstance(p, CreatePatch)]
+        create_keys = {p.key for p in creates}
+        assert create_keys == {"f", "g"}
+        for c in creates:
+            assert c.index is None
+
+        # Reorder all remaining
+        assert has_patch(patches, ReorderPatch)
+        reorder = next(p for p in patches if isinstance(p, ReorderPatch))
+        assert reorder.ordered_keys == ["e", "c", "a", "f", "g"]
+
+    def test_no_reorder_when_only_adding(self):
+        """Adding without reordering does not emit ReorderPatch."""
+        old = nd("r", "div", children=[nd("a", "span")])
+        new = nd("r", "div", children=[nd("a", "span"), nd("b", "span")])
+        patches = DiffEngine.diff(old, new)
+
+        assert has_patch(patches, CreatePatch)
+        assert not has_patch(patches, ReorderPatch)
+
+    def test_no_reorder_when_only_removing(self):
+        """Removing without reordering does not emit ReorderPatch."""
+        old = nd("r", "div", children=[nd("a", "span"), nd("b", "span")])
+        new = nd("r", "div", children=[nd("a", "span")])
+        patches = DiffEngine.diff(old, new)
+
+        assert has_patch(patches, RemovePatch)
+        assert not has_patch(patches, ReorderPatch)
