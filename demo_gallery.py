@@ -23,7 +23,10 @@ import sys
 
 from neony.application import Config, NeonApplication, Page, WebViewConfig, WindowConfig
 from neony.application.elements import (
+    Avatar,
+    Badge,
     Button,
+    Card,
     Checkbox,
     ComboBox,
     Component,
@@ -34,6 +37,7 @@ from neony.application.elements import (
     GlassPanel,
     Heading,
     HStack,
+    Image,
     Input,
     Menu,
     Progress,
@@ -1650,6 +1654,96 @@ menu.on_change(lambda e: print(e.value))""",
 page.add(dialog)
 page.add(ctx_menu)
 
+# ── Content components: Card / Avatar / Badge / Image ────────────────
+
+_IMAGE_SRC = "https://harcic.is-a.dev/resource/favicon.svg"
+
+# Image: themed frame around an <img>. src is an already-built URL — pass
+# it file_url(path), data_url(path), or an https URL.
+img_demo = Image(_IMAGE_SRC, alt="Neony icon", width=96, height=96, radius="12px")
+img_round = Image(_IMAGE_SRC, alt="round", width=64, height=64, radius="50%")
+
+# Avatar: image, initial, or placeholder; optional corner badge.
+av_image = Avatar(_IMAGE_SRC, name="Neony", size="56px")
+av_letter = Avatar(name="Ada Lovelace", size="56px")
+av_unknown = Avatar(size="56px")
+av_badge = Avatar(_IMAGE_SRC, name="Inbox", size="56px", badge=Badge(3, position="top-right"))
+
+# Badge: inline pill or corner count. Counts clamp at 99+, zero hides.
+badge_inline = HStack(
+    Badge("New", variant="accent"),
+    Badge("12", variant="danger"),
+    Badge("verified", variant="success"),
+    Badge("plain"),
+    Badge(dot=True),
+    gap="8px",
+    align="center",
+)
+badge_count = HStack(
+    Badge(5),
+    Badge(150),  # → "99+"
+    Badge(0),  # hidden by default
+    Badge(0, show_zero=True),
+    gap="10px",
+    align="center",
+)
+
+# Card: titled panel with actions and a footer; clickable surfaces fire
+# on_click (the badge above overlays an Avatar the same way).
+card_echo = Text("", role="secondary")
+plain_card = Card(
+    Text("The body holds any children — text, components, or raw nodes."),
+    title="Plain card",
+    subtitle="A solid surface with a soft shadow",
+    actions=[Button("Edit")],
+    footer=[Button("Cancel"), Button("OK")],
+    clickable=True,
+)
+plain_card.on_click(lambda e: _set_text(card_echo, "Card clicked."))
+
+
+def _set_text(component, value):
+    component.text = value
+
+
+glass_card = Card(
+    Text("Frosted glass tinted by role — the accent glow follows the theme."),
+    title="Glass card",
+    subtitle="role='accent'",
+    glass=True,
+    role="accent",
+)
+
+content_panel = Section(
+    "Content",
+    "Display components — Image, Avatar, Badge, and Card. Pure presentation; "
+    "they reuse the theme tokens so they redraw on theme switch.",
+    """img  = Image(src, width=96, height=96, radius="12px")  # src is any URL
+av   = Avatar(src, name="Ada", size="56px")
+av_b = Avatar(src, name="Inbox", badge=Badge(3, position="top-right"))
+bdg  = Badge("New", variant="accent")          # or Badge(150) → "99+"
+dot  = Badge(dot=True)                          # status dot
+card = Card(Text("body"), title="T", subtitle="s",
+            actions=[Button("Edit")], footer=[Button("OK")], clickable=True)
+glass= Card(Text("body"), title="T", glass=True, role="accent")""",
+    Heading("Image", level=4),
+    HStack(img_demo, img_round, gap="16px", align="center"),
+    Separator(),
+    Heading("Avatar", level=4),
+    HStack(av_image, av_letter, av_unknown, av_badge, gap="16px", align="center"),
+    Separator(),
+    Heading("Badge", level=4),
+    Text("Inline pills:", role="secondary"),
+    badge_inline,
+    Text("Counts (150 → 99+, 0 hidden unless show_zero):", role="secondary"),
+    badge_count,
+    Separator(),
+    Heading("Card", level=4),
+    plain_card,
+    glass_card,
+    card_echo,
+)
+
 tabs = Tabs(glass=True)
 tabs.add("Buttons", buttons_panel)
 tabs.add("Inputs", inputs_panel)
@@ -1668,6 +1762,7 @@ tabs.add("Overlays", overlays_panel)
 tabs.add("Reactive", reactive_panel)
 tabs.add("Sidebar", sidebar_panel)
 tabs.add("Window", window_panel)
+tabs.add("Content", content_panel)
 
 # ── assemble: transparent TitleBar over a solid content stage ─────
 

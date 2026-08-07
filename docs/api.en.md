@@ -458,6 +458,97 @@ width/height, so it never overflows an edge.
 
 ---
 
+### `Image`
+
+```python
+from neony.application.urls import file_url, data_url
+
+img = Image(file_url("cover.png"), width=120, height=120, fit="cover", radius="12px")
+img.src = data_url("other.svg")  # any URL string
+```
+
+A themed frame around a single `<img>`. `src` is an **already-built URL**
+— pass it `file_url(path)` for a local file, `data_url(path)` to embed the
+bytes, or any `https://` URL; the component does no path conversion itself
+(keeping that boundary in the caller's hands). A rounded, overflow-hidden
+frame wraps the image so `object-fit` can crop to the radius and a
+placeholder tint shows before the bytes arrive. `width`/`height` accept
+`str` (`"40%"`) or `int` (→ `"40px"`). `fit` is `object-fit`
+(`cover`/`contain`/`fill`/`none`/`scale-down`); pass `radius="50%"` for a
+circle. `src` and `alt` are settable after construction.
+
+### `Avatar`
+
+```python
+av = Avatar("https://…/me.png", name="Ada Lovelace", size="56px")
+letter = Avatar(name="Ada", size="40px")  # → "A" on an accent disc
+unknown = Avatar()  # → "?" placeholder
+inbox = Avatar(src, name="Inbox", badge=Badge(3, position="top-right"))
+```
+
+A user avatar — image, letter initial, or placeholder. With `src` the
+image is shown (cropped by `object-fit: cover`); with only `name` it
+falls back to the first character (uppercased) on an accent disc; with
+neither it shows a `?` placeholder. `shape` is `circle` (default) or
+`square`; `radius` overrides the shape's corner radius. `alt` overrides
+the image alt text (otherwise `name` is used). An optional `badge` (a
+corner `Badge`) is overlaid — the avatar wraps itself in a relative
+inline-flex container so the badge can anchor to a corner. `src`, `name`,
+and `size` are settable after construction.
+
+### `Badge`
+
+```python
+Badge("New", variant="accent")  # inline pill
+Badge(150)  # → "99+" (default max=99)
+Badge(0)  # hidden (display:none); Badge(0, show_zero=True) shows
+Badge(dot=True)  # status dot, no text
+Badge(3, position="top-right")  # corner count — needs a position:relative parent
+```
+
+A small status label or corner count — one class, two shapes.
+`position="inline"` (default) is a pill that flows with text, tinted by
+`variant` (`neutral` default, `accent`, `danger`, `success`). Any other
+`position` (`top-right`, `top-left`, `bottom-right`, `bottom-left`)
+absolutely positions the badge as a corner count — **the component assumes
+a `position: relative` parent** (an `Avatar` with `badge=`, or a wrapper
+`Div`); `overlap=True` pushes it further out (`-12px`) to overlap the
+parent's edge. Integer content gets two conveniences: counts above `max`
+(default 99) collapse to `"99+"`, and a zero count hides the badge unless
+`show_zero=True` (the node stays mounted so it can toggle back).
+`dot=True` drops the text for a bare status dot. `content`, `variant`, and
+`dot` are settable after construction.
+
+### `Card`
+
+```python
+card = Card(
+    Text("The body holds any children."),
+    title="My card",
+    subtitle="Optional subtitle",
+    actions=[Button("Edit")],
+    footer=[Button("Cancel"), Button("OK")],
+    glass=True,
+    role="accent",
+)
+card.title = "Renamed"
+```
+
+A titled content panel. `*body` is the panel body (Components, DOMElements,
+or strings). `title` / `subtitle` auto-build a header (a `Heading` + an
+optional secondary `Text`); a custom `header=` slot replaces the title row
+entirely (and takes precedence over `title`/`subtitle`/`actions`).
+`actions` are buttons shown right-aligned in the header row; `footer` is a
+button list (right-aligned, above a separator) or any content node.
+`glass=True` swaps the solid surface for a frosted-glass panel tinted by
+`role` (`neutral` default, `accent`, `danger`, `success` — the glow follows
+the theme). `clickable=True` turns the card into a clickable surface
+(`cursor: pointer` + `on_click`). `title` and `subtitle` are settable
+after construction. Card keeps its own compact style constants (it does
+not wrap `GlassPanel`), so it stays light by default.
+
+---
+
 ## Layout
 
 ```python
