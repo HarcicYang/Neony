@@ -14,6 +14,7 @@ from neony.application.elements import (
     Input,
     Menu,
     Progress,
+    PromptDialog,
     Radio,
     RadioGroup,
     Select,
@@ -25,7 +26,7 @@ from neony.application.elements import (
     Tooltip,
     VStack,
 )
-from neony.dom import Animation, DomEvent, NodeDescriptor
+from neony.dom import Animation, DOMElement, DomEvent, NodeDescriptor
 
 
 def _find_by_key(node: NodeDescriptor, key: str) -> NodeDescriptor | None:
@@ -55,6 +56,20 @@ def _find_button(node: NodeDescriptor, label: str) -> NodeDescriptor | None:
         if n.tag == "button" and _contains_text(n, label):
             return n
     return None
+
+
+def _prompt_action_bar(pd: PromptDialog) -> DOMElement:
+    """The confirm/cancel button row of a PromptDialog (panel child 2)."""
+    bar = pd._panel.container[2]
+    assert isinstance(bar, DOMElement)
+    return bar
+
+
+def _prompt_button(pd: PromptDialog, index: int) -> DOMElement:
+    """A PromptDialog action button by index (0 = cancel, 1 = confirm)."""
+    btn = _prompt_action_bar(pd).container[index]
+    assert isinstance(btn, DOMElement)
+    return btn
 
 
 class TestComponentBuild:
@@ -1738,6 +1753,102 @@ class TestDialogEvents:
         async def run() -> None:
             dlg.open = True
             dlg.open = False
+
+        asyncio.run(run())
+        assert fired == [True, False]
+
+
+class TestPromptDialogBuild:
+    """PromptDialog builds a Dialog with an input field and action row."""
+
+    def test_prompt_dialog_build(self):
+        pd = PromptDialog("What's your name?", value="Ada", title="Identify")
+        node = pd.build().to_node()
+        assert node.tag == "div"  # the fixed overlay root
+        assert pd.prompt == "What's your name?"
+        assert pd.value == "Ada"
+        # Panel children: header + content (with field) + action bar.
+        assert len(pd._panel.container) == 3
+
+    def test_value_setter_writes_field(self):
+        pd = PromptDialog("Name?")
+        pd.value = "Grace"
+        assert pd._field.value == "Grace"
+
+    def test_action_buttons_present(self):
+        pd = PromptDialog("Name?", confirm_label="Yes", cancel_label="No")
+        pd.build()
+        action_bar = _prompt_action_bar(pd)
+        assert len(action_bar.container) == 2
+        # Buttons render their label text inside the bar.
+        assert "Yes" in action_bar.build()
+        assert "No" in action_bar.build()
+
+
+class TestPromptDialogEvents:
+    """Confirm fires on_submit with the value; cancel doesn't."""
+
+    def test_confirm_button_submits(self):
+        import asyncio
+
+        pd = PromptDialog("Name?", value="Ada")
+        pd.build()
+        submitted: list[str] = []
+        pd.on_submit(lambda v: submitted.append(v))
+        # Confirm is the last (primary) button in the action bar.
+        confirm_btn = _prompt_button(pd, 1)
+        asyncio.run(confirm_btn._handlers["click"][0](DomEvent(key=confirm_btn.key, type="click")))
+        assert submitted == ["Ada"]
+        assert pd.open is False
+
+    def test_cancel_does_not_submit(self):
+        import asyncio
+
+        pd = PromptDialog("Name?", value="X")
+        pd.build()
+        submitted: list[str] = []
+        pd.on_submit(lambda v: submitted.append(v))
+        cancel_btn = _prompt_button(pd, 0)
+        asyncio.run(cancel_btn._handlers["click"][0](DomEvent(key=cancel_btn.key, type="click")))
+        assert submitted == []
+        assert pd.open is False
+
+    def test_enter_submits(self):
+        import asyncio
+
+        pd = PromptDialog("Name?", value="Bob")
+        pd.build()
+        submitted: list[str] = []
+        pd.on_submit(lambda v: submitted.append(v))
+        field = pd._field._input
+        asyncio.run(field._handlers["keydown"][0](DomEvent(key=field.key, type="keydown", value="Enter")))
+        assert submitted == ["Bob"]
+
+    def test_submit_uses_live_value(self):
+        import asyncio
+
+        pd = PromptDialog("Name?", value="Ada")
+        pd.build()
+        submitted: list[str] = []
+        pd.on_submit(lambda v: submitted.append(v))
+        # User types (input event mirrors into the field), then confirms.
+        field = pd._field._input
+        asyncio.run(field._handlers["input"][0](DomEvent(key=field.key, type="input", value="Grace")))
+        confirm_btn = _prompt_button(pd, 1)
+        asyncio.run(confirm_btn._handlers["click"][0](DomEvent(key=confirm_btn.key, type="click")))
+        assert submitted == ["Grace"]
+
+    def test_open_close_pseudo_events_inherited(self):
+        import asyncio
+
+        pd = PromptDialog("Name?")
+        fired: list[bool] = []
+        pd.on_open(lambda d: fired.append(d.open))
+        pd.on_close(lambda d: fired.append(d.open))
+
+        async def run() -> None:
+            pd.open = True
+            pd.open = False
 
         asyncio.run(run())
         assert fired == [True, False]

@@ -19,6 +19,7 @@ from neony.application.elements.input import Input
 from neony.application.elements.layout import Flex, GlassPanel, HStack, Separator, Spacer, VStack
 from neony.application.elements.menu import Menu
 from neony.application.elements.progress import Progress
+from neony.application.elements.prompt_dialog import PromptDialog
 from neony.application.elements.radio import Radio, RadioGroup
 from neony.application.elements.select import Select
 from neony.application.elements.sidebar import Sidebar, SidebarItem
@@ -48,6 +49,7 @@ __all__ = [
     "Input",
     "Menu",
     "Progress",
+    "PromptDialog",
     "Radio",
     "RadioGroup",
     "Select",

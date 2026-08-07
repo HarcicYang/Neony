@@ -415,6 +415,30 @@ an `on_click` callback (called with the dialog, sync or async) and
 `position: fixed` — mount the dialog at the page root or in a
 non-filtered container.
 
+### `PromptDialog`
+
+```python
+ask = PromptDialog(
+    "What's your name?",  # the question above the field
+    title="Identify",
+    value="Ada",  # pre-fill; also resettable via ask.value
+    placeholder="Type…",
+)
+ask.open = True  # or read the property
+ask.on_submit(lambda v: print(f"got {v}"))  # confirm / Enter, with the value
+ask.on_close(lambda d: print("closed"))  # inherited from Dialog
+```
+
+A `Dialog` specialised for a single text value: a themed scrim + centered
+panel with a message, one `Input` field, and a confirm / cancel row.
+Confirming (the primary button, or pressing `Enter` while the field has
+focus) fires `on_submit` with the field's current value, then closes;
+cancelling (the ghost button, `Escape`, scrim click, or click-away)
+closes without firing it. `value` is the field's text — set it before
+opening to pre-fill, read it after submit. `prompt`, `confirm_label`,
+`cancel_label`, and `placeholder` are configurable. Same `position:
+fixed` caveat as `Dialog` — mount at the page root.
+
 ### `Tooltip`
 
 ```python
