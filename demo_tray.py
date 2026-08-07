@@ -15,6 +15,7 @@ Usage:
 
 from neony.application import Config, NeonApplication, Page, Tray, TrayItem, WebViewConfig, WindowConfig
 from neony.application.elements import Button, Text, VStack
+from neony.dom import Signal
 
 app = NeonApplication(
     Config(
@@ -23,13 +24,17 @@ app = NeonApplication(
     )
 )
 
-status = Text("Close the window — the app hides to the tray.", role="secondary")
+status = Text("", role="secondary")
+message = Signal("Close the window — the app hides to the tray.")
+status.bind_text(message)
+hidden = Signal(True)
 
 
 async def on_show(_event) -> None:
     await app.show()
     await app.focus()
-    status.text = "Shown from the tray menu"
+    hidden.set(False)
+    message.set("Shown from the tray menu")
 
 
 async def on_quit(_event) -> None:
@@ -40,7 +45,9 @@ async def on_quit(_event) -> None:
 
 def make_icon() -> tuple[bytes, int, int]:
     """32x32 RGBA icon: a filled accent-ish circle on transparent —
-    no asset file needed."""
+    no asset file needed.  Keeping this zero-asset form avoids adding a
+    binary file solely for a demo icon.
+    """
     size, cx, cy, r = 32, 15.5, 15.5, 13
     rgba = bytearray()
     for y in range(size):
@@ -52,20 +59,17 @@ def make_icon() -> tuple[bytes, int, int]:
     return bytes(rgba), size, size
 
 
-hidden = {"v": False}
-
-
 async def on_tray_left_click(_event) -> None:
     """Left-click toggles the window (menu_on_left_click=False)."""
-    if hidden["v"]:
+    if hidden():
         await app.show()
         await app.focus()
-        hidden["v"] = False
-        status.text = "Shown from the tray (left click)"
+        hidden.set(False)
+        message.set("Shown from the tray (left click)")
     else:
         await app.hide()
-        hidden["v"] = True
-        status.text = "Hidden to tray (left click)"
+        hidden.set(True)
+        message.set("Hidden to tray (left click)")
 
 
 tray = Tray(
@@ -82,8 +86,7 @@ tray = Tray(
 )
 app.tray = tray
 
-page = Page(gap="16px", padding="24px", max_width="100%")
-page.add(
+page = Page(gap="16px", padding="24px", max_width="100%").add(
     VStack(
         Text("Tray Demo", weight="700", size="18px"),
         status,

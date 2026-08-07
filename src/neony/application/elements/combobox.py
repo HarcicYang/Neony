@@ -104,8 +104,10 @@ class ComboBox(Component):
         {"change", "input", "keydown", "outsideclick", "mouseover", "mouseout", "focus", "blur"}
     )
 
-    #: bind_value user channel — live keystrokes (picks fire change).
-    _value_event: str | None = "input"
+    #: bind_value user channels — keystrokes (``input``) AND picks /
+    #: blur-commits (``change``); picks dispatch ``change`` only, so a
+    #: single-channel binding would miss them.
+    _value_events: tuple[str, ...] = ("input", "change")
 
     """An editable text field with a themed suggestion popup.
 

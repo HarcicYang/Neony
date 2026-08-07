@@ -72,15 +72,17 @@ class Tabs(Component):
 
     Usage::
 
-        tabs = Tabs()
-        tabs.add("Counter", counter_panel)
-        tabs.add("Inputs", inputs_panel)
+        tabs = Tabs(("Counter", counter_panel), ("Inputs", inputs_panel))
+        # or chain: tabs.add("Counter", counter_panel)
 
-    ``tabs.active`` (index) and ``tabs.active_key`` switch programmatically.
-    ``glass=True`` gives the panels a frosted, translucent surface.
+    ``tabs.selected_panel`` (the panel element) and ``tabs.selected_title``
+    switch programmatically.  ``active`` / ``active_key`` are deprecated
+    aliases — ``active_key`` returns the tab title (it used to return an
+    opaque element id).  ``glass=True`` gives the panels a frosted,
+    translucent surface.
     """
 
-    def __init__(self, *, glass: bool = False) -> None:
+    def __init__(self, *panes: tuple[str, Component | DOMElement], glass: bool = False) -> None:
         self._glass = glass
         super().__init__()
         self._titles: list[str] = []
@@ -94,6 +96,9 @@ class Tabs(Component):
             styles=Styles(display="flex", flex_direction="column", width="100%"),
             container=[self._bar],
         )
+
+        for title, panel in panes:
+            self.add(title, panel)
 
     # ---- public API ----
 
@@ -113,23 +118,78 @@ class Tabs(Component):
         return self
 
     @property
+    def selected_panel(self) -> DOMElement | None:
+        """The visible panel's element (``None`` with no tabs)."""
+        return self._panels[self._active] if self._panels else None
+
+    @selected_panel.setter
+    def selected_panel(self, panel: DOMElement | Component) -> None:
+        """Select by the registered panel — the Component or its root
+        element.  Components are matched by identity (they are already
+        built into the tabs; building again would raise)."""
+        if isinstance(panel, Component):
+            panel = panel._root
+        try:
+            self._active = self._panels.index(panel)
+        except ValueError as exc:
+            raise ValueError("Tabs.selected_panel: panel is not registered in this Tabs") from exc
+        self._apply_visibility()
+
+    @property
+    def selected_title(self) -> str | None:
+        """The visible tab's title (``None`` with no tabs)."""
+        return self._titles[self._active] if self._titles else None
+
+    @selected_title.setter
+    def selected_title(self, title: str) -> None:
+        try:
+            self._active = self._titles.index(title)
+        except ValueError as exc:
+            raise ValueError(f"Tabs.selected_title: unknown title {title!r}") from exc
+        self._apply_visibility()
+
+    @property
+    def selected_key(self) -> str | None:
+        """The selected tab's key — the tab TITLE (titles serve as the
+        keys here; ``bind_selected`` uses this).  Duplicate titles make
+        the selection ambiguous — the first match wins on set; use
+        distinct titles."""
+        return self.selected_title
+
+    @selected_key.setter
+    def selected_key(self, value: str | None) -> None:
+        if value is None:
+            raise ValueError("Tabs.selected_key: there is always exactly one active tab — None cannot select anything")
+        self.selected_title = value
+
+    @property
     def active(self) -> int:
+        """Deprecated alias of the selected index."""
         return self._active
 
     @active.setter
     def active(self, index: int) -> None:
+        if not 0 <= index < len(self._panels):
+            raise IndexError(f"Tabs.active: index {index} out of range")
         self._active = index
         self._apply_visibility()
 
     @property
     def active_key(self) -> str | None:
-        return self._panels[self._active].key if self._panels else None
+        """Deprecated alias of :attr:`selected_title` (now the title
+        string, not an opaque element id)."""
+        return self.selected_title
 
     # ---- internals ----
 
     def _make_tab_handler(self, index: int):
         async def handler(event: DomEvent) -> None:
-            self.active = index
+            self._active = index
+            self._apply_visibility()
+            event.value = self._titles[index]
+            # Tab buttons are wired with raw DOM on_click (not the
+            # Component dispatcher) — mark the event as user-driven.
+            event.source = "user"
             await self._dispatch("change", event)
 
         return handler

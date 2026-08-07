@@ -102,6 +102,10 @@ class Dropdown(Component):
         {"change", "click", "keydown", "outsideclick", "mouseover", "mouseout", "focus", "blur"}
     )
 
+    #: bind_value user channel — the manually dispatched selection
+    #: (``_select`` sets ``event.value`` to the picked value).
+    _value_event: str | None = "change"
+
     """A themed popup of options under a trigger.
 
     - ``dropdown.value`` reads / sets the selected option's value

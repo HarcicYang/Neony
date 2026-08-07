@@ -13,6 +13,10 @@ reactive primitives (Signal / Computed / Effect / bindings), the
 Sidebar component, and window-state control (show / hide / focus /
 set_bounds).
 
+Signals and ``bind_*`` cover direct state synchronization in the examples;
+named ``on_*`` handlers are retained where event payloads, async work, or
+multiple side effects are required.
+
 Usage:
     python demo_gallery.py
 """
@@ -21,7 +25,7 @@ import asyncio
 import os
 import sys
 
-from neony.application import Config, NeonApplication, Page, WebViewConfig, WindowConfig
+from neony.application import Config, NeonApplication, Page, Theme, WebViewConfig, WindowConfig
 from neony.application.elements import (
     Avatar,
     Badge,
@@ -40,6 +44,7 @@ from neony.application.elements import (
     Image,
     Input,
     Menu,
+    Pane,
     Progress,
     PromptDialog,
     Radio,
@@ -47,7 +52,6 @@ from neony.application.elements import (
     Select,
     Separator,
     Sidebar,
-    SidebarItem,
     Slider,
     Spacer,
     Switch,
@@ -168,15 +172,13 @@ def Mono(size: str = "13px") -> Div:
 
 # ── header (shared across tabs) ──────────────────────────────────
 
-_MODE_LABELS = {"dark": "Light mode", "light": "Deep Blue mode", "deep-blue": "Dark mode"}
-
 theme_btn = Button("Light mode", variant="ghost")
 
 
-async def on_theme_click(event: DomEvent) -> None:
+async def on_theme_click(_event: DomEvent) -> None:
     app.theme.toggle()
     await app.sync_theme()
-    theme_btn.label = _MODE_LABELS[app.theme.mode]
+    theme_btn.label = Theme.mode_label(app.theme.mode)
 
 
 theme_btn.on_click(on_theme_click)
@@ -249,42 +251,33 @@ label.bind_text(clicks, fmt=lambda n: f"{n} clicks")""",
 
 text_input = Input(placeholder="Your name…")
 text_echo = Text("", role="secondary")
+text_value = Signal("")
+text_input.bind_value(text_value)
+text_echo.bind_text(text_value, fmt=lambda value: f"Hello, {value}!" if value else "")
 
 password_input = Input(placeholder="Password", type="password")
 password_echo = Text("", role="secondary")
+password_value = Signal("")
+password_input.bind_value(password_value)
+password_echo.bind_text(password_value, fmt=lambda value: f"Length: {len(value)}" if value else "")
 
 email_input = Input(placeholder="Email", type="email")
 email_echo = Text("", role="secondary")
-
-
-async def on_text_input(event: DomEvent) -> None:
-    text_echo.text = f"Hello, {event.value}!" if event.value else ""
-
-
-async def on_password_input(event: DomEvent) -> None:
-    password_echo.text = f"Length: {len(event.value)}" if event.value else ""
-
-
-async def on_email_input(event: DomEvent) -> None:
-    email_echo.text = f"Email: {event.value}" if event.value else ""
-
-
-text_input.on_input(on_text_input)
-password_input.on_input(on_password_input)
-email_input.on_input(on_email_input)
+email_value = Signal("")
+email_input.bind_value(email_value)
+email_echo.bind_text(email_value, fmt=lambda value: f"Email: {value}" if value else "")
 
 inputs_panel = Section(
     "Inputs",
-    "Text, password and email fields. The on_input event carries the live "
-    "value; echoing it back is the standard pattern (password/email use "
-    "the same event with their own readouts).",
-    """inp = Input(placeholder="Your name…")
-async def on_text_input(event: DomEvent) -> None:
-    text_echo.text = f"Hello, {event.value}!"
-inp.on_input(on_text_input)
+    "Text, password and email fields. Each input binds its value to a "
+    "Signal and each echo binds declaratively to that Signal with a "
+    "formatting function.",
+    """name = Signal("")
+text_input.bind_value(name)
+text_echo.bind_text(name, fmt=lambda v: f"Hello, {v}!" if v else "")
 
 pwd = Input(placeholder="Password", type="password")   # email / number …
-pwd.on_input(lambda e: print(len(e.value)))""",
+pwd.bind_value(password)""",
     text_input,
     text_echo,
     password_input,
@@ -296,40 +289,38 @@ pwd.on_input(lambda e: print(len(e.value)))""",
 # ── tab: checks ──────────────────────────────────────────────────
 
 # The signals are the single source of truth: each checkbox is bound
-# two-way, "Select all" is a Computed driven by an effect, and the
-# status line is a bound text — no manual refresh calls.
+# two-way, "Select all" is a Computed driven by a read-only binding,
+# and the status line is a bound text — no manual refresh calls.
 FOODS = ["Pizza", "Tacos", "Ramen"]
 food_flags = {name: Signal(False) for name in FOODS}
-food_checks = [Checkbox(name) for name in FOODS]
-for cb, name in zip(food_checks, FOODS, strict=True):
-    cb.bind_value(food_flags[name])
+food_checks = [Checkbox(name).bind_value(food_flags[name]) for name in FOODS]
 
 all_selected = Computed(lambda: all(food_flags[name]() for name in FOODS))
 check_all = Checkbox("Select all")
-check_all_effect = effect(lambda: setattr(check_all, "checked", all_selected()))
-check_status = Text("0 of 3 selected", role="secondary")
-check_status.bind_text(Computed(lambda: f"{sum(1 for name in FOODS if food_flags[name]())} of {len(FOODS)} selected"))
+check_all.bind_value(all_selected)
 
 
-async def on_check_all(event: DomEvent) -> None:
-    for name in FOODS:
-        food_flags[name].set(bool(event.value))
+def on_check_all(event: DomEvent) -> None:
+    for flag in food_flags.values():
+        flag.set(bool(event.value))
 
 
 check_all.on_change(on_check_all)
+check_status = Text("", role="secondary")
+check_status.bind_text(Computed(lambda: f"{sum(1 for name in FOODS if food_flags[name]())} of {len(FOODS)} selected"))
 
 checks_panel = Section(
     "Checkboxes",
     "Custom-styled toggles with a change event. Signals are the single "
     "source of truth: each food checkbox is bound two-way via "
-    'bind_value, "Select all" is a Computed driven by an effect, and '
+    'bind_value, "Select all" is a Computed bound read-only, and '
     "the status line is a bound text — nothing refreshes by hand.",
     """flag = Signal(False)
 cb = Checkbox("Pizza")
 cb.bind_value(flag)      # two-way: toggling writes the signal
 
 all_selected = Computed(lambda: all(f[name]() for name in FOODS))
-effect(lambda: setattr(check_all, "checked", all_selected()))
+check_all.bind_value(all_selected)
 status.bind_text(Computed(lambda: f"{n} of 3 selected"))""",
     check_all,
     *food_checks,
@@ -343,24 +334,16 @@ meal_group = RadioGroup(
     Radio("Tacos", value="tacos"),
     Radio("Ramen", value="ramen"),
 )
-meal_echo = Text("Picked: pizza", role="secondary")
+meal = Signal("pizza")
+meal_group.bind_selected(meal)
+meal_echo = Text("", role="secondary")
+meal_echo.bind_text(meal, fmt=lambda value: f"Picked: {value}")
 
-
-async def on_meal_change(event: DomEvent) -> None:
-    meal_echo.text = f"Picked: {event.value}"
-
-
-meal_group.on_change(on_meal_change)
-
+wifi = Signal(False)
 wifi_switch = Switch("Wi-Fi")
-wifi_status = Text("Off", role="secondary")
-
-
-async def on_wifi_change(event: DomEvent) -> None:
-    wifi_status.text = "On" if event.value else "Off"
-
-
-wifi_switch.on_change(on_wifi_change)
+wifi_switch.bind_value(wifi)
+wifi_status = Text("", role="secondary")
+wifi_status.bind_text(wifi, fmt=lambda enabled: "On" if enabled else "Off")
 
 size_select = Select(
     "Size",
@@ -368,40 +351,30 @@ size_select = Select(
     placeholder="Pick a size…",
     value="m",
 )
-size_echo = Text("Selected: m", role="secondary")
-
-
-async def on_size_change(event: DomEvent) -> None:
-    size_echo.text = f"Selected: {event.value}"
-
-
-size_select.on_change(on_size_change)
+size = Signal("m")
+size_select = Select(
+    "Size",
+    options=[("s", "Small"), ("m", "Medium"), ("l", "Large")],
+    placeholder="Pick a size…",
+    value="m",
+)
+size_select.bind_value(size)
+size_echo = Text("", role="secondary")
+size_echo.bind_text(size, fmt=lambda value: f"Selected: {value}")
 
 tag_combobox = ComboBox("Tag", options=["work", "personal", "travel"], placeholder="Type or pick…")
+tag = Signal("")
+tag_combobox = ComboBox("Tag", options=["work", "personal", "travel"], placeholder="Type or pick…")
+tag_combobox.bind_value(tag)
 tag_echo = Text("", role="secondary")
+tag_echo.bind_text(tag, fmt=lambda value: f"Tag: {value}" if value else "")
 
-
-async def on_tag_input(event: DomEvent) -> None:
-    tag_echo.text = f"Tag: {event.value}" if event.value else ""
-
-
-async def on_tag_change(event: DomEvent) -> None:
-    # auto-complete (Tab/Enter/PageUp/PageDown) fires change, not input —
-    # the readout must follow picks too
-    tag_echo.text = f"Tag: {event.value}" if event.value else ""
-
-
-tag_combobox.on_input(on_tag_input)
-tag_combobox.on_change(on_tag_change)
-
-# One signal drives three widgets: the slider writes it (bind_value is
-# two-way), the readout and the progress bar follow (bind_text /
-# bind_value write-only).  No manual refresh anywhere.
+# One signal drives three widgets: slider, readout and progress bar.
 volume = Signal(40)
 volume_slider = Slider("Volume (stepped)", min=0, max=100, step=5, value=40)
 volume_slider.bind_value(volume)
 volume_readout = Mono()
-volume_readout.bind_text(volume, fmt=lambda v: f"{v:.0f}%")
+volume_readout.bind_text(volume, fmt=lambda value: f"{value:.0f}%")
 volume_progress = Progress(label="The progress bar follows the same signal")
 volume_progress.bind_value(volume)
 
@@ -418,16 +391,11 @@ smooth_readout.bind_text(smooth_volume, fmt=lambda v: f"{v:.1f}%")
 heat_share = Text("", role="secondary", size="12px")
 heat_share.bind_text(heat, fmt=lambda n: f"shared heat signal (from the Reactive tab): {n}%")
 
-load_bar = Progress(value=35, label="Downloading…")
-scan_bar = Progress(label="Scanning…", indeterminate=True)
-advance_btn = Button("+15%", variant="ghost")
-
-
-async def on_advance(_event: DomEvent) -> None:
-    load_bar.value = min(100.0, load_bar.value + 15)
-
-
-advance_btn.on_click(on_advance)
+load = Signal(35)
+load_bar = Progress("Downloading…", value=35)
+load_bar.bind_value(load)
+scan_bar = Progress("Scanning…", indeterminate=True)
+advance_btn = Button("+15%", variant="ghost").on_click(lambda _event: load.update(lambda value: min(100, value + 15)))
 
 forms_panel = Section(
     "Forms",
@@ -553,13 +521,9 @@ Div(styles=Styles(user_select="none"), ...)""",
 
 glass_input = Input(placeholder="Glass input…", glass=True)
 glass_input_echo = Text("", role="secondary")
-
-
-async def on_glass_input(event: DomEvent) -> None:
-    glass_input_echo.text = f"Typed: {event.value}" if event.value else ""
-
-
-glass_input.on_input(on_glass_input)
+glass_value = Signal("")
+glass_input.bind_value(glass_value)
+glass_input_echo.bind_text(glass_value, fmt=lambda value: f"Typed: {value}" if value else "")
 
 # One frosted stage carries the background image; the glass components
 # inside it (glass=True, no background of their own) blur it through
@@ -672,8 +636,9 @@ TitleBar(icon=data_url("logo.svg"))""",
 # labels) bubbles to this bubble_events Div.  The DomEvent carries the
 # viewport (x/y) and element-relative (offset_x/offset_y) coordinates.
 tracker_text = Text("Click anywhere in this box", role="secondary")
+click_info = Signal("—")
 click_pos = Mono()
-click_pos.container = ["—"]
+click_pos.bind_text(click_info)
 
 tracker = Div(
     styles=Styles(
@@ -692,9 +657,7 @@ tracker.bubble_events = True
 
 
 async def on_tracker_down(event: DomEvent) -> None:
-    click_pos.container = [
-        f"down at ({event.x:.0f}, {event.y:.0f})  offset ({event.offset_x:.0f}, {event.offset_y:.0f})"
-    ]
+    click_info.set(f"down at ({event.x:.0f}, {event.y:.0f})  offset ({event.offset_x:.0f}, {event.offset_y:.0f})")
 
 
 tracker.on_mousedown(on_tracker_down)
@@ -726,9 +689,10 @@ async def on_mod_key(event: DomEvent) -> None:
 # converts to pixels via the mode factor and keeps a running total.
 # The readout sits BELOW the scrollable zone so it stays visible while
 # the content scrolls away.
-wheel_total_y = {"px": 0.0}
+wheel_total = Signal(0.0)
+wheel_readout = Signal("dx: —   dy: —   total: 0px")
 wheel_delta = Mono()
-wheel_delta.container = ["dx: —   dy: —   total: 0px"]
+wheel_delta.bind_text(wheel_readout)
 wheel_zone = Div(
     styles=Styles(
         border="1px solid var(--color-border)",
@@ -754,11 +718,10 @@ async def on_wheel(event: DomEvent) -> None:
     # delta_mode: 0 = pixels, 1 = lines (x16), 2 = pages (x256).
     factor = 16 ** (event.delta_mode or 0)
     px = (event.delta_y or 0) * factor
-    wheel_total_y["px"] += px
-    wheel_delta.container = [
-        f"dy: {event.delta_y:+.0f} (mode {event.delta_mode})   "
-        f"dx: {event.delta_x:+.0f}   total: {wheel_total_y['px']:+.0f}px"
-    ]
+    wheel_total.update(lambda total: total + px)
+    wheel_readout.set(
+        f"dy: {event.delta_y:+.0f} (mode {event.delta_mode})   dx: {event.delta_x:+.0f}   total: {wheel_total():+.0f}px"
+    )
 
 
 wheel_zone.on_wheel(on_wheel)
@@ -768,8 +731,9 @@ wheel_zone.on_wheel(on_wheel)
 # pointer_type tells mouse / pen / touch apart.  Pointermove rides the
 # deferred render path, so the readout coalesces to one render per
 # frame instead of one per event.
+pointer_info = Signal("—")
 pointer_readout = Mono()
-pointer_readout.container = ["—"]
+pointer_readout.bind_text(pointer_info)
 pointer_zone = Div(
     styles=Styles(
         border="1px solid var(--color-border)",
@@ -787,11 +751,11 @@ pointer_zone.bubble_events = True
 
 
 async def on_pointer_move(event: DomEvent) -> None:
-    pointer_readout.container = [
+    pointer_info.set(
         f"({event.x:.0f}, {event.y:.0f})   "
         f"movement ({event.movement_x:+.0f}, {event.movement_y:+.0f})   "
         f"{event.pointer_type or '?'}"
-    ]
+    )
 
 
 pointer_zone.on_pointermove(on_pointer_move)
@@ -850,15 +814,17 @@ spinner = Div(
         animation=Animation(name="spin", duration="1s", timing="linear", iteration_count="infinite"),
     )
 )
-spin_state = Text("running", size="12px", role="secondary")
+spin_state = Text("", size="12px", role="secondary")
+paused = Signal(False)
+spin_state.bind_text(paused, fmt=lambda is_paused: "paused" if is_paused else "running")
 
 
-async def on_spin_toggle(event: DomEvent) -> None:
+async def on_spin_toggle(_event: DomEvent) -> None:
     anim = spinner.styles.animation
-    paused = isinstance(anim, Animation) and anim.play_state == "paused"
+    is_paused = paused()
     if isinstance(anim, Animation):
-        spinner.styles.animation = anim.model_copy(update={"play_state": "paused" if not paused else "running"})
-    spin_state.text = "paused" if not paused else "running"
+        spinner.styles.animation = anim.model_copy(update={"play_state": "running" if is_paused else "paused"})
+    paused.set(not is_paused)
 
 
 spin_toggle = Button("Pause", variant="ghost")
@@ -900,10 +866,11 @@ card.styles.animation = Animation(name="fade-slide", duration="0.5s")""",
 # ── tab: drop ────────────────────────────────────────────────────
 
 drop_hint = Text("Drop files anywhere in this box", role="secondary")
-drop_list = Div(
-    styles=Styles(font_family=_MONO, font_size="12px", line_height="1.7", white_space="pre"),
-    container=[""],
-)
+dragging = Signal(False)
+drop_files = Signal("")
+drop_hint.bind_text(dragging, fmt=lambda active: "Release to drop" if active else "Drop files anywhere in this box")
+drop_list = Mono(size="12px")
+drop_list.bind_text(drop_files)
 
 drop_zone = Div(
     styles=Styles(
@@ -921,6 +888,16 @@ drop_zone = Div(
     container=[drop_hint.build(), drop_list],
 )
 drop_zone.bubble_events = True
+drop_zone.bind_style(
+    dragging,
+    "border",
+    fmt=lambda active: "2px dashed var(--color-accent)" if active else "2px dashed var(--color-border)",
+)
+drop_zone.bind_style(
+    dragging,
+    "background_color",
+    fmt=lambda active: Color(var="--color-surface") if active else None,
+)
 
 
 def fmt_size(size: int) -> str:
@@ -932,40 +909,26 @@ def fmt_size(size: int) -> str:
     return f"{size} B"
 
 
-async def on_drop_over(event: DomEvent) -> None:
-    drop_zone.styles = drop_zone.styles.model_copy(
-        update={
-            "border": "2px dashed var(--color-accent)",
-            "background_color": Color(var="--color-surface"),
-        }
-    )
-    drop_hint.text = "Release to drop"
+async def on_drop_over(_event: DomEvent) -> None:
+    dragging.set(True)
 
 
-async def on_drop_leave(event: DomEvent) -> None:
-    drop_zone.styles = drop_zone.styles.model_copy(
-        update={"border": "2px dashed var(--color-border)", "background_color": None}
-    )
-    drop_hint.text = "Drop files anywhere in this box"
+async def on_drop_leave(_event: DomEvent) -> None:
+    dragging.set(False)
 
 
 async def on_drop(event: DomEvent) -> None:
-    drop_zone.styles = drop_zone.styles.model_copy(
-        update={"border": "2px dashed var(--color-border)", "background_color": None}
-    )
-    drop_hint.text = "Drop files anywhere in this box"
+    dragging.set(False)
     if not event.drop_files:
-        drop_list.container = ["(no files — on WKWebView the file path is empty)"]
+        drop_files.set("(no files — on WKWebView the file path is empty)")
         return
-    lines = [f"{f['name']}   ({fmt_size(f['size'])}, {f['type']})" for f in event.drop_files]
+    lines = [f"{file['name']}   ({fmt_size(file['size'])}, {file['type']})" for file in event.drop_files]
     lines.append("")
-    lines.extend(f"path: {f['path'] or '<unavailable>'}" for f in event.drop_files)
-    drop_list.container = ["\n".join(lines)]
+    lines.extend(f"path: {file['path'] or '<unavailable>'}" for file in event.drop_files)
+    drop_files.set("\n".join(lines))
 
 
-drop_zone.on_dragover(on_drop_over)
-drop_zone.on_dragleave(on_drop_leave)
-drop_zone.on_drop(on_drop)
+drop_zone.on_dragover(on_drop_over).on_dragleave(on_drop_leave).on_drop(on_drop)
 
 drop_panel = Section(
     "File Drop",
@@ -987,35 +950,37 @@ zone.on_drop(lambda e: [print(f["name"], f["path"]) for f in e.drop_files])""",
 # ── tab: clipboard ───────────────────────────────────────────────
 
 clip_log = Text("", role="secondary")
+clip_history = Signal("")
+clip_log.bind_text(clip_history)
 paste_input = Input(placeholder="Paste (Ctrl+V) into this field…")
+clip_value = Signal("")
 clip_line = Mono(size="12px")
+clip_line.bind_text(clip_value)
+clip_entries: list[str] = []
 
 
 def clip_log_line(line: str) -> None:
-    """Keep the last 4 log lines."""
-    lines = [ln for ln in (clip_log.text or "").splitlines() if ln][-3:]
-    lines.append(line)
-    clip_log.text = "\n".join(lines)
+    """Keep the last 4 log lines in Signal state."""
+    clip_entries.append(line)
+    clip_history.set("\n".join(clip_entries[-4:]))
 
 
 async def on_paste(event: DomEvent) -> None:
     # clipboard_text may be None on some backends — the input's own
     # value (updated by the input event right after) is the fallback.
     if event.clipboard_text is None:
-        clip_line.container = ["clipboard_text: <not exposed by this backend>"]
+        clip_value.set("clipboard_text: <not exposed by this backend>")
     else:
-        clip_line.container = [
-            (
-                f"clipboard_text: {event.clipboard_text!r}"
-                + (f"  html: {event.clipboard_html!r}" if event.clipboard_html else "")
-            )
-        ]
+        clip_value.set(
+            f"clipboard_text: {event.clipboard_text!r}"
+            + (f"  html: {event.clipboard_html!r}" if event.clipboard_html else "")
+        )
     clip_log_line("paste event — clipboard carried into Python")
 
 
 async def on_paste_input(event: DomEvent) -> None:
     if event.value:
-        clip_line.container = [f"input value: {event.value!r}"]
+        clip_value.set(f"input value: {event.value!r}")
 
 
 async def on_copy(event: DomEvent) -> None:
@@ -1039,20 +1004,20 @@ async def on_copy_click(event: DomEvent) -> None:
     try:
         await app.clipboard_write("Neony wrote this from Python!")
     except Exception as exc:
-        clip_line.container = [f"write failed: {exc}"]
+        clip_value.set(f"write failed: {exc}")
         clip_log_line(f"clipboard_write() failed: {exc}")
         return
-    clip_line.container = ['wrote "Neony wrote this from Python!"']
+    clip_value.set('wrote "Neony wrote this from Python!"')
 
 
 async def on_read_click(event: DomEvent) -> None:
     try:
         text = await app.clipboard_read()
     except Exception as exc:  # permission denied / no gesture
-        clip_line.container = [f"read failed: {exc}"]
+        clip_value.set(f"read failed: {exc}")
         clip_log_line(f"clipboard_read() failed: {exc}")
         return
-    clip_line.container = [f"read: {text!r}"]
+    clip_value.set(f"read: {text!r}")
 
 
 copy_btn.on_click(on_copy_click)
@@ -1077,7 +1042,9 @@ text = await app.clipboard_read()""",
 
 # ── tab: shortcuts ───────────────────────────────────────────────
 
+shortcut_message = Signal("")
 shortcut_log = Text("", role="secondary")
+shortcut_log.bind_text(shortcut_message)
 b_chip, b_dot = StatusChip("Ctrl+B — bold")
 g_chip, g_dot = StatusChip("Ctrl+G — glow")
 d_chip, d_dot = StatusChip("Ctrl+D — dark")
@@ -1092,24 +1059,30 @@ count = Signal(0)
 count_value = Text("0", size="40px", weight="bold")
 count_value.bind_text(count)
 
-heat_bar = Div(
-    styles=Styles(
-        height="14px",
-        border_radius="7px",
-        background_color=Color(var="--color-border"),
-        transition="all 0.15s ease",
-    )
-)
-heat_bar.bind_style(
-    heat,
-    "width",
-    fmt=lambda n: f"{max(0, min(100, n))}%",
-)
-heat_bar.bind_style(
-    heat,
-    "background_color",
-    fmt=lambda n: Color(rgb=(int(40 + 2.1 * max(0, min(100, n))), int(190 - 1.3 * max(0, min(100, n))), 120)),
-)
+
+class HeatBar(Component):
+    """Demo-local signal-driven heat bar."""
+
+    def __init__(self, value: Signal, *, height: str = "14px") -> None:
+        super().__init__()
+        self._root = Div(
+            styles=Styles(
+                height=height,
+                border_radius="7px",
+                background_color=Color(var="--color-border"),
+                transition="all 0.15s ease",
+            )
+        )
+        self._root.bind_style(value, "width", fmt=lambda number: f"{max(0, min(100, number))}%")
+        self._root.bind_style(value, "background_color", fmt=self._color)
+
+    @staticmethod
+    def _color(number: int | float) -> Color:
+        number = max(0, min(100, number))
+        return Color(rgb=(int(40 + 2.1 * number), int(190 - 1.3 * number), 120))
+
+
+heat_bar = HeatBar(heat)
 heat_label = Text("heat: 30%", role="secondary")
 heat_label.bind_text(heat, fmt=lambda n: f"heat: {n}%")
 
@@ -1121,8 +1094,8 @@ minus_btn.on_click(lambda _e: heat.update(lambda n: max(0, min(100, n - 10))))
 # Computed: two signals, one derived value, one bound label.
 first_name = Signal("")
 last_name = Signal("")
-first_input = Input(placeholder="First name")
-last_input = Input(placeholder="Last name")
+first_input = Input(placeholder="First name").bind_value(first_name)
+last_input = Input(placeholder="Last name").bind_value(last_name)
 full_name = Computed(lambda: f"{first_name().strip()} {last_name().strip()}".strip())
 full_echo = Text("", role="secondary")
 full_echo.bind_text(full_name, fmt=lambda v: f"Computed full name: {v}" if v else "Type both names…")
@@ -1141,30 +1114,38 @@ last_input.on_input(on_last)
 
 # Effect: re-runs on dependency change, cleans up via dispose().
 level = Signal(50)
+level_log = Signal(f"Effect fired — level = {level()}")
 level_text = Mono()
-level_text.container = [f"Effect fired — level = {level()}"]
+level_text.bind_text(level_log)
 effect_slot = {"eff": None}
+running = Signal(True)
+effect_state = Text("", role="secondary", size="12px")
+effect_state.bind_text(
+    running,
+    fmt=lambda active: "effect: running" if active else "effect: disposed — level changes no longer sync",
+)
 
 
 def level_sync() -> None:
-    level_text.container = [f"Effect fired — level = {level()}"]
+    level_log.set(f"Effect fired — level = {level()}")
 
 
 effect_slot["eff"] = effect(level_sync)
 effect_btn = Button("Dispose effect", variant="ghost")
-effect_state = Text("effect: running", role="secondary", size="12px")
 
 
-async def on_effect_toggle(event: DomEvent) -> None:
-    if effect_slot["eff"] is not None:
-        effect_slot["eff"].dispose()
+async def on_effect_toggle(_event: DomEvent) -> None:
+    if running():
+        current = effect_slot["eff"]
+        if current is not None:
+            current.dispose()
         effect_slot["eff"] = None
+        running.set(False)
         effect_btn.label = "Restart effect"
-        effect_state.text = "effect: disposed — level changes no longer sync"
     else:
         effect_slot["eff"] = effect(level_sync)
+        running.set(True)
         effect_btn.label = "Dispose effect"
-        effect_state.text = "effect: running"
 
 
 effect_btn.on_click(on_effect_toggle)
@@ -1186,25 +1167,20 @@ secret_block = Div(
     container=["This box's display is bound to a Signal."],
 )
 secret_block.bind_visible(secret)
-secret_check = Checkbox("Visible", checked=True)
-
-
-async def on_secret_toggle(event: DomEvent) -> None:
-    secret.set(bool(event.value))
-
-
-secret_check.on_change(on_secret_toggle)
+secret_check = Checkbox("Visible", checked=True).bind_value(secret)
 
 # batch(): two signals changed together flush ONE effect run.
 batch_a = Signal(0)
 batch_b = Signal(0)
-batch_runs = {"n": 0}
+batch_runs = Signal(0)
 batch_count = Mono()
+batch_count.bind_text(batch_runs, fmt=lambda runs: f"effect runs: {runs}  (a={batch_a()}, b={batch_b()})")
 
 
 def batch_sync() -> None:
-    batch_runs["n"] += 1
-    batch_count.container = [f"effect runs: {batch_runs['n']}  (a={batch_a()}, b={batch_b()})"]
+    batch_a()
+    batch_b()
+    batch_runs.update(lambda runs: runs + 1)
 
 
 batch_effect = effect(batch_sync)
@@ -1228,17 +1204,22 @@ batch_both_btn.on_click(on_batch_both)
 # untrack(): reading a signal inside an effect without subscribing.
 untrack_tracked = Signal(0)
 untrack_ignored = Signal(0)
-untrack_runs = {"n": 0}
+untrack_runs = Signal(0)
 untrack_count = Mono()
+untrack_count.bind_text(
+    Computed(
+        lambda: (
+            f"effect runs: {untrack_runs()}  (tracked={untrack_tracked()}, "
+            f"ignored={untrack_ignored()} read via untrack — no subscription)"
+        )
+    )
+)
 
 
 def untrack_sync() -> None:
-    untrack_runs["n"] += 1
-    value = untrack(untrack_ignored.get)
-    untrack_count.container = [
-        f"effect runs: {untrack_runs['n']}  (tracked={untrack_tracked()}, "
-        f"ignored={value} read via untrack — no subscription)"
-    ]
+    untrack_tracked()
+    untrack_runs.update(lambda runs: runs + 1)
+    untrack(untrack_ignored.get)
 
 
 untrack_effect = effect(untrack_sync)
@@ -1365,47 +1346,55 @@ inp.bind_value(name) # two-way: signal ↔ component value""",
 
 # ── tab: sidebar ─────────────────────────────────────────────────
 
-sidebar = Sidebar(
-    SidebarItem("Home", icon="🏠"),
-    SidebarItem("Settings", icon="⚙️"),
-    SidebarItem("Profile", icon="👤"),
-    active_key="home",
-    corner_radius="0px",
-)
-sidebar_title = Text("Home", weight="600", size="16px")
-sidebar_pane = GlassPanel(
-    sidebar_title,
-    Text(
-        "The Sidebar drives a content pane through its on_change event; the active item keeps the accent border.",
-        role="secondary",
-    ),
+home_pane = GlassPanel(
+    Heading("Home", level=3),
+    Text("Home content — the Sidebar owns this pane.", role="secondary"),
     gap="12px",
     padding="16px",
     radius="0px",
     grow=True,
 )
-sidebar_state = Text("active: home", role="secondary", size="12px")
+settings_pane = GlassPanel(
+    Heading("Settings", level=3),
+    Text("Settings content — select another entry to switch panes.", role="secondary"),
+    gap="12px",
+    padding="16px",
+    radius="0px",
+    grow=True,
+)
+profile_pane = GlassPanel(
+    Heading("Profile", level=3),
+    Text("Profile content — pane state remains mounted while hidden.", role="secondary"),
+    gap="12px",
+    padding="16px",
+    radius="0px",
+    grow=True,
+)
 
-
-def switch_pane(key: str) -> None:
-    sidebar_title.text = key.title()
-    sidebar_state.text = f"active: {key}"
-
-
-sidebar.on_change(lambda e: switch_pane(e.value))
+active_pane = Signal("home")
+sidebar = Sidebar(
+    Pane("Home", key="home", icon="🏠", panel=home_pane),
+    Pane("Settings", key="settings", icon="⚙️", panel=settings_pane),
+    Pane("Profile", key="profile", icon="👤", panel=profile_pane),
+    corner_radius="0px",
+)
+sidebar.bind_selected(active_pane)
+sidebar_state = Text("", role="secondary", size="12px")
+sidebar_state.bind_text(active_pane, fmt=lambda key: f"active: {key}")
 
 sidebar_panel = Section(
     "Sidebar",
-    "A vertical navigation rail for frameless chrome layouts. active_key "
-    "controls the highlighted item; on_change fires with the item's key. "
-    "Glass-matched to the TitleBar — pair them in a frameless window.",
-    """sidebar = Sidebar(
-    SidebarItem("Home", icon="🏠"),
-    SidebarItem("Settings", icon="⚙️"),
-    active_key="home",
+    "A Sidebar can own its content panes. Pane keys are explicit, "
+    "selected state binds to a Signal, and clicking an item switches "
+    "the mounted pane without a hand-written mapping or switch function.",
+    """active = Signal("home")
+sidebar = Sidebar(
+    Pane("Home", key="home", icon="🏠", panel=home_panel),
+    Pane("Settings", key="settings", icon="⚙️", panel=settings_panel),
 )
-sidebar.on_change(lambda e: switch_pane(e.value))""",
-    HStack(sidebar, sidebar_pane, gap="12px", align="stretch"),
+sidebar.bind_selected(active)
+state.bind_text(active, fmt=lambda key: f"active: {key}")""",
+    sidebar,
     sidebar_state,
 )
 
@@ -1416,7 +1405,9 @@ sidebar.on_change(lambda e: switch_pane(e.value))""",
 # resize — the size change proves set_bounds is working either way.
 _ON_WAYLAND = "WAYLAND_DISPLAY" in os.environ and sys.platform.startswith("linux")
 
-win_status = Text("Window state", role="secondary")
+win_state = Signal("Window state")
+win_status = Text("", role="secondary")
+win_status.bind_text(win_state)
 win_note = Text(
     "Hide auto-restores after 2s (the Show button lives inside the window, "
     "so a permanent hide would trap you). "
@@ -1441,30 +1432,30 @@ pos2_btn = Button("Default @ (0, 0)", variant="ghost")
 
 async def on_hide(event: DomEvent) -> None:
     await app.hide()
-    win_status.text = "Window hidden — auto-restoring in 2s…"
+    win_state.set("Window hidden — auto-restoring in 2s…")
     await asyncio.sleep(2)
     await app.show()
-    win_status.text = "Window shown again (auto-restore)"
+    win_state.set("Window shown again (auto-restore)")
 
 
 async def on_show(event: DomEvent) -> None:
     await app.show()
-    win_status.text = "Window shown"
+    win_state.set("Window shown")
 
 
 async def on_focus_click(event: DomEvent) -> None:
     await app.focus()
-    win_status.text = "Window focused"
+    win_state.set("Window focused")
 
 
 async def on_pos1(event: DomEvent) -> None:
     await app.set_bounds(100, 100, 440, 560)
-    win_status.text = "set_bounds(100, 100, 440, 560) applied"
+    win_state.set("set_bounds(100, 100, 440, 560) applied")
 
 
 async def on_pos2(event: DomEvent) -> None:
     await app.set_bounds(0, 0, 560, 720)
-    win_status.text = "set_bounds(0, 0, 560, 720) applied"
+    win_state.set("set_bounds(0, 0, 560, 720) applied")
 
 
 hide_btn.on_click(on_hide)
@@ -1491,39 +1482,33 @@ page.on_blur(lambda: print("blurred"))""",
 
 # ── assemble ─────────────────────────────────────────────────────
 
-page = Page(gap="0px", padding="0px", max_width="100%", fill=True, radius="12px")
-
 
 # Page-level lifecycle hooks drive the Window tab status line.
 async def on_page_focus() -> None:
-    win_status.text = "Window focused"
+    win_state.set("Window focused")
 
 
 async def on_page_blur() -> None:
-    win_status.text = "Window lost focus (or hidden)"
+    win_state.set("Window lost focus (or hidden)")
 
 
-page.on_focus(on_page_focus)
-page.on_blur(on_page_blur)
+# Window-level key events drive the Events tab's modifier lights — they
+# respond wherever keys land, even while an input has focus.
+page = (
+    Page(gap="0px", padding="0px", max_width="100%", fill=True, radius="12px")
+    .on_focus(on_page_focus)
+    .on_blur(on_page_blur)
+    .on_keydown(on_mod_key)
+    .on_keyup(on_mod_key)
+)
 
-# Window-level key events drive the Events tab's modifier lights —
-# they respond wherever keys land (even while an input has focus),
-# so no "focus the input first" step is needed.
-page.on_keydown(on_mod_key)
-page.on_keyup(on_mod_key)
-
-# In-app shortcuts: window-level, fire even while an input has focus,
-# on any tab.  Registered on the Page, so they work window-wide.
-# The handler lights its dot, then dims it again after a beat.
+# In-app shortcuts fire even while an input has focus, on any tab.  The
+# handler lights its dot, then dims it again after a beat.
 
 
 async def shortcut_handler(dot: Div, message: str) -> None:
     set_dot(dot, True)
-    shortcut_log.text = message
-    # Auto-render only runs after the handler returns — the 0.4s flash
-    # would be swallowed (ON → OFF inside one handler, never rendered).
-    # An explicit render shows the lit state, then the handler returns
-    # and the auto-render dims it.
+    shortcut_message.set(message)
     await app.render()
     await asyncio.sleep(0.4)
     set_dot(dot, False)
@@ -1568,7 +1553,9 @@ dialog = Dialog(
         DialogAction("Close"),
     ],
 )
-dialog_status = Text("closed", role="secondary")
+dialog_state = Signal("closed")
+dialog_status = Text("", role="secondary")
+dialog_status.bind_text(dialog_state)
 dialog_open_btn = Button("Open dialog")
 
 
@@ -1577,28 +1564,26 @@ async def on_dialog_open(_event: DomEvent) -> None:
 
 
 dialog_open_btn.on_click(on_dialog_open)
-dialog.on_open(lambda _d: setattr(dialog_status, "text", "open"))
-dialog.on_close(lambda _d: setattr(dialog_status, "text", "closed"))
+dialog.on_open(lambda _dialog: dialog_state.set("open"))
+dialog.on_close(lambda _dialog: dialog_state.set("closed"))
 
 # Tooltip: anchor-relative bubble, placement offsets, hover delay.
 tip_top = Tooltip("Tooltip on top", anchor=Button("Hover (top)"), placement="top", delay=1)
 tip_bottom = Tooltip("Tooltip below", anchor=Button("Hover (bottom)"), placement="bottom", delay=1)
 
 # Dropdown: themed popup under a trigger (Select's pattern).
+theme_choice = Signal("")
 theme_dd = Dropdown("Theme", items=[("dark", "Dark"), ("light", "Light"), ("deep-blue", "Deep Blue")], width="160px")
+theme_dd.bind_value(theme_choice)
 dd_echo = Text("", role="secondary")
-
-
-async def on_dd_change(event: DomEvent) -> None:
-    dd_echo.text = f"Dropdown: {event.value}"
-
-
-theme_dd.on_change(on_dd_change)
+dd_echo.bind_text(theme_choice, fmt=lambda value: f"Dropdown: {value}")
 
 # Menu: fixed at the cursor — right-click the button.  Also mounted at
 # the page root so no ancestor transform can hijack `position: fixed`.
 ctx_menu = Menu(("rename", "Rename"), ("duplicate", "Duplicate"), ("delete", "Delete"))
 menu_echo = Text("", role="secondary")
+menu_value = Signal("")
+menu_echo.bind_text(menu_value, fmt=lambda value: f"Menu: {value}")
 menu_btn = Button("Right-click me", variant="ghost")
 
 
@@ -1607,7 +1592,7 @@ async def on_menu_contextmenu(event: DomEvent) -> None:
 
 
 async def on_menu_change(event: DomEvent) -> None:
-    menu_echo.text = f"Menu: {event.value}"
+    menu_value.set(f"{event.value}")
 
 
 menu_btn.on_contextmenu(on_menu_contextmenu)
@@ -1621,7 +1606,9 @@ prompt = PromptDialog(
     placeholder="Ada Lovelace…",
     value="Ada",
 )
-prompt_status = Text("closed", role="secondary")
+prompt_state = Signal("closed")
+prompt_status = Text("", role="secondary")
+prompt_status.bind_text(prompt_state)
 prompt_open_btn = Button("Ask a name")
 
 
@@ -1630,12 +1617,12 @@ async def on_prompt_open(_event: DomEvent) -> None:
 
 
 prompt_open_btn.on_click(on_prompt_open)
-prompt.on_open(lambda _d: setattr(prompt_status, "text", "open"))
-prompt.on_close(lambda _d: setattr(prompt_status, "text", "closed"))
+prompt.on_open(lambda _dialog: prompt_state.set("open"))
+prompt.on_close(lambda _dialog: prompt_state.set("closed"))
 
 
 def on_prompt_submit(value: str) -> None:
-    prompt_status.text = f"submitted: {value!r}"
+    prompt_state.set(f"submitted: {value!r}")
 
 
 prompt.on_submit(on_prompt_submit)
@@ -1686,9 +1673,7 @@ menu.on_change(lambda e: print(e.value))""",
 # Fixed overlays must not live inside the Tabs panel (its rise-in
 # animation transforms would hijack `position: fixed` in WebKit) —
 # mount them at the page root.
-page.add(dialog)
-page.add(ctx_menu)
-page.add(prompt)
+page.add(dialog, ctx_menu, prompt)
 
 # ── Content components: Card / Avatar / Badge / Image ────────────────
 
@@ -1735,11 +1720,7 @@ plain_card = Card(
     footer=[Button("Cancel"), Button("OK")],
     clickable=True,
 )
-plain_card.on_click(lambda e: _set_text(card_echo, "Card clicked."))
-
-
-def _set_text(component, value):
-    component.text = value
+plain_card.on_click(lambda _event: setattr(card_echo, "text", "Card clicked."))
 
 
 glass_card = Card(
@@ -1780,25 +1761,27 @@ glass= Card(Text("body"), title="T", glass=True, role="accent")""",
     card_echo,
 )
 
-tabs = Tabs(glass=True)
-tabs.add("Buttons", buttons_panel)
-tabs.add("Inputs", inputs_panel)
-tabs.add("Checks", checks_panel)
-tabs.add("Forms", forms_panel)
-tabs.add("Layout", layout_panel)
-tabs.add("Type", typography_panel)
-tabs.add("Glass", glass_panel)
-tabs.add("Icon", icon_panel)
-tabs.add("Events", events_panel)
-tabs.add("Animations", animations_panel)
-tabs.add("Drop", drop_panel)
-tabs.add("Clipboard", clipboard_panel)
-tabs.add("Shortcuts", shortcuts_panel)
-tabs.add("Overlays", overlays_panel)
-tabs.add("Reactive", reactive_panel)
-tabs.add("Sidebar", sidebar_panel)
-tabs.add("Window", window_panel)
-tabs.add("Content", content_panel)
+tabs = Tabs(
+    ("Buttons", buttons_panel),
+    ("Inputs", inputs_panel),
+    ("Checks", checks_panel),
+    ("Forms", forms_panel),
+    ("Layout", layout_panel),
+    ("Type", typography_panel),
+    ("Glass", glass_panel),
+    ("Icon", icon_panel),
+    ("Events", events_panel),
+    ("Animations", animations_panel),
+    ("Drop", drop_panel),
+    ("Clipboard", clipboard_panel),
+    ("Shortcuts", shortcuts_panel),
+    ("Overlays", overlays_panel),
+    ("Reactive", reactive_panel),
+    ("Sidebar", sidebar_panel),
+    ("Window", window_panel),
+    ("Content", content_panel),
+    glass=True,
+)
 
 # ── assemble: transparent TitleBar over a solid content stage ─────
 

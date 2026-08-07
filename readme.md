@@ -99,14 +99,16 @@ Import from `neony.application.elements`.
 | `Input`                   | Single-line text field — text / password / email / number…                     |
 | `Heading`                 | Themed heading (h1–h6) with automatic sizing                                   |
 | `Text`                    | Inline body copy with semantic roles (primary / secondary / danger / success)  |
-| `Tabs`                    | Tab bar + panels, exactly one visible at a time                                |
+| `Tabs`                    | Tab bar + panels, exactly one visible at a time — constructor children, `selected_panel` / `selected_title` / `selected_key` |
 | `Flex`                    | Generic flex container with full control                                       |
 | `VStack` / `HStack`       | Vertical / horizontal flex stacks                                              |
 | `Spacer`                  | Flexible empty space that absorbs leftover room                                |
 | `Separator`               | Subtle horizontal divider                                                      |
 | `GlassPanel`              | Frosted-glass container with optional background image                         |
 | `TitleBar`                | Custom window chrome for frameless windows — drag, minimize / maximize / close |
-| `Sidebar` / `SidebarItem` | Vertical navigation rail, glass-matched to the TitleBar                        |
+| `Sidebar` / `SidebarItem` | Vertical navigation owning its content panes — `Pane`, `SidebarGroup` sections, per-pane shortcuts; glass-matched to the TitleBar |
+| `Pane`                    | Selectable Sidebar entry + content panel — `key`, `icon`, `section`, `shortcut` |
+| `SidebarGroup`            | Titled section of a Sidebar — small uppercase label above its items          |
 | `Image`                   | Themed image in a rounded, overflow-hidden frame (`src` is any URL)            |
 | `Avatar`                  | User avatar — image, letter initial, or placeholder, optional corner `badge`   |
 | `Badge`                   | Status pill or corner count — variants, status dot, `99+` clamp, zero hides    |
@@ -163,7 +165,7 @@ Run from the repository root:
 | `demo_multi_window.py`        | Two windows sharing one app state                                |
 | `demo_reactive.py`            | Signal-based API: declarative bindings instead of manual refresh |
 | `demo_tray.py`                | System tray: native menu + close-to-tray pattern                 |
-| `demo_builder.py`             | Raw DOM builder without the app layer                            |
+| `demo_builder.py`             | Minimal app built with `Page` + components + `launch()`    |
 
 ```bash
 uv run demo_gallery.py

@@ -123,16 +123,18 @@ class Spacer(Component):
 
 
 class Separator(Component):
-    """Subtle horizontal divider line (border-weakening aesthetic)."""
+    """Subtle divider line (border-weakening aesthetic)."""
 
-    def __init__(self, *, width: str = "100%", thickness: str = "1px") -> None:
+    def __init__(
+        self, *, width: str = "100%", thickness: str = "1px", type: Literal["horizontal", "vertical"] = "horizontal"
+    ) -> None:
         super().__init__()
         self._root = Div(
             styles=Styles(
-                width=width,
-                height=thickness,
+                width=width if type == "horizontal" else thickness,
+                height=thickness if type == "horizontal" else width,
                 background_color=Color(var="--color-border"),
-                margin="8px 0",
+                margin="8px 0" if type == "horizontal" else "0 8px",
             ),
         )
 
@@ -198,7 +200,11 @@ class GlassPanel(Component):
         children_el = Flex._build_children(children)
         if background:
             # Image layer below, frosted glass above (backdrop-filter
-            # would swallow the image's own background).
+            # would swallow the image's own background).  The glass face
+            # drops from the dense 0.85 panel fill to the lighter 0.60
+            # surface fill so the image shows through (0.85 + the 0.7
+            # overlay underneath leave only ~4% of the image visible).
+            glass_styles = glass_styles.model_copy(update={"background_color": Color(var="--color-surface-glass-bg")})
             backdrop = Div(
                 styles=Styles(
                     position="absolute",

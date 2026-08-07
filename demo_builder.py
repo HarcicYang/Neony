@@ -1,42 +1,36 @@
 #!/usr/bin/env python3
-from lumiview import App, Window
+"""Builder demo — a small app built from a Page and components.
 
-from neony.dom import Body, Color, Div, Html, Styles
+The page container centers its child, and the fluent ``add`` API assembles
+all content without exposing the native window or document builders.
+"""
 
-app = App(name="HelloLumiView")
+from neony.application import Page, launch
+from neony.application.elements import Heading, Text, VStack
+from neony.dom import Color, Div, Styles
 
+disc = Div(
+    container=["Hello!"],
+    styles=Styles(
+        color=Color(var="--color-text-primary"),
+        background_color=Color(var="--color-accent"),
+        width="100px",
+        height="100px",
+        display="flex",
+        justify_content="center",
+        align_items="center",
+        border_radius="50px",
+    ),
+)
 
-async def main():
-    title = "Hello LumiView!"
-    await Window.create(
-        title=title,
-        html=Html(
-            container=[
-                Body(
-                    container=[
-                        Div(
-                            container=["Hello!"],
-                            styles=Styles(
-                                color=Color(name="white"),
-                                background_color=Color(name="black"),
-                                width="100px",
-                                height="100px",
-                                display="flex",
-                                justify_content="center",
-                                align_items="center",
-                                border_radius="50px",
-                            ),
-                        )
-                    ],
-                    styles=Styles(display="flex", justify_content="center", align_items="center"),
-                )
-            ]
-        ).build(),
-        width=900,
-        height=640,
-        devtools=True,
+page = Page(fill=True, justify="center", align="center", max_width="100%").add(
+    VStack(
+        Heading("Hello, Neony", level=1),
+        Text("Built with Page and components.", role="secondary"),
+        disc,
+        gap="16px",
+        align="center",
     )
-    print(f"Page title: {title}")
+)
 
-
-app.run(main)
+launch(page, title="Hello Neony!", width=900, height=640, devtools=True)
