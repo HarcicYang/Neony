@@ -291,6 +291,25 @@ tabs.on_change(lambda e: print(e.value))  # value = 标签标题
 
 `selected_panel` 按身份绑定可见面板（组件或其已构建的根元素，绝不重复构建）；`selected_title` 按标题字符串选择，未知标题抛 `ValueError`。`active`（下标）与 `active_key` 为已弃用别名 —— `active_key` 现在返回标签标题（此前返回不透明的元素 id）。
 
+### `Accordion` & `Collapsible`
+
+```python
+accordion = (
+    Accordion(multiple=True)
+    .section("输入与表单", inputs_panel, checks_panel)
+    .section("布局", layout_panel, expanded=True)
+)
+accordion.on_change(lambda e: print(e.value))  # value = 被切换分组的 key
+accordion.expanded_keys = ["输入与表单"]  # 编程展开 —— 不触发回调
+accordion.expanded_keys  # list[str]，当前展开的分组
+```
+
+`Collapsible` 是一个带标题、可在隐藏/可见之间切换的内容面板；`Accordion` 把若干折叠项堆叠在同一个滚动流里。`multiple=True`（默认）允许同时展开多个分组；`multiple=False` 为互斥模式——展开一个会收起其余的。切换仅改 `display`——展开时重放内置的 `neony-rise-in` 入场动画，因此不涉及 JS 层。
+
+`Collapsible(title, *content, expanded=False, key=None)` 构造单个折叠项（也可作为位置参数直接传给 `Accordion`）；`key` 默认取标题的小写形式，用于 `change` 事件载荷。`.section(title, *content, ...)` 是流畅写法，一步构建并挂载一个 `Collapsible`。
+
+用 `on_change` 监听（`event.value` 为刚被用户切换的分组 key），用 `expanded_keys` 读取完整的展开集合。`Accordion` **不**实现 `selected_key` / `bind_selected`——其选择是多值的，不适用单值选择协议。
+
 ### `Pane` & `SidebarGroup`
 
 见下方 `Sidebar` 一节 —— `Pane` 是 Sidebar 拥有的可选项，`SidebarGroup` 是分组的标题小节。
@@ -608,7 +627,7 @@ titlebar.override_close(confirm_close)  # 完全接管关闭
 **参数:** `title`， `icon`， `show_minimize`， `show_maximize`，
 `show_close`， `height`
 
-`icon` 在标题左侧绘制一个小图标(URL 或文件路径)——无边框模式下
+`icon` 为 `Icon` 对象——`Icon.image(url_or_path)` 在标题左侧绘制一个小图标（固定尺寸方形，绝不拉伸）——无边框模式下
 `WindowConfig.icon` 的对应物，因为无边框窗口没有 OS 装饰来承载它。
 
 标题栏即拖拽区域(双击最大化);控制按钮带内部 `data-window-action`
@@ -620,9 +639,9 @@ titlebar.override_close(confirm_close)  # 完全接管关闭
 
 ```python
 sidebar = Sidebar(
-    Pane("首页", panel=home_panel, icon="🏠", section="常用", shortcut="Ctrl+1"),
-    Pane("设置", panel=settings_panel, icon="⚙️", section="常用"),
-    Pane("统计", panel=stats_panel, icon="📊", section="数据", shortcut="Ctrl+3"),
+    Pane("首页", panel=home_panel, icon=Icon.glyph("🏠"), section="常用", shortcut="Ctrl+1"),
+    Pane("设置", panel=settings_panel, icon=Icon.glyph("⚙️"), section="常用"),
+    Pane("统计", panel=stats_panel, icon=Icon.glyph("📊"), section="数据", shortcut="Ctrl+3"),
 )
 sidebar.on_change(lambda e: print(e.value))  # value = 面板 key
 sidebar.selected_key = "settings"  # 编程切换,不触发回调
@@ -635,8 +654,8 @@ for combo, fn in sidebar.shortcuts():
 
 ```python
 sidebar = Sidebar(
-    SidebarItem("首页", icon="🏠"),
-    SidebarItem("设置", icon="⚙️"),
+    SidebarItem("首页", icon=Icon.glyph("🏠")),
+    SidebarItem("设置", icon=Icon.glyph("⚙️")),
     active_key="home",  # 已弃用 → selected_key
 )
 ```
@@ -652,7 +671,7 @@ sidebar = Sidebar(
 一个可选的 `Sidebar` 条目及其内容面板。
 
 ```python
-pane = Pane("首页", panel=home_panel, icon="🏠", section="常用", shortcut="Ctrl+1")
+pane = Pane("首页", panel=home_panel, icon=Icon.glyph("🏠"), section="常用", shortcut="Ctrl+1")
 ```
 
 **参数:** `Pane(label, panel, key, icon, section, shortcut)` —
@@ -667,6 +686,42 @@ sidebar.add(SidebarGroup("菜单", SidebarItem("打开"), SidebarItem("保存"))
 ```
 
 `SidebarGroup.add` 可链式调用，且组挂到 sidebar 之后仍可用（新增条目自动接线）。组纯属视觉：选择、`items` 与 `change` 都按 DOM 顺序作用于扁平的条目列表。连续共享同一 `section` 的 pane 渲染为一个组；同名 section 稍后重现则另起一组。
+
+### `Tree` & `TreeNode`
+
+可折叠导航树（左侧轨道）拥有内容宿主（右侧）。任意深度：分支节点（带 `children`）只展开/收起；叶子节点（带 `panel`）选中后在宿主显示其内容。树是单选——`selected_key` / `bind_selected` 与 `Sidebar` 行为一致。
+
+```python
+tree = Tree(
+    TreeNode("首页", key="home", icon=Icon.glyph("🏠")).panel(home_panel),
+    TreeNode("表单", expanded=True).children(
+        TreeNode("输入", key="inputs", shortcut="Ctrl+1").panel(inputs_panel),
+        TreeNode("勾选", key="checks").panel(checks_panel),
+    ),
+    active_key="home",  # 或 tree.selected_key = "home"
+)
+tree.on_change(lambda e: print(e.value))  # value = 叶子 key
+for combo, fn in tree.shortcuts():
+    page.on_shortcut(combo, fn)  # 叶子快捷键，同 Sidebar
+```
+
+**参数:** `Tree(*nodes, width, expanded_branches, active_key)` — `width` 为轨道宽度（宿主自适应其余空间）；`expanded_branches=True` 让顶层分支默认展开。行样式复用 `Accordion` 表头——圆角、透明、无外围包裹；轨道高度受舞台约束，内部滚动而非撑破页面。
+
+`TreeNode(label, key, icon, panel, expanded, children, shortcut)` — 节点不能同时带 `panel` 与 `children`（否则抛错）。流畅建造器：`.panel(panel)` 挂叶子内容、`.children(*nodes)` 挂分支子节点、`.key_(key)` 设 key——全部可链式。
+
+`key` 默认为随机 id；`selected_key` 对未知 key 抛 `ValueError`。分支带 `aria-expanded`、叶子带 `aria-selected`；行支持键盘导航（方向键移动焦点环，Enter / 空格激活，← / → 收起 / 展开分支）。
+
+### `Icon`
+
+`TitleBar`、`Sidebar`/`Pane`/`SidebarItem`、`Tabs` 与 `TreeNode` 共用的统一图标——图片或字形，二选一显式声明：
+
+```python
+Icon.image("https://example.com/logo.svg")  # 固定尺寸方形（TitleBar 同款）
+Icon.image("assets/logo.png")
+Icon.glyph("🏠")  # emoji / Nerd Font 字符
+```
+
+**参数:** `Icon(src, kind)` — 经 `Icon.image(url_or_path)` 或 `Icon.glyph(text)` 构造；`render(size)` 生成元素（图片形式以 `background-image: url(...)` 绘制固定尺寸方形，contain/居中/不重复，绝不拉伸）。
 
 ---
 

@@ -52,6 +52,32 @@
     "save": "none"
   },
   {
+    "label": "Run accordion demo",
+    "command": "uv run demo_accordion.py",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "reveal_target": "dock",
+    "hide": "never",
+    "shell": "system",
+    "show_summary": true,
+    "show_command": true,
+    "save": "none"
+  },
+  {
+    "label": "Run tree demo",
+    "command": "uv run demo_tree.py",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "reveal_target": "dock",
+    "hide": "never",
+    "shell": "system",
+    "show_summary": true,
+    "show_command": true,
+    "save": "none"
+  },
+  {
     "label": "Run custom window demo",
     "command": "uv run demo_custom_window.py",
     "use_new_terminal": true,

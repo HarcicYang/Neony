@@ -41,6 +41,7 @@ from neony.application.elements import (
     GlassPanel,
     Heading,
     HStack,
+    Icon,
     Image,
     Input,
     Menu,
@@ -55,10 +56,11 @@ from neony.application.elements import (
     Slider,
     Spacer,
     Switch,
-    Tabs,
     Text,
     TitleBar,
     Tooltip,
+    Tree,
+    TreeNode,
     VStack,
 )
 from neony.dom import (
@@ -83,8 +85,8 @@ app = NeonApplication(
     Config(
         window=WindowConfig(
             title="Neony — Component Gallery",
-            width=560,
-            height=720,
+            width=1000,
+            height=640,
             decorations=False,
             transparent=True,
         ),
@@ -605,7 +607,7 @@ icon_panel = Section(
     "both take the same URL or file path. file_url() / data_url() turn "
     "local files into URL strings for icons, backgrounds and images.",
     """# Frameless — inline in the TitleBar (this window):
-TitleBar("My App", icon="https://harcic.is-a.dev/resource/favicon.svg")
+TitleBar("My App", icon=Icon.image("https://harcic.is-a.dev/resource/favicon.svg"))
 
 # Decorated — the OS window chrome shows it:
 launch(page, title="My App", icon="icon.png")
@@ -617,7 +619,7 @@ await app.set_icon("icon.png")
 # Local resources:
 from neony.application import file_url, data_url
 GlassPanel(background=file_url("bg.png"))
-TitleBar(icon=data_url("logo.svg"))""",
+TitleBar(icon=Icon.image(data_url("logo.svg")))""",
     VStack(
         Text("Live: the favicon in the titlebar above uses TitleBar(icon=...).", role="secondary"),
         Text(
@@ -626,7 +628,6 @@ TitleBar(icon=data_url("logo.svg"))""",
             role="secondary",
         ),
         gap="8px",
-        align="stretch",
     ),
 )
 
@@ -1373,9 +1374,9 @@ profile_pane = GlassPanel(
 
 active_pane = Signal("home")
 sidebar = Sidebar(
-    Pane("Home", key="home", icon="🏠", panel=home_pane),
-    Pane("Settings", key="settings", icon="⚙️", panel=settings_pane),
-    Pane("Profile", key="profile", icon="👤", panel=profile_pane),
+    Pane("Home", key="home", icon=Icon.glyph("🏠"), panel=home_pane),
+    Pane("Settings", key="settings", icon=Icon.glyph("⚙️"), panel=settings_pane),
+    Pane("Profile", key="profile", icon=Icon.glyph("👤"), panel=profile_pane),
     corner_radius="0px",
 )
 sidebar.bind_selected(active_pane)
@@ -1389,8 +1390,8 @@ sidebar_panel = Section(
     "the mounted pane without a hand-written mapping or switch function.",
     """active = Signal("home")
 sidebar = Sidebar(
-    Pane("Home", key="home", icon="🏠", panel=home_panel),
-    Pane("Settings", key="settings", icon="⚙️", panel=settings_panel),
+    Pane("Home", key="home", icon=Icon.glyph("🏠"), panel=home_panel),
+    Pane("Settings", key="settings", icon=Icon.glyph("⚙️"), panel=settings_panel),
 )
 sidebar.bind_selected(active)
 state.bind_text(active, fmt=lambda key: f"active: {key}")""",
@@ -1539,7 +1540,7 @@ page.on_shortcut({"darwin": "Meta+K", "default": "Ctrl+K"}, theme)
 # ── tab: overlays ────────────────────────────────────────────────
 
 # Dialog: a fixed full-page scrim + centered panel.  Mounted at the
-# PAGE ROOT — a transform / backdrop-filter ancestor (like a Tabs
+# PAGE ROOT — a transform / backdrop-filter ancestor (like an animated
 # panel's rise-in animation) would hijack `position: fixed` in WebKit.
 # Closes via scrim / Escape / click-away; the action buttons run their
 # callbacks and close by default.
@@ -1670,9 +1671,6 @@ menu.on_change(lambda e: print(e.value))""",
     menu_echo,
 )
 
-# Fixed overlays must not live inside the Tabs panel (its rise-in
-# animation transforms would hijack `position: fixed` in WebKit) —
-# mount them at the page root.
 page.add(dialog, ctx_menu, prompt)
 
 # ── Content components: Card / Avatar / Badge / Image ────────────────
@@ -1761,48 +1759,84 @@ glass= Card(Text("body"), title="T", glass=True, role="accent")""",
     card_echo,
 )
 
-tabs = Tabs(
-    ("Buttons", buttons_panel),
-    ("Inputs", inputs_panel),
-    ("Checks", checks_panel),
-    ("Forms", forms_panel),
-    ("Layout", layout_panel),
-    ("Type", typography_panel),
-    ("Glass", glass_panel),
-    ("Icon", icon_panel),
-    ("Events", events_panel),
-    ("Animations", animations_panel),
-    ("Drop", drop_panel),
-    ("Clipboard", clipboard_panel),
-    ("Shortcuts", shortcuts_panel),
-    ("Overlays", overlays_panel),
-    ("Reactive", reactive_panel),
-    ("Sidebar", sidebar_panel),
-    ("Window", window_panel),
-    ("Content", content_panel),
-    glass=True,
+# ── home: shown until a leaf is selected ─────────────────────────
+
+home_panel = VStack(
+    Heading("Welcome", level=3),
+    Text(
+        "This gallery is organized as a tree: pick a category on the "
+        "left, expand it, and select a component to see its docs and "
+        "live demos here. Every section pairs a demo with the Python "
+        "snippet that produced it, so the gallery doubles as a reference.",
+        role="secondary",
+    ),
+    gap="12px",
 )
+
+# ── tree: categories → component leaves ─────────────────────────
+
+gallery_tree = Tree(width="220px").children(
+    TreeNode("Home", key="home", icon=Icon.glyph("🏠")).panel(home_panel),
+    TreeNode("Buttons", key="buttons", shortcut="Ctrl+1").panel(buttons_panel),
+    TreeNode("Inputs & Forms", key="inputs-forms", expanded=True).children(
+        TreeNode("Inputs", key="inputs", shortcut="Ctrl+2").panel(inputs_panel),
+        TreeNode("Checks", key="checks", shortcut="Ctrl+3").panel(checks_panel),
+        TreeNode("Forms", key="forms", shortcut="Ctrl+4").panel(forms_panel),
+    ),
+    TreeNode("Layout & Type", key="layout-type").children(
+        TreeNode("Layout", key="layout").panel(layout_panel),
+        TreeNode("Type", key="type").panel(typography_panel),
+    ),
+    TreeNode("Glass & Content", key="glass-content").children(
+        TreeNode("Glass", key="glass").panel(glass_panel),
+        TreeNode("Content", key="content").panel(content_panel),
+        TreeNode("Icon", key="icon").panel(icon_panel),
+    ),
+    TreeNode("Interaction & Events", key="interaction").children(
+        TreeNode("Events", key="events").panel(events_panel),
+        TreeNode("Drop", key="drop").panel(drop_panel),
+        TreeNode("Clipboard", key="clipboard").panel(clipboard_panel),
+        TreeNode("Shortcuts", key="shortcuts").panel(shortcuts_panel),
+        TreeNode("Overlays", key="overlays").panel(overlays_panel),
+    ),
+    TreeNode("System & Advanced", key="system").children(
+        TreeNode("Animations", key="animations").panel(animations_panel),
+        TreeNode("Reactive", key="reactive").panel(reactive_panel),
+        TreeNode("Sidebar", key="sidebar").panel(sidebar_panel),
+        TreeNode("Window", key="window").panel(window_panel),
+    ),
+)
+gallery_tree.selected_key = "home"
 
 # ── assemble: transparent TitleBar over a solid content stage ─────
 
-titlebar = TitleBar("Neony — Component Gallery", icon=_ICON_URL)
+titlebar = TitleBar("Neony — Component Gallery", icon=Icon.image(_ICON_URL))
 
 # The content stage uses the plain theme background — only the titlebar
 # above it stays transparent, so the desktop shows through the chrome
-# while the docs/text get a solid, readable backdrop.
+# while the docs/text get a solid, readable backdrop.  Must be a flex
+# column: a bare block Div ignores flex-grow, so its height = content
+# height and the tree pushes the whole page open (no bounded stage, no
+# internal tree scroll).
 content = Div(
     styles=Styles(
+        display="flex",
+        flex_direction="column",
         flex_grow="1",
         min_height="0",
         overflow="auto",
         background_color=Color(var="--color-bg"),
     ),
-    container=[VStack(header, tabs, gap="16px", padding="24px").build()],
+    # grow=1: the header + tree column must be a flex item with the
+    # tree's allocated height (the tree self-bounds via flex-grow +
+    # min-height:0, but an auto-height parent gives it nothing to grow
+    # into — without grow=1 the tree pushes the stage open).
+    container=[VStack(header, gallery_tree, gap="16px", padding="24px", grow=1).build()],
 )
 
 # grow=1 makes the chrome stack fill the window; the content stage then
 # grows to fill the space below the titlebar.
-page.add(VStack(titlebar, content, gap="0px", align="stretch", grow=1))
+page.add(VStack(titlebar, content, gap="0px", grow=1))
 
 
 def main() -> None:

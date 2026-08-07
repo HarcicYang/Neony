@@ -30,15 +30,20 @@ _SLOT_HIDDEN = Styles(display="none", width="100%")
 # keyframe (injected by the app with every window).  The switch from
 # _SLOT_HIDDEN (no animation) to _SLOT_ACTIVE changes the animation
 # value, so the browser replays it on every activation.
-# flex_grow makes the slot fill the host's remaining height — panes that
-# stretch themselves (GlassPanel grow=True → height:100%) need a
-# definite parent height to resolve against.
+# flex_grow stretches the slot to the host's remaining height — panes
+# that stretch themselves (GlassPanel grow=True → height:100%) need a
+# definite parent height to resolve against.  flex_shrink:0 is the
+# other half: a pane taller than the host must push the host's
+# overflow:auto into scrolling, never be compressed into the host
+# height — flex-shrink would squash the pane's rows together and they
+# would overlap visually.
 _SLOT_ACTIVE = Styles(
     display="flex",
     flex_direction="column",
     width="100%",
     min_height="0",
     flex_grow="1",
+    flex_shrink="0",
     animation=Animation(name="neony-rise-in", duration="0.25s", timing="ease-out"),
 )
 

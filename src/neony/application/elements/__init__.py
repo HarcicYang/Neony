@@ -4,6 +4,7 @@ All components share the fluent API (``.on_click(fn)`` chaining),
 own their state, and are theme-aware via CSS custom properties.
 """
 
+from neony.application.elements.accordion import Accordion, Collapsible
 from neony.application.elements.avatar import Avatar
 from neony.application.elements.badge import Badge
 from neony.application.elements.base import Component
@@ -14,6 +15,7 @@ from neony.application.elements.combobox import ComboBox
 from neony.application.elements.dialog import Dialog, DialogAction
 from neony.application.elements.dropdown import Dropdown
 from neony.application.elements.heading import Heading
+from neony.application.elements.icon import Icon
 from neony.application.elements.image import Image
 from neony.application.elements.input import Input
 from neony.application.elements.layout import Flex, GlassPanel, HStack, Separator, Spacer, VStack
@@ -29,13 +31,16 @@ from neony.application.elements.tabs import Tabs
 from neony.application.elements.text import Text
 from neony.application.elements.titlebar import TitleBar
 from neony.application.elements.tooltip import Tooltip
+from neony.application.elements.treeview import Tree, TreeNode
 
 __all__ = [
+    "Accordion",
     "Avatar",
     "Badge",
     "Button",
     "Card",
     "Checkbox",
+    "Collapsible",
     "ComboBox",
     "Component",
     "Dialog",
@@ -45,6 +50,7 @@ __all__ = [
     "GlassPanel",
     "HStack",
     "Heading",
+    "Icon",
     "Image",
     "Input",
     "Menu",
@@ -65,5 +71,7 @@ __all__ = [
     "Text",
     "TitleBar",
     "Tooltip",
+    "Tree",
+    "TreeNode",
     "VStack",
 ]

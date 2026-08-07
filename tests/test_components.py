@@ -4,14 +4,17 @@ import pytest
 
 from neony.application import Page, Theme
 from neony.application.elements import (
+    Accordion,
     Avatar,
     Badge,
     Button,
     Card,
     Checkbox,
+    Collapsible,
     ComboBox,
     Dialog,
     Dropdown,
+    Icon,
     Image,
     Input,
     Menu,
@@ -29,6 +32,8 @@ from neony.application.elements import (
     Tabs,
     Text,
     Tooltip,
+    Tree,
+    TreeNode,
     VStack,
 )
 from neony.dom import Animation, Div, DOMElement, DomEvent, NodeDescriptor
@@ -442,6 +447,45 @@ class TestGlassPanelBackground:
         panel = GlassPanel("content")
         node = panel.build().to_node()
         assert node.styles["background-color"] == "var(--color-surface-panel-glass-bg)"
+
+    def test_grow_panel_wraps_in_styleless_sizing_wrapper(self):
+        """grow=True must bound the panel to the parent: a transparent
+        styleless wrapper carries flex-grow + min-height:0 and the glass
+        face inside fills it — so scroll children (a Tree rail) shrink
+        and scroll instead of growing the page."""
+        from neony.application.elements import GlassPanel
+
+        panel = GlassPanel("content", grow=True)
+        node = panel.build().to_node()
+        # Root = the sizing wrapper: no paint, flex-grow, min-height:0.
+        assert node.styles.get("background-color") is None
+        assert node.styles.get("box-shadow") is None
+        assert node.styles["flex-grow"] == "1"
+        assert node.styles["min-height"] == "0"
+        # The glass face (only child) fills the wrapper, also shrinkable.
+        face = node.children[0]
+        assert face.styles["background-color"] == "var(--color-surface-panel-glass-bg)"
+        assert face.styles["flex-grow"] == "1"
+        assert face.styles["min-height"] == "0"
+        # Content is inside the face.
+        assert face.text == "content"
+
+    def test_grow_background_panel_keeps_overlay_inside_wrapper(self):
+        from neony.application.elements import GlassPanel
+
+        panel = GlassPanel("content", background="https://example.com/bg.jpg", grow=True)
+        node = panel.build().to_node()
+        assert node.styles.get("background-color") is None  # styleless wrapper
+        face_outer = node.children[0]
+        assert face_outer.styles["flex-grow"] == "1"
+        assert face_outer.styles["min-height"] == "0"
+        backdrop = face_outer.children[0]
+        overlay = "linear-gradient(var(--color-bg-overlay), var(--color-bg-overlay))"
+        assert overlay in backdrop.styles["background-image"]
+        glass = face_outer.children[1]
+        # Dense face (0.85) — the grow wrapper keeps the panel's own
+        # fill; the 0.60 surface-face swap is only for non-grow panels.
+        assert glass.styles["background-color"] == "var(--color-surface-panel-glass-bg)"
 
 
 class TestPageAndTheme:
@@ -2678,9 +2722,9 @@ class TestSidebarPaneBuild:
     def test_gallery_bare_rail_config(self):
         """demo_gallery's construction must keep working unchanged."""
         sidebar = Sidebar(
-            SidebarItem("Home", icon="🏠"),
-            SidebarItem("Settings", icon="⚙️"),
-            SidebarItem("Profile", icon="👤"),
+            SidebarItem("Home", icon=Icon.glyph("🏠")),
+            SidebarItem("Settings", icon=Icon.glyph("⚙️")),
+            SidebarItem("Profile", icon=Icon.glyph("👤")),
             active_key="home",
             corner_radius="0px",
         )
@@ -2715,15 +2759,20 @@ class TestSidebarPaneBuild:
 
     def test_active_slot_stretches_to_host_height(self):
         """Regression: the visible slot must flex-grow so panes that
-        stretch themselves (GlassPanel grow=True → height:100%) resolve
-        against a definite parent height.  Without it the panel stops at
-        its content height and the host's background shows below."""
+        stretch themselves (GlassPanel grow=True) resolve against a
+        definite parent height.  Without it the panel stops at its
+        content height and the host's background shows below."""
         sidebar = Sidebar(Pane("Home", panel=Text("h")))
         node = sidebar.build().to_node()
         host = node.children[1]
         active_slot = host.children[0]
         assert active_slot.styles["flex-grow"] == "1"
         assert active_slot.styles["min-height"] == "0"
+        # ... but it must never shrink: a pane taller than the host must
+        # push the host's overflow:auto into scrolling, not be compressed
+        # into the host height.  flex-shrink would squash the pane's rows
+        # together and they would overlap visually.
+        assert active_slot.styles["flex-shrink"] == "0"
 
     def test_pane_switching_toggles_slots(self):
         sidebar = Sidebar(
@@ -2742,7 +2791,7 @@ class TestSidebarPaneBuild:
         assert len(node.children) == 2  # rail + host
 
     def test_constructor_pane_models(self):
-        sidebar = Sidebar(Pane("Home", panel=Text("h"), icon="🏠"))
+        sidebar = Sidebar(Pane("Home", panel=Text("h"), icon=Icon.glyph("🏠")))
         node = sidebar.build().to_node()
         assert len(node.children[0].children) == 1  # one rail item
 
@@ -3075,3 +3124,604 @@ class TestSidebarStylesSerialization:
         node = Div(styles=Styles(text_transform="uppercase", letter_spacing="0.08em")).to_node()
         assert node.styles["text-transform"] == "uppercase"
         assert node.styles["letter-spacing"] == "0.08em"
+
+
+class TestCollapsibleBuild:
+    """Collapsible structure: header row, content panel, key model."""
+
+    def test_default_key_is_lowercased_title(self):
+        c = Collapsible("Inputs", Text("a"))
+        assert c.key == "inputs"
+
+    def test_explicit_key(self):
+        c = Collapsible("Inputs", Text("a"), key="in")
+        assert c.key == "in"
+
+    def test_structure_header_and_content(self):
+        c = Collapsible("Inputs", Text("a"), Text("b"))
+        node = c.build().to_node()
+        assert len(node.children) == 2  # header + content
+        header, content = node.children
+        assert header.attrs["role"] == "button"
+        assert header.attrs["tabindex"] == "0"
+        # content holds the two built children
+        assert len(content.children) == 2
+
+    def test_content_components_built_once(self):
+        t = Text("only")
+        Collapsible("X", t).build()
+        with pytest.raises(RuntimeError):
+            t.build()
+
+    def test_collapsed_content_hidden_expanded_visible(self):
+        closed = Collapsible("A", Text("a")).build().to_node()
+        assert closed.children[1].styles["display"] == "none"
+        opened = Collapsible("B", Text("b"), expanded=True).build().to_node()
+        assert opened.children[1].styles["display"] == "flex"
+        assert opened.children[1].styles["animation"] == "neony-rise-in 0.25s ease-out"
+
+    def test_chevron_rotates_when_open(self):
+        closed = Collapsible("A", Text("a")).build().to_node()
+        opened = Collapsible("B", Text("b"), expanded=True).build().to_node()
+        # header -> [title, chevron-wrap]; chevron is the wrap's only child.
+        closed_chev = closed.children[0].children[1].children[0]
+        opened_chev = opened.children[0].children[1].children[0]
+        assert "transform" not in closed_chev.styles
+        assert opened_chev.styles["transform"] == "rotate(90deg)"
+
+
+class TestCollapsibleExpanded:
+    """Expanded state: programmatic vs user-driven, the no-callback rule."""
+
+    def test_programmatic_set_no_callback(self):
+        c = Collapsible("A", Text("a"))
+        fired: list = []
+        c.on_change(lambda e: fired.append(1))
+        c.expanded = True
+        c.toggle()
+        assert fired == []
+        assert c.expanded is False  # True then toggle -> False
+
+    def test_click_toggles_and_dispatches_change(self):
+        import asyncio
+
+        c = Collapsible("Solo", Text("x"))
+        fired: list = []
+        c.on_change(lambda e: fired.append((e.value, e.source)))
+        asyncio.run(c._header._handlers["click"][0](DomEvent(key=c._header.key, type="click")))
+        assert fired == [("solo", "user")]
+        assert c.expanded is True
+
+    def test_click_flips_aria_expanded(self):
+        import asyncio
+
+        c = Collapsible("A", Text("a"))
+        asyncio.run(c._header._handlers["click"][0](DomEvent(key=c._header.key, type="click")))
+        node = c.build().to_node()
+        assert node.children[0].attrs["aria-expanded"] == "true"
+
+
+class TestCollapsibleKeyboard:
+    """Keyboard activation via Enter / Space on a role=button header."""
+
+    def test_enter_activates(self):
+        import asyncio
+
+        c = Collapsible("Kb", Text("k"))
+        fired: list = []
+        c.on_change(lambda e: fired.append(e.value))
+        asyncio.run(c._header._handlers["keydown"][0](DomEvent(key=c._header.key, type="keydown", value="Enter")))
+        assert c.expanded is True
+        assert fired == ["kb"]
+
+    def test_space_activates(self):
+        import asyncio
+
+        c = Collapsible("Kb", Text("k"))
+        asyncio.run(c._header._handlers["keydown"][0](DomEvent(key=c._header.key, type="keydown", value=" ")))
+        assert c.expanded is True
+
+    def test_arrow_does_not_activate(self):
+        import asyncio
+
+        c = Collapsible("Kb", Text("k"))
+        fired: list = []
+        c.on_change(lambda e: fired.append(e.value))
+        asyncio.run(c._header._handlers["keydown"][0](DomEvent(key=c._header.key, type="keydown", value="ArrowDown")))
+        assert c.expanded is False
+        assert fired == []
+
+
+class TestAccordionBuild:
+    """Accordion stacking: items, fluent section(), multiple default."""
+
+    def test_items_stacked_in_root(self):
+        acc = Accordion(Collapsible("A", Text("a")), Collapsible("B", Text("b")))
+        node = acc.build().to_node()
+        assert len(node.children) == 2
+
+    def test_section_fluent_returns_self_and_equivalent(self):
+        fluent = Accordion(multiple=True).section("A", Text("a")).section("B", Text("b"))
+        direct = Accordion(Collapsible("A", Text("a")), Collapsible("B", Text("b")))
+        assert [i.key for i in fluent.items] == [i.key for i in direct.items]
+
+    def test_multiple_defaults_true(self):
+        assert Accordion().multiple is True
+
+    def test_section_passes_expanded_and_key(self):
+        acc = Accordion().section("Open", Text("x"), expanded=True, key="o")
+        item = acc.items[0]
+        assert item.key == "o"
+        assert item.expanded is True
+
+    def test_double_adopt_raises(self):
+        c = Collapsible("A", Text("a"))
+        Accordion(c)
+        with pytest.raises(ValueError):
+            Accordion(c)
+
+    def test_build_once_second_raises(self):
+        acc = Accordion(Collapsible("A", Text("a")))
+        acc.build()
+        with pytest.raises(RuntimeError):
+            acc.build()
+
+
+class TestAccordionExpandedKeys:
+    """expanded_keys read/programmatic write, and single-open behaviour."""
+
+    def test_expanded_keys_in_order(self):
+        acc = Accordion(
+            Collapsible("A", Text("a"), expanded=True),
+            Collapsible("B", Text("b")),
+            Collapsible("C", Text("c"), expanded=True),
+        )
+        assert acc.expanded_keys == ["a", "c"]
+
+    def test_set_expanded_keys_programmatic_no_callback(self):
+        acc = Accordion(Collapsible("A", Text("a")), Collapsible("B", Text("b")))
+        fired: list = []
+        acc.on_change(lambda e: fired.append(e.value))
+        acc.expanded_keys = ["b"]
+        assert acc.expanded_keys == ["b"]
+        assert fired == []
+
+    def test_set_expanded_keys_unknown_ignored(self):
+        acc = Accordion(Collapsible("A", Text("a")))
+        acc.expanded_keys = ["nope"]
+        assert acc.expanded_keys == []
+
+    def test_single_open_construction_collapses_later_sibling(self):
+        a = Collapsible("A", Text("a"), expanded=True)
+        b = Collapsible("B", Text("b"), expanded=True)
+        acc = Accordion(a, b, multiple=False)
+        # Only the first declared-expanded survives; later sibling collapses.
+        assert acc.expanded_keys == ["a"]
+        assert b.expanded is False
+
+    def test_single_open_mutual_exclusion_on_click(self):
+        import asyncio
+
+        a = Collapsible("A", Text("a"), expanded=True)
+        b = Collapsible("B", Text("b"))
+        acc = Accordion(a, b, multiple=False)
+        asyncio.run(b._header._handlers["click"][0](DomEvent(key=b._header.key, type="click")))
+        assert a.expanded is False
+        assert b.expanded is True
+        assert acc.expanded_keys == ["b"]
+
+
+class TestAccordionChange:
+    """Container-level change + the deliberate absence of bind_selected."""
+
+    def test_change_carries_child_key_and_user_source(self):
+        import asyncio
+
+        acc = Accordion(multiple=True).section("Inputs", Text("i")).section("Layout", Text("l"))
+        fired: list = []
+        acc.on_change(lambda e: fired.append((e.value, e.source)))
+        first = acc.items[0]
+        asyncio.run(first._header._handlers["click"][0](DomEvent(key=first._header.key, type="click")))
+        assert fired == [("inputs", "user")]
+        assert acc.expanded_keys == ["inputs"]
+
+    def test_selected_key_not_supported(self):
+        # Accordion is multi-open by design; the single-value selection
+        # protocol does not fit — accessing it must raise (base behaviour).
+        acc = Accordion(Collapsible("A", Text("a")))
+        with pytest.raises(NotImplementedError):
+            _ = acc.selected_key
+
+
+class TestAccordionStylesSerialization:
+    """Styles on the new component serialize through the node bridge."""
+
+    def test_reset_styles_replaces_root(self):
+        from neony.dom import Styles
+
+        acc = Accordion(Collapsible("A", Text("a")))
+        acc.reset_styles(Styles(display="flex", gap="20px"))
+        node = acc.build().to_node()
+        assert node.styles["display"] == "flex"
+        assert node.styles["gap"] == "20px"
+
+    def test_header_theme_tokens_not_hardcoded(self):
+        node = Collapsible("A", Text("a"), expanded=True).build().to_node()
+        header = node.children[0]
+        # colours flow from CSS custom properties, not literal hex.
+        assert header.styles["color"] == "var(--color-text-primary)"
+        assert header.styles["background-color"] == "var(--color-surface)"
+
+
+class TestIcon:
+    """The unified Icon type: image vs glyph rendering."""
+
+    def test_image_renders_fixed_square(self):
+        from neony.application.elements import Icon
+
+        span = Icon.image("https://example.com/logo.svg").render("18px")
+        assert span.styles.background_image == "url(https://example.com/logo.svg)"
+        assert span.styles.width == "18px"
+        assert span.styles.height == "18px"
+        assert span.styles.background_repeat == "no-repeat"
+        assert span.container == []  # image icon: no text content
+
+    def test_glyph_renders_text(self):
+        from neony.application.elements import Icon
+
+        span = Icon.glyph("🏠").render("16px")
+        assert span.container == ["🏠"]
+        assert span.styles.font_size == "16px"
+        assert span.styles.background_image is None
+
+    def test_repr_distinguishes_kinds(self):
+        from neony.application.elements import Icon
+
+        assert repr(Icon.image("x.png")).startswith("Icon.image(")
+        assert repr(Icon.glyph("x")).startswith("Icon.glyph(")
+
+
+class TestTreeNodeModel:
+    """TreeNode: builder form, branch/leaf exclusivity, keys."""
+
+    def test_fluent_panel_and_children(self):
+        node = TreeNode("Home", key="home").panel(Text("h"))
+        assert node.is_leaf
+        assert not node.is_branch
+        branch = TreeNode("Forms").children(
+            TreeNode("Inputs", key="inputs").panel(Text("i")),
+            TreeNode("Checks", key="checks").panel(Text("c")),
+        )
+        assert branch.is_branch
+        assert not branch.is_leaf
+        assert len(branch._children) == 2
+
+    def test_panel_and_children_mutually_exclusive(self):
+        with pytest.raises(ValueError):
+            TreeNode("X", panel=Text("p"), children=[TreeNode("Y").panel(Text("q"))])
+        node = TreeNode("X").children(TreeNode("Y").panel(Text("q")))
+        with pytest.raises(ValueError):
+            node.panel(Text("p"))
+        leaf = TreeNode("X").panel(Text("p"))
+        with pytest.raises(ValueError):
+            leaf.children(TreeNode("Y").panel(Text("q")))
+
+    def test_key_defaults_to_random_id(self):
+        a, b = TreeNode("A"), TreeNode("B")
+        assert a.resolved_key != b.resolved_key
+        assert a.resolved_key == a.resolved_key  # stable after resolution
+
+    def test_explicit_key(self):
+        assert TreeNode("A", key="a").resolved_key == "a"
+
+    def test_key_builder(self):
+        assert TreeNode("A").key_("a").resolved_key == "a"
+
+
+class TestTreeBuild:
+    """Tree structure: rail + host, leaves into slots, branch wrappers."""
+
+    def test_rail_and_host_present(self):
+        tree = Tree(TreeNode("Home", key="home").panel(Text("h")))
+        node = tree.build().to_node()
+        assert len(node.children) == 2  # rail + host
+        rail, host = node.children
+        assert rail.styles["width"] == "220px"
+        assert host.styles["display"] == "flex"
+
+    def test_host_slots_equal_leaf_count(self):
+        tree = Tree(
+            TreeNode("Home", key="home").panel(Text("h")),
+            TreeNode("Forms", key="forms").children(
+                TreeNode("Inputs", key="inputs").panel(Text("i")),
+                TreeNode("Checks", key="checks").panel(Text("c")),
+            ),
+        )
+        node = tree.build().to_node()
+        host = node.children[1]
+        assert len(host.children) == 3  # one slot per leaf, branches take none
+
+    def test_branches_expanded_by_default_at_top_level(self):
+        tree = Tree(TreeNode("Forms", key="forms").children(TreeNode("X", key="x").panel(Text("x"))))
+        forms = next(n for n in tree.items if n.resolved_key == "forms")
+        assert forms.expanded is True
+
+    def test_branches_hidden_when_expanded_branches_false(self):
+        tree = Tree(
+            TreeNode("Forms", key="forms").children(TreeNode("X", key="x").panel(Text("x"))),
+            expanded_branches=False,
+        )
+        forms = next(n for n in tree.items if n.resolved_key == "forms")
+        assert forms.expanded is False
+
+    def test_explicit_expanded_wins(self):
+        tree = Tree(
+            TreeNode("A", key="a", expanded=False).children(TreeNode("X", key="x").panel(Text("x"))),
+            TreeNode("B", key="b", expanded=True).children(TreeNode("Y", key="y").panel(Text("y"))),
+        )
+        assert [n.resolved_key for n in tree.items if n.is_branch and n.expanded] == ["b"]
+
+    def test_arbitrary_depth(self):
+        tree = Tree(
+            TreeNode("L1", key="l1").children(
+                TreeNode("L2", key="l2").children(TreeNode("L3", key="l3").panel(Text("deep")))
+            )
+        )
+        node = tree.build().to_node()
+        # No wrapper elements: rows and children columns sit directly in
+        # the rail.  root -> [rail, host]; rail -> [L1 row, L1 col];
+        # col -> [L2 row, L2 col]; col -> [L3 row].
+        rail = node.children[0]
+        l2_col = rail.children[1]
+        l3_col = l2_col.children[1]
+        l3_row = l3_col.children[0]
+        assert l3_row.attrs["role"] == "treeitem"
+        assert len(tree._nodes) == 3
+
+    def test_rows_are_rail_children_not_wrapped(self):
+        # Accordion-style rows: each node's row is a direct child of the
+        # rail (or of a children column) — no rectangular wrapper around
+        # a branch's row + children column.
+        tree = Tree(
+            TreeNode("Home", key="home").panel(Text("h")),
+            TreeNode("Forms", key="forms").children(TreeNode("X", key="x").panel(Text("x"))),
+        )
+        node = tree.build().to_node()
+        rail = node.children[0]
+        home_row, forms_row = rail.children[0], rail.children[1]
+        assert home_row.attrs["role"] == "treeitem"
+        assert forms_row.attrs["role"] == "treeitem"
+        # The children column is the third child (after the branch row).
+        assert len(rail.children) == 3
+
+    def test_leaf_without_panel_raises(self):
+        # Fail fast at registration: a leaf must carry a panel.
+        with pytest.raises(ValueError):
+            Tree(TreeNode("Home", key="home"))
+
+    def test_children_fluent(self):
+        tree = Tree().children(
+            TreeNode("A", key="a").panel(Text("a")),
+            TreeNode("B", key="b").panel(Text("b")),
+        )
+        assert len(tree.items) == 2
+
+
+class TestTreeSelection:
+    """Single-select leaf semantics mirroring Sidebar."""
+
+    def test_active_key_at_construction(self):
+        tree = Tree(TreeNode("Home", key="home").panel(Text("h")), active_key="home")
+        assert tree.selected_key == "home"
+
+    def test_unknown_active_key_raises(self):
+        with pytest.raises(ValueError):
+            Tree(TreeNode("Home", key="home").panel(Text("h")), active_key="nope")
+
+    def test_click_leaf_selects_and_switches_host(self):
+        import asyncio
+
+        tree = Tree(
+            TreeNode("Home", key="home").panel(Text("h")),
+            TreeNode("Inputs", key="inputs").panel(Text("i")),
+        )
+        row = tree._row_by_key["inputs"]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert tree.selected_key == "inputs"
+        node = tree.build().to_node()
+        host = node.children[1]
+        assert host.children[1].styles["display"] == "flex"
+        assert host.children[0].styles["display"] == "none"
+
+    def test_click_branch_does_not_select(self):
+        import asyncio
+
+        tree = Tree(TreeNode("Forms", key="forms").children(TreeNode("X", key="x").panel(Text("x"))))
+        row = tree._row_by_key["forms"]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert tree.selected_key is None
+
+    def test_programmatic_select_no_callback(self):
+        tree = Tree(TreeNode("Home", key="home").panel(Text("h")))
+        fired: list = []
+        tree.on_change(lambda e: fired.append(e.value))
+        tree.selected_key = "home"
+        assert fired == []
+
+    def test_unknown_selected_key_raises(self):
+        tree = Tree(TreeNode("Home", key="home").panel(Text("h")))
+        with pytest.raises(ValueError):
+            tree.selected_key = "nope"
+
+    def test_change_carries_leaf_key_user_source(self):
+        import asyncio
+
+        tree = Tree(TreeNode("Home", key="home").panel(Text("h")))
+        fired: list = []
+        tree.on_change(lambda e: fired.append((e.value, e.source)))
+        row = tree._row_by_key["home"]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert fired == [("home", "user")]
+
+    def test_bind_selected_two_way(self):
+        import asyncio
+
+        from neony.dom import Signal
+
+        tree = Tree(
+            TreeNode("Home", key="home").panel(Text("h")),
+            TreeNode("Inputs", key="inputs").panel(Text("i")),
+        )
+        sig = Signal("home")
+        tree.bind_selected(sig)
+        sig.set("inputs")
+        assert tree.selected_key == "inputs"
+        row = tree._row_by_key["home"]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert sig() == "home"
+
+    def test_active_key_alias(self):
+        tree = Tree(TreeNode("Home", key="home").panel(Text("h")))
+        tree.active_key = "home"
+        assert tree.selected_key == "home"
+        assert tree.active_key == "home"
+
+
+class TestTreeExpandCollapse:
+    """Branch toggling: display switch on the children column."""
+
+    def test_toggle_flips_column_and_aria(self):
+        import asyncio
+
+        tree = Tree(TreeNode("Forms", key="forms").children(TreeNode("X", key="x").panel(Text("x"))))
+        row = tree._row_by_key["forms"]
+        col = tree._children_cols["forms"]
+        assert col.styles.display == "flex"
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert col.styles.display == "none"
+        assert row.args["aria-expanded"] == "false"
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert col.styles.display == "flex"
+        assert row.args["aria-expanded"] == "true"
+
+    def test_collapse_keeps_subtree_state(self):
+        import asyncio
+
+        tree = Tree(TreeNode("Forms", key="forms").children(TreeNode("X", key="x").panel(Text("x"))))
+        # Select the leaf, then collapse the branch, then re-expand.
+        x = tree._row_by_key["x"]
+        asyncio.run(x._handlers["click"][0](DomEvent(key=x.key, type="click")))
+        forms = tree._row_by_key["forms"]
+        asyncio.run(forms._handlers["click"][0](DomEvent(key=forms.key, type="click")))
+        asyncio.run(forms._handlers["click"][0](DomEvent(key=forms.key, type="click")))
+        assert tree.selected_key == "x"  # selection survives the round trip
+
+
+class TestTreeKeyboard:
+    """Keyboard navigation: arrows, activation, focus ring."""
+
+    def test_enter_activates_leaf(self):
+        import asyncio
+
+        tree = Tree(TreeNode("Home", key="home").panel(Text("h")))
+        row = tree._row_by_key["home"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value="Enter")))
+        assert tree.selected_key == "home"
+
+    def test_space_activates_branch(self):
+        import asyncio
+
+        tree = Tree(TreeNode("Forms", key="forms").children(TreeNode("X", key="x").panel(Text("x"))))
+        row = tree._row_by_key["forms"]
+        col = tree._children_cols["forms"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value=" ")))
+        assert col.styles.display == "none"  # collapsed
+
+    def test_arrow_down_moves_focus_ring(self):
+        import asyncio
+
+        tree = Tree(
+            TreeNode("A", key="a").panel(Text("a")),
+            TreeNode("B", key="b").panel(Text("b")),
+        )
+        a = tree._row_by_key["a"]
+        b = tree._row_by_key["b"]
+        asyncio.run(a._handlers["keydown"][0](DomEvent(key=a.key, type="keydown", value="ArrowDown")))
+        assert b.styles.box_shadow is not None
+        assert a.styles.box_shadow is None
+
+    def test_arrow_right_expands_collapsed_branch(self):
+        import asyncio
+
+        tree = Tree(
+            TreeNode("Forms", key="forms", expanded=False).children(TreeNode("X", key="x").panel(Text("x"))),
+            expanded_branches=False,
+        )
+        row = tree._row_by_key["forms"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value="ArrowRight")))
+        col = tree._children_cols["forms"]
+        assert col.styles.display == "flex"
+
+    def test_arrow_left_collapses_expanded_branch(self):
+        import asyncio
+
+        tree = Tree(TreeNode("Forms", key="forms").children(TreeNode("X", key="x").panel(Text("x"))))
+        row = tree._row_by_key["forms"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value="ArrowLeft")))
+        col = tree._children_cols["forms"]
+        assert col.styles.display == "none"
+
+    def test_rows_carry_aria_roles(self):
+        tree = Tree(
+            TreeNode("Home", key="home").panel(Text("h")),
+            TreeNode("Forms", key="forms").children(TreeNode("X", key="x").panel(Text("x"))),
+        )
+        tree.build().to_node()
+        leaf = tree._row_by_key["home"]
+        branch = tree._row_by_key["forms"]
+        assert leaf.args["role"] == "treeitem"
+        assert leaf.args["tabindex"] == "0"
+        assert branch.args["role"] == "treeitem"
+        assert branch.args["aria-expanded"] == "true"
+
+
+class TestTreeShortcuts:
+    """Leaf shortcuts collected via Tree.shortcuts()."""
+
+    def test_shortcuts_collected(self):
+        tree = Tree(
+            TreeNode("Home", key="home", shortcut="Ctrl+1").panel(Text("h")),
+            TreeNode("Other", key="other").panel(Text("o")),
+        )
+        combos = [combo for combo, _ in tree.shortcuts()]
+        assert combos == ["Ctrl+1"]
+
+    def test_invalid_shortcut_raises_at_registration(self):
+        with pytest.raises(ValueError):
+            Tree(TreeNode("Home", key="home", shortcut="Nope+Nope+Nope").panel(Text("h")))
+
+
+class TestTreeStylesSerialization:
+    """Theme tokens flow through the new component."""
+
+    def test_reset_styles_replaces_root(self):
+        from neony.dom import Styles
+
+        tree = Tree(TreeNode("Home", key="home").panel(Text("h")))
+        tree.reset_styles(Styles(display="flex", gap="20px"))
+        node = tree.build().to_node()
+        assert node.styles["display"] == "flex"
+        assert node.styles["gap"] == "20px"
+
+    def test_theme_tokens_not_hardcoded(self):
+        tree = Tree(TreeNode("Home", key="home").panel(Text("h")))
+        node = tree.build().to_node()
+        rail = node.children[0]
+        # The rail is chrome-free (transparent) — no hardcoded colors.
+        assert rail.styles.get("background-color") is None
+        # The Home leaf row (direct rail child, accordion-style): rounded,
+        # transparent, 16px left padding so icons don't hug the edge.
+        row_node = rail.children[0]
+        assert row_node.styles["background-color"] == "transparent"
+        assert row_node.styles["border-radius"] == "8px"
+        assert row_node.styles["padding-left"] == "calc(16px + 0 * 16px)"

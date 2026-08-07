@@ -20,6 +20,7 @@ from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles, Transition
 from .. import shortcuts
 from ._panels import _PanelHost
 from .base import Component
+from .icon import Icon
 
 _ITEM_BASE = Styles(
     display="flex",
@@ -92,7 +93,7 @@ class Pane(BaseModel):
     - ``key`` — pane identity for ``selected_key`` / ``change`` payloads.
       Defaults to a random id so labels never collide; pass an explicit
       key when you want a readable identifier.
-    - ``icon`` — optional glyph shown before the label
+    - ``icon`` — optional :class:`Icon` shown before the label
     - ``section`` — optional group title; consecutive panes sharing a
       section render under one small uppercase sidebar label
     - ``shortcut`` — optional window-level combo (same forms as
@@ -104,7 +105,7 @@ class Pane(BaseModel):
     label: str
     panel: Component | DOMElement | None = None
     key: str | None = None
-    icon: str | None = None
+    icon: Icon | None = None
     section: str | None = None
     shortcut: str | dict[str, str] | None = None
 
@@ -114,7 +115,7 @@ class Pane(BaseModel):
         *,
         panel: Component | DOMElement | None = None,
         key: str | None = None,
-        icon: str | None = None,
+        icon: Icon | None = None,
         section: str | None = None,
         shortcut: str | dict[str, str] | None = None,
     ) -> None:
@@ -136,7 +137,7 @@ class SidebarItem(Component):
         label: str,
         *,
         key: str | None = None,
-        icon: str | None = None,
+        icon: Icon | None = None,
         active: bool = False,
     ) -> None:
         super().__init__()
@@ -162,12 +163,7 @@ class SidebarItem(Component):
         # Element-only children (reactive mode forbids mixing).
         parts: list[DOMElement | str] = []
         if self._icon:
-            parts.append(
-                Span(
-                    container=[self._icon],
-                    styles=Styles(font_size="16px", width="20px", text_align="center"),
-                )
-            )
+            parts.append(self._icon.render("16px"))
         if self._label:
             parts.append(
                 Span(
@@ -277,8 +273,8 @@ class Sidebar(Component):
     alone — content switching stays the user's job::
 
         sidebar = Sidebar(
-            SidebarItem("Home", icon="🏠"),
-            SidebarItem("Settings", icon="⚙️"),
+            SidebarItem("Home", icon=Icon.glyph("🏠")),
+            SidebarItem("Settings", icon=Icon.glyph("⚙️")),
         )
         sidebar.on_change(lambda e: switch_content(e.value))  # key string
 
@@ -286,8 +282,8 @@ class Sidebar(Component):
     pressing its shortcut) swaps the visible pane internally::
 
         sidebar = Sidebar(
-            Pane("Home", panel=home_panel, icon="🏠", shortcut="Ctrl+1"),
-            Pane("Settings", panel=settings_panel, icon="⚙️"),
+            Pane("Home", panel=home_panel, icon=Icon.glyph("🏠"), shortcut="Ctrl+1"),
+            Pane("Settings", panel=settings_panel, icon=Icon.glyph("⚙️")),
         )
         sidebar.on_change(lambda e: print(e.value))  # pane key
         sidebar.selected_key = "settings"  # programmatic, no callback
@@ -356,7 +352,7 @@ class Sidebar(Component):
         panel: Component | DOMElement | None = None,
         *,
         key: str | None = None,
-        icon: str | None = None,
+        icon: Icon | None = None,
         section: str | None = None,
         shortcut: str | dict[str, str] | None = None,
     ) -> Self:

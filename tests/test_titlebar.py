@@ -1,6 +1,6 @@
 """TitleBar component — window chrome for frameless windows."""
 
-from neony.application.elements import TitleBar
+from neony.application.elements import Icon, TitleBar
 from neony.dom import DOMElement
 
 
@@ -15,7 +15,7 @@ def _walk(element: DOMElement) -> list[DOMElement]:
 
 class TestTitleBarIcon:
     def test_icon_element_rendered_before_title(self):
-        tb = TitleBar("My App", icon="https://example.com/icon.svg")
+        tb = TitleBar("My App", icon=Icon.image("https://example.com/icon.svg"))
         root = tb.build()
 
         elements = _walk(root)

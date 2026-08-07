@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from neony.dom import Animation, Color, Div, DOMElement, DomEvent, Styles, Transition
+from neony.dom import Animation, Color, Div, DOMElement, DomEvent, Span, Styles, Transition
 
 from .base import Component
+from .icon import Icon
 
 _TAB_BASE = Styles(
     padding="10px 24px",
@@ -102,11 +103,20 @@ class Tabs(Component):
 
     # ---- public API ----
 
-    def add(self, title: str, panel: Component | DOMElement) -> Tabs:
-        """Append a tab and its panel (chainable)."""
+    def add(self, title: str, panel: Component | DOMElement, *, icon: Icon | None = None) -> Tabs:
+        """Append a tab and its panel (chainable).
+
+        *icon* renders before the title (an :class:`Icon` — image or glyph).
+        """
         panel_el = panel.build() if isinstance(panel, Component) else panel
 
-        tab = Div(container=[title], styles=_TAB_ACTIVE if not self._titles else _TAB_BASE)
+        if icon is not None:
+            # Element-only children (reactive mode forbids mixing): the icon
+            # Span + the title wrapped in a Span.
+            content: list[DOMElement | str] = [icon.render("14px"), Span(container=[title])]
+        else:
+            content = [title]
+        tab = Div(container=content, styles=_TAB_ACTIVE if not self._titles else _TAB_BASE)
         tab.on_click(self._make_tab_handler(len(self._titles)))
         self._tab_elems.append(tab)
         self._titles.append(title)

@@ -16,6 +16,7 @@ from neony.dom import Button as _ButtonElem
 from neony.dom import Color, Div, DomEvent, Span, Styles
 
 from .base import Component
+from .icon import Icon
 
 # WindowControls bridge commands exposed by ``window.lumiview.window.*``.
 _ACTIONS = {"minimize": "minimize", "maximize": "toggleMaximize", "close": "close"}
@@ -37,7 +38,7 @@ class TitleBar(Component):
         self,
         title: str = "",
         *,
-        icon: str | None = None,
+        icon: Icon | None = None,
         show_minimize: bool = True,
         show_maximize: bool = True,
         show_close: bool = True,
@@ -75,20 +76,7 @@ class TitleBar(Component):
 
         # Optional inline icon for frameless windows: a fixed-size square
         # painted with the image, so it never stretches with the title.
-        if icon is not None:
-            self._icon_el: Span | None = Span(
-                styles=Styles(
-                    width="18px",
-                    height="18px",
-                    flex_shrink="0",
-                    background_image=f"url({icon})",
-                    background_size="contain",
-                    background_position="center",
-                    background_repeat="no-repeat",
-                ),
-            )
-        else:
-            self._icon_el = None
+        self._icon_el: Span | None = icon.render("18px") if icon is not None else None
 
         # Root: full-width drag region with aggressive frosted glass.
         self._root = Div(

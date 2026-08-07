@@ -100,6 +100,9 @@ Import from `neony.application.elements`.
 | `Heading`                 | Themed heading (h1–h6) with automatic sizing                                   |
 | `Text`                    | Inline body copy with semantic roles (primary / secondary / danger / success)  |
 | `Tabs`                    | Tab bar + panels, exactly one visible at a time — constructor children, `selected_panel` / `selected_title` / `selected_key` |
+| `Accordion` / `Collapsible` | Expandable sections in one scroll flow — fluent `.section()`, `multiple` open mode, `expanded_keys`, `on_change` |
+| `Tree` / `TreeNode`       | Collapsible navigation tree + content host — arbitrary depth, fluent builders, leaf selection shows its panel on the right |
+| `Icon`                    | One icon — `Icon.image(url)` fixed-size square or `Icon.glyph(text)`, shared by TitleBar / Sidebar / Tabs / Tree |
 | `Flex`                    | Generic flex container with full control                                       |
 | `VStack` / `HStack`       | Vertical / horizontal flex stacks                                              |
 | `Spacer`                  | Flexible empty space that absorbs leftover room                                |
@@ -164,6 +167,8 @@ Run from the repository root:
 | `demo_transparent_panel.py`   | Floating transparent panel with native blur                      |
 | `demo_multi_window.py`        | Two windows sharing one app state                                |
 | `demo_reactive.py`            | Signal-based API: declarative bindings instead of manual refresh |
+| `demo_accordion.py`           | Accordion: expandable grouped sections in one scroll flow        |
+| `demo_tree.py`                | Tree: collapsible navigation tree + content host                 |
 | `demo_tray.py`                | System tray: native menu + close-to-tray pattern                 |
 | `demo_builder.py`             | Minimal app built with `Page` + components + `launch()`    |
 

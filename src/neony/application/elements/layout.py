@@ -193,12 +193,69 @@ class GlassPanel(Component):
             border_bottom_left_radius=border_bottom_left_radius,
             border_bottom_right_radius=border_bottom_right_radius,
         )
-        if grow:
-            # Stretch to the full available height.
-            glass_styles = glass_styles.model_copy(update={"flex_grow": "1", "height": "100%"})
-
         children_el = Flex._build_children(children)
-        if background:
+        if grow:
+            # Stretch to the full available height.  A transparent,
+            # styleless wrapper carries the sizing chain (flex-grow +
+            # min-height:0) and the glass face fills it as a flex item
+            # (flex-grow:1 + min-height:0) — so a scroll child (e.g. a
+            # Tree rail) shrinks and scrolls inside instead of growing
+            # the panel past the window.  No height:100% on the face:
+            # a flex item with both flex-grow and height would total
+            # more than the wrapper (100% basis + grown space) and
+            # overlap its siblings.
+            face = Div(
+                styles=glass_styles.model_copy(update={"flex_grow": "1", "min_height": "0"}),
+                container=children_el,
+            )
+            if background:
+                # Image layer below, frosted glass above (backdrop-filter
+                # would swallow the image's own background).  The glass
+                # face drops from the dense 0.85 panel fill to the
+                # lighter 0.60 surface fill so the image shows through.
+                glass_face = Div(
+                    styles=Styles(
+                        position="relative",
+                        display="flex",
+                        flex_direction="column",
+                        flex_grow="1",
+                        min_height="0",
+                    ),
+                    container=[
+                        Div(
+                            styles=Styles(
+                                position="absolute",
+                                top="0",
+                                left="0",
+                                right="0",
+                                bottom="0",
+                                border_radius=radius,
+                                background_image=(
+                                    "linear-gradient(var(--color-bg-overlay), var(--color-bg-overlay)), "
+                                    f"url('{background}')"
+                                ),
+                                background_size="cover, cover",
+                                background_position="center center, center center",
+                                background_repeat="no-repeat, no-repeat",
+                            )
+                        ),
+                        face,
+                    ],
+                )
+            else:
+                # The glass face itself fills the wrapper.
+                glass_face = face
+            self._root = Div(
+                styles=Styles(
+                    display="flex",
+                    flex_direction="column",
+                    flex_grow="1",
+                    min_height="0",
+                    # Transparent, styleless sizing wrapper — no paint.
+                ),
+                container=[glass_face],
+            )
+        elif background:
             # Image layer below, frosted glass above (backdrop-filter
             # would swallow the image's own background).  The glass face
             # drops from the dense 0.85 panel fill to the lighter 0.60
@@ -221,11 +278,8 @@ class GlassPanel(Component):
                     background_repeat="no-repeat, no-repeat",
                 )
             )
-            root_styles = Styles(position="relative", display="flex", flex_direction="column")
-            if grow:
-                root_styles = root_styles.model_copy(update={"height": "100%"})
             self._root = Div(
-                styles=root_styles,
+                styles=Styles(position="relative", display="flex", flex_direction="column"),
                 container=[backdrop, Div(styles=glass_styles, container=children_el)],
             )
         else:
