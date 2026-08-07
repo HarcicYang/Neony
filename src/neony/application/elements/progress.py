@@ -72,7 +72,7 @@ class Progress(Component):
       (its ``value`` is ignored)
     """
 
-    def __init__(self, value: float = 0.0, *, max: float = 100.0, label: str = "", indeterminate: bool = False) -> None:
+    def __init__(self, label: str = "", *, value: float = 0.0, max: float = 100.0, indeterminate: bool = False) -> None:
         super().__init__()
         self._max = max
         self._indeterminate = indeterminate

@@ -96,14 +96,16 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Input`                   | 单行输入框 — text / password / email / number…                 |
 | `Heading`                 | 主题标题(h1–h6)，自动字号                                      |
 | `Text`                    | 内联文本，支持语义角色(primary / secondary / danger / success) |
-| `Tabs`                    | 选项卡栏 + 面板，同时只显示一个                                |
+| `Tabs`                    | 选项卡栏 + 面板，同时只显示一个 — 构造器子项、`selected_panel` / `selected_title` / `selected_key` |
 | `Flex`                    | 通用弹性容器，完全控制                                         |
 | `VStack` / `HStack`       | 纵向 / 横向弹性堆叠                                            |
 | `Spacer`                  | 弹性空白，吸收剩余空间                                         |
 | `Separator`               | 细水平分隔线                                                   |
 | `GlassPanel`              | 毛玻璃容器，可选背景图                                         |
 | `TitleBar`                | 无边框窗口的自定义标题栏 — 拖动、最小化 / 最大化 / 关闭        |
-| `Sidebar` / `SidebarItem` | 垂直导航栏，与 TitleBar 同款玻璃风格                           |
+| `Sidebar` / `SidebarItem` | 拥有内容面板的垂直导航 — `Pane`、`SidebarGroup` 分组小节、每面板快捷键;与 TitleBar 同款玻璃风格 |
+| `Pane`                    | 可选的 Sidebar 条目 + 内容面板 — `key`、`icon`、`section`、`shortcut` |
+| `SidebarGroup`            | Sidebar 的分组小节 — 条目上方的小号大写标签                    |
 | `Image`                   | 主题化图片，圆角 overflow-hidden 框架（`src` 为任意 URL）     |
 | `Avatar`                  | 用户头像 — 图片 / 字母占位 / 空占位，可选角标 `badge`         |
 | `Badge`                   | 状态标签或角标计数 — 多变体、状态点、`99+` 截断、0 自动隐藏    |
@@ -156,7 +158,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `demo_multi_window.py`          | 共享同一 app 状态的双窗口              |
 | `demo_reactive.py`              | Signal API:声明式绑定替代手动刷新      |
 | `demo_tray.py`                  | 系统托盘:原生菜单 + 关闭到托盘模式     |
-| `demo_builder.py`               | 不含应用层的原始 DOM 构建              |
+| `demo_builder.py`               | 使用 `Page` + 组件 + `launch()` 的最小应用 |
 
 ```bash
 uv run demo_gallery.py

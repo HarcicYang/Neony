@@ -223,6 +223,16 @@ class RadioGroup(Component):
             item.checked = item.value == value
 
     @property
+    def selected_key(self) -> str | None:
+        """Alias of :attr:`value` — completes the selection API shared by
+        navigation components (Sidebar, Tabs)."""
+        return self._value
+
+    @selected_key.setter
+    def selected_key(self, value: str | None) -> None:
+        self.value = value
+
+    @property
     def disabled(self) -> bool:
         return self._disabled
 

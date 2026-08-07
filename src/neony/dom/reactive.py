@@ -107,8 +107,8 @@ class Signal(Source, Generic[T]):
         self._notify()
 
     def update(self, fn: Callable[[T], T]) -> None:
-        """Mutate in place: ``self.set(fn(self.get()))``."""
-        self.set(fn(self.get()))
+        """Set a value derived from the current value without subscribing."""
+        self.set(fn(self._value))
 
 
 class SharedSignal(Signal[T]):

@@ -3,23 +3,15 @@
 
 A small, always-on-top, frameless window (360x280) with a fully
 transparent background.  ``transparent=True`` automatically applies the
-platform's native frosted material behind the window — Acrylic on
-Windows, Blur on macOS, and on Linux the compositor's background blur
-via the Wayland ``ext-background-effect-v1`` protocol (KWin;
-compositors with their own blur for transparent windows, like
-Hyprland, keep their default blur instead).  The whole
-panel is a drag region and the close button uses the built-in window
-action.
+platform's native frosted material behind the window.  The TitleBar is
+the native drag region and the close button calls the app explicitly.
 
 Usage:
     python demo_transparent_panel.py
 """
 
 from neony.application import Config, NeonApplication, Page, WebViewConfig, WindowConfig
-from neony.application.elements import Button, GlassPanel, Heading, HStack, Text, VStack
-from neony.dom import Div, Styles
-
-# ── application: tiny, frameless, transparent, always on top ─────
+from neony.application.elements import Button, GlassPanel, Heading, HStack, Text, TitleBar, VStack
 
 app = NeonApplication(
     Config(
@@ -35,56 +27,26 @@ app = NeonApplication(
     )
 )
 
-# ── chrome: a drag-handle strip with grip marks ──────────────────
+titlebar = TitleBar("⋯", show_minimize=False, show_maximize=False, show_close=False, height="28px")
+close_btn = Button("Close Panel", variant="danger").on_click(lambda _event: app.close())
 
-drag_handle = Div(
-    styles=Styles(
-        height="28px",
-        display="flex",
-        align_items="center",
-        justify_content="center",
-        cursor="move",
-        border_radius="12px 12px 0 0",
+panel = GlassPanel(
+    Heading("Floating Panel", level=3),
+    Text(
+        "Native blur sits behind this window — drag the grip bar to move it, or close it with the button.",
+        role="secondary",
     ),
-    container=[Text("⋯", role="secondary", size="12px").build()],
-    args={"data-lumiview-drag-region": ""},
+    HStack(close_btn, gap="8px"),
+    gap="16px",
+    padding="20px",
+    radius="0px",
+    border_top_left_radius="0px",
+    border_top_right_radius="0px",
+    grow=True,
 )
 
-# ── content ──────────────────────────────────────────────────────
-
-close_btn = Button("Close Panel", variant="danger")
-# The button already carries no window action — the user handler calls
-# app.close() explicitly (a nice contrast with TitleBar's auto actions).
-close_btn.on_click(lambda e: app.close())
-
-panel = VStack(
-    GlassPanel(
-        Heading("Floating Panel", level=3),
-        Text(
-            "Native blur sits behind this window — drag the grip bar to move it, or close it with the button.",
-            role="secondary",
-        ),
-        HStack(close_btn, gap="8px"),
-        gap="16px",
-        padding="20px",
-    ),
-    gap="0px",
-    padding="0px",
-)
-
-# ── assemble: drag handle + panel, one rounded glass unit ────────
-
-page = Page(gap="0px", padding="0px", max_width="100%")
-page.add(
-    Div(
-        styles=Styles(
-            border_radius="12px",
-            overflow="hidden",
-            border="1px solid var(--color-border-glass)",
-            box_shadow="0 12px 40px rgba(0, 0, 0, 0.35)",
-        ),
-        container=[drag_handle, panel.build()],
-    )
+page = Page(gap="0px", padding="0px", max_width="100%", radius="12px").add(
+    VStack(titlebar, panel, gap="0px", align="stretch", grow=1)
 )
 
 

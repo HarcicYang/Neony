@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Multi-window demo — two windows sharing one app state.
 
-Both windows run in the same LumiView event loop and share a
+Both windows run in the same Neony event loop and share a
 ``SharedSignal``: a write in the counter window propagates to every
 window whose tree binds it, each through its own render request — no
 manual refresh calls anywhere.  State stays a plain dataclass here

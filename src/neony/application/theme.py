@@ -9,7 +9,7 @@ look always stays in family with the palette.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field
 
@@ -99,6 +99,21 @@ class Theme(BaseModel):
     the ``:root`` custom-property block used by the injected stylesheet.
     """
 
+    #: The display modes in :meth:`toggle` order (also the order
+    #: :meth:`mode_label` derives its labels from).  ClassVar — not a
+    #: model field, so it never serializes into the CSS block.
+    modes: ClassVar[tuple[Literal["dark", "light", "deep-blue"], ...]] = ("dark", "light", "deep-blue")
+
+    @staticmethod
+    def mode_label(mode: str) -> str:
+        """Human label describing the mode that follows *mode* in the
+        toggle cycle — what a theme-toggle button promises next, e.g.
+        ``Theme.mode_label("dark") == "Light mode"``.  Raises
+        ``ValueError`` for unknown modes."""
+        order = Theme.modes
+        nxt = order[(order.index(mode) + 1) % len(order)]
+        return f"{nxt.replace('-', ' ').title()} mode"
+
     mode: Literal["light", "dark", "deep-blue"] = "dark"
 
     # --- semantic tokens (hex strings / rgba) ---
@@ -181,8 +196,8 @@ class Theme(BaseModel):
             setattr(self, name, value)
 
     def toggle(self) -> None:
-        """Cycle through the available modes."""
-        order = ("dark", "light", "deep-blue")
+        """Cycle through the available modes (:attr:`modes`)."""
+        order = type(self).modes
         self.set_mode(order[(order.index(self.mode) + 1) % len(order)])
 
 

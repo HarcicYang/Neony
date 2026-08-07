@@ -249,8 +249,19 @@ class TestUntrack:
         s = Signal(5)
         assert untrack(lambda: s() + 1) == 6
 
+    def test_effect_can_write_untracked_counter(self):
+        trigger = Signal(0)
+        runs = Signal(0)
 
-class TestNesting:
+        def sync() -> None:
+            trigger()
+            runs.update(lambda value: value + 1)
+
+        effect(sync)
+        assert runs() == 1
+        trigger.set(1)
+        assert runs() == 2
+
     def test_effect_creating_effect(self):
         """Nested effects track their own dependencies independently.
 

@@ -22,7 +22,7 @@ from neony.application.elements.progress import Progress
 from neony.application.elements.prompt_dialog import PromptDialog
 from neony.application.elements.radio import Radio, RadioGroup
 from neony.application.elements.select import Select
-from neony.application.elements.sidebar import Sidebar, SidebarItem
+from neony.application.elements.sidebar import Pane, Sidebar, SidebarGroup, SidebarItem
 from neony.application.elements.slider import Slider
 from neony.application.elements.switch import Switch
 from neony.application.elements.tabs import Tabs
@@ -48,6 +48,7 @@ __all__ = [
     "Image",
     "Input",
     "Menu",
+    "Pane",
     "Progress",
     "PromptDialog",
     "Radio",
@@ -55,6 +56,7 @@ __all__ = [
     "Select",
     "Separator",
     "Sidebar",
+    "SidebarGroup",
     "SidebarItem",
     "Slider",
     "Spacer",

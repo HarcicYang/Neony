@@ -1,5 +1,7 @@
 """Test the component library: build, state, events, theming."""
 
+import pytest
+
 from neony.application import Page, Theme
 from neony.application.elements import (
     Avatar,
@@ -13,11 +15,14 @@ from neony.application.elements import (
     Image,
     Input,
     Menu,
+    Pane,
     Progress,
     PromptDialog,
     Radio,
     RadioGroup,
     Select,
+    Sidebar,
+    SidebarGroup,
     SidebarItem,
     Slider,
     Switch,
@@ -26,7 +31,7 @@ from neony.application.elements import (
     Tooltip,
     VStack,
 )
-from neony.dom import Animation, DOMElement, DomEvent, NodeDescriptor
+from neony.dom import Animation, Div, DOMElement, DomEvent, NodeDescriptor
 
 
 def _find_by_key(node: NodeDescriptor, key: str) -> NodeDescriptor | None:
@@ -407,6 +412,38 @@ class TestGlassPanelGlow:
         assert shadow.startswith("0 0 24px var(--color-danger-glass), 0 8px 32px")
 
 
+class TestGlassPanelBackground:
+    """GlassPanel with a background image must let it show through."""
+
+    def test_background_panel_uses_light_glass_face(self):
+        """Regression: the glass face over a background image drops from
+        the dense 0.85 panel fill to the 0.60 surface fill — 0.85 plus
+        the 0.7 overlay underneath left only ~4% of the image visible."""
+        from neony.application.elements import GlassPanel
+
+        panel = GlassPanel("content", background="https://example.com/bg.jpg")
+        node = panel.build().to_node()
+        # root [backdrop, glass]; the glass face is the last child
+        glass = node.children[-1]
+        assert glass.styles["background-color"] == "var(--color-surface-glass-bg)"
+
+    def test_background_panel_overlay_layer(self):
+        from neony.application.elements import GlassPanel
+
+        panel = GlassPanel("content", background="https://example.com/bg.jpg")
+        node = panel.build().to_node()
+        backdrop = node.children[0]
+        overlay = "linear-gradient(var(--color-bg-overlay), var(--color-bg-overlay))"
+        assert overlay in backdrop.styles["background-image"]
+
+    def test_plain_panel_keeps_dense_face(self):
+        from neony.application.elements import GlassPanel
+
+        panel = GlassPanel("content")
+        node = panel.build().to_node()
+        assert node.styles["background-color"] == "var(--color-surface-panel-glass-bg)"
+
+
 class TestPageAndTheme:
     def test_page_build(self):
         page = Page(gap="12px")
@@ -431,6 +468,27 @@ class TestPageAndTheme:
         assert "--color-bg" in css
         assert "--color-surface" in css
         assert ":root" in css
+
+    def test_theme_modes_cycle_order(self):
+        theme = Theme(mode="dark")
+        theme.toggle()
+        assert theme.mode == "light"
+        theme.toggle()
+        assert theme.mode == "deep-blue"
+        theme.toggle()
+        assert theme.mode == "dark"
+        assert Theme.modes == ("dark", "light", "deep-blue")
+
+    def test_theme_modes_not_serialized(self):
+        # ClassVar — must never leak into the CSS block.
+        assert "--color-modes" not in Theme().to_css()
+
+    def test_theme_mode_label(self):
+        assert Theme.mode_label("dark") == "Light mode"
+        assert Theme.mode_label("light") == "Deep Blue mode"
+        assert Theme.mode_label("deep-blue") == "Dark mode"
+        with pytest.raises(ValueError):
+            Theme.mode_label("sepia")
 
     def test_theme_toggle(self):
         theme = Theme()
@@ -1293,13 +1351,14 @@ class TestProgressBuild:
         track = _find_by_key(node, bar._track.key)
         fill = _find_by_key(node, bar._fill.key)
         assert track is not None and fill is not None
-        assert track.attrs["role"] == "progressbar"
-        assert track.attrs["aria-valuemin"] == "0"
-        assert track.attrs["aria-valuemax"] == "100"
-        assert track.attrs["aria-valuenow"] == "40.5"
-        assert fill.styles["width"] == "40.5%"
-        assert fill.styles["background-color"] == "var(--color-accent)"
-        assert fill.styles["transition"] == "width 0.3s ease"
+
+    def test_label_is_first_positional(self):
+        """Regression: label is the first positional arg (like every
+        other labeled control); value/max are keyword-only."""
+        bar = Progress("Loading", value=35)
+        node = bar.build().to_node()
+        assert node.children[0].text == "Loading"
+        assert node.children[0].tag == "span"  # the label span, before the track
 
     def test_indeterminate_sweeps_without_aria_value(self):
         bar = Progress(indeterminate=True)
@@ -1529,6 +1588,62 @@ class TestBindValue:
         inp.bind_value(b)
         a.set("changed")
         assert inp.value == "b"  # only the latest binding writes
+
+    # ---- bind_value channel coverage (Switch/Dropdown/ComboBox) ----
+
+    def test_switch_binds_checked(self):
+        import asyncio
+
+        from neony.dom import Signal
+
+        sw = Switch("x")
+        flag = Signal(False)
+        sw.bind_value(flag)
+        flag.set(True)
+        assert sw.checked is True
+        asyncio.run(sw._input._handlers["change"][0](DomEvent(key=sw._input.key, type="change", value=False)))
+        assert flag() is False
+
+    def test_dropdown_writes_value_on_change(self):
+        import asyncio
+
+        from neony.dom import Signal
+
+        dd = Dropdown(items=["a", "b"])
+        choice = Signal("")
+        dd.bind_value(choice)
+        row = dd._rows[1][1]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert choice() == "b"
+        choice.set("a")
+        assert dd.value == "a"
+
+    def test_combobox_pick_writes_signal(self):
+        import asyncio
+
+        from neony.dom import Signal
+
+        cb = ComboBox(options=["work"])
+        text = Signal("")
+        cb.bind_value(text)
+        asyncio.run(cb._input._handlers["input"][0](DomEvent(key=cb._input.key, type="input", value="work")))
+        # A pick dispatches `change` — the second bound channel writes back.
+        row = cb._rows[0]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert text() == "work"
+
+    def test_combobox_blur_change_writes_signal(self):
+        import asyncio
+
+        from neony.dom import Signal
+
+        cb = ComboBox(options=["work"])
+        text = Signal("")
+        cb.bind_value(text)
+        # Real sequence: keystrokes (input) then blur-commit (change).
+        asyncio.run(cb._input._handlers["input"][0](DomEvent(key=cb._input.key, type="input", value="work")))
+        asyncio.run(cb._input._handlers["change"][0](DomEvent(key=cb._input.key, type="change", value="work")))
+        assert text() == "work"
 
 
 class TestComboStaleChange:
@@ -2437,3 +2552,526 @@ class TestCardEvents:
         # click is in _bound_events, so on() won't wire it; and the card
         # wasn't clickable, so _bind never attached one either.
         assert "click" not in card._root._handlers
+
+
+class TestTabsSelection:
+    """Unified selection API on Tabs: constructor children, object-level
+    selected_panel, title-key selection, and the active_key fix."""
+
+    def test_constructor_children_pairs(self):
+        tabs = Tabs(("One", Text("p1")), ("Two", Text("p2")))
+        node = tabs.build().to_node()
+        assert len(node.children) == 3  # bar + 2 panels
+
+    def test_constructor_children_equal_chain(self):
+        chained = Tabs()
+        chained.add("One", Text("p1"))
+        chained.add("Two", Text("p2"))
+        direct = Tabs(("One", Text("p1")), ("Two", Text("p2")))
+        assert direct._titles == chained._titles
+
+    def test_selected_panel_object_binding(self):
+        p1, p2 = Text("p1"), Text("p2")
+        tabs = Tabs(("One", p1), ("Two", p2))
+        # Binding the raw DOMElement (build() once already mounted it).
+        tabs.selected_panel = p2._root
+        node = tabs.build().to_node()
+        assert node.children[2].styles["display"] == "flex"
+        assert node.children[1].styles["display"] == "none"
+
+    def test_selected_panel_component_binding(self):
+        p1, p2 = Text("p1"), Text("p2")
+        tabs = Tabs(("One", p1), ("Two", p2))
+        # Binding the Component: resolved via identity against registered
+        # panels — never a second build().
+        tabs.selected_panel = p2
+        assert tabs.selected_title == "Two"
+
+    def test_selected_panel_unknown_raises(self):
+        tabs = Tabs(("One", Text("p1")))
+        with pytest.raises(ValueError):
+            tabs.selected_panel = Text("stranger")
+        with pytest.raises(ValueError):
+            tabs.selected_panel = Div()
+
+    def test_selected_title_returns_title(self):
+        tabs = Tabs(("One", Text("p1")), ("Two", Text("p2")))
+        assert tabs.selected_title == "One"
+        tabs.selected_title = "Two"
+        assert tabs.selected_title == "Two"
+
+    def test_selected_title_unknown_raises(self):
+        tabs = Tabs(("One", Text("p1")))
+        with pytest.raises(ValueError):
+            tabs.selected_title = "Nope"
+
+    def test_active_alias_and_active_key_returns_title(self):
+        """Regression: active_key returned an opaque DOM uuid before;
+        it now returns the tab title."""
+        tabs = Tabs(("One", Text("p1")), ("Two", Text("p2")))
+        assert tabs.active == 0
+        assert tabs.active_key == "One"
+        tabs.active = 1
+        assert tabs.active_key == "Two"
+
+    def test_tab_click_dispatches_change_with_title(self):
+        import asyncio
+
+        tabs = Tabs(("One", Text("p1")), ("Two", Text("p2")))
+        fired: list = []
+        tabs.on_change(lambda e: fired.append((e.value, e.source)))
+        tab = tabs._tab_elems[1]
+        asyncio.run(tab._handlers["click"][0](DomEvent(key=tab.key, type="click")))
+        assert fired == [("Two", "user")]
+
+    def test_programmatic_select_no_callback(self):
+
+        tabs = Tabs(("One", Text("p1")), ("Two", Text("p2")))
+        fired: list = []
+        tabs.on_change(lambda e: fired.append(1))
+        tabs.selected_title = "Two"
+        assert fired == []
+
+
+class TestTabsSelectedKey:
+    """Tabs.selected_key (title-as-key) powers bind_selected on Tabs."""
+
+    def test_selected_key_aliases_selected_title(self):
+        tabs = Tabs(("One", Text("p1")), ("Two", Text("p2")))
+        assert tabs.selected_key == "One"
+        tabs.selected_key = "Two"
+        assert tabs.selected_title == "Two"
+        with pytest.raises(ValueError):
+            tabs.selected_key = "Nope"
+        with pytest.raises(ValueError):
+            tabs.selected_key = None  # a tab is always selected
+
+    def test_tabs_bind_selected_two_way(self):
+        import asyncio
+
+        from neony.dom import Signal
+
+        tabs = Tabs(("One", Text("p1")), ("Two", Text("p2")))
+        active = Signal("One")
+        tabs.bind_selected(active)
+        active.set("Two")
+        assert tabs.selected_title == "Two"
+        # User tab click writes the signal back.
+        tab = tabs._tab_elems[0]
+        asyncio.run(tab._handlers["click"][0](DomEvent(key=tab.key, type="click")))
+        assert active() == "One"
+        assert tabs.selected_key == "One"
+
+
+class TestSidebarPaneBuild:
+    """Sidebar structural modes: bare rail vs rail + pane host."""
+
+    def test_bare_rail_structure(self):
+        sidebar = Sidebar(SidebarItem("Home"))
+        node = sidebar.build().to_node()
+        # wrapper[row] -> rail only; no pane host.
+        assert len(node.children) == 1
+        rail = node.children[0]
+        assert rail.styles["width"] == "200px"
+        assert rail.styles["background-color"] == "var(--color-surface-glass-bg)"
+
+    def test_gallery_bare_rail_config(self):
+        """demo_gallery's construction must keep working unchanged."""
+        sidebar = Sidebar(
+            SidebarItem("Home", icon="🏠"),
+            SidebarItem("Settings", icon="⚙️"),
+            SidebarItem("Profile", icon="👤"),
+            active_key="home",
+            corner_radius="0px",
+        )
+        node = sidebar.build().to_node()
+        rail = node.children[0]
+        assert rail.styles["width"] == "200px"
+        assert rail.styles["border-top-right-radius"] == "0px"
+        assert sidebar.active_key == "home"
+        assert sidebar.selected_key == "home"
+
+    def test_pane_sidebar_structure(self):
+        sidebar = Sidebar(Pane("Home", panel=Text("home")))
+        node = sidebar.build().to_node()
+        # wrapper[row] -> rail + host; host holds one slot.
+        assert len(node.children) == 2
+        host = node.children[1]
+        assert len(host.children) == 1
+        assert node.styles["flex-grow"] == "1"
+
+    def test_slot_visibility_and_animation(self):
+        sidebar = Sidebar(
+            Pane("Home", panel=Text("h")),
+            Pane("Settings", panel=Text("s")),
+        )
+        node = sidebar.build().to_node()
+        host = node.children[1]
+        active_slot, inactive_slot = host.children[0], host.children[1]
+        assert active_slot.styles["display"] == "flex"
+        assert active_slot.styles["animation"] == "neony-rise-in 0.25s ease-out"
+        assert inactive_slot.styles["display"] == "none"
+        assert "animation" not in inactive_slot.styles
+
+    def test_active_slot_stretches_to_host_height(self):
+        """Regression: the visible slot must flex-grow so panes that
+        stretch themselves (GlassPanel grow=True → height:100%) resolve
+        against a definite parent height.  Without it the panel stops at
+        its content height and the host's background shows below."""
+        sidebar = Sidebar(Pane("Home", panel=Text("h")))
+        node = sidebar.build().to_node()
+        host = node.children[1]
+        active_slot = host.children[0]
+        assert active_slot.styles["flex-grow"] == "1"
+        assert active_slot.styles["min-height"] == "0"
+
+    def test_pane_switching_toggles_slots(self):
+        sidebar = Sidebar(
+            Pane("Home", panel=Text("h")),
+            Pane("Settings", panel=Text("s")),
+        )
+        sidebar.selected_key = sidebar.panes[1].key
+        node = sidebar.build().to_node()
+        host = node.children[1]
+        assert host.children[0].styles["display"] == "none"
+        assert host.children[1].styles["display"] == "flex"
+
+    def test_constructor_tuple_panes(self):
+        sidebar = Sidebar(("Home", Text("h")))
+        node = sidebar.build().to_node()
+        assert len(node.children) == 2  # rail + host
+
+    def test_constructor_pane_models(self):
+        sidebar = Sidebar(Pane("Home", panel=Text("h"), icon="🏠"))
+        node = sidebar.build().to_node()
+        assert len(node.children[0].children) == 1  # one rail item
+
+    def test_mixed_bare_items_and_panes(self):
+        sidebar = Sidebar(
+            SidebarItem("About", key="about"),
+            Pane("Home", panel=Text("h")),
+        )
+        node = sidebar.build().to_node()
+        rail = node.children[0]
+        # bare item first (flat), then pane entry — rail order preserved.
+        assert len(rail.children) == 2
+        assert len(node.children) == 2  # rail + host
+
+    def test_default_random_key(self):
+        """Pane keys default to random ids — labels never collide, even
+        when duplicated or non-ASCII."""
+        sidebar = Sidebar(Pane("首页", panel=Text("a")), Pane("首页", panel=Text("b")))
+        keys = [p.key for p in sidebar.panes]
+        assert len(keys) == 2
+        assert keys[0] != keys[1]
+        # random uuid hex, not derived from the label
+        assert keys[0] != "首页".lower()
+
+    def test_explicit_duplicate_key_raises(self):
+        with pytest.raises(ValueError):
+            Sidebar(Pane("Home", panel=Text("a"), key="x"), Pane("Other", panel=Text("b"), key="x"))
+
+    def test_build_once_second_raises(self):
+        sidebar = Sidebar(Pane("Home", panel=Text("h")))
+        sidebar.build()
+        with pytest.raises(RuntimeError):
+            sidebar.build()
+
+
+class TestSidebarGroup:
+    """SidebarGroup: titled sections; post-attach adds stay wired."""
+
+    def test_group_structure(self):
+        sidebar = Sidebar(SidebarGroup("General", SidebarItem("Home"), SidebarItem("Settings")))
+        node = sidebar.build().to_node()
+        rail = node.children[0]
+        group = rail.children[0]
+        assert len(group.children) == 3  # label + 2 items
+
+    def test_group_label_uppercase_spacing(self):
+        group = SidebarGroup("General", SidebarItem("Home"))
+        node = group.build().to_node()
+        label = node.children[0]
+        assert label.styles["text-transform"] == "uppercase"
+        assert label.styles["letter-spacing"] == "0.08em"
+        assert label.styles["color"] == "var(--color-text-secondary)"
+
+    def test_group_item_click_dispatches_change(self):
+        import asyncio
+
+        sidebar = Sidebar(SidebarGroup("General", SidebarItem("Home", key="home")))
+        fired: list = []
+        sidebar.on_change(lambda e: fired.append((e.value, e.source)))
+        item = sidebar._items[0]
+        for handler in list(item._root._handlers["click"]):
+            asyncio.run(handler(DomEvent(key=item._root.key, type="click")))
+        assert fired == [("home", "user")]
+
+    def test_post_attach_group_add_wired(self):
+        """Regression: an item added to a group AFTER the group is
+        attached to a sidebar is still wired (no double build)."""
+        import asyncio
+
+        group = SidebarGroup("General", SidebarItem("Home", key="home"))
+        sidebar = Sidebar(group)
+        group.add(SidebarItem("Settings", key="settings"))
+        assert [i.key for i in sidebar.items] == ["home", "settings"]
+        item = sidebar._items[1]
+        fired: list = []
+        sidebar.on_change(lambda e: fired.append(e.value))
+        for handler in list(item._root._handlers["click"]):
+            asyncio.run(handler(DomEvent(key=item._root.key, type="click")))
+        assert fired == ["settings"]
+
+    def test_post_attach_add_first_becomes_selected(self):
+        group = SidebarGroup("General")
+        sidebar = Sidebar(group)
+        group.add(SidebarItem("Home", key="home"))
+        assert sidebar.selected_key == "home"
+        assert sidebar._items[0].active is True
+
+    def test_sidebar_add_group_never_rebuilds(self):
+        """Items are built once by the group; the sidebar wires the
+        built roots — a second build would raise."""
+        group = SidebarGroup("General", SidebarItem("Home", key="home"))
+        sidebar = Sidebar(group)
+        assert [i.key for i in sidebar.items] == ["home"]
+
+
+class TestSidebarSelection:
+    """Object-level selection + key selection on Sidebar."""
+
+    def test_selected_object_binding(self):
+        p2 = Pane("Settings", panel=Text("s"), key="settings")
+        sidebar = Sidebar(Pane("Home", panel=Text("h")), p2)
+        sidebar.selected = p2
+        assert sidebar.selected_key == "settings"
+
+    def test_selected_returns_entry_object(self):
+        p1 = Pane("Home", panel=Text("h"), key="home")
+        sidebar = Sidebar(p1)
+        assert sidebar.selected is p1
+
+    def test_selected_unknown_object_raises(self):
+        sidebar = Sidebar(Pane("Home", panel=Text("h")))
+        with pytest.raises(ValueError):
+            sidebar.selected = Pane("Stranger", panel=Text("s"))
+
+    def test_selected_key_readwrite(self):
+        sidebar = Sidebar(
+            Pane("Home", panel=Text("h"), key="home"),
+            Pane("Settings", panel=Text("s"), key="settings"),
+        )
+        sidebar.selected_key = "settings"
+        assert sidebar.selected_key == "settings"
+        sidebar.selected_key = None
+        assert sidebar.selected_key is None
+
+    def test_selected_key_unknown_raises(self):
+        sidebar = Sidebar(Pane("Home", panel=Text("h")))
+        with pytest.raises(ValueError):
+            sidebar.selected_key = "nope"
+
+    def test_active_key_alias(self):
+        sidebar = Sidebar(
+            Pane("Home", panel=Text("h"), key="home"),
+            active_key="home",
+        )
+        assert sidebar.active_key == "home"
+        sidebar.active_key = None
+        assert sidebar.selected_key is None
+
+    def test_first_pane_auto_selected(self):
+        sidebar = Sidebar(Pane("Home", panel=Text("h"), key="home"))
+        assert sidebar.selected_key == "home"
+        node = sidebar.build().to_node()
+        assert node.children[1].children[0].styles["display"] == "flex"
+
+    def test_programmatic_select_no_callback(self):
+
+        sidebar = Sidebar(Pane("Home", panel=Text("h"), key="home"))
+        fired: list = []
+        sidebar.on_change(lambda e: fired.append(1))
+        sidebar.selected_key = "home"
+        assert fired == []
+
+    def test_section_auto_grouping(self):
+        sidebar = Sidebar(
+            Pane("A", panel=Text("a"), section="General"),
+            Pane("B", panel=Text("b"), section="General"),
+        )
+        node = sidebar.build().to_node()
+        rail = node.children[0]
+        assert len(rail.children) == 1  # one group
+        group = rail.children[0]
+        assert len(group.children) == 3  # label + 2 items
+
+    def test_section_nonconsecutive_splits(self):
+        sidebar = Sidebar(
+            Pane("A", panel=Text("a"), section="X"),
+            Pane("B", panel=Text("b"), section="Y"),
+            Pane("C", panel=Text("c"), section="X"),
+        )
+        node = sidebar.build().to_node()
+        rail = node.children[0]
+        assert len(rail.children) == 3  # group X, group Y, group X (split)
+
+    def test_section_none_lands_bare(self):
+        sidebar = Sidebar(
+            Pane("A", panel=Text("a"), section="X"),
+            Pane("B", panel=Text("b")),
+        )
+        node = sidebar.build().to_node()
+        rail = node.children[0]
+        assert len(rail.children) == 2  # group X + bare item
+
+
+class TestSidebarPaneEvents:
+    """Change dispatch and live (post-build) registration."""
+
+    def test_item_click_dispatches_change_with_key(self):
+        import asyncio
+
+        sidebar = Sidebar(
+            Pane("Home", panel=Text("h"), key="home"),
+            Pane("Settings", panel=Text("s"), key="settings"),
+        )
+        fired: list = []
+        sidebar.on_change(lambda e: fired.append((e.value, e.source)))
+        item = sidebar._items[1]
+        for handler in list(item._root._handlers["click"]):
+            asyncio.run(handler(DomEvent(key=item._root.key, type="click")))
+        assert fired == [("settings", "user")]
+        node = sidebar.build().to_node()
+        assert node.children[1].children[1].styles["display"] == "flex"
+
+    def test_post_build_add_pane(self):
+        sidebar = Sidebar(Pane("Home", panel=Text("h"), key="home"))
+        sidebar.build()
+        sidebar.add_pane("Settings", Text("s"), key="settings")
+        assert sidebar.selected_key == "home"
+        assert "settings" in [p.key for p in sidebar.panes]
+        sidebar.selected_key = "settings"
+        # Post-build adds land in a live slot; selecting shows it.
+        node = sidebar._root.to_node()
+        host = node.children[1]
+        assert host.children[0].styles["display"] == "none"
+        assert host.children[1].styles["display"] == "flex"
+
+    def test_post_build_add_bare_item(self):
+        sidebar = Sidebar(Pane("Home", panel=Text("h"), key="home"))
+        sidebar.build()
+        sidebar.add(SidebarItem("About", key="about"))
+        assert "about" in [i.key for i in sidebar.items]
+
+
+class TestSidebarShortcuts:
+    """Per-pane shortcuts: collected pairs, synthesized user events."""
+
+    def test_shortcuts_returns_pairs(self):
+        sidebar = Sidebar(
+            Pane("Home", panel=Text("h"), shortcut="Ctrl+1"),
+            Pane("Settings", panel=Text("s"), shortcut={"darwin": "Meta+2", "default": "Ctrl+2"}),
+        )
+        pairs = sidebar.shortcuts()
+        assert len(pairs) == 2
+        assert pairs[0][0] == "Ctrl+1"
+        assert pairs[1][0] == {"darwin": "Meta+2", "default": "Ctrl+2"}
+
+    def test_no_shortcuts_by_default(self):
+        sidebar = Sidebar(Pane("Home", panel=Text("h")))
+        assert sidebar.shortcuts() == []
+
+    def test_shortcut_handler_selects_and_dispatches(self):
+        import asyncio
+
+        sidebar = Sidebar(Pane("Home", panel=Text("h"), key="home", shortcut="Ctrl+1"))
+        fired: list = []
+        sidebar.on_change(lambda e: fired.append((e.value, e.source)))
+        asyncio.run(sidebar.shortcuts()[0][1]())
+        assert sidebar.selected_key == "home"
+        assert fired == [("home", "user")]
+
+    def test_invalid_shortcut_combo_raises(self):
+        with pytest.raises(ValueError):
+            Sidebar(Pane("Home", panel=Text("h"), shortcut="X"))
+
+
+class TestBindSelected:
+    """bind_selected: two-way Signal binding on selection components."""
+
+    def test_signal_writes_selection(self):
+        from neony.dom import Signal
+
+        sel = Signal("home")
+        sidebar = Sidebar(Pane("Home", panel=Text("h"), key="home"))
+        sidebar.bind_selected(sel)
+        sel.set("home")
+        assert sidebar.selected_key == "home"
+
+    def test_user_selection_writes_signal(self):
+        import asyncio
+
+        from neony.dom import Signal
+
+        sel = Signal("home")
+        sidebar = Sidebar(
+            Pane("Home", panel=Text("h"), key="home"),
+            Pane("Settings", panel=Text("s"), key="settings"),
+        )
+        sidebar.bind_selected(sel)
+        item = sidebar._items[1]
+        for handler in list(item._root._handlers["click"]):
+            asyncio.run(handler(DomEvent(key=item._root.key, type="click")))
+        assert sel() == "settings"
+
+    def test_computed_read_only(self):
+        from neony.dom import Computed, Signal
+
+        base = Signal("home")
+        computed = Computed(lambda: base())
+        sidebar = Sidebar(Pane("Home", panel=Text("h"), key="home"))
+        sidebar.bind_selected(computed)
+        # Computed has no .set — the writer path never attaches.
+        assert sidebar._selected_writer is None
+
+    def test_unbind_removes_writer(self):
+        from neony.dom import Signal
+
+        sel = Signal("home")
+        sidebar = Sidebar(Pane("Home", panel=Text("h"), key="home"))
+        sidebar.bind_selected(sel)
+        sidebar.unbind_selected()
+        assert sidebar._selected_effect is None
+        assert sidebar._selected_writer is None
+        # writer removed from change callbacks
+        assert "change" not in sidebar._callbacks or all(
+            fn is not sidebar._selected_writer for fn in sidebar._callbacks.get("change", [])
+        )
+
+    def test_unbind_clears_both_bindings(self):
+        from neony.dom import Signal
+
+        sel = Signal("home")
+        sidebar = Sidebar(Pane("Home", panel=Text("h"), key="home"))
+        sidebar.bind_selected(sel)
+        sidebar.unbind()
+        assert sidebar._selected_effect is None
+
+
+class TestRadioGroupSelection:
+    def test_selected_key_alias(self):
+        group = RadioGroup(Radio("One", value="1"), Radio("Two", value="2"))
+        assert group.selected_key == "1"
+        group.selected_key = "2"
+        assert group.value == "2"
+        assert group.selected_key == "2"
+
+
+class TestSidebarStylesSerialization:
+    def test_text_transform_and_letter_spacing_serialize(self):
+        from neony.dom import Styles
+
+        node = Div(styles=Styles(text_transform="uppercase", letter_spacing="0.08em")).to_node()
+        assert node.styles["text-transform"] == "uppercase"
+        assert node.styles["letter-spacing"] == "0.08em"

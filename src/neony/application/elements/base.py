@@ -69,6 +69,22 @@ class Component:
     #: Event that carries the component's value on user change; ``None``
     #: means no user channel — :meth:`bind_value` writes only (Progress).
     _value_event: str | None = None
+    #: Multi-channel override of :attr:`_value_event` — when set,
+    #: :meth:`bind_value` subscribes the write-back to every listed event
+    #: (ComboBox: ``("input", "change")`` — keystrokes AND picks).
+    _value_events: tuple[str, ...] | None = None
+
+    @property
+    def selected_key(self) -> str | None:
+        """The selected entry's key — the string identity of the current
+        selection, dispatched to ``on_change`` callbacks via
+        ``event.value``.  Selection components (Sidebar, Tabs,
+        RadioGroup) override this; the base raises."""
+        raise NotImplementedError(f"{type(self).__name__} does not support selection")
+
+    @selected_key.setter
+    def selected_key(self, value: str | None) -> None:
+        raise NotImplementedError(f"{type(self).__name__} does not support selection")
 
     def __init__(self) -> None:
         self._root: DOMElement
@@ -77,8 +93,11 @@ class Component:
         self._built = False
         # bind_value state — disposed/removed by unbind().
         self._value_effect: Effect | None = None
-        self._value_writer: Callable[[DomEvent], Any] | None = None
-        self._value_event_bound: str | None = None
+        self._value_writers: dict[str, Callable[[DomEvent], Any]] = {}
+        # bind_selected state — disposed/removed by unbind().
+        self._selected_effect: Effect | None = None
+        self._selected_writer: Callable[[DomEvent], Any] | None = None
+        self._selected_event_bound: str | None = None
 
     # ---- build ----
 
@@ -138,12 +157,14 @@ class Component:
         Signal writes update the component value immediately and on
         every change; user value changes write back to the signal
         (:class:`Computed` is read-only — no write-back).  The user
-        channel is the component's ``_value_event`` (``input`` /
-        ``change``), carrying the value on ``_value_prop`` — Checkbox
-        binds ``checked``, Progress has no user channel and binds
-        write-only.  Programmatic value writes never fire callbacks,
-        so the loop closes: user → signal → component write-back
-        re-applies the same value without re-dispatching.
+        channels are the component's ``_value_event`` (or the
+        ``_value_events`` tuple) — ``input`` on Input/Slider, ``change``
+        on Select/Checkbox/Switch/Dropdown, both on ComboBox — carrying
+        the value on ``_value_prop``; Checkbox binds ``checked``,
+        Progress has no user channel and binds write-only.  Programmatic
+        value writes never fire callbacks, so the loop closes: user →
+        signal → component write-back re-applies the same value without
+        re-dispatching.
         """
         self.unbind_value()
         prop = type(self)._value_prop
@@ -152,31 +173,79 @@ class Component:
             setattr(self, prop, signal())
 
         self._value_effect = effect(write)
-        event_type = type(self)._value_event
-        if event_type is not None and isinstance(signal, Signal):
-            self._value_writer = self._make_value_writer(signal)
-            self._value_event_bound = event_type
-            self.on(event_type, self._value_writer)
+        events = type(self)._value_events
+        if events is None:
+            single = type(self)._value_event
+            events = (single,) if single is not None else ()
+        if events and isinstance(signal, Signal):
+            for event_type in events:
+                writer = self._make_value_writer(signal)
+                self._value_writers[event_type] = writer
+                self.on(event_type, writer)
         return self
 
     def unbind_value(self) -> Self:
         """Dispose the :meth:`bind_value` binding (signal → component
-        effect and the user-event write-back), keeping other bindings."""
+        effect and the user-event write-backs), keeping other bindings."""
         if self._value_effect is not None:
             self._value_effect.dispose()
             self._value_effect = None
-        if self._value_writer is not None and self._value_event_bound is not None:
-            callbacks = self._callbacks.get(self._value_event_bound, [])
-            if self._value_writer in callbacks:
-                callbacks.remove(self._value_writer)
-        self._value_writer = None
-        self._value_event_bound = None
+        for event_type, writer in self._value_writers.items():
+            callbacks = self._callbacks.get(event_type, [])
+            if writer in callbacks:
+                callbacks.remove(writer)
+        self._value_writers.clear()
+        return self
+
+    def bind_selected(self, signal: Signal[Any] | Computed[Any]) -> Self:
+        """Bind *signal* to the component's selected key, both ways.
+
+        Components with a ``selected_key`` property (Sidebar, Tabs,
+        RadioGroup) expose the selection to the reactive system: signal writes
+        select the entry; user selection writes the key back to the
+        signal.  :class:`Computed` is read-only — no write-back.  The
+        user channel is the component's ``change`` event, carrying the
+        key on ``event.value`` (pseudo-events like shortcuts dispatch
+        with ``source == "user"`` too).  Programmatic selections never
+        fire callbacks, so the loop closes the same way as
+        :meth:`bind_value`.
+        """
+        self.unbind_selected()
+
+        def write() -> None:
+            self.selected_key = signal()
+
+        self._selected_effect = effect(write)
+        if isinstance(signal, Signal):
+
+            def writer(event: DomEvent) -> None:
+                signal.set(event.value)
+
+            self._selected_writer = writer
+            self._selected_event_bound = "change"
+            self.on("change", writer)
+        return self
+
+    def unbind_selected(self) -> Self:
+        """Dispose the :meth:`bind_selected` binding (signal → selection
+        effect and the user-event write-back), keeping other bindings."""
+        if self._selected_effect is not None:
+            self._selected_effect.dispose()
+            self._selected_effect = None
+        if self._selected_writer is not None and self._selected_event_bound is not None:
+            callbacks = self._callbacks.get(self._selected_event_bound, [])
+            if self._selected_writer in callbacks:
+                callbacks.remove(self._selected_writer)
+        self._selected_writer = None
+        self._selected_event_bound = None
         return self
 
     def unbind(self) -> Self:
         """Dispose every signal binding on the root element (DOM
-        bindings and the :meth:`bind_value` binding)."""
+        bindings and the :meth:`bind_value` / :meth:`bind_selected`
+        bindings)."""
         self.unbind_value()
+        self.unbind_selected()
         self._root.unbind()
         return self
 

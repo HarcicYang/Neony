@@ -295,12 +295,27 @@ Text("OK", role="success")  # success
 ### `Tabs`
 
 ```python
-tabs = Tabs(glass=True)
-tabs.add("One", panel_one)
-tabs.add("Two", panel_two)
-tabs.active = 1  # programmatic switch
-tabs.active_key  # key of active panel
+tabs = Tabs(("One", panel_one), ("Two", panel_two))  # or tabs.add("One", panel_one)
+tabs.selected_panel = panel_two  # programmatic switch (component or element)
+tabs.selected_title  # title of the active tab
+tabs.selected_key = "Two"  # title-as-key selection
+tabs.bind_selected(active)  # Signal[str] ↔ selected tab
+tabs.on_change(lambda e: print(e.value))  # value = tab title
 ```
+
+**Options:** `Tabs(*panes, glass)` — `*panes` are `(title, panel)` pairs,
+equivalent to chained `add()` calls.
+
+`selected_panel` binds the visible panel (the Component or its built
+root — matched by identity, never rebuilt); `selected_title` selects by
+title string and raises `ValueError` for unknown titles.  `active`
+(index) and `active_key` are deprecated aliases — `active_key` returns
+the tab title (it used to return an opaque element id).
+
+### `Pane` & `SidebarGroup`
+
+See the `Sidebar` section below — `Pane` is the selectable entry the
+sidebar owns, `SidebarGroup` the titled section that groups entries.
 
 ### `Radio` & `RadioGroup`
 
@@ -319,8 +334,21 @@ is a plain toggle with `on_change` carrying the bool.
 
 ```python
 sw = Switch("Wi-Fi")
+sw.bind_value(flag)  # two-way: binds checked
 sw.checked = True  # programmatic — no callback
 sw.on_change(lambda e: print(e.value))  # value = checked bool
+```
+
+Use `bind_value` when the switch only mirrors application state. Keep a
+named handler when a change must perform work beyond synchronization:
+
+```python
+async def on_wifi_change(event: DomEvent) -> None:
+    await persist_setting(bool(event.value))
+    status.set("saved")
+
+
+sw.on_change(on_wifi_change)
 ```
 
 A native checkbox styled as a track + thumb (38×22px, `glass=True` for
@@ -344,7 +372,20 @@ closes; click-away closes via the engine's `outsideclick` event.
 
 ```python
 box = ComboBox("Tag", options=["work", "personal"], placeholder="Type or pick…")
-box.on_input(lambda e: print(e.value))  # live text
+tag = Signal("")
+box.bind_value(tag)  # typing and suggestion picks both write tag
+```
+
+For simple echoes, the binding is enough. For validation, persistence, or
+other asynchronous work, use the event stream instead (or use both):
+
+```python
+async def on_tag_change(event: DomEvent) -> None:
+    await save_tag(event.value)
+    audit_log.append(event.value)
+
+
+box.on_change(on_tag_change)  # event.value is the committed text
 ```
 
 Editable text with a themed suggestion popup (the native `<datalist>`
@@ -377,9 +418,9 @@ reversed page direction (WebKit spec quirk).
 ### `Progress`
 
 ```python
-bar = Progress(value=35, max=100, label="Downloading…")
+bar = Progress("Downloading…", value=35, max=100)
 bar.value = 50  # clamped to [0, max]; the fill glides over 0.3s
-Progress(label="Scanning…", indeterminate=True)  # sliding sweep animation
+Progress("Scanning…", indeterminate=True)  # sliding sweep animation
 ```
 
 A rounded track with an accent fill that transitions on value changes
@@ -456,8 +497,21 @@ hides it.
 
 ```python
 dd = Dropdown("Theme", items=[("dark", "Dark"), ("light", "Light")])
+choice = Signal("")
+dd.bind_value(choice)  # two-way: selection writes choice
 dd.value  # selected value
-dd.on_change(lambda e: print(e.value))
+```
+
+Use a named `on_change` handler when selection triggers more than a state
+write, such as an asynchronous reload or several related updates:
+
+```python
+async def on_theme_change(event: DomEvent) -> None:
+    await reload_theme(event.value)
+    status.set(f"loaded: {event.value}")
+
+
+dd.on_change(on_theme_change)
 ```
 
 A trigger with a themed glass popup of native button rows (the same
@@ -616,23 +670,77 @@ WindowControls bridge — an implementation detail users never see.
 
 ### `Sidebar` & `SidebarItem`
 
-Vertical navigation, glass-matched to `TitleBar`.
+Vertical navigation, glass-matched to `TitleBar`.  The sidebar can own
+its content panes — with `Pane` children, clicking an entry (or
+pressing its shortcut) swaps the visible pane internally.
+
+```python
+sidebar = Sidebar(
+    Pane("Home", panel=home_panel, icon="🏠", section="General", shortcut="Ctrl+1"),
+    Pane("Settings", panel=settings_panel, icon="⚙️", section="General"),
+    Pane("Stats", panel=stats_panel, icon="📊", section="Data", shortcut="Ctrl+3"),
+)
+sidebar.on_change(lambda e: print(e.value))  # value = pane key
+sidebar.selected_key = "settings"  # programmatic, no callback
+sidebar.selected  # the selected Pane (or SidebarItem) object
+for combo, fn in sidebar.shortcuts():
+    page.on_shortcut(combo, fn)  # wire the panes' shortcuts
+```
+
+Bare-rail mode — only `SidebarItem`s, content switching stays the
+user's job:
 
 ```python
 sidebar = Sidebar(
     SidebarItem("Home", icon="🏠"),
     SidebarItem("Settings", icon="⚙️"),
-    active_key="home",
+    active_key="home",  # deprecated → selected_key
 )
-sidebar.on_change(lambda e: switch(e.value))  # value = item key
-sidebar.active_key = "settings"  # programmatic, no callback
 ```
 
-**Options:** `Sidebar(width, glass, corner_radius)`,
-`SidebarItem(label, key, icon, active)`
+**Options:** `Sidebar(*children, width, glass, corner_radius)`,
+`SidebarItem(label, key, icon, active)` — `*children` are
+`SidebarItem` / `SidebarGroup` / `Pane` / `(label, panel)` tuples.
 
-Clicks anywhere on an item — including the icon or label — count:
-item-level events bubble up from its children.
+`Pane.key` defaults to a random id — labels never collide, even when
+duplicated or non-ASCII; pass an explicit `key` when you want a
+readable identifier.  `shortcut` accepts the same combo forms as
+`Page.on_shortcut`; a shortcut switch fires `change` like a click.
+`selected_key` raises `ValueError` for unknown keys; setting `None`
+clears the selection.  Clicks anywhere on an item — including the icon
+or label — count: item-level events bubble up from its children.
+
+### `Pane`
+
+One selectable `Sidebar` entry and its content panel.
+
+```python
+pane = Pane("Home", panel=home_panel, icon="🏠", section="General", shortcut="Ctrl+1")
+```
+
+**Options:** `Pane(label, panel, key, icon, section, shortcut)` —
+`label` is the entry text (first positional argument); `panel` is the
+component (or element) shown while active, built exactly once when the
+pane is registered (a panel component cannot be reused in two
+sidebars); `key` defaults to a random id; `section` groups consecutive
+panes under one small uppercase sidebar label; `shortcut` is a
+window-level combo (`"Ctrl+1"` or a per-platform dict like
+`{"darwin": "Meta+2", "default": "Ctrl+2"}`).
+
+### `SidebarGroup`
+
+A titled section of a `Sidebar` — a small uppercase label above its
+items.
+
+```python
+sidebar.add(SidebarGroup("Menu", SidebarItem("Open"), SidebarItem("Save")))
+```
+
+`SidebarGroup.add` is chainable and also works after the group is
+attached to a sidebar (new items are wired automatically).  Groups are
+purely visual: selection, `items`, and `change` all operate on the flat
+entry list in DOM order.  Consecutive panes sharing a `section` render
+as one group; the same section reappearing later starts a new group.
 
 ---
 
@@ -643,6 +751,8 @@ Three presets — `DARK`, `LIGHT`, `DEEP_BLUE` — as CSS custom properties.
 ```python
 app.theme.set_mode("dark")  # dark | light | deep-blue
 app.theme.toggle()  # cycle
+Theme.modes  # ("dark", "light", "deep-blue")
+Theme.mode_label("dark")  # "Light mode" — the next mode
 await app.sync_theme()  # re-inject variables
 ```
 
@@ -849,7 +959,9 @@ an explicit `render()` call.
 ### `Component.bind_value` — two-way value binding
 
 `bind_value(signal)` binds a signal to a component's *value*, both
-ways:
+ways. Use it for direct state synchronization; it does not replace event
+handlers for workflows that need event context, branching, asynchronous
+side effects, or multiple state updates:
 
 ```python
 name = Signal("")
@@ -870,11 +982,28 @@ cb.bind_value(flag)  # binds `checked`, not `value`
   user value changes write back to the signal
 - `Computed` binds read-only (no write-back)
 - the user channel is the component's `_value_event` (`input` on
-  Input/ComboBox/Slider, `change` on Select/Checkbox); Progress has no
-  user channel and binds write-only
+  Input/Slider, `change` on Select/Checkbox/Switch/Dropdown); ComboBox
+  binds both `input` and `change` so typing and suggestion picks are
+  covered; Progress has no user channel and binds write-only
 - `unbind_value()` / `unbind()` dispose the binding; programmatic value
   writes never fire callbacks, so the loop closes (user → signal →
   write-back re-applies the same value without re-dispatching)
+
+For complex behavior, keep a named event handler alongside the binding:
+
+```python
+flag = Signal(False)
+switch = Switch("Sync")
+switch.bind_value(flag)  # simple state synchronization
+
+
+async def on_sync_change(event: DomEvent) -> None:
+    await sync_remote(bool(event.value))
+    status.set("synced")
+
+
+switch.on_change(on_sync_change)
+```
 
 ### Dirty-subtree tracking
 

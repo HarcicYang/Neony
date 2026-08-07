@@ -394,6 +394,17 @@ class Styles(BaseModel):
         ]
         | None
     ) = Field(default=None)
+    text_transform: (
+        Literal[
+            "none",
+            "uppercase",
+            "lowercase",
+            "capitalize",
+            "full-width",
+        ]
+        | None
+    ) = Field(default=None)
+    letter_spacing: str | None = Field(default=None)
 
     # --- Borders ---
     border: str | None = Field(default=None)

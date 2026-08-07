@@ -279,12 +279,21 @@ Text("成功", role="success")  # 成功文字
 ### `Tabs`
 
 ```python
-tabs = Tabs(glass=True)
-tabs.add("一", panel_one)
-tabs.add("二", panel_two)
-tabs.active = 1  # 编程切换
-tabs.active_key  # 当前面板 key
+tabs = Tabs(("一", panel_one), ("二", panel_two))  # 或 tabs.add("一", panel_one)
+tabs.selected_panel = panel_two  # 编程切换(组件或元素)
+tabs.selected_title  # 当前激活标签的标题
+tabs.selected_key = "二"  # 以标题作为 key 编程选择
+tabs.bind_selected(active)  # Signal[str] ↔ 当前标签
+tabs.on_change(lambda e: print(e.value))  # value = 标签标题
 ```
+
+**参数:** `Tabs(*panes, glass)` — `*panes` 为 `(标题, 面板)` 对，等价于链式 `add()`。
+
+`selected_panel` 按身份绑定可见面板（组件或其已构建的根元素，绝不重复构建）；`selected_title` 按标题字符串选择，未知标题抛 `ValueError`。`active`（下标）与 `active_key` 为已弃用别名 —— `active_key` 现在返回标签标题（此前返回不透明的元素 id）。
+
+### `Pane` & `SidebarGroup`
+
+见下方 `Sidebar` 一节 —— `Pane` 是 Sidebar 拥有的可选项，`SidebarGroup` 是分组的标题小节。
 
 ### `Radio` & `RadioGroup`
 
@@ -303,8 +312,21 @@ group.value = "tacos"  # 编程设置 — 不触发回调
 
 ```python
 sw = Switch("Wi-Fi")
+sw.bind_value(flag)  # 双向绑定 checked
 sw.checked = True  # 编程设置 — 不触发回调
 sw.on_change(lambda e: print(e.value))  # value = 是否开启
+```
+
+开关只需要同步状态时使用 `bind_value`；如果变更还要执行异步操作、
+条件分支或更新多个状态，保留命名的事件处理器：
+
+```python
+async def on_wifi_change(event: DomEvent) -> None:
+    await persist_setting(bool(event.value))
+    status.set("已保存")
+
+
+sw.on_change(on_wifi_change)
 ```
 
 原生 checkbox 样式化为轨道 + 滑块（38×22px，`glass=True` 磨砂轨道）。
@@ -326,7 +348,20 @@ Escape/Tab 关闭；点击外部经引擎的 `outsideclick` 事件关闭。
 
 ```python
 box = ComboBox("标签", options=["work", "personal"], placeholder="输入或选择…")
-box.on_input(lambda e: print(e.value))  # 实时文本
+tag = Signal("")
+box.bind_value(tag)  # 输入与建议选择都会写回 tag
+```
+
+简单回显使用绑定即可；校验、持久化或其他异步操作则使用事件回调
+（也可以与绑定同时使用）：
+
+```python
+async def on_tag_change(event: DomEvent) -> None:
+    await save_tag(event.value)
+    audit_log.append(event.value)
+
+
+box.on_change(on_tag_change)  # event.value 是提交后的文本
 ```
 
 可编辑文本框 + 主题化建议面板（原生 `<datalist>` 弹出层无法主题化）。
@@ -354,9 +389,9 @@ step，无级时为范围 10%）——组件纠正了原生 range 反向的页�
 ### `Progress`
 
 ```python
-bar = Progress(value=35, max=100, label="下载中…")
+bar = Progress("下载中…", value=35, max=100)
 bar.value = 50  # 限制在 [0, max]；填充 0.3s 平滑过渡
-Progress(label="扫描中…", indeterminate=True)  # 滑动扫掠动画
+Progress("扫描中…", indeterminate=True)  # 滑动扫掠动画
 ```
 
 圆角轨道 + accent 填充，值变化时宽度过渡
@@ -426,8 +461,21 @@ tip = Tooltip("提示", anchor=Button("悬停"), placement="top", delay=0.4)
 
 ```python
 dd = Dropdown("主题", items=[("dark", "深色"), ("light", "浅色")])
+choice = Signal("")
+dd.bind_value(choice)  # 双向绑定：选择结果写入 choice
 dd.value  # 选中的值
-dd.on_change(lambda e: print(e.value))
+```
+
+如果选择还要触发异步加载或多个相关状态更新，使用命名的
+`on_change` 处理器：
+
+```python
+async def on_theme_change(event: DomEvent) -> None:
+    await reload_theme(event.value)
+    status.set(f"已加载：{event.value}")
+
+
+dd.on_change(on_theme_change)
 ```
 
 trigger + 主题化玻璃弹出面板（原生 button 行，与 `Select` 同模式）。
@@ -568,22 +616,57 @@ titlebar.override_close(confirm_close)  # 完全接管关闭
 
 ### `Sidebar` & `SidebarItem`
 
-垂直导航，与 `TitleBar` 同款玻璃。
+垂直导航，与 `TitleBar` 同款玻璃。Sidebar 可以拥有内容面板——传入 `Pane` 子项时，点击条目（或按快捷键）在内部切换可见面板。
+
+```python
+sidebar = Sidebar(
+    Pane("首页", panel=home_panel, icon="🏠", section="常用", shortcut="Ctrl+1"),
+    Pane("设置", panel=settings_panel, icon="⚙️", section="常用"),
+    Pane("统计", panel=stats_panel, icon="📊", section="数据", shortcut="Ctrl+3"),
+)
+sidebar.on_change(lambda e: print(e.value))  # value = 面板 key
+sidebar.selected_key = "settings"  # 编程切换,不触发回调
+sidebar.selected  # 当前选中的 Pane（或 SidebarItem）对象
+for combo, fn in sidebar.shortcuts():
+    page.on_shortcut(combo, fn)  # 接线面板的快捷键
+```
+
+裸 rail 模式——只有 `SidebarItem` 子项，内容切换仍由用户负责：
 
 ```python
 sidebar = Sidebar(
     SidebarItem("首页", icon="🏠"),
     SidebarItem("设置", icon="⚙️"),
-    active_key="home",
+    active_key="home",  # 已弃用 → selected_key
 )
-sidebar.on_change(lambda e: switch(e.value))  # value = item key
-sidebar.active_key = "settings"  # 编程切换,不触发回调
 ```
 
-**参数:** `Sidebar(width, glass, corner_radius)`，
-`SidebarItem(label, key, icon, active)`
+**参数:** `Sidebar(*children, width, glass, corner_radius)`，
+`SidebarItem(label, key, icon, active)` — `*children` 为
+`SidebarItem` / `SidebarGroup` / `Pane` / `(label, panel)` 元组。
 
-点击条目任意位置（包括图标与文字）都生效——条目级事件会从其子元素冒泡上来。
+`Pane.key` 默认为随机 id——标签永不冲突，即使重复或非 ASCII；想要可读标识符时显式传 `key`。`shortcut` 与 `Page.on_shortcut` 同格式；快捷键切换如同点击一样触发 `change`。`selected_key` 对未知 key 抛 `ValueError`；设为 `None` 清空选择。点击条目任意位置（包括图标与文字）都生效——条目级事件会从其子元素冒泡上来。
+
+### `Pane`
+
+一个可选的 `Sidebar` 条目及其内容面板。
+
+```python
+pane = Pane("首页", panel=home_panel, icon="🏠", section="常用", shortcut="Ctrl+1")
+```
+
+**参数:** `Pane(label, panel, key, icon, section, shortcut)` —
+`label` 为条目文字（第一个位置参数）；`panel` 为激活时显示的组件（或元素），注册时构建一次（一个面板组件不能挂到两个 sidebar）；`key` 默认为随机 id；`section` 把连续同节的 pane 归入一个小号大写侧边栏标签下；`shortcut` 为窗口级组合键（`"Ctrl+1"` 或平台 dict 如 `{"darwin": "Meta+2", "default": "Ctrl+2"}`）。
+
+### `SidebarGroup`
+
+`Sidebar` 的分组小节——条目上方的小号大写标签。
+
+```python
+sidebar.add(SidebarGroup("菜单", SidebarItem("打开"), SidebarItem("保存")))
+```
+
+`SidebarGroup.add` 可链式调用，且组挂到 sidebar 之后仍可用（新增条目自动接线）。组纯属视觉：选择、`items` 与 `change` 都按 DOM 顺序作用于扁平的条目列表。连续共享同一 `section` 的 pane 渲染为一个组；同名 section 稍后重现则另起一组。
 
 ---
 
@@ -793,7 +876,9 @@ panel.bind_visible(count)  # 假值时 display: none
 
 ### `Component.bind_value` — 值双向绑定
 
-`bind_value(signal)` 把 Signal 绑定到组件的**值**上，双向同步：
+`bind_value(signal)` 把 Signal 绑定到组件的**值**上，双向同步。它适合
+直接的状态同步；如果流程需要事件上下文、条件分支、异步副作用或
+批量更新，不要用它替代事件处理器：
 
 ```python
 name = Signal("")
@@ -816,6 +901,22 @@ cb.bind_value(flag)  # 绑定的是 checked 而非 value
   `change`：Select/Checkbox)；Progress 无用户通道，只写
 - `unbind_value()` / `unbind()` 释放绑定；程序化写值不触发回调，
   循环天然闭合(用户 → Signal → 写回相同值不再分发)
+
+复杂流程可以在绑定之外保留命名事件处理器：
+
+```python
+flag = Signal(False)
+switch = Switch("同步")
+switch.bind_value(flag)  # 简单状态同步
+
+
+async def on_sync_change(event: DomEvent) -> None:
+    await sync_remote(bool(event.value))
+    status.set("已同步")
+
+
+switch.on_change(on_sync_change)
+```
 
 ### 脏子树追踪
 

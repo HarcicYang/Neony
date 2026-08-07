@@ -79,6 +79,11 @@ class Switch(Component):
     #: Component.on() must not wire these again.
     _bound_events: frozenset[str] = frozenset({"change", "focus", "blur"})
 
+    #: bind_value binds ``checked`` (there is no ``value``); the change
+    #: event carries the new bool.
+    _value_prop: str = "checked"
+    _value_event: str | None = "change"
+
     """A labelled on/off switch with internal ``checked`` state.
 
     - ``switch.checked`` reads / sets state (immediate DOM write,

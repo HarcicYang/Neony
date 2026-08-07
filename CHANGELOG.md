@@ -4,6 +4,58 @@
 
 ### Added
 
+- **Sidebar owns its content panes** — `Sidebar` accepts `Pane`
+  models (or `(label, panel)` tuples) and swaps the visible pane
+  internally, exactly like `Tabs`; pane roots are cached and reused
+  (build-once absorbed). Per-pane optional `shortcut` combos are
+  collected via `Sidebar.shortcuts()` for `Page.on_shortcut` wiring.
+- **`SidebarGroup`** — titled sidebar sections; consecutive `Pane`s
+  sharing a `section` auto-group under one small uppercase label.
+  `SidebarGroup.add` works after attachment (items wired automatically).
+- **Object-level selection** — `Sidebar.selected` binds the registered
+  `Pane`/`SidebarItem` object; `Tabs.selected_panel` binds the panel;
+  `selected_key`/`selected_title` select by string. `RadioGroup` gains
+  a `selected_key` alias of `value`.
+- **`bind_selected()`** — two-way `Signal` binding on selection
+  components (Sidebar, Tabs), mirroring `bind_value`.
+- **Constructor children** — `Tabs(*panes)` and `Page.add(*children)`.
+- **`Styles` fields** — `text_transform`, `letter_spacing` (used by the
+  `SidebarGroup` label).
+- **Selection and value bindings** — `Switch` and `Dropdown` now support
+  two-way `bind_value`; `ComboBox` writes through both `input` and `change`
+  channels; `Tabs` exposes `selected_key`.
+- **Theme mode metadata** — `Theme.modes` and `Theme.mode_label()` expose
+  the toggle order without duplicating mode labels in applications.
+
+### Changed
+
+- **Progress constructor order** — `Progress(label, *, value=..., max=...)`
+  puts the human-readable label first; existing keyword calls are unchanged.
+- **Reactive examples use two complementary paths** — simple state echoes use
+  `Signal` and `bind_*`, while event handlers remain the supported choice for
+  asynchronous work, event context, branching, and multiple side effects.
+
+- **`Tabs.active_key` now returns the tab title** — it previously
+  returned an opaque element id. `active`/`active_key` are deprecated
+  aliases of `selected_panel`/`selected_title`.
+- **Unknown selection keys raise** — `Sidebar.selected_key` /
+  `Tabs.selected_title` raise `ValueError` for unknown keys (previously
+  a silent no-op); `Tabs.selected_panel` raises for unregistered panels.
+- **`Pane.key` defaults to a random id** — labels never collide (even
+  when duplicated or non-ASCII); pass an explicit `key` for a readable
+  identifier. `SidebarItem.key` keeps its lowercased-label default.
+- **`Tabs.on_change` carries the tab title** — `event.value` was
+  previously `None`; shortcuts dispatch with `source == "user"`.
+
+### Deprecated
+
+- `Sidebar.active_key`, `Tabs.active` / `Tabs.active_key` — use the
+  `selected_*` API.
+
+### Fixed
+
+- **`Tabs.active_key` fix** — the documented "key of active panel"
+  returned a random element id; it now returns the tab title.
 - **Reactive primitives** (`neony.dom`) — `Signal`, `Computed`, `Effect`,
   `batch()`, `untrack()`, `SharedSignal`. Automatic dependency tracking,
   cached derived values, coalesced re-runs. A crashing effect inside a

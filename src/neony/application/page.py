@@ -3,20 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 from collections.abc import Callable
 from typing import Any, Literal, Self
 
 from neony.dom import Color, Div, DOMElement, DomEvent, Styles
 
+from . import shortcuts
 from .elements import Component
 
 _Direction = Literal["row", "row-reverse", "column", "column-reverse"]
 _Align = Literal["stretch", "center", "flex-start", "flex-end", "baseline"]
 _Justify = Literal["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"]
-
-# Shortcut modifier tokens → DomEvent modifier field names.
-_MODIFIER_ATTRS = {"ctrl": "ctrl_key", "shift": "shift_key", "alt": "alt_key", "meta": "meta_key"}
 
 
 class Page:
@@ -67,9 +64,9 @@ class Page:
 
     # ---- public API ----
 
-    def add(self, child: Component | DOMElement) -> Page:
-        """Append a component or raw DOMElement to the page."""
-        self._children.append(child)
+    def add(self, *children: Component | DOMElement) -> Page:
+        """Append one or more components or raw DOMElements to the page."""
+        self._children.extend(children)
         return self
 
     def on_close(self, fn: Callable) -> Self:
@@ -167,55 +164,10 @@ class Page:
         against ``event.key``.  All listed modifiers must be pressed and
         no others — ``Ctrl+Shift+S`` never fires a ``"Ctrl+S"`` binding.
         """
-        resolved = self._resolve_combo(combo)
-        self._parse_combo(resolved)  # fail fast on typos at registration
+        resolved = shortcuts.resolve_combo(combo)
+        shortcuts.parse_combo(resolved)  # fail fast on typos at registration
         self._shortcut_handlers.append((resolved, fn))
         return self
-
-    @staticmethod
-    def _resolve_combo(combo: str | dict[str, str]) -> str:
-        if isinstance(combo, str):
-            return combo
-        if sys.platform in combo:
-            return combo[sys.platform]
-        if "default" in combo:
-            return combo["default"]
-        raise ValueError(f"on_shortcut: no entry for platform {sys.platform!r}; add a 'default' key to the combo dict")
-
-    @staticmethod
-    def _parse_combo(combo: str) -> tuple[set[str], str]:
-        """Split ``"Ctrl+Shift+S"`` into (modifier set, key)."""
-        parts = [p for p in combo.split("+") if p]
-        if len(parts) < 2:
-            raise ValueError(f"on_shortcut: {combo!r} must be MODIFIER+KEY, e.g. 'Ctrl+S'")
-        modifiers: set[str] = set()
-        for part in parts[:-1]:
-            norm = part.lower()
-            if norm not in _MODIFIER_ATTRS:
-                raise ValueError(
-                    f"on_shortcut: unknown modifier {part!r} in {combo!r} (expected Ctrl / Shift / Alt / Meta)"
-                )
-            modifiers.add(norm)
-        return modifiers, parts[-1].lower()
-
-    @classmethod
-    def _match_shortcut(cls, evt: DomEvent, combo: str) -> bool:
-        """True when *evt* (a keydown) exactly matches *combo*: all listed
-        modifiers pressed, none extra, key equal case-insensitively."""
-        if evt.type != "keydown" or evt.value is None:
-            return False
-        want_mods, want_key = cls._parse_combo(combo)
-        pressed = {m for m, attr in _MODIFIER_ATTRS.items() if getattr(evt, attr)}
-        return pressed == want_mods and evt.value.lower() == want_key
-
-    async def _dispatch_shortcuts(self, evt: DomEvent) -> None:
-        """Keydown handler attached to the page root — fire every
-        matching shortcut (sync or async handler)."""
-        for combo, fn in self._shortcut_handlers:
-            if self._match_shortcut(evt, combo):
-                result = fn()
-                if asyncio.iscoroutine(result):
-                    await result
 
     # ---- navigation & download policies ----
 
@@ -317,3 +269,12 @@ class Page:
             if self._keyup_handlers:
                 root.on("keyup", self._dispatch_keyup)
         return root
+
+    async def _dispatch_shortcuts(self, evt: DomEvent) -> None:
+        """Keydown handler attached to the page root — fire every
+        matching shortcut (sync or async handler)."""
+        for combo, fn in self._shortcut_handlers:
+            if shortcuts.match_shortcut(evt, combo):
+                result = fn()
+                if asyncio.iscoroutine(result):
+                    await result
