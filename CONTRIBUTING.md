@@ -78,18 +78,27 @@ sudo apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 uv run demo_gallery.py              # component gallery demo
 uv run demo_custom_window.py        # frameless window demo
 uv run demo_multi_window.py         # multi-window demo
-uv run pytest -q                    # test suite
+uv run pytest -q                    # Python test suite
 uv run ruff check .                 # lint
 uv run ruff format .                # format
 uv run pyrefly check                # type check
+npm test                            # JS runtime tests (vitest + jsdom)
 ```
+
+The JS runtime (event delegation, the patch engine, the synthetic
+`outsideclick`) has its own test suite under `tests/js/`, run with
+`npm test` (vitest in jsdom; `node_modules/` is vendored, so no
+`npm install` is needed). CI runs it as a separate `test-js` job. New
+**Python** components usually don't need JS tests — reach for them only
+when you change `src/neony/javascript/*`.
 
 ---
 
 ## Before submitting
 
 1. **Run the checks** — `ruff check`, `ruff format --check`, `pyrefly
-   check` and `pytest` must all pass. CI runs the same commands.
+   check`, `pytest`, and `npm test` must all pass. CI runs the same
+   commands (Python checks in the `test` job, JS in the `test-js` job).
 2. **Add tests** — bug fixes need a regression test; new components need
    coverage of build/state/events (see `tests/test_components.py` for
    the patterns).

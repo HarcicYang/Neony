@@ -104,6 +104,10 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `GlassPanel`              | 毛玻璃容器，可选背景图                                         |
 | `TitleBar`                | 无边框窗口的自定义标题栏 — 拖动、最小化 / 最大化 / 关闭        |
 | `Sidebar` / `SidebarItem` | 垂直导航栏，与 TitleBar 同款玻璃风格                           |
+| `Image`                   | 主题化图片，圆角 overflow-hidden 框架（`src` 为任意 URL）     |
+| `Avatar`                  | 用户头像 — 图片 / 字母占位 / 空占位，可选角标 `badge`         |
+| `Badge`                   | 状态标签或角标计数 — 多变体、状态点、`99+` 截断、0 自动隐藏    |
+| `Card`                    | 带标题的内容卡片 — 操作区、页脚、可选毛玻璃 `glass` 表面       |
 
 所有组件共享链式 API，用法见 [API 参考](docs/api.zh.md)。
 

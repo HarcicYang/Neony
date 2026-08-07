@@ -427,6 +427,86 @@ menu.on_change(lambda e: print(e.value))
 
 ---
 
+### `Image`
+
+```python
+from neony.application.urls import file_url, data_url
+
+img = Image(file_url("cover.png"), width=120, height=120, fit="cover", radius="12px")
+img.src = data_url("other.svg")  # 任意 URL 字符串
+```
+
+包裹单个 `<img>` 的主题化框架。`src` 是**已拼好的 URL**——本地文件传
+`file_url(path)`，嵌入字节传 `data_url(path)`，或任意 `https://` URL；
+组件自身不做任何路径转换（这个边界交给调用方）。圆角、overflow-hidden
+的框架包裹图片，让 `object-fit` 能裁切到圆角，字节到达前显示占位色。
+`width`/`height` 接受 `str`（`"40%"`）或 `int`（→ `"40px"`）。`fit` 即
+`object-fit`（`cover`/`contain`/`fill`/`none`/`scale-down`）；传
+`radius="50%"` 得到圆形。`src` 与 `alt` 构造后可改。
+
+### `Avatar`
+
+```python
+av = Avatar("https://…/me.png", name="Ada Lovelace", size="56px")
+letter = Avatar(name="Ada", size="40px")  # → 强调色圆盘上的 "A"
+unknown = Avatar()  # → "?" 占位
+inbox = Avatar(src, name="收件箱", badge=Badge(3, position="top-right"))
+```
+
+用户头像——图片、字母或占位。有 `src` 显示图片（`object-fit: cover`
+裁切）；只有 `name` 时回退到首字符（大写）显示在强调色圆盘上；都没有
+则显示 `?` 占位。`shape` 为 `circle`（默认）或 `square`；`radius` 覆写
+形状的圆角。`alt` 覆写图片 alt 文字（否则用 `name`）。可选的 `badge`
+（一个角标 `Badge`）叠加其上——Avatar 会把自己包进 relative inline-flex
+容器，让角标能锚到某个角。`src`、`name`、`size` 构造后可改。
+
+### `Badge`
+
+```python
+Badge("New", variant="accent")  # 内联标签
+Badge(150)  # → "99+"（默认 max=99）
+Badge(0)  # 隐藏（display:none）；Badge(0, show_zero=True) 显示
+Badge(dot=True)  # 状态点，无文字
+Badge(3, position="top-right")  # 角标计数——需要 position:relative 的父容器
+```
+
+小型状态标签或角标计数——一个类两种形态。`position="inline"`（默认）是
+随文档流的标签，按 `variant` 染色（默认 `neutral`，可选 `accent`、
+`danger`、`success`）。其他 `position`（`top-right`、`top-left`、
+`bottom-right`、`bottom-left`）把标签绝对定位成角标——**组件假定父容器是
+`position: relative`**（带 `badge=` 的 `Avatar`，或一个 wrapper `Div`）；
+`overlap=True` 把它推得更远（`-12px`）以覆盖父元素边缘。整数内容有两点
+便利：超过 `max`（默认 99）的计数折叠成 `"99+"`；零计数默认隐藏，除非
+`show_zero=True`（节点保留，便于切回显）。`dot=True` 去掉文字，只留状态
+点。`content`、`variant`、`dot` 构造后可改。
+
+### `Card`
+
+```python
+card = Card(
+    Text("正文里放任意子元素。"),
+    title="我的卡片",
+    subtitle="可选副标题",
+    actions=[Button("编辑")],
+    footer=[Button("取消"), Button("确定")],
+    glass=True,
+    role="accent",
+)
+card.title = "已重命名"
+```
+
+带标题的内容卡片。`*body` 是卡片正文（组件、DOM 元素或字符串）。
+`title` / `subtitle` 自动生成 header（一个 `Heading` + 可选的次要 `Text`）；
+自定义的 `header=` 会完全替换标题行（且优先级高于 `title`/`subtitle`/
+`actions`）。`actions` 是 header 行右侧右对齐的按钮；`footer` 是按钮列表
+（右对齐、分隔线之上）或任意内容节点。`glass=True` 把实色表面换成按
+`role` 着色的毛玻璃面板（默认 `neutral`，可选 `accent`、`danger`、
+`success`——辉光跟随主题）。`clickable=True` 让整张卡片可点击
+（`cursor: pointer` + `on_click`）。`title` 与 `subtitle` 构造后可改。
+Card 保留自己紧凑的样式常量（不包裹 `GlassPanel`），默认就很轻。
+
+---
+
 ## 布局
 
 ```python

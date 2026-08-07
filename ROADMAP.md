@@ -41,7 +41,7 @@ Planned work, roughly in priority order.
 - [x] **Form controls** — Radio/RadioGroup, Switch, Select, ComboBox, Slider, Progress
 - [x] **Overlays** — Dialog (fixed scrim + centered glass panel; scrim/Escape/✕/outsideclick close), Tooltip (anchor-relative, placement + delay, zero measurement), Dropdown (Select's popup pattern, full keyboard nav), Menu (`open_at(x, y)` from contextmenu coords)
 - [ ] **Data views** — DataTable, List, Tree
-- [ ] **Content** — Card, Avatar, Badge, Image
+- [x] **Content** — Card (titled content panel; actions/footer; optional glass), Avatar (image/initial/placeholder + optional corner badge), Badge (pill or corner count; dot; 99+ clamp; zero hides), Image (rounded overflow-hidden frame; `src` is any URL)
 
 ## Animation
 

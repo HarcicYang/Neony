@@ -70,23 +70,35 @@ sudo apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 uv run demo_gallery.py              # 组件画廊示例
 uv run demo_custom_window.py        # 无边框窗口示例
 uv run demo_multi_window.py         # 多窗口示例
-uv run pytest -q                    # 测试套件
+uv run pytest -q                    # Python 测试套件
 uv run ruff check .                 # 代码检查
 uv run ruff format .                # 格式化
 uv run pyrefly check                # 类型检查
+npm test                            # JS 运行时测试（vitest + jsdom）
 ```
+
+JS 运行时（事件委托、diff 引擎、合成的 `outsideclick`）有自己的测试套件，
+位于 `tests/js/`，用 `npm test` 运行（jsdom 环境下的 vitest；`node_modules/`
+已随仓库提供，无需 `npm install`）。CI 把它作为独立的 `test-js` job 运行。
+新增 **Python** 组件通常不需要写 JS 测试——只有改了
+`src/neony/javascript/*` 才需要补充用例。
 
 ---
 
 ## 提交前
 
 1. **运行全部检查** — `ruff check`、`ruff format --check`、
-   `pyrefly check` 与 `pytest` 必须全部通过。CI 运行同样的命令。
+   `pyrefly check`、`pytest` 与 `npm test` 必须全部通过。CI 运行同样的
+   命令（Python 检查在 `test` job，JS 在 `test-js` job）。
 2. **补充测试** — bug 修复需要回归测试;新组件需要覆盖构建/状态/
    事件(参见 `tests/test_components.py` 中的模式)。
 3. **更新文档** — 行为有可见变化时更新 README(两种语言);API 变化
    更新 `docs/api.en.md` / `docs/api.zh.md`。
-4. **更新 CHANGELOG** — 在 `CHANGELOG.md` 的未发布章节添加条目。
+4. **遵循 Conventional Commits** — 提交信息加类型与可选 scope 前缀:
+   `feat(scope):`、`fix(scope):`、`perf(scope):`、`refactor(scope):`、
+   `docs:`、`chore:`、……。每次推送 `v*` tag 时,git-cliff 会从提交信息
+   自动生成 changelog(`CHANGELOG.md`)与 GitHub release 描述——无需手动
+   编辑 changelog。
 
 ## Pull Request 流程
 

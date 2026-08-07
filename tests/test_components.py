@@ -2,11 +2,15 @@
 
 from neony.application import Page, Theme
 from neony.application.elements import (
+    Avatar,
+    Badge,
     Button,
+    Card,
     Checkbox,
     ComboBox,
     Dialog,
     Dropdown,
+    Image,
     Input,
     Menu,
     Progress,
@@ -31,6 +35,25 @@ def _find_by_key(node: NodeDescriptor, key: str) -> NodeDescriptor | None:
         found = _find_by_key(child, key)
         if found:
             return found
+    return None
+
+
+def _walk(node: NodeDescriptor):
+    yield node
+    for child in node.children:
+        yield from _walk(child)
+
+
+def _contains_text(node: NodeDescriptor, text: str) -> bool:
+    """True when any node in the subtree carries ``text`` as its text content."""
+    return any(n.text == text for n in _walk(node))
+
+
+def _find_button(node: NodeDescriptor, label: str) -> NodeDescriptor | None:
+    """Find a <button> leaf whose text matches ``label``."""
+    for n in _walk(node):
+        if n.tag == "button" and _contains_text(n, label):
+            return n
     return None
 
 
@@ -1315,6 +1338,20 @@ class TestAccentColorStyle:
         assert "accent-color: var(--color-accent)" in div.build()
 
 
+class TestObjectFitStyle:
+    """The Styles.object_fit field serializes to object-fit (kebab-case)."""
+
+    def test_object_fit_serializes(self):
+        from neony.dom import Div, Img, Styles
+
+        styles = Styles(object_fit="cover")
+        assert styles.object_fit == "cover"
+        # end-to-end: the camel/snake field name becomes kebab-case CSS,
+        # carried through on both a generic div and an <img>.
+        assert "object-fit: cover" in Div(styles=styles).build()
+        assert "object-fit: cover" in Img(src="x", styles=styles).build()
+
+
 class TestSidebarItemBoundEvents:
     """SidebarItem declares its bound events — on_click must not
     double-wire the root (regression for the missing _bound_events)."""
@@ -1968,3 +2005,324 @@ class TestMenuEvents:
         menu.open_at(0, 0)
         asyncio.run(menu._root._handlers["outsideclick"][0](DomEvent(key=menu._root.key, type="outsideclick")))
         assert menu._open is False
+
+
+class TestImageBuild:
+    """Image wraps an <img> in a rounded, overflow-hidden frame."""
+
+    def test_image_build(self):
+        img = Image("http://x/y.png", alt="cat")
+        node = img.build().to_node()
+        assert node.tag == "div"  # the frame
+        assert len(node.children) == 1
+        inner = node.children[0]
+        assert inner.tag == "img"
+        assert inner.attrs["src"] == "http://x/y.png"
+        assert inner.attrs["alt"] == "cat"
+        assert inner.attrs["loading"] == "lazy"
+        assert inner.styles["object-fit"] == "cover"
+        assert inner.styles["width"] == "100%"
+        assert inner.styles["height"] == "100%"
+
+    def test_frame_crops_and_tints(self):
+        img = Image("x")
+        node = img.build().to_node()
+        assert node.styles["overflow"] == "hidden"
+        assert node.styles["border-radius"] == "8px"
+        # Default placeholder tint is the raised-surface token.
+        assert node.styles["background-color"] == "var(--color-surface-raised)"
+
+    def test_fit_serializes(self):
+        node = Image("x", fit="contain").build().to_node()
+        assert node.children[0].styles["object-fit"] == "contain"
+
+    def test_int_width_to_px(self):
+        node = Image("x", width=120, height=80).build().to_node()
+        assert node.styles["width"] == "120px"
+        assert node.styles["height"] == "80px"
+
+    def test_str_width_passes_through(self):
+        node = Image("x", width="40%", height="auto").build().to_node()
+        assert node.styles["width"] == "40%"
+        assert node.styles["height"] == "auto"
+
+    def test_radius_round(self):
+        node = Image("x", radius="50%").build().to_node()
+        assert node.styles["border-radius"] == "50%"
+
+    def test_loading_attribute(self):
+        node = Image("x", loading="eager").build().to_node()
+        assert node.children[0].attrs["loading"] == "eager"
+
+    def test_placeholder_hex_and_token(self):
+        # Component.build() returns the DOMElement; DOMElement.build()
+        # renders the HTML string.
+        assert "background-color: #333333" in Image("x", placeholder="#333333").build().build()
+        assert "background-color: transparent" in Image("x", placeholder="transparent").build().build()
+
+
+class TestImageState:
+    def test_src_setter_writes_dom(self):
+        img = Image("a")
+        img.src = "b"
+        assert img.src == "b"
+        assert img._img.src == "b"
+
+    def test_alt_setter_writes_dom(self):
+        img = Image("a")
+        img.alt = "new alt"
+        assert img.alt == "new alt"
+        assert img._img.alt == "new alt"
+
+
+class TestBadgeBuild:
+    """Badge — inline pill or corner count."""
+
+    def test_inline_neutral_default(self):
+        b = Badge("New").build().to_node()
+        assert b.tag == "span"
+        assert b.text == "New"
+        assert b.styles["display"] == "inline-flex"
+        assert b.styles["background-color"] == "var(--color-surface-raised)"
+        assert b.styles["color"] == "var(--color-text-secondary)"
+        assert "position" not in b.styles or b.styles.get("position") is None
+
+    def test_variant_colors(self):
+        assert Badge("x", variant="accent").build().to_node().styles["background-color"] == "var(--color-accent)"
+        assert Badge("x", variant="danger").build().to_node().styles["background-color"] == "var(--color-danger)"
+        assert Badge("x", variant="success").build().to_node().styles["background-color"] == "var(--color-success)"
+        # accent/danger/success use white text
+        assert Badge("x", variant="accent").build().to_node().styles["color"] == "white"
+
+    def test_dot_renders_no_text(self):
+        b = Badge(dot=True).build().to_node()
+        assert b.text is None  # empty container
+        assert b.styles["display"] == "inline-block"
+        assert b.styles["width"] == "8px"
+        assert b.styles["height"] == "8px"
+        # Dot coloured by variant (default neutral → raised token).
+        assert b.styles["background-color"] == "var(--color-surface-raised)"
+
+    def test_corner_position_is_absolute(self):
+        b = Badge(3, position="top-right").build().to_node()
+        assert b.styles["position"] == "absolute"
+        assert b.styles["top"] == "-6px"
+        assert b.styles["right"] == "-6px"
+        assert b.styles["z-index"] == "10"
+        assert b.styles["box-shadow"] == "0 0 0 2px var(--color-bg)"
+
+    def test_corner_overlap_pushes_further(self):
+        b = Badge(3, position="top-right", overlap=True).build().to_node()
+        assert b.styles["top"] == "-12px"
+        assert b.styles["right"] == "-12px"
+
+    def test_max_overflow_format(self):
+        assert Badge(150, max=99).build().to_node().text == "99+"
+        assert Badge(5, max=99).build().to_node().text == "5"
+
+    def test_zero_hidden_by_default(self):
+        assert Badge(0).build().to_node().styles["display"] == "none"
+        assert Badge(0, show_zero=True).build().to_node().styles["display"] == "inline-flex"
+
+    def test_string_content_not_clamped(self):
+        assert Badge("999").build().to_node().text == "999"
+
+
+class TestBadgeState:
+    def test_content_setter_updates_text_and_visibility(self):
+        b = Badge(5)
+        b.content = 0
+        assert b.build().to_node().styles["display"] == "none"
+        # build() can only run once — a fresh instance checks the clamp.
+        b2 = Badge(5)
+        b2.content = 200
+        assert b2.build().to_node().text == "99+"
+
+    def test_variant_setter_swaps_color(self):
+        b = Badge("x")
+        b.variant = "danger"
+        assert b.build().to_node().styles["background-color"] == "var(--color-danger)"
+
+    def test_dot_setter_switches_shape(self):
+        b = Badge("x")
+        b.dot = True
+        node = b.build().to_node()
+        assert node.text is None
+        assert node.styles["display"] == "inline-block"
+
+
+class TestAvatarBuild:
+    """Avatar — image, initial, or placeholder in a clipped disc."""
+
+    def test_image_avatar_renders_img(self):
+        a = Avatar("u.png", name="alice").build().to_node()
+        assert a.tag == "div"
+        assert len(a.children) == 1
+        img = a.children[0]
+        assert img.tag == "img"
+        assert img.attrs["src"] == "u.png"
+        assert img.attrs["alt"] == "alice"  # name used as alt
+        assert img.styles["object-fit"] == "cover"
+
+    def test_letter_avatar_initial(self):
+        a = Avatar(name="alice bob").build().to_node()
+        span = a.children[0]
+        assert span.tag == "span"
+        assert span.text == "A"
+        assert span.styles["color"] == "white"
+
+    def test_unknown_name_falls_back(self):
+        assert Avatar().build().to_node().children[0].text == "?"
+        assert Avatar(name="   ").build().to_node().children[0].text == "?"
+
+    def test_circle_default_radius(self):
+        assert Avatar("u").build().to_node().styles["border-radius"] == "50%"
+
+    def test_square_shape(self):
+        assert Avatar("u", shape="square").build().to_node().styles["border-radius"] == "8px"
+
+    def test_custom_radius_overrides(self):
+        assert Avatar("u", radius="4px").build().to_node().styles["border-radius"] == "4px"
+
+    def test_size_sets_both_dims(self):
+        n = Avatar("u", size="64px").build().to_node()
+        assert n.styles["width"] == "64px"
+        assert n.styles["height"] == "64px"
+
+    def test_flex_shrink_zero(self):
+        # Prevents the avatar being squeezed in an HStack.
+        assert Avatar("u").build().to_node().styles["flex-shrink"] == "0"
+
+    def test_no_border(self):
+        assert "border" not in Avatar("u", border=False).build().to_node().styles
+
+    def test_alt_overrides_name(self):
+        assert Avatar("u", name="alice", alt="photo").build().to_node().children[0].attrs["alt"] == "photo"
+
+    def test_badge_overlay_wraps_relative(self):
+        av = Avatar("u", badge=Badge(3, position="top-right"))
+        n = av.build().to_node()
+        assert n.styles["position"] == "relative"
+        assert len(n.children) == 2  # inner disc + badge
+
+
+class TestAvatarState:
+    def test_src_setter_switches_letter_to_image(self):
+        # build() runs once; the setter mutates the already-built inner disc.
+        av = Avatar(name="A")
+        av.build()
+        assert av._inner.container[0].build().startswith("<span")  # type: ignore[union-attr]
+        av.src = "u.png"
+        assert av._inner.container[0].build().startswith("<img")  # type: ignore[union-attr]
+
+    def test_name_setter_updates_initial(self):
+        av = Avatar(name="A")
+        av.build()
+        av.name = "Bob"
+        assert av._inner.container[0].to_node().text == "B"  # type: ignore[union-attr]
+
+    def test_size_setter_writes_styles(self):
+        av = Avatar("u")
+        av.build()
+        av.size = "80px"
+        styles = av._inner.styles
+        assert styles.width == "80px"
+        assert styles.height == "80px"
+
+
+class TestCardBuild:
+    """Card — titled content panel, optional glass / actions / footer."""
+
+    def test_card_body_only(self):
+        c = Card(Text("hi")).build().to_node()
+        assert c.tag == "div"
+        assert c.styles["background-color"] == "var(--color-surface)"
+        assert c.styles["border"] == "1px solid var(--color-border)"
+        assert len(c.children) == 1  # body only
+
+    def test_card_title_creates_header(self):
+        c = Card(Text("x"), title="T").build().to_node()
+        assert len(c.children) == 2  # header + body
+        # The header is a VStack; find the Heading text inside it.
+        assert _contains_text(c.children[0], "T")
+
+    def test_card_subtitle(self):
+        c = Card(Text("x"), title="T", subtitle="S").build().to_node()
+        assert _contains_text(c.children[0], "S")
+
+    def test_card_actions_right_align(self):
+        c = Card(Text("x"), title="T", actions=[Button("Edit")]).build().to_node()
+        header = c.children[0]
+        # Header is an HStack; the last leaf should be the button.
+        assert _find_button(header, "Edit") is not None
+
+    def test_card_footer_separator_plus_buttons(self):
+        c = Card(Text("x"), footer=[Button("OK")]).build().to_node()
+        assert len(c.children) == 3  # body + separator + footer
+        assert c.children[1].tag == "div"  # separator renders as a div
+        assert _find_button(c.children[2], "OK") is not None
+
+    def test_card_glass_swaps_style(self):
+        c = Card(Text("x"), glass=True).build().to_node()
+        assert c.styles["background-color"] == "var(--color-surface-panel-glass-bg)"
+        assert "blur" in c.styles["backdrop-filter"]
+
+    def test_card_role_glow(self):
+        c = Card(Text("x"), glass=True, role="accent").build().to_node()
+        assert "var(--color-accent-glass)" in c.styles["box-shadow"]
+
+    def test_card_custom_header_overrides_title(self):
+        c = Card(Text("x"), title="ignored", header=Text("custom")).build().to_node()
+        header = c.children[0]
+        assert header.tag == "span" and header.text == "custom"
+        assert not _contains_text(header, "ignored")
+
+    def test_card_clickable_adds_cursor(self):
+        c = Card(Text("x"), clickable=True).build().to_node()
+        assert c.styles["cursor"] == "pointer"
+
+    def test_card_width(self):
+        assert Card(Text("x"), width="320px").build().to_node().styles["width"] == "320px"
+
+
+class TestCardState:
+    def test_title_setter_updates_heading(self):
+        card = Card(Text("x"), title="A")
+        card.build()
+        assert card._title_heading is not None
+        card.title = "B"
+        assert card._title_heading.text == "B"
+
+    def test_subtitle_setter(self):
+        card = Card(Text("x"), title="A", subtitle="old")
+        card.build()
+        assert card._subtitle_text is not None
+        card.subtitle = "new"
+        assert card._subtitle_text.text == "new"
+
+
+class TestCardEvents:
+    """Card declares click in _bound_events — on_click must not double-wire."""
+
+    def test_clickable_fires_click(self):
+        import asyncio
+
+        card = Card(Text("x"), clickable=True)
+        fired: list = []
+        card.on_click(lambda e: fired.append(1))
+        asyncio.run(card._root._handlers["click"][0](DomEvent(key=card._root.key, type="click")))
+        assert fired == [1]
+
+    def test_on_click_does_not_double_wire(self):
+        # Regression: _bound_events={"click"} stops on() lazily wiring a
+        # second handler alongside the one _bind already attached.
+        card = Card(Text("x"), clickable=True)
+        card.on_click(lambda e: None)
+        assert len(card._root._handlers.get("click", [])) == 1
+
+    def test_non_clickable_has_no_click_handler(self):
+        card = Card(Text("x"))
+        card.on_click(lambda e: None)
+        # click is in _bound_events, so on() won't wire it; and the card
+        # wasn't clickable, so _bind never attached one either.
+        assert "click" not in card._root._handlers

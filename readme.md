@@ -107,6 +107,10 @@ Import from `neony.application.elements`.
 | `GlassPanel`              | Frosted-glass container with optional background image                         |
 | `TitleBar`                | Custom window chrome for frameless windows — drag, minimize / maximize / close |
 | `Sidebar` / `SidebarItem` | Vertical navigation rail, glass-matched to the TitleBar                        |
+| `Image`                   | Themed image in a rounded, overflow-hidden frame (`src` is any URL)            |
+| `Avatar`                  | User avatar — image, letter initial, or placeholder, optional corner `badge`   |
+| `Badge`                   | Status pill or corner count — variants, status dot, `99+` clamp, zero hides    |
+| `Card`                    | Titled content panel — actions, footer, optional frosted-glass `glass` surface |
 
 All components share a fluent, chainable API — see the
 [API reference](docs/api.en.md) for usage.
