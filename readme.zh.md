@@ -97,6 +97,9 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Heading`                 | 主题标题(h1–h6)，自动字号                                      |
 | `Text`                    | 内联文本，支持语义角色(primary / secondary / danger / success) |
 | `Tabs`                    | 选项卡栏 + 面板，同时只显示一个 — 构造器子项、`selected_panel` / `selected_title` / `selected_key` |
+| `Accordion` / `Collapsible` | 单列滚动流中的可展开分组 — 流畅 `.section()`、多组同时展开、`expanded_keys`、`on_change` |
+| `Tree` / `TreeNode`       | 可折叠导航树 + 内容宿主 — 任意深度、流畅建造器写法、点叶子在右侧显示其面板 |
+| `Icon`                    | 统一图标 — `Icon.image(url)` 固定方形图片或 `Icon.glyph(text)` 字形，TitleBar / Sidebar / Tabs / Tree 共用 |
 | `Flex`                    | 通用弹性容器，完全控制                                         |
 | `VStack` / `HStack`       | 纵向 / 横向弹性堆叠                                            |
 | `Spacer`                  | 弹性空白，吸收剩余空间                                         |
@@ -157,6 +160,8 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `demo_transparent_panel.py`     | 带原生模糊的透明悬浮面板               |
 | `demo_multi_window.py`          | 共享同一 app 状态的双窗口              |
 | `demo_reactive.py`              | Signal API:声明式绑定替代手动刷新      |
+| `demo_accordion.py`             | Accordion:单列滚动流中的可展开分组     |
+| `demo_tree.py`                  | Tree:可折叠导航树 + 内容宿主           |
 | `demo_tray.py`                  | 系统托盘:原生菜单 + 关闭到托盘模式     |
 | `demo_builder.py`               | 使用 `Page` + 组件 + `launch()` 的最小应用 |
 

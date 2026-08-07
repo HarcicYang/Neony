@@ -244,7 +244,16 @@ class Page:
             # html/body/#neony-root height:100% chain) so chrome layouts
             # cover the whole window.
             outer = outer.model_copy(update={"display": "flex", "height": "100%", "min_height": None})
-            inner = inner.model_copy(update={"flex_grow": "1"})
+            inner = inner.model_copy(
+                update={
+                    "flex_grow": "1",
+                    # Without this, min-height:auto stretches the column
+                    # to its content and inner overflow/scroll containers
+                    # never engage (their ancestors can't shrink below
+                    # the content height).
+                    "min_height": "0",
+                }
+            )
 
         if self._radius is not None:
             # Window-level rounded corners: the outer layer clips the

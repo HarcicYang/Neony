@@ -312,6 +312,38 @@ title string and raises `ValueError` for unknown titles.  `active`
 (index) and `active_key` are deprecated aliases — `active_key` returns
 the tab title (it used to return an opaque element id).
 
+### `Accordion` & `Collapsible`
+
+```python
+accordion = (
+    Accordion(multiple=True)
+    .section("Inputs & Forms", inputs_panel, checks_panel)
+    .section("Layout", layout_panel, expanded=True)
+)
+accordion.on_change(lambda e: print(e.value))  # value = key of toggled section
+accordion.expanded_keys = ["inputs & forms"]  # programmatic — no callback
+accordion.expanded_keys  # list[str], the open sections
+```
+
+A `Collapsible` is one titled row that toggles a content panel between
+hidden and visible; an `Accordion` stacks them in a single scroll flow.
+With `multiple=True` (the default) several sections can stay open; with
+`multiple=False` opening one closes the others. Only the `display`
+property switches — expanding replays the built-in `neony-rise-in`
+entrance animation, so no JS layer is involved.
+
+`Collapsible(title, *content, expanded=False, key=None)` builds a single
+section (also accepted positionally by `Accordion`); `key` defaults to
+the lowercased title and identifies the section in `change` payloads.
+`.section(title, *content, ...)` is the fluent shorthand that builds a
+`Collapsible` and appends it in one call.
+
+Listen with `on_change` (`event.value` is the key of the section the
+user just toggled) and read the full open set with `expanded_keys`.
+`Accordion` does **not** implement `selected_key` / `bind_selected` —
+its selection is multi-valued, which does not fit the single-value
+selection protocol.
+
 ### `Pane` & `SidebarGroup`
 
 See the `Sidebar` section below — `Pane` is the selectable entry the
@@ -660,7 +692,8 @@ titlebar.override_close(confirm_close)  # take over close
 **Options:** `title`, `icon`, `show_minimize`, `show_maximize`,
 `show_close`, `height`
 
-`icon` paints a small image (URL or file path) left of the title — the
+`icon` is an `Icon` — `Icon.image(url_or_path)` paints a small image
+left of the title (a fixed-size square that never stretches), the
 frameless counterpart of `WindowConfig.icon`, since a frameless window
 has no OS chrome to carry it.
 
@@ -676,9 +709,9 @@ pressing its shortcut) swaps the visible pane internally.
 
 ```python
 sidebar = Sidebar(
-    Pane("Home", panel=home_panel, icon="🏠", section="General", shortcut="Ctrl+1"),
-    Pane("Settings", panel=settings_panel, icon="⚙️", section="General"),
-    Pane("Stats", panel=stats_panel, icon="📊", section="Data", shortcut="Ctrl+3"),
+    Pane("Home", panel=home_panel, icon=Icon.glyph("🏠"), section="General", shortcut="Ctrl+1"),
+    Pane("Settings", panel=settings_panel, icon=Icon.glyph("⚙️"), section="General"),
+    Pane("Stats", panel=stats_panel, icon=Icon.glyph("📊"), section="Data", shortcut="Ctrl+3"),
 )
 sidebar.on_change(lambda e: print(e.value))  # value = pane key
 sidebar.selected_key = "settings"  # programmatic, no callback
@@ -692,8 +725,8 @@ user's job:
 
 ```python
 sidebar = Sidebar(
-    SidebarItem("Home", icon="🏠"),
-    SidebarItem("Settings", icon="⚙️"),
+    SidebarItem("Home", icon=Icon.glyph("🏠")),
+    SidebarItem("Settings", icon=Icon.glyph("⚙️")),
     active_key="home",  # deprecated → selected_key
 )
 ```
@@ -715,7 +748,7 @@ or label — count: item-level events bubble up from its children.
 One selectable `Sidebar` entry and its content panel.
 
 ```python
-pane = Pane("Home", panel=home_panel, icon="🏠", section="General", shortcut="Ctrl+1")
+pane = Pane("Home", panel=home_panel, icon=Icon.glyph("🏠"), section="General", shortcut="Ctrl+1")
 ```
 
 **Options:** `Pane(label, panel, key, icon, section, shortcut)` —
@@ -741,6 +774,61 @@ attached to a sidebar (new items are wired automatically).  Groups are
 purely visual: selection, `items`, and `change` all operate on the flat
 entry list in DOM order.  Consecutive panes sharing a `section` render
 as one group; the same section reappearing later starts a new group.
+
+### `Tree` & `TreeNode`
+
+A collapsible navigation tree (left rail) owning a content host (right).
+Arbitrary depth: a branch (a node with `children`) only expands /
+collapses; a leaf (a node with a `panel`) selects into the host.  The
+tree is single-select, so `selected_key` / `bind_selected` behave like
+`Sidebar`.
+
+```python
+tree = Tree(
+    TreeNode("Home", key="home", icon=Icon.glyph("🏠")).panel(home_panel),
+    TreeNode("Forms", expanded=True).children(
+        TreeNode("Inputs", key="inputs", shortcut="Ctrl+1").panel(inputs_panel),
+        TreeNode("Checks", key="checks").panel(checks_panel),
+    ),
+    active_key="home",  # or tree.selected_key = "home"
+)
+tree.on_change(lambda e: print(e.value))  # value = leaf key
+for combo, fn in tree.shortcuts():
+    page.on_shortcut(combo, fn)  # leaf shortcuts, like Sidebar
+```
+
+**Options:** `Tree(*nodes, width, expanded_branches, active_key)` —
+`width` is the rail width (the host adapts to the rest);
+`expanded_branches=True` starts top-level branches open.  Rows mirror
+the `Accordion` header styling — rounded, transparent, no chrome around
+them — and the rail is bounded by the stage, scrolling internally
+instead of growing the page.
+
+`TreeNode(label, key, icon, panel, expanded, children, shortcut)` — a
+node cannot carry both a `panel` and `children` (raises).  Fluent
+builders: `.panel(panel)` attaches a leaf's content, `.children(*nodes)`
+attaches a branch's children, `.key_(key)` sets the key — all chainable.
+
+`key` defaults to a random id; `selected_key` raises `ValueError` for
+unknown keys.  Branches carry `aria-expanded`, leaves `aria-selected`;
+rows are keyboard-navigable (arrows move the focus ring, Enter / Space
+activate, ← / → collapse / expand branches).
+
+### `Icon`
+
+One icon used by `TitleBar`, `Sidebar`/`Pane`/`SidebarItem`, `Tabs` and
+`TreeNode` — either an image or a text glyph, explicitly:
+
+```python
+Icon.image("https://example.com/logo.svg")  # fixed-size square (TitleBar-style)
+Icon.image("assets/logo.png")
+Icon.glyph("🏠")  # emoji / Nerd Font char
+```
+
+**Options:** `Icon(src, kind)` — constructed via `Icon.image(url_or_path)`
+or `Icon.glyph(text)`; `render(size)` produces the element (the image
+form paints a fixed-size square via `background-image: url(...)`,
+contain/center/no-repeat, so it never stretches).
 
 ---
 
