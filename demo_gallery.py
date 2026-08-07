@@ -41,6 +41,7 @@ from neony.application.elements import (
     Input,
     Menu,
     Progress,
+    PromptDialog,
     Radio,
     RadioGroup,
     Select,
@@ -1612,6 +1613,33 @@ async def on_menu_change(event: DomEvent) -> None:
 menu_btn.on_contextmenu(on_menu_contextmenu)
 ctx_menu.on_change(on_menu_change)
 
+# ── PromptDialog: a single-field text prompt ──────────────────────────
+
+prompt = PromptDialog(
+    "What's your name?",
+    title="Identify",
+    placeholder="Ada Lovelace…",
+    value="Ada",
+)
+prompt_status = Text("closed", role="secondary")
+prompt_open_btn = Button("Ask a name")
+
+
+async def on_prompt_open(_event: DomEvent) -> None:
+    prompt.open = True
+
+
+prompt_open_btn.on_click(on_prompt_open)
+prompt.on_open(lambda _d: setattr(prompt_status, "text", "open"))
+prompt.on_close(lambda _d: setattr(prompt_status, "text", "closed"))
+
+
+def on_prompt_submit(value: str) -> None:
+    prompt_status.text = f"submitted: {value!r}"
+
+
+prompt.on_submit(on_prompt_submit)
+
 overlays_panel = Section(
     "Overlays",
     "Four positioned layers — all CSS-anchored, zero measurement. "
@@ -1628,6 +1656,10 @@ overlays_panel = Section(
 dialog.open = True                        # or read the property
 dialog.on_close(lambda d: print("closed"))
 
+ask = PromptDialog("Your name?", value="Ada", placeholder="Type…")
+ask.open = True                           # show it
+ask.on_submit(lambda v: print(f"got {v}"))  # confirm / Enter
+
 tip = Tooltip("hint", anchor=Button("Hover"), placement="top", delay=0.4)
 
 dd = Dropdown("Theme", items=[("dark", "Dark"), ("light", "Light")])
@@ -1638,6 +1670,9 @@ btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y))  # cursor position
 menu.on_change(lambda e: print(e.value))""",
     HStack(Text("Dialog", weight="600"), Spacer(), dialog_open_btn, gap="8px"),
     dialog_status,
+    Separator(),
+    HStack(Text("PromptDialog", weight="600"), Spacer(), prompt_open_btn, gap="8px"),
+    prompt_status,
     Separator(),
     HStack(tip_top, tip_bottom, gap="12px"),
     Separator(),
@@ -1653,6 +1688,7 @@ menu.on_change(lambda e: print(e.value))""",
 # mount them at the page root.
 page.add(dialog)
 page.add(ctx_menu)
+page.add(prompt)
 
 # ── Content components: Card / Avatar / Badge / Image ────────────────
 

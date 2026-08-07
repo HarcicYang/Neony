@@ -389,6 +389,28 @@ dlg.on_close(lambda d: print("closed"))  # 回调接收对话框自身
 `backdrop-filter` / `transform` 祖先会成为 `position: fixed` 的
 containing block —— Dialog 应挂页面根或非过滤容器。
 
+### `PromptDialog`
+
+```python
+ask = PromptDialog(
+    "你的名字是？",  # 输入框上方的提示
+    title="识别",
+    value="Ada",  # 预填；也可通过 ask.value 重置
+    placeholder="输入…",
+)
+ask.open = True  # 或读取该属性
+ask.on_submit(lambda v: print(f"got {v}"))  # 确认 / 回车，携带输入值
+ask.on_close(lambda d: print("closed"))  # 继承自 Dialog
+```
+
+专门用于单行文本输入的 `Dialog`：主题化 scrim + 居中面板，内含一条
+消息、一个 `Input` 输入框与确认 / 取消按钮行。确认（主按钮，或输入框
+聚焦时按 `Enter`）触发 `on_submit` 并携带输入框当前值，然后关闭；
+取消（ghost 按钮、`Escape`、scrim 点击或点击外部）只关闭、不触发。
+`value` 是输入框文字 —— 打开前设置可预填，提交后读取。`prompt`、
+`confirm_label`、`cancel_label`、`placeholder` 均可配置。与 `Dialog`
+相同的 `position: fixed` 注意点 —— 挂页面根。
+
 ### `Tooltip`
 
 ```python

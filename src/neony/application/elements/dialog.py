@@ -204,7 +204,7 @@ class Dialog(Component):
         else:
             self._root.styles = _ROOT_OPEN
             self._scrim.styles = _SCRIM
-            self._panel.styles = self._panel_restore.model_copy(update={"opacity": 0.0})
+            self._panel.styles = self._panel_restore.model_copy(update={"opacity": 0.0, "z_index": -1})
             self._root.args = {k: v for k, v in self._root.args.items() if k != "data-neony-outside"}
             try:
                 self._close_task = asyncio.create_task(self._finish_close())
@@ -215,7 +215,7 @@ class Dialog(Component):
         self._dispatch_pseudo("open" if value else "close")
 
     async def _finish_close(self) -> None:
-        await asyncio.sleep(0.2)  # the reversed fade-slide plays out
+        # await asyncio.sleep(0.2)  # the reversed fade-slide plays out
         if not self._open:
             self._panel.styles = self._panel_restore
             self._root.styles = _ROOT
