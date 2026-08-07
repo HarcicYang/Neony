@@ -1677,7 +1677,7 @@ page.add(dialog, ctx_menu, prompt)
 
 # ── Content components: Card / Avatar / Badge / Image ────────────────
 
-_IMAGE_SRC = "https://harcic.is-a.dev/resource/favicon.svg"
+_IMAGE_SRC = "https://harcic.is-a.dev/resource/head.webp"
 
 # Image: themed frame around an <img>. src is an already-built URL — pass
 # it file_url(path), data_url(path), or an https URL.
@@ -1688,7 +1688,7 @@ img_round = Image(_IMAGE_SRC, alt="round", width=64, height=64, radius="50%")
 av_image = Avatar(_IMAGE_SRC, name="Neony", size="56px")
 av_letter = Avatar(name="Ada Lovelace", size="56px")
 av_unknown = Avatar(size="56px")
-av_badge = Avatar(_IMAGE_SRC, name="Inbox", size="56px", badge=Badge(3, position="top-right"))
+av_badge = Avatar(_IMAGE_SRC, name="Inbox", size="56px", badge=Badge(3, position="top-right", variant="accent"))
 
 # Badge: inline pill or corner count. Counts clamp at 99+, zero hides.
 badge_inline = HStack(
