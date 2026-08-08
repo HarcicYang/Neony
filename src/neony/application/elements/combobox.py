@@ -65,6 +65,8 @@ _PANEL = Styles(
     flex_direction="column",
     padding="6px",
     gap="2px",
+    max_height="calc(100vh - 8px)",
+    overflow="auto",
     border_radius="8px",
     border="1px solid var(--color-border-glass)",
     background_color=Color(var="--color-surface-glass-bg"),
@@ -283,6 +285,12 @@ class ComboBox(Component):
             # events, so a mismatching change is stale: ignore it, or it
             # would clobber the picked value and fire a wrong callback
             # (e.g. a readout stuck on the pre-pick text).
+            #
+            # NOTE: ComboBox is the ONLY value component that gates its
+            # `_value_event` (every other component lets it fall through
+            # to the trailing dispatch).  That is deliberate — the other
+            # inputs have no Tab-focus timing quirk to defend against.
+            # Don't copy this filter into a sibling without the same quirk.
             if str(event.value or "") == self._value:
                 await self._dispatch("change", event)
             return  # stale or not — never fall through to the trailing dispatch

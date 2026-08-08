@@ -136,6 +136,8 @@ class PromptDialog(Dialog):
     async def _on_confirm(self, _event: DomEvent) -> None:
         value = self._field.value
         self.open = False  # close first so callbacks see the closed state
+        # Fire-and-forget like the base pseudo-event path: async submit
+        # callbacks must not block the synchronous close.
         for fn in self._submit_callbacks:
             result = fn(value)
             if asyncio.iscoroutine(result):

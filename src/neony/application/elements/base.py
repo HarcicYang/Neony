@@ -3,13 +3,15 @@
 A Component encapsulates a DOMElement tree (never inherits): it owns
 its state, proxies the fluent event API, and produces a DOMElement via
 :meth:`build`.  User-driven events reach callbacks with ``source ==
-"user"``; programmatic state changes never fire callbacks.
+"user"``; programmatic state changes never fire callbacks — except
+lifecycle pseudo-events (:meth:`_dispatch_pseudo`, e.g. Dialog's
+``open``/``close``), which fire on programmatic writes by design.
 """
 
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any, Self
 
 from neony.dom import DOMElement, DomEvent, Signal, Styles
@@ -91,6 +93,9 @@ class Component:
         self._callbacks: dict[str, list[Callable[..., Any]]] = {}
         self._raw_wired: set[str] = set()
         self._built = False
+        self._component_children: list[Component] = []
+        # Pseudo-event tasks kept alive so they aren't GC'd mid-run.
+        self._pseudo_tasks: set[Any] = set()
         # bind_value state — disposed/removed by unbind().
         self._value_effect: Effect | None = None
         self._value_writers: dict[str, Callable[[DomEvent], Any]] = {}
@@ -98,6 +103,23 @@ class Component:
         self._selected_effect: Effect | None = None
         self._selected_writer: Callable[[DomEvent], Any] | None = None
         self._selected_event_bound: str | None = None
+
+    def _track_component(self, child: Component) -> None:
+        """Register a child Component so Page.build can walk the tree
+        (e.g. to auto-collect child ``shortcuts()``)."""
+        self._component_children.append(child)
+
+    def iter_components(self) -> Iterator[Component]:
+        """Depth-first walk of this component and its registered children."""
+        yield self
+        for child in self._component_children:
+            yield from child.iter_components()
+
+    def shortcuts(self) -> list[tuple[str | dict[str, str], Callable[[], Any]]]:
+        """Window-level ``(combo, handler)`` pairs this component (or its
+        children) exposes; Page.build auto-registers these via
+        ``Page.on_shortcut``.  Subclasses with shortcuts override this."""
+        return []
 
     # ---- build ----
 
@@ -384,3 +406,16 @@ class Component:
             result = fn(event)
             if asyncio.iscoroutine(result):
                 await result
+
+    def _dispatch_pseudo(self, event_type: str, arg: Any) -> None:
+        """Fire a pseudo-event (open/close/submit) to callbacks that
+        receive *arg* (the component itself or a value) instead of a
+        DomEvent.  Async callbacks run as fire-and-forget tasks — the
+        state change is synchronous and must not block on them."""
+        for fn in self._callbacks.get(event_type, []):
+            result = fn(arg)
+            if asyncio.iscoroutine(result):
+                task = asyncio.create_task(result)
+                # Keep a reference so the task isn't GC'd mid-run.
+                self._pseudo_tasks.add(task)
+                task.add_done_callback(self._pseudo_tasks.discard)

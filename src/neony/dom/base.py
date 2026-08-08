@@ -463,6 +463,10 @@ class DOMElement(BaseModel):
                 styles[css_property] = str(v)
                 if css_property == "backdrop-filter":
                     styles["-webkit-backdrop-filter"] = str(v)
+                if css_property == "mask-image":
+                    styles["-webkit-mask-image"] = str(v)
+                if css_property == "mask-size":
+                    styles["-webkit-mask-size"] = str(v)
                 if css_property == "user-select":
                     styles["-webkit-user-select"] = str(v)
                     styles["-moz-user-select"] = str(v)

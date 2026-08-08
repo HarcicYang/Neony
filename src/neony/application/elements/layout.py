@@ -35,6 +35,9 @@ class Flex(Component):
         grow: int = 0,
     ) -> None:
         super().__init__()
+        for child in children:
+            if isinstance(child, Component):
+                self._track_component(child)
         self._root = Div(
             styles=Styles(
                 display="flex",
@@ -149,6 +152,14 @@ class GlassPanel(Component):
     background the panel is two layers — a plain backdrop carries the
     image, since WebKitGTK's ``backdrop-filter`` can swallow an
     element's own background.
+
+    ``grow=True`` stretches the panel to the full height its flex
+    parent allocates (a transparent sizing wrapper carries the
+    ``flex-grow + flex-basis:0 + min-height:0`` chain).  The parent
+    must have a *definite* height — a bare block container with auto
+    height gives the panel nothing to grow into, and a scroll child
+    (e.g. a Tree rail) inside it pushes the page open instead of
+    scrolling internally.
     """
 
     def __init__(
@@ -193,19 +204,26 @@ class GlassPanel(Component):
             border_bottom_left_radius=border_bottom_left_radius,
             border_bottom_right_radius=border_bottom_right_radius,
         )
+        for child in children:
+            if isinstance(child, Component):
+                self._track_component(child)
         children_el = Flex._build_children(children)
         if grow:
             # Stretch to the full available height.  A transparent,
             # styleless wrapper carries the sizing chain (flex-grow +
-            # min-height:0) and the glass face fills it as a flex item
-            # (flex-grow:1 + min-height:0) — so a scroll child (e.g. a
-            # Tree rail) shrinks and scrolls inside instead of growing
-            # the panel past the window.  No height:100% on the face:
+            # flex-basis:0 + min-height:0) and the glass face fills it as
+            # a flex item (same triple) — so a scroll child (e.g. a Tree
+            # rail) shrinks and scrolls inside instead of growing the
+            # panel past the window.  flex-basis:0 pins the height to the
+            # parent's allocation (not the intrinsic content), so a pane
+            # swap can't grow the panel.  No height:100% on the face:
             # a flex item with both flex-grow and height would total
             # more than the wrapper (100% basis + grown space) and
             # overlap its siblings.
             face = Div(
-                styles=glass_styles.model_copy(update={"flex_grow": "1", "min_height": "0"}),
+                styles=glass_styles.model_copy(
+                    update={"flex_grow": "1", "flex_basis": "0", "min_height": "0"}
+                ),
                 container=children_el,
             )
             if background:
@@ -219,6 +237,7 @@ class GlassPanel(Component):
                         display="flex",
                         flex_direction="column",
                         flex_grow="1",
+                        flex_basis="0",
                         min_height="0",
                     ),
                     container=[
@@ -250,6 +269,7 @@ class GlassPanel(Component):
                     display="flex",
                     flex_direction="column",
                     flex_grow="1",
+                    flex_basis="0",
                     min_height="0",
                     # Transparent, styleless sizing wrapper — no paint.
                 ),

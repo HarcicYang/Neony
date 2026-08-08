@@ -28,6 +28,24 @@ Follow the existing `Component` pattern: encapsulate a `DOMElement` tree
 (composition, not inheritance), build it in `__init__` as `self._root`,
 bind events with `_bind()`, sync state in `_on_event()`.
 
+Exceptions and follow-on conventions:
+
+- **Lifecycle pseudo-events are the one exception** — `open`/`close`
+  style pseudo-events (`_dispatch_pseudo`) fire on programmatic writes
+  by design (see `Dialog.open`).
+- **`_bound_events` must equal the event set the component actually
+  dispatches internally** — declaring a type it never dispatches makes
+  the user's `on_*` callbacks dead.
+- **Raw handlers that bypass `_bind` must set `event.source = "user"`
+  manually** (or route through `_bind` so the base tags it).
+- **Scroll-bearing / self-bounding components must be mounted in a
+  definite-height flex parent.** Self-bounding containers use
+  `flex-grow + flex-basis:0 + min-height:0`; scroll elements also need
+  an explicit height basis (`height:100%` on the cross axis). Mounted
+  in an auto-height parent, scrolling breaks and the component pushes
+  the page open. Implement new components this way and state the
+  mounting contract in the docstring.
+
 ### 3. Theming through tokens
 
 Components reference theme colours via `Color(var="--color-*")` so a

@@ -24,6 +24,19 @@ Pull Request 都非常欢迎。本文档说明项目约定与贡献方式。
 (组合而非继承)、在 `__init__` 中构建为 `self._root`、用 `_bind()` 绑定
 事件、在 `_on_event()` 中同步状态。
 
+例外与补充约定:
+
+- **生命周期伪事件**是唯一例外——`open`/`close` 这类伪事件(`_dispatch_pseudo`)
+  在编程式写入时**也会**触发回调,这是有意设计(见 `Dialog.open`)。
+- **`_bound_events` 必须等于组件内部真正 `_dispatch` 过的事件集合**——
+  声明了却从不分发,用户的 `on_*` 回调就是死回调。
+- **绕开 `_bind` 的 raw handler 必须手动 `event.source = "user"`**(或改走
+  `_bind` 让基类自动设)。
+- **滚动/自固定组件必须挂在确定高度 flex 父级**——自固定容器用
+  `flex-grow + flex-basis:0 + min-height:0`;滚动元素还要有显式高度基准
+  (cross-axis 用 `height:100%`)。挂在 auto 高度父级上,滚动会失效、组件
+  会把页面撑开。新组件照此实现并在 docstring 声明挂载契约。
+
 ### 3. 主题通过令牌引用
 
 组件通过 `Color(var="--color-*")` 引用主题颜色，切换主题才能零 DOM diff

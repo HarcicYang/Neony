@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from neony.dom import Animation, Color, Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles, Transition
 
+from ._panels import _PanelHost
 from .base import Component
 from .icon import Icon
 
@@ -26,10 +27,13 @@ _TAB_ACTIVE = _TAB_BASE.model_copy(
     }
 )
 
+# Panel visual styling — the _PanelHost slot owns visibility + the
+# replaying rise-in animation; the panel element keeps its own chrome
+# (padding / surface / glass tint).  Always flex so the slot's display
+# toggle controls visibility.
 _PANEL_BASE = Styles(
-    display="none",
+    display="flex",
     flex_direction="column",
-    align_items="stretch",
     gap="16px",
     padding="24px",
     background_color=Color(var="--color-surface"),
@@ -37,18 +41,7 @@ _PANEL_BASE = Styles(
     width="100%",
 )
 
-# Entering panels fade + slide up from the built-in "neony-rise-in"
-# keyframe (injected by the app with every window).  The switch from
-# _PANEL_BASE (no animation) to _PANEL_ACTIVE changes the animation value,
-# so the browser replays it on every activation.
-_PANEL_ACTIVE = _PANEL_BASE.model_copy(
-    update={
-        "display": "flex",
-        "animation": Animation(name="neony-rise-in", duration="0.25s", timing="ease-out"),
-    }
-)
-
-_GLASS_PANEL_BASE = _PANEL_BASE.model_copy(
+_PANEL_GLASS = _PANEL_BASE.model_copy(
     update={
         "background_color": Color(var="--color-surface-glass-bg"),
         "backdrop_filter": "blur(16px)",
@@ -56,59 +49,102 @@ _GLASS_PANEL_BASE = _PANEL_BASE.model_copy(
     }
 )
 
-_GLASS_PANEL_ACTIVE = _GLASS_PANEL_BASE.model_copy(
-    update={
-        "display": "flex",
-        "animation": Animation(name="neony-rise-in", duration="0.25s", timing="ease-out"),
-    }
-)
-
 
 class Tabs(Component):
-    #: Event types wired internally (via _bind / custom handlers) —
-    #: Component.on() must not wire these again.
-    _bound_events: frozenset[str] = frozenset({"click"})
-
     """A set of named tabs; exactly one panel is visible at a time.
 
     Usage::
 
         tabs = Tabs(("Counter", counter_panel), ("Inputs", inputs_panel))
         # or chain: tabs.add("Counter", counter_panel)
+        # or with explicit keys: Tabs(("Counter", counter_panel, "c"))
 
-    ``tabs.selected_panel`` (the panel element) and ``tabs.selected_title``
-    switch programmatically.  ``active`` / ``active_key`` are deprecated
+    ``tabs.selected_panel`` (the panel element), ``tabs.selected_title``
+    and ``tabs.selected_key`` switch programmatically.  A tab's key is its
+    explicit ``key`` if given, else its title — duplicate titles without
+    explicit keys raise.  ``active`` / ``active_key`` are deprecated
     aliases — ``active_key`` returns the tab title (it used to return an
     opaque element id).  ``glass=True`` gives the panels a frosted,
     translucent surface.
     """
 
-    def __init__(self, *panes: tuple[str, Component | DOMElement], glass: bool = False) -> None:
+    def __init__(
+        self,
+        *panes: (
+            tuple[str, Component | DOMElement] | tuple[str, Component | DOMElement, str]
+        ),
+        glass: bool = False,
+        fallback_panel: Component | DOMElement | None = None,
+        edge_fade: bool = True,
+    ) -> None:
         self._glass = glass
         super().__init__()
         self._titles: list[str] = []
+        self._keys: list[str] = []
         self._panels: list[DOMElement] = []
         self._tab_elems: list[Div] = []
         self._active: int = 0
+        self._host = _PanelHost()
+        self._fallback_slot: Div | None = None
 
-        # flex_wrap: many tabs wrap to a second row instead of overflowing
-        self._bar = Div(styles=Styles(display="flex", gap="4px", flex_wrap="wrap"))
+        bar_styles = Styles(
+            display="flex",
+            gap="4px",
+            flex_wrap="nowrap",
+            overflow_x="auto",
+            overflow_y="hidden",
+            min_width="0",
+        )
+        if edge_fade:
+            # Edge fade hints at off-screen tabs.
+            bar_styles = bar_styles.model_copy(
+                update={
+                    "mask_image": (
+                        "linear-gradient(to right, transparent, black 12px, "
+                        "black calc(100% - 12px), transparent)"
+                    )
+                }
+            )
+        # Horizontal tab strip: no-wrap + scroll so too many tabs scroll
+        # sideways instead of wrapping into extra rows.
+        self._bar = Div(styles=bar_styles)
         self._root = Div(
             styles=Styles(display="flex", flex_direction="column", width="100%"),
-            container=[self._bar],
+            container=[self._bar, self._host.root],
         )
 
-        for title, panel in panes:
-            self.add(title, panel)
+        if fallback_panel is not None:
+            # Shown when selection is None (see selected_key setter).
+            fallback_el = fallback_panel.build() if isinstance(fallback_panel, Component) else fallback_panel
+            self._fallback_slot = self._host.add(fallback_el)
+
+        for title, panel, *rest in panes:
+            key = rest[0] if rest else None
+            self.add(title, panel, key=key)
 
     # ---- public API ----
 
-    def add(self, title: str, panel: Component | DOMElement, *, icon: Icon | None = None) -> Tabs:
+    def add(
+        self,
+        title: str,
+        panel: Component | DOMElement,
+        *,
+        key: str | None = None,
+        icon: Icon | None = None,
+    ) -> Tabs:
         """Append a tab and its panel (chainable).
 
+        *key* — optional explicit selection key (defaults to *title*);
+        explicit keys let duplicate titles coexist.  Duplicate titles
+        without explicit keys raise.
         *icon* renders before the title (an :class:`Icon` — image or glyph).
         """
+        if key is None and title in self._titles:
+            raise ValueError(f"Tabs.add: duplicate title {title!r} — pass an explicit key to disambiguate")
         panel_el = panel.build() if isinstance(panel, Component) else panel
+        # Panel chrome (padding / glass tint) lives on the element; the
+        # host slot owns visibility + the replayed rise-in animation.
+        panel_el.styles = _PANEL_GLASS if self._glass else _PANEL_BASE
 
         if icon is not None:
             # Element-only children (reactive mode forbids mixing): the icon
@@ -116,21 +152,30 @@ class Tabs(Component):
             content: list[DOMElement | str] = [icon.render("14px"), Span(container=[title])]
         else:
             content = [title]
-        tab = Div(container=content, styles=_TAB_ACTIVE if not self._titles else _TAB_BASE)
+        tab = Div(
+            container=content,
+            styles=_TAB_ACTIVE if not self._titles else _TAB_BASE,
+            args={"tabindex": "0", "role": "tab"},
+        )
         tab.on_click(self._make_tab_handler(len(self._titles)))
+        tab.on("keydown", self._make_tab_keydown_handler(len(self._titles)))
         self._tab_elems.append(tab)
         self._titles.append(title)
+        self._keys.append(key or title)
         self._panels.append(panel_el)
 
         self._bar.container.append(tab)
-        self._root.container.append(panel_el)
+        self._host.add(panel_el)
         self._apply_visibility()
         return self
 
     @property
     def selected_panel(self) -> DOMElement | None:
-        """The visible panel's element (``None`` with no tabs)."""
-        return self._panels[self._active] if self._panels else None
+        """The visible panel's element (``None`` with no tabs or with a
+        fallback selected)."""
+        if self._active < 0 or not self._panels:
+            return None
+        return self._panels[self._active]
 
     @selected_panel.setter
     def selected_panel(self, panel: DOMElement | Component) -> None:
@@ -147,8 +192,11 @@ class Tabs(Component):
 
     @property
     def selected_title(self) -> str | None:
-        """The visible tab's title (``None`` with no tabs)."""
-        return self._titles[self._active] if self._titles else None
+        """The visible tab's title (``None`` with no tabs or with a
+        fallback selected)."""
+        if self._active < 0 or not self._titles:
+            return None
+        return self._titles[self._active]
 
     @selected_title.setter
     def selected_title(self, title: str) -> None:
@@ -160,17 +208,26 @@ class Tabs(Component):
 
     @property
     def selected_key(self) -> str | None:
-        """The selected tab's key — the tab TITLE (titles serve as the
-        keys here; ``bind_selected`` uses this).  Duplicate titles make
-        the selection ambiguous — the first match wins on set; use
-        distinct titles."""
-        return self.selected_title
+        """The selected tab's key — its explicit ``key`` if given, else
+        its title (``bind_selected`` uses this).  ``None`` with no tabs or
+        with a fallback_panel selected."""
+        if self._active < 0 or not self._keys:
+            return None
+        return self._keys[self._active]
 
     @selected_key.setter
     def selected_key(self, value: str | None) -> None:
         if value is None:
-            raise ValueError("Tabs.selected_key: there is always exactly one active tab — None cannot select anything")
-        self.selected_title = value
+            if self._fallback_slot is None:
+                raise ValueError("Tabs.selected_key: None needs a fallback_panel to select nothing")
+            self._active = -1
+            self._apply_visibility()
+            return
+        try:
+            self._active = self._keys.index(value)
+        except ValueError as exc:
+            raise ValueError(f"Tabs.selected_key: unknown key {value!r}") from exc
+        self._apply_visibility()
 
     @property
     def active(self) -> int:
@@ -196,7 +253,7 @@ class Tabs(Component):
         async def handler(event: DomEvent) -> None:
             self._active = index
             self._apply_visibility()
-            event.value = self._titles[index]
+            event.value = self._keys[index]
             # Tab buttons are wired with raw DOM on_click (not the
             # Component dispatcher) — mark the event as user-driven.
             event.source = "user"
@@ -204,9 +261,35 @@ class Tabs(Component):
 
         return handler
 
+    def _make_tab_keydown_handler(self, index: int):
+        async def handler(event: DomEvent) -> None:
+            key = event.value  # the pressed key rides on event.value
+            if key in ("Enter", " "):
+                # Activate like a click (role="tab").
+                self._active = index
+                self._apply_visibility()
+                event.value = self._keys[index]
+                event.source = "user"
+                await self._dispatch("change", event)
+            elif key in ("ArrowRight", "ArrowLeft"):
+                step = 1 if key == "ArrowRight" else -1
+                nxt = (index + step) % len(self._tab_elems) if self._tab_elems else index
+                self._active = nxt
+                self._apply_visibility()
+                self._tab_elems[nxt].args = {**self._tab_elems[nxt].args, "tabindex": "0"}
+                # Move focus to the next tab.
+                event.value = self._keys[nxt]
+                event.source = "user"
+                await self._dispatch("change", event)
+
+        return handler
+
     def _apply_visibility(self) -> None:
-        panel_active = _GLASS_PANEL_ACTIVE if self._glass else _PANEL_ACTIVE
-        panel_base = _GLASS_PANEL_BASE if self._glass else _PANEL_BASE
-        for i, (tab, panel) in enumerate(zip(self._tab_elems, self._panels, strict=True)):
+        for i, tab in enumerate(self._tab_elems):
             tab.styles = _TAB_ACTIVE if i == self._active else _TAB_BASE
-            panel.styles = panel_active if i == self._active else panel_base
+        if self._active < 0:
+            # None selected — show the fallback slot (0) or hide all.
+            self._host.set_active(0 if self._fallback_slot is not None else -1)
+            return
+        # Tab slots start after the fallback slot (index 0) when present.
+        self._host.set_active(self._active + (1 if self._fallback_slot is not None else 0))

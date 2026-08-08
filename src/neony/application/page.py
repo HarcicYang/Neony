@@ -262,7 +262,18 @@ class Page:
 
         container: list[DOMElement | str] = []
         for child in self._children:
-            container.append(child.build() if isinstance(child, Component) else child)
+            if isinstance(child, Component):
+                container.append(child.build())
+                # Auto-collect the component subtree's shortcuts (Sidebar
+                # Ctrl+1..9, Tree leaf shortcuts, ...) so they fire without
+                # a manual page.on_shortcut per component.
+                for comp in child.iter_components():
+                    for combo, fn in comp.shortcuts():
+                        resolved = shortcuts.resolve_combo(combo)
+                        shortcuts.parse_combo(resolved)  # fail fast on typos
+                        self._shortcut_handlers.append((resolved, fn))
+            else:
+                container.append(child)
 
         root = Div(styles=outer, container=[Div(styles=inner, container=container)])
         if self._shortcut_handlers or self._keydown_handlers or self._keyup_handlers:
