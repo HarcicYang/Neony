@@ -103,14 +103,27 @@ _RAIL = Styles(
     display="flex",
     flex_direction="column",
     gap="2px",
+    # Vertical padding (36px) matches the mask's fade zones so the
+    # topmost/bottommost rows sit clear of the fade — the mask only
+    # clips content once the list overflows and scrolls under it.
+    padding="36px 0",
     height="100%",
     min_height="0",
     overflow_y="auto",
     overflow_x="hidden",
-    # Edge fade hints at off-screen rows.
+    # Genuine gradient (NOT a flat plateau — a near-solid plateau
+    # flattened the fade to nothing).  The edge is held fully transparent
+    # out to 6px (the "deep" extreme — content truly hidden), then
+    # climbs slowly to alpha 0.5 by 26px and only snaps to solid in the
+    # last 26→36px.  So the low-opacity region (alpha < 0.5) spans ~72%
+    # of the 36px edge zone: a large, clearly visible fade, deep at the
+    # rim.
     mask_image=(
-        "linear-gradient(to bottom, transparent, black 12px, "
-        "black calc(100% - 12px), transparent)"
+        "linear-gradient(to bottom, "
+        "transparent 6px, rgba(0,0,0,0.5) 26px, "
+        "black 36px, black calc(100% - 36px), "
+        "rgba(0,0,0,0.5) calc(100% - 26px), "
+        "transparent calc(100% - 6px))"
     ),
 )
 

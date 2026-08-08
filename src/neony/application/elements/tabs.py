@@ -97,21 +97,37 @@ class Tabs(Component):
             overflow_x="auto",
             overflow_y="hidden",
             min_width="0",
-            # Horizontal padding matches the mask's transparent zones
-            # (12px each side) so the first/last tabs sit clear of the
-            # fade — the mask only clips content once tabs actually
-            # overflow and scroll under it.
-            padding="0 12px",
+            # Horizontal padding matches the mask's fade zones (36px each
+            # side) so the first/last tabs sit clear of the fade — the mask
+            # only clips content once tabs actually overflow and scroll
+            # under it.
+            padding="0 36px",
         )
         if edge_fade:
-            # Edge fade hints at off-screen tabs.  The transparent ends
-            # are 12px wide; the bar's matching horizontal padding keeps
-            # visible tabs out of the fade unless they scroll into it.
+            # Edge fade hints at off-screen tabs.  A flat low-opacity
+            # plateau (alpha 0.7) spans 6→30px — ~67% of the 36px edge
+            # zone — so the faded region dominates instead of being a thin
+            # whisper.  Only the final 30→36px climbs to solid black (a
+            # short crisp boundary), and the first 6px ramps transparent→
+            # 0.7 to enter the plateau.  Matching 36px padding keeps
+            # anchored tabs out of the fade unless they scroll into it.
             bar_styles = bar_styles.model_copy(
                 update={
                     "mask_image": (
-                        "linear-gradient(to right, transparent, black 12px, "
-                        "black calc(100% - 12px), transparent)"
+                        # Genuine gradient (NOT a flat plateau — a
+                        # near-solid plateau flattened the fade to
+                        # nothing).  The edge is held fully transparent
+                        # out to 6px (the "deep" extreme — content truly
+                        # hidden), then climbs slowly to alpha 0.5 by
+                        # 26px and only snaps to solid in the last
+                        # 26→36px.  So the low-opacity region (alpha
+                        # < 0.5) spans ~72% of the 36px edge zone: a
+                        # large, clearly visible fade, deep at the rim.
+                        "linear-gradient(to right, "
+                        "transparent 6px, rgba(0,0,0,0.5) 26px, "
+                        "black 36px, black calc(100% - 36px), "
+                        "rgba(0,0,0,0.5) calc(100% - 26px), "
+                        "transparent calc(100% - 6px))"
                     )
                 }
             )
