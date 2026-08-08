@@ -547,31 +547,22 @@ class TestPageAndTheme:
 
 
 class TestScrollbarTheming:
-    def test_webkit_scrollbar_rules(self):
+    # Scrollbars are hidden entirely — WebKitGTK's native hover grows the
+    # thumb unsuppressably, so nothing is drawn rather than styled.
+    def test_webkit_scrollbar_is_hidden(self):
         css = Theme().to_css()
-        assert "::-webkit-scrollbar" in css
-        assert "::-webkit-scrollbar-track" in css
-        assert "::-webkit-scrollbar-thumb" in css
-        assert "::-webkit-scrollbar-thumb:hover" in css
-        assert "::-webkit-scrollbar-corner" in css
+        assert "::-webkit-scrollbar{width:0;height:0;display:none}" in css
 
-    def test_firefox_scrollbar_rules(self):
+    def test_firefox_scrollbar_is_hidden(self):
         css = Theme().to_css()
-        assert "scrollbar-color" in css
-        assert "scrollbar-width" in css
-
-    def test_scrollbar_uses_theme_tokens(self):
-        css = Theme().to_css()
-        assert "var(--color-surface-raised)" in css
-        assert "var(--color-bg)" in css
-        assert "var(--color-accent)" in css
+        assert "scrollbar-width:none" in css
 
     def test_scrollbar_rules_survive_theme_toggle(self):
         theme = Theme()
         theme.set_mode("light")
         css = theme.to_css()
         assert "::-webkit-scrollbar" in css
-        assert "scrollbar-color" in css
+        assert "scrollbar-width:none" in css
 
 
 class TestRadioBuild:

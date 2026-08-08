@@ -8,7 +8,7 @@
  * duplicated per test.
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { loadRuntime } from "./load.js";
 
@@ -485,6 +485,71 @@ describe("outsideclick", () => {
     mountTree({ key: "dd", tag: "div" });
     document.body.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
     expect(outsidePayloads()).toEqual([]);
+  });
+});
+
+describe("wheel-x (vertical wheel → horizontal scroll)", () => {
+  let invoke;
+  let rafSpy;
+
+  beforeEach(() => {
+    invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { listen, invoke, window: {} };
+    // Run the easing loop synchronously so one wheel event eases all the
+    // way to the target in-test (each frame runs immediately).
+    rafSpy = vi.spyOn(global, "requestAnimationFrame").mockImplementation((cb) => {
+      cb();
+      return 1;
+    });
+  });
+  afterEach(() => {
+    rafSpy.mockRestore();
+  });
+
+  function wheelBar(extraAttrs = {}) {
+    const bar = document.createElement("div");
+    bar.setAttribute("data-neony-key", "bar");
+    bar.setAttribute("data-neony-wheel-x", "true");
+    for (const [k, v] of Object.entries(extraAttrs)) bar.setAttribute(k, v);
+    // scrollWidth/clientWidth back the clamp range; defaults give free room.
+    Object.defineProperty(bar, "scrollWidth", { value: 10000, configurable: true });
+    Object.defineProperty(bar, "clientWidth", { value: 200, configurable: true });
+    document.body.appendChild(bar);
+    return bar;
+  }
+
+  it("translates a vertical wheel into scrollLeft and cancels the default", () => {
+    const bar = wheelBar();
+    const event = new window.WheelEvent("wheel", { deltaY: 40, cancelable: true, bubbles: true });
+    bar.dispatchEvent(event);
+
+    expect(bar.scrollLeft).toBe(40);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("scales line-mode deltas to a readable step", () => {
+    const bar = wheelBar();
+    const event = new window.WheelEvent("wheel", { deltaY: 3, deltaMode: 1, cancelable: true, bubbles: true });
+    bar.dispatchEvent(event);
+
+    // deltaMode 1 (lines) scales by 40 → 3 * 40 = 120.
+    expect(bar.scrollLeft).toBe(120);
+  });
+
+  it("does not intercept unmarked elements", () => {
+    const el = document.createElement("div");
+    el.setAttribute("data-neony-key", "plain");
+    document.body.appendChild(el);
+
+    const event = new window.WheelEvent("wheel", { deltaY: 40, cancelable: true, bubbles: true });
+    el.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(el.scrollLeft).toBe(0);
+    expect(invoke).toHaveBeenCalledWith(
+      "neony.event",
+      expect.objectContaining({ event_type: "wheel" })
+    );
   });
 });
 

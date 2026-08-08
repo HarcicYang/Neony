@@ -159,20 +159,23 @@ class Theme(BaseModel):
 
     @staticmethod
     def _scrollbar_css() -> str:
-        """Scrollbar rules for WebKit (``::-webkit-scrollbar``) and
-        Firefox (``scrollbar-color``/``scrollbar-width``), all coloured
-        via ``var(--color-*)`` so they follow theme switches."""
+        """Scrollbars are hidden entirely.  ``::-webkit-scrollbar`` is
+        sized to 0 / ``display:none`` so nothing renders, and Firefox
+        gets ``scrollbar-width:none``.  Scrolling still works via wheel,
+        touch and keyboard; only the visible bar is removed.
+
+        Hiding (rather than styling) sidesteps WebKitGTK's native hover:
+        its UA sheet grows the thumb on hover, and that growth is not
+        suppressable through ``::-webkit-scrollbar-thumb:hover`` — every
+        CSS property pinned to the rest value still left the thumb
+        growing.  With no scrollbar drawn, there is nothing to grow.
+        """
         return (
-            # Firefox standard properties
-            "html{scrollbar-color:var(--color-surface-raised) var(--color-bg);"
-            "scrollbar-width:thin;}"
-            # WebKit pseudo-elements
-            "::-webkit-scrollbar{width:8px;height:8px}"
-            "::-webkit-scrollbar-track{background:var(--color-bg)}"
-            "::-webkit-scrollbar-thumb{"
-            "background:var(--color-surface-raised);border-radius:4px}"
-            "::-webkit-scrollbar-thumb:hover{background:var(--color-accent)}"
-            "::-webkit-scrollbar-corner{background:var(--color-bg)}"
+            # Firefox — none hides the bar but keeps scrolling.
+            "html{scrollbar-width:none;}"
+            # WebKit — zero size + display:none leaves the engine nothing
+            # to render or hover-grow on every scroll surface.
+            "::-webkit-scrollbar{width:0;height:0;display:none}"
         )
 
     def to_css(self) -> str:

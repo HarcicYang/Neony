@@ -56,6 +56,7 @@ from neony.application.elements import (
     Slider,
     Spacer,
     Switch,
+    Tabs,
     Text,
     TitleBar,
     Tooltip,
@@ -1399,6 +1400,61 @@ state.bind_text(active, fmt=lambda key: f"active: {key}")""",
     sidebar_state,
 )
 
+# ── tab: tabs ───────────────────────────────────────────────────
+
+# Tabs owns its content panes (the _PanelHost keeps pane DOM mounted
+# across switches, so input values and scroll offsets survive).  Panes
+# are plain VStacks — the host already supplies the panel chrome
+# (padding/surface), so wrapping in a GlassPanel would double-pad.
+pane_a = VStack(
+    Heading("Pane A", level=4),
+    Text("First pane — Tabs owns its panels.", role="secondary"),
+    gap="12px",
+)
+pane_b = VStack(
+    Heading("Pane B", level=4),
+    Text("Second pane — state stays mounted while hidden.", role="secondary"),
+    gap="12px",
+)
+pane_c = VStack(Heading("Pane C", level=4), Text("Third pane.", role="secondary"), gap="12px")
+
+active_tab = Signal("a")
+tabs = Tabs(("A", pane_a, "a"), ("B", pane_b, "b"), ("C", pane_c, "c"))
+tabs.bind_selected(active_tab)
+tab_state = Text("", role="secondary", size="12px")
+tab_state.bind_text(active_tab, fmt=lambda key: f"selected: {key}")
+
+# Too many tabs scroll sideways instead of wrapping into extra rows;
+# the edge-fade mask (on by default) hints at off-screen tabs.
+scroll_tabs = Tabs(
+    *[
+        (
+            f"Section {chr(65 + i)}",
+            VStack(Text(f"Panel {chr(65 + i)} content.", role="secondary"), gap="12px"),
+        )
+        for i in range(10)
+    ]
+)
+
+tabs_panel = Section(
+    "Tabs",
+    "Tabs own their content panes — pane state survives switches because "
+    "the DOM stays mounted. Selection binds to a Signal (like Sidebar). "
+    "When tabs overflow the bar they scroll horizontally with an edge-fade "
+    "hint rather than wrapping; arrow keys rotate, Enter/Space activates.",
+    """active = Signal("a")
+tabs = Tabs(("A", pane_a, "a"), ("B", pane_b, "b"), ("C", pane_c, "c"))
+tabs.bind_selected(active)
+state.bind_text(active, fmt=lambda key: f"selected: {key}")
+
+# overflow scrolls sideways — no wrapping
+scroll = Tabs(*[(f"Section {c}", pane) for c in "ABCDEFGHIJ"])""",
+    tabs,
+    tab_state,
+    Separator(),
+    scroll_tabs,
+)
+
 # ── tab: window ──────────────────────────────────────────────────
 
 # Wayland forbids client-side window positioning (tao's
@@ -1803,6 +1859,7 @@ gallery_tree = Tree(width="220px").children(
         TreeNode("Animations", key="animations").panel(animations_panel),
         TreeNode("Reactive", key="reactive").panel(reactive_panel),
         TreeNode("Sidebar", key="sidebar").panel(sidebar_panel),
+        TreeNode("Tabs", key="tabs").panel(tabs_panel),
         TreeNode("Window", key="window").panel(window_panel),
     ),
 )
