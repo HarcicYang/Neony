@@ -26,6 +26,32 @@
   channels; `Tabs` exposes `selected_key`.
 - **Theme mode metadata** — `Theme.modes` and `Theme.mode_label()` expose
   the toggle order without duplicating mode labels in applications.
+- **`Accordion` / `Collapsible`** — expandable groups in a single scroll
+  column; fluent `.section()` chaining, multiple simultaneous groups,
+  `expanded_keys`, `on_change`.
+- **`Tree` navigation** — accordion-styled tree rail with `TreeNode`
+  branches/leaves, `.panel()` content mounting, `expanded_branches`,
+  `active_key`, keyboard navigation, and per-leaf `shortcut` combos.
+- **Unified icon type** — one `Icon` (image or glyph) across Tree,
+  Sidebar, Tabs and Menu.
+- **Scroll indicator** — native scrollbars are hidden (WebKitGTK hover
+  growth is unsuppressable), so every scroll surface gets a JS-built
+  indicator instead: a draggable custom thumb + dynamic edge fade,
+  marker-driven via `data-neony-scroll` and auto-derived from `overflow`
+  at serialization (`DOMElement.scroll_indicator`). The overlay is a
+  JS-created sibling of the scroller — invisible to the Python patch
+  engine, zero IPC during drag. Thumb presets: `silent` (hidden until
+  hover/scroll), `lighten` (faint thin at rest), `normal` (faint thin →
+  solid wide on hover, default), `active` (solid wide always). The edge
+  fade is dynamic — it collapses at whichever end is flush with the
+  content — and is skipped entirely on backdrop-filtered surfaces
+  (glass sidebar, popups) which get the thumb only.
+- **Smooth horizontal wheel scroll** — `data-neony-wheel-x` zones
+  translate a plain vertical wheel into eased sideways scrolling
+  (rAF loop), since WebKitGTK does not do this natively.
+- **Tabs demo in the gallery** — basic switching with `bind_selected`
+  + status readout, and a 10-tab strip exercising horizontal overflow
+  with the edge fade.
 
 ### Changed
 
@@ -46,6 +72,15 @@
   identifier. `SidebarItem.key` keeps its lowercased-label default.
 - **`Tabs.on_change` carries the tab title** — `event.value` was
   previously `None`; shortcuts dispatch with `source == "user"`.
+- **`edge_fade` now toggles the scroll indicator** — the static Python
+  edge-fade masks on Tabs/Sidebar/Treeview are gone; the JS engine owns
+  the (dynamic) fade. `edge_fade=False` suppresses the whole indicator.
+  Tabs uses the `silent` preset (a compact strip has no room for a
+  resting gutter); content panes (`_PanelHost`) are suppressed.
+- **Component consistency audit** — demos and handlers modernized to
+  idiomatic bindings and event patterns; selection APIs unified
+  (`selected_*` everywhere); layout/event plumbing aligned across
+  components.
 
 ### Deprecated
 
@@ -95,9 +130,10 @@
   `ext-background-effect-v1` (KWin, DDE) blur the desktop behind
   transparent windows. Hyprland (detected via env vars and registry
   globals) keeps its own default blur. Failures are logged, never fatal.
-- **Theme-matched scrollbars** — scrollbars follow the active theme via
-  `--color-*` tokens (`Theme.to_css()` emits WebKit `::-webkit-scrollbar`
-  rules + Firefox `scrollbar-color`/`scrollbar-width`).
+- **Scrollbars hidden** — WebKitGTK's native hover-grow is
+  unsuppressable, so native scrollbars are hidden entirely
+  (`::-webkit-scrollbar` zero-size + Firefox `scrollbar-width:none`);
+  the custom scroll indicator (above) takes their place.
 - **Colour-matched glow** — focus rings (3px halo via
   `Theme.focus_glow(role)`) and hover glows tinted with each element's
   semantic colour: `Button` (per variant), `Input`, `Checkbox`, and
@@ -211,6 +247,10 @@
   as an argument; the lambda now absorbs `*_args`.
 - **`captureValue` (JS)** — forwarded `value: ""` for `<button>` instead
   of `null`; lost the pressed key for `keydown`/`keyup` on inputs.
+- **Tree height jank** — switching branches or expanding panes could
+  shift the rows; the tree root now pins its height via
+  `flex-grow + flex-basis:0 + min-height:0` so the rail scrolls
+  internally instead of growing the page.
 
 ### Docs
 
