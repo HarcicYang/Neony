@@ -68,14 +68,32 @@ _SOLID = Styles(
     display="flex",
     flex_direction="column",
     gap="4px",
-    padding="10px 8px",
+    # Vertical padding (36px) matches the mask's fade zones so the
+    # topmost/bottommost rows sit clear of the fade — the mask only
+    # clips content once the list overflows and scrolls under it.
+    padding="36px 8px",
     height="100%",
     min_height="0",
     overflow_y="auto",
     overflow_x="hidden",
     mask_image=(
-        "linear-gradient(to bottom, transparent, black 12px, "
-        "black calc(100% - 12px), transparent)"
+        # A flat low-opacity plateau (alpha 0.7) spans 6→30px — ~67% of
+        # the 36px edge zone — so the faded region dominates instead of
+        # being a thin whisper.  Only the final 30→36px climbs to solid
+        # black (a short crisp boundary), and the first 6px ramps
+        # transparent→0.7 to enter the plateau.
+        # Genuine gradient (NOT a flat plateau — a near-solid plateau
+        # flattened the fade to nothing).  The edge is held fully
+        # transparent out to 6px (the "deep" extreme — content truly
+        # hidden), then climbs slowly to alpha 0.5 by 26px and only
+        # snaps to solid in the last 26→36px.  So the low-opacity region
+        # (alpha < 0.5) spans ~72% of the 36px edge zone: a large,
+        # clearly visible fade, deep at the rim.
+        "linear-gradient(to bottom, "
+        "transparent 6px, rgba(0,0,0,0.5) 26px, "
+        "black 36px, black calc(100% - 36px), "
+        "rgba(0,0,0,0.5) calc(100% - 26px), "
+        "transparent calc(100% - 6px))"
     ),
     background_color=Color(var="--color-surface"),
     border_right="1px solid var(--color-border)",
