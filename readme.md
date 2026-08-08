@@ -30,7 +30,7 @@ It builds on [LumiView](https://lumiview.dev), which uses the same Rust
 - **3 theme presets** — dark / light / deep-blue via CSS custom properties
 - **(Optional) Frosted glass** — translucent surfaces with backdrop blur
 - **Colour-matched glow** — focus rings and hover glows tinted with each element's semantic colour
-- **Theme-matched scrollbars** — scrollbars follow the active theme (WebKit + Firefox)
+- **Scroll indicator** — native scrollbars are hidden; scroll surfaces get a theme-matched floating thumb (faint at rest, strengthens on scroll/hover, draggable, click-to-page) plus a dynamic edge fade that only shows where content actually overflows
 - **Custom window chrome** — frameless, transparent, custom TitleBar
 - **(Supported platform only) Native window effects** — blur / acrylic / mica materials
 

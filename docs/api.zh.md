@@ -287,7 +287,8 @@ tabs.bind_selected(active)  # Signal[str] ↔ 当前标签
 tabs.on_change(lambda e: print(e.value))  # value = 标签标题
 ```
 
-**参数:** `Tabs(*panes, glass)` — `*panes` 为 `(标题, 面板)` 对，等价于链式 `add()`。
+**参数:** `Tabs(*panes, glass, edge_fade=True)` — `*panes` 为 `(标题, 面板)` 对，等价于链式 `add()`。
+`edge_fade` 切换标签条上的滚动指示器（浮动拇指 + 动态边缘渐变）——设 `False` 关闭。
 
 `selected_panel` 按身份绑定可见面板（组件或其已构建的根元素，绝不重复构建）；`selected_title` 按标题字符串选择，未知标题抛 `ValueError`。`active`（下标）与 `active_key` 为已弃用别名 —— `active_key` 现在返回标签标题（此前返回不透明的元素 id）。
 
@@ -660,9 +661,10 @@ sidebar = Sidebar(
 )
 ```
 
-**参数:** `Sidebar(*children, width, glass, corner_radius)`，
+**参数:** `Sidebar(*children, width, glass, corner_radius, edge_fade=True)`，
 `SidebarItem(label, key, icon, active)` — `*children` 为
 `SidebarItem` / `SidebarGroup` / `Pane` / `(label, panel)` 元组。
+`edge_fade` 切换轨道上的滚动指示器——设 `False` 关闭。玻璃侧边栏仍显示拇指，但跳过边缘渐变（WebKitGTK 中 mask-image 与背景模糊冲突）。
 
 `Pane.key` 默认为随机 id——标签永不冲突，即使重复或非 ASCII；想要可读标识符时显式传 `key`。`shortcut` 与 `Page.on_shortcut` 同格式；快捷键切换如同点击一样触发 `change`。`selected_key` 对未知 key 抛 `ValueError`；设为 `None` 清空选择。点击条目任意位置（包括图标与文字）都生效——条目级事件会从其子元素冒泡上来。
 
@@ -705,7 +707,7 @@ for combo, fn in tree.shortcuts():
     page.on_shortcut(combo, fn)  # 叶子快捷键，同 Sidebar
 ```
 
-**参数:** `Tree(*nodes, width, expanded_branches, active_key)` — `width` 为轨道宽度（宿主自适应其余空间）；`expanded_branches=True` 让顶层分支默认展开。行样式复用 `Accordion` 表头——圆角、透明、无外围包裹；轨道高度受舞台约束，内部滚动而非撑破页面。
+**参数:** `Tree(*nodes, width, expanded_branches, active_key, edge_fade=True)` — `width` 为轨道宽度（宿主自适应其余空间）；`expanded_branches=True` 让顶层分支默认展开。`edge_fade` 切换轨道上的滚动指示器——设 `False` 关闭。行样式复用 `Accordion` 表头——圆角、透明、无外围包裹；轨道高度受舞台约束，内部滚动而非撑破页面。
 
 `TreeNode(label, key, icon, panel, expanded, children, shortcut)` — 节点不能同时带 `panel` 与 `children`（否则抛错）。流畅建造器：`.panel(panel)` 挂叶子内容、`.children(*nodes)` 挂分支子节点、`.key_(key)` 设 key——全部可链式。
 

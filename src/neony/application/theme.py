@@ -169,6 +169,12 @@ class Theme(BaseModel):
         suppressable through ``::-webkit-scrollbar-thumb:hover`` — every
         CSS property pinned to the rest value still left the thumb
         growing.  With no scrollbar drawn, there is nothing to grow.
+
+        The custom scroll-indicator thumb (JS-built overlay appended to
+        each ``data-neony-scroll`` surface) takes the bar's place — it
+        is themed via the CSS variables injected above, so only its
+        stable identity (color, radius) lives here; the dynamic geometry
+        (opacity/width/top/left) stays inline in JS.
         """
         return (
             # Firefox — none hides the bar but keeps scrolling.
@@ -176,6 +182,10 @@ class Theme(BaseModel):
             # WebKit — zero size + display:none leaves the engine nothing
             # to render or hover-grow on every scroll surface.
             "::-webkit-scrollbar{width:0;height:0;display:none}"
+            # Custom scroll-indicator thumb — JS-built overlay on
+            # [data-neony-scroll] surfaces.  Color follows the theme via
+            # the CSS vars; geometry is set inline by the JS engine.
+            ".neony-scroll-thumb{background-color:var(--color-text-secondary);border-radius:999px;}"
         )
 
     def to_css(self) -> str:

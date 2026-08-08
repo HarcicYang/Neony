@@ -68,33 +68,16 @@ _SOLID = Styles(
     display="flex",
     flex_direction="column",
     gap="4px",
-    # Vertical padding (36px) matches the mask's fade zones so the
-    # topmost/bottommost rows sit clear of the fade — the mask only
-    # clips content once the list overflows and scrolls under it.
+    # Vertical padding reserves a breathing rim at top/bottom.  The edge
+    # fade is now owned and applied dynamically by the JS scroll indicator
+    # (data-neony-scroll, derived from overflow_y below), so this no longer
+    # has to match a static mask width — it just keeps the first/last rows
+    # off the rail rim.
     padding="36px 8px",
     height="100%",
     min_height="0",
     overflow_y="auto",
     overflow_x="hidden",
-    mask_image=(
-        # A flat low-opacity plateau (alpha 0.7) spans 6→30px — ~67% of
-        # the 36px edge zone — so the faded region dominates instead of
-        # being a thin whisper.  Only the final 30→36px climbs to solid
-        # black (a short crisp boundary), and the first 6px ramps
-        # transparent→0.7 to enter the plateau.
-        # Genuine gradient (NOT a flat plateau — a near-solid plateau
-        # flattened the fade to nothing).  The edge is held fully
-        # transparent out to 6px (the "deep" extreme — content truly
-        # hidden), then climbs slowly to alpha 0.5 by 26px and only
-        # snaps to solid in the last 26→36px.  So the low-opacity region
-        # (alpha < 0.5) spans ~72% of the 36px edge zone: a large,
-        # clearly visible fade, deep at the rim.
-        "linear-gradient(to bottom, "
-        "transparent 6px, rgba(0,0,0,0.5) 26px, "
-        "black 36px, black calc(100% - 36px), "
-        "rgba(0,0,0,0.5) calc(100% - 26px), "
-        "transparent calc(100% - 6px))"
-    ),
     background_color=Color(var="--color-surface"),
     border_right="1px solid var(--color-border)",
 )
@@ -369,13 +352,15 @@ class Sidebar(Component):
         self._open_section: str | None = None
 
         rail_styles = (_GLASS if glass else _SOLID).model_copy(update={"width": width, "flex_shrink": "0"})
-        if not edge_fade:
-            rail_styles = rail_styles.model_copy(update={"mask_image": None})
         if radius is not None:
             # All four corners — for a sidebar shown as a standalone block
             # (e.g. floating in a page), not joined to window chrome.
             rail_styles = rail_styles.model_copy(update={"border_radius": radius})
-        self._rail = Div(styles=rail_styles)
+        # scroll_indicator (driven by edge_fade) lets the JS engine derive
+        # the data-neony-scroll marker from overflow_y and build the custom
+        # thumb + dynamic edge fade on the rail.  The mask itself is no
+        # longer set in Python — the JS engine owns it dynamically.
+        self._rail = Div(styles=rail_styles, scroll_indicator=edge_fade)
         if corner_radius is not None:
             # Rounds the corner where the sidebar meets the titlebar.
             self._rail.styles = self._rail.styles.model_copy(update={"border_top_right_radius": corner_radius})

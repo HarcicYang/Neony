@@ -103,28 +103,16 @@ _RAIL = Styles(
     display="flex",
     flex_direction="column",
     gap="2px",
-    # Vertical padding (36px) matches the mask's fade zones so the
-    # topmost/bottommost rows sit clear of the fade — the mask only
-    # clips content once the list overflows and scrolls under it.
+    # Vertical padding reserves a breathing rim at top/bottom.  The edge
+    # fade is now owned and applied dynamically by the JS scroll indicator
+    # (data-neony-scroll, derived from overflow_y below), so this no longer
+    # has to match a static mask width — it just keeps the first/last rows
+    # off the rail rim.
     padding="36px 0",
     height="100%",
     min_height="0",
     overflow_y="auto",
     overflow_x="hidden",
-    # Genuine gradient (NOT a flat plateau — a near-solid plateau
-    # flattened the fade to nothing).  The edge is held fully transparent
-    # out to 6px (the "deep" extreme — content truly hidden), then
-    # climbs slowly to alpha 0.5 by 26px and only snaps to solid in the
-    # last 26→36px.  So the low-opacity region (alpha < 0.5) spans ~72%
-    # of the 36px edge zone: a large, clearly visible fade, deep at the
-    # rim.
-    mask_image=(
-        "linear-gradient(to bottom, "
-        "transparent 6px, rgba(0,0,0,0.5) 26px, "
-        "black 36px, black calc(100% - 36px), "
-        "rgba(0,0,0,0.5) calc(100% - 26px), "
-        "transparent calc(100% - 6px))"
-    ),
 )
 
 
@@ -280,9 +268,11 @@ class Tree(Component):
             self._fallback_slot = self._host.add(fallback_el)
 
         rail_styles = _RAIL.model_copy(update={"width": width, "flex_shrink": "0"})
-        if not edge_fade:
-            rail_styles = rail_styles.model_copy(update={"mask_image": None})
-        self._rail = Div(styles=rail_styles)
+        # scroll_indicator (driven by edge_fade) lets the JS engine derive
+        # the data-neony-scroll marker from overflow_y and build the custom
+        # thumb + dynamic edge fade on the rail.  The mask itself is no
+        # longer set in Python — the JS engine owns it dynamically.
+        self._rail = Div(styles=rail_styles, scroll_indicator=edge_fade)
 
         # Root = rail (fixed width) + host (absorbs the rest) side by
         # side.  flex-grow:1 + min-height:0 make the tree consume the

@@ -564,6 +564,12 @@ class TestScrollbarTheming:
         assert "::-webkit-scrollbar" in css
         assert "scrollbar-width:none" in css
 
+    def test_thumb_class_rule_present(self):
+        # The custom scroll-indicator thumb (JS-built overlay) is themed
+        # via a CSS variable so it follows light/dark mode.
+        css = Theme().to_css()
+        assert ".neony-scroll-thumb{background-color:var(--color-text-secondary);border-radius:999px;}" in css
+
 
 class TestRadioBuild:
     """Radio options build into labelled native radio inputs."""
@@ -3040,9 +3046,7 @@ class TestSidebarShortcuts:
         assert [combo for combo, _ in sidebar.shortcuts()] == ["Ctrl+1"]
 
     def test_auto_shortcuts_1_to_9_then_0(self):
-        sidebar = Sidebar(
-            *[Pane(f"P{i}", panel=Text("x"), key=f"p{i}") for i in range(1, 11)]
-        )
+        sidebar = Sidebar(*[Pane(f"P{i}", panel=Text("x"), key=f"p{i}") for i in range(1, 11)])
         combos = [combo for combo, _ in sidebar.shortcuts()]
         assert combos == [f"Ctrl+{i % 10}" for i in range(1, 11)]  # Ctrl+1..9, then Ctrl+0
 
@@ -3740,3 +3744,56 @@ class TestTreeStylesSerialization:
         assert row_node.styles["background-color"] == "transparent"
         assert row_node.styles["border-radius"] == "8px"
         assert row_node.styles["padding-left"] == "calc(16px + 0 * 16px)"
+
+
+class TestScrollIndicator:
+    """edge_fade now drives the JS scroll indicator (data-neony-scroll is
+    auto-derived from overflow at serialization; the static Python mask
+    is gone — the JS engine owns the dynamic edge fade)."""
+
+    def test_tabs_bar_scroll_indicator_on_by_default(self):
+        tabs = Tabs(("A", Text("p1")))
+        assert tabs._bar.scroll_indicator is True
+
+    def test_tabs_edge_fade_false_turns_off_indicator(self):
+        tabs = Tabs(("A", Text("p1")), edge_fade=False)
+        assert tabs._bar.scroll_indicator is False
+
+    def test_sidebar_rail_scroll_indicator_off_when_edge_fade_false(self):
+        sb = Sidebar(SidebarItem("x"), edge_fade=False)
+        assert sb._rail.scroll_indicator is False
+
+    def test_tree_rail_scroll_indicator_off_when_edge_fade_false(self):
+        tree = Tree(TreeNode("a", key="a").panel(Text("h")), edge_fade=False)
+        assert tree._rail.scroll_indicator is False
+
+    def test_serialization_derives_marker_on_tabs_bar(self):
+        tabs = Tabs(("A", Text("p1")))
+        node = tabs.build().to_node()
+        bar = node.children[0]
+        # Compact strip: explicit "x-silent" (thumb hidden until hover)
+        # overrides the auto-derived horizontal marker.
+        assert bar.attrs["data-neony-scroll"] == "x-silent"
+
+    def test_serialization_omits_marker_when_disabled(self):
+        tabs = Tabs(("A", Text("p1")), edge_fade=False)
+        node = tabs.build().to_node()
+        bar = node.children[0]
+        assert "data-neony-scroll" not in bar.attrs
+
+    def test_sidebar_serialization_derives_vertical_marker(self):
+        sb = Sidebar(SidebarItem("x"))
+        node = sb.build().to_node()
+        rail = node.children[0]
+        assert rail.attrs["data-neony-scroll"] == "y"
+
+    def test_static_masks_removed_from_styles_constants(self):
+        from neony.application.elements.sidebar import _SOLID
+        from neony.application.elements.treeview import _RAIL
+
+        # JS owns the fade now — no static mask baked into Python styles.
+        assert _SOLID.mask_image is None
+        assert _RAIL.mask_image is None
+        assert Tabs(("A", Text("p1")))._bar.styles.mask_image is None
+        assert Sidebar(SidebarItem("x"))._rail.styles.mask_image is None
+        assert Tree(TreeNode("a", key="a").panel(Text("h")))._rail.styles.mask_image is None

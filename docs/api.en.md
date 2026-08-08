@@ -303,8 +303,10 @@ tabs.bind_selected(active)  # Signal[str] ↔ selected tab
 tabs.on_change(lambda e: print(e.value))  # value = tab title
 ```
 
-**Options:** `Tabs(*panes, glass)` — `*panes` are `(title, panel)` pairs,
-equivalent to chained `add()` calls.
+**Options:** `Tabs(*panes, glass, edge_fade=True)` — `*panes` are
+`(title, panel)` pairs, equivalent to chained `add()` calls.
+`edge_fade` toggles the scroll indicator (floating thumb + dynamic edge
+fade) on the tab strip — set `False` to suppress it.
 
 `selected_panel` binds the visible panel (the Component or its built
 root — matched by identity, never rebuilt); `selected_title` selects by
@@ -731,9 +733,12 @@ sidebar = Sidebar(
 )
 ```
 
-**Options:** `Sidebar(*children, width, glass, corner_radius)`,
+**Options:** `Sidebar(*children, width, glass, corner_radius, edge_fade=True)`,
 `SidebarItem(label, key, icon, active)` — `*children` are
 `SidebarItem` / `SidebarGroup` / `Pane` / `(label, panel)` tuples.
+`edge_fade` toggles the scroll indicator on the rail — set `False` to
+suppress.  On a glass sidebar the thumb still shows but the edge fade is
+skipped (mask-image conflicts with backdrop blur in WebKitGTK).
 
 `Pane.key` defaults to a random id — labels never collide, even when
 duplicated or non-ASCII; pass an explicit `key` when you want a
@@ -797,12 +802,13 @@ for combo, fn in tree.shortcuts():
     page.on_shortcut(combo, fn)  # leaf shortcuts, like Sidebar
 ```
 
-**Options:** `Tree(*nodes, width, expanded_branches, active_key)` —
+**Options:** `Tree(*nodes, width, expanded_branches, active_key, edge_fade=True)` —
 `width` is the rail width (the host adapts to the rest);
-`expanded_branches=True` starts top-level branches open.  Rows mirror
-the `Accordion` header styling — rounded, transparent, no chrome around
-them — and the rail is bounded by the stage, scrolling internally
-instead of growing the page.
+`expanded_branches=True` starts top-level branches open.  `edge_fade`
+toggles the scroll indicator on the rail — set `False` to suppress.
+Rows mirror the `Accordion` header styling — rounded, transparent, no
+chrome around them — and the rail is bounded by the stage, scrolling
+internally instead of growing the page.
 
 `TreeNode(label, key, icon, panel, expanded, children, shortcut)` — a
 node cannot carry both a `panel` and `children` (raises).  Fluent
