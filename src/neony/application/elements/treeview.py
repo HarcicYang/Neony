@@ -53,7 +53,6 @@ _ROW_BASE = Styles(
     overflow="hidden",
     text_overflow="ellipsis",
     user_select="none",
-    # Smooth the active/inactive background switch.
     transition=Transition(property="background-color", duration="0.15s", timing="ease"),
 )
 
@@ -76,8 +75,8 @@ _CHEVRON = Styles(
 )
 _CHEVRON_OPEN = _CHEVRON.model_copy(update={"transform": "rotate(90deg)"})
 
-# Hidden/visible states of a branch's children column.  The visible state
-# replays neony-rise-in (mirrors _panels._SLOT_ACTIVE).
+# Expanding a branch flips display none→flex, which replays neony-rise-in
+# (mirrors _panels._SLOT_ACTIVE).
 _CHILDREN_HIDDEN = Styles(display="none")
 _CHILDREN_VISIBLE = Styles(
     display="flex",
@@ -86,7 +85,6 @@ _CHILDREN_VISIBLE = Styles(
     animation=Animation(name="neony-rise-in", duration="0.2s", timing="ease-out"),
 )
 
-# Indentation unit per nesting depth.
 _INDENT = "16px"
 
 # Tree root = the rail itself: a transparent scroll column (accordion
@@ -97,12 +95,15 @@ _INDENT = "16px"
 #
 # NOTE on sizing: the rail sits in a row-direction flex root, so its
 # width is fixed by `width` + flex_shrink:0 (flex-grow would swallow the
-# free space and make the rail resize with the window); it stretches to
-# the parent height via the root's align-items:stretch.
+# free space and make the rail resize with the window); it anchors to
+# the root's definite height via height:100% so overflow-y:auto clamps
+# and the rail scrolls internally instead of growing the page when a
+# branch expands.
 _RAIL = Styles(
     display="flex",
     flex_direction="column",
     gap="2px",
+    height="100%",
     min_height="0",
     overflow_y="auto",
     overflow_x="hidden",
@@ -252,18 +253,22 @@ class Tree(Component):
         self._rail = Div(styles=_RAIL.model_copy(update={"width": width, "flex_shrink": "0"}))
 
         # Root = rail (fixed width) + host (absorbs the rest) side by
-        # side.  Self-bounding: flex-grow:1 + min-height:0 make the tree
-        # consume the space its flex parent allocates (and shrink to 0
-        # when there's none, so scrolling engages) instead of growing
-        # the page.  No height:100% — combined with flex-grow it would
-        # total more than the parent (100% basis + grown space) and
-        # overlap siblings.
+        # side.  flex-grow:1 + min-height:0 make the tree consume the
+        # space its flex parent allocates (and shrink to 0 when there's
+        # none) instead of growing the page.  flex-basis:0 (not the
+        # auto default) keeps the tree's height pinned to the parent's
+        # allocation — without it the root's basis = max(rail, host
+        # panel) intrinsic height, so switching to a taller pane would
+        # grow the tree and shift the rows.  No height:100% here —
+        # combined with flex-grow it would total more than the parent
+        # (100% basis + grown space) and overlap siblings; the rail gets
+        # its definite height via height:100% instead.
         self._root = Div(
             styles=Styles(
                 display="flex",
                 flex_direction="row",
-                # align_items="stretch",
                 flex_grow="1",
+                flex_basis="0",
                 min_height="0",
             ),
             container=[self._rail, self._host.root],
@@ -393,7 +398,7 @@ class Tree(Component):
         self._row_by_key[node.resolved_key] = row
         row.on("keydown", self._make_keydown_handler(node, row))
 
-        # Register into the host slot (leaves always carry a panel).
+        # Register into the host slot.
         if node._panel is None:
             raise ValueError(f"Tree: leaf node {node.resolved_key!r} has no panel")
         panel_el = node._panel.build() if isinstance(node._panel, Component) else node._panel
@@ -425,7 +430,6 @@ class Tree(Component):
         async def handler(event: DomEvent) -> None:
             key = event.value  # the pressed key rides on event.value
             if key == "Enter" or key == " ":
-                # Activate like a click.
                 if node.is_branch:
                     self._toggle_branch(node)
                 else:
@@ -478,7 +482,6 @@ class Tree(Component):
             col.styles = _CHILDREN_VISIBLE if node.expanded else _CHILDREN_HIDDEN
         row = self._row_by_key.get(node.resolved_key)
         if row is not None:
-            # Flip the chevron span (the first child).
             chevron = row.container[0]
             if isinstance(chevron, Span):
                 chevron.styles = _CHEVRON_OPEN if node.expanded else _CHEVRON
