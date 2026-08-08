@@ -16,6 +16,9 @@ _TAB_BASE = Styles(
     cursor="pointer",
     background_color=Color(var="--color-surface"),
     color=Color(var="--color-text-secondary"),
+    # Long titles (e.g. "Section J") stay on one line instead of wrapping
+    # and collapsing the tab to two stacked rows.
+    white_space="nowrap",
     # Smooth the active/inactive background switch.
     transition=Transition(duration="0.15s", timing="ease"),
 )
@@ -94,9 +97,16 @@ class Tabs(Component):
             overflow_x="auto",
             overflow_y="hidden",
             min_width="0",
+            # Horizontal padding matches the mask's transparent zones
+            # (12px each side) so the first/last tabs sit clear of the
+            # fade — the mask only clips content once tabs actually
+            # overflow and scroll under it.
+            padding="0 12px",
         )
         if edge_fade:
-            # Edge fade hints at off-screen tabs.
+            # Edge fade hints at off-screen tabs.  The transparent ends
+            # are 12px wide; the bar's matching horizontal padding keeps
+            # visible tabs out of the fade unless they scroll into it.
             bar_styles = bar_styles.model_copy(
                 update={
                     "mask_image": (
@@ -106,8 +116,11 @@ class Tabs(Component):
                 }
             )
         # Horizontal tab strip: no-wrap + scroll so too many tabs scroll
-        # sideways instead of wrapping into extra rows.
-        self._bar = Div(styles=bar_styles)
+        # sideways instead of wrapping into extra rows.  data-neony-wheel-x
+        # routes a plain vertical wheel through the JS engine's smooth
+        # horizontal scroll (WebKitGTK does not turn vertical wheel into
+        # horizontal on its own) — no Shift required.
+        self._bar = Div(styles=bar_styles, args={"data-neony-wheel-x": "true"})
         self._root = Div(
             styles=Styles(display="flex", flex_direction="column", width="100%"),
             container=[self._bar, self._host.root],

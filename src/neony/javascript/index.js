@@ -59,6 +59,35 @@
         return null;
     }
 
+    // Smooth horizontal scroll for data-neony-wheel-x zones.  Wheel deltas
+    // accumulate into a target position; one rAF loop per element eases
+    // scrollLeft toward it (~20% of the remaining distance per frame), so a
+    // fast wheel stream glides instead of stuttering one hard step per event.
+    // A weak Map keeps the target + active rAF handle per element.
+    var wheelXState = new WeakMap();
+    function smoothScrollX(el, delta) {
+        var state = wheelXState.get(el);
+        if (!state) {
+            state = { target: el.scrollLeft, raf: 0 };
+            wheelXState.set(el, state);
+        }
+        var max = el.scrollWidth - el.clientWidth;
+        state.target = Math.max(0, Math.min(max, state.target + delta));
+        if (state.raf) return; // a loop is already easing toward the target
+        function step() {
+            var current = el.scrollLeft;
+            var remaining = state.target - current;
+            if (Math.abs(remaining) < 1) {
+                el.scrollLeft = state.target;
+                state.raf = 0;
+                return;
+            }
+            el.scrollLeft = current + remaining * 0.2;
+            state.raf = requestAnimationFrame(step);
+        }
+        state.raf = requestAnimationFrame(step);
+    }
+
     function eventHandler(event) {
         var el = event.target.closest ? event.target.closest("[data-neony-key]") : null;
         // Keys typed while no element is focused land on <body> — no
@@ -69,6 +98,27 @@
             el = engine.root;
         }
         if (!el) return;
+
+        // Horizontal-scroll zones (data-neony-wheel-x): translate a
+        // vertical wheel into a sideways scroll.  WebKitGTK does not turn
+        // a vertical wheel into horizontal scroll on its own, so JS must
+        // drive it — but a direct scrollLeft += dy per event is jittery
+        // next to native Shift+wheel.  Instead the wheel adds to a
+        // target position and a single rAF loop eases scrollLeft toward
+        // it, giving the smooth, compositor-like feel of native scroll.
+        if (event.type === "wheel") {
+            var wheelBar = event.target.closest
+                ? event.target.closest('[data-neony-wheel-x="true"]')
+                : null;
+            if (wheelBar) {
+                var dy = event.deltaY;
+                if (event.deltaMode === 1) dy *= 40;
+                else if (event.deltaMode === 2) dy *= wheelBar.clientWidth;
+                smoothScrollX(wheelBar, dy);
+                event.preventDefault();
+                return;
+            }
+        }
 
         // Drag-and-drop: the browser refuses to drop onto a page that
         // never calls preventDefault on dragover.  The drop itself must
