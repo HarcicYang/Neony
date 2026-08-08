@@ -166,9 +166,7 @@ class DOMElement(BaseModel):
     #   "active"  — solid wide thumb always
     #   False     — suppress the indicator entirely
     #   True      — equivalent to "normal"
-    scroll_indicator: bool | Literal["silent", "lighten", "normal", "active"] = Field(
-        default=True
-    )
+    scroll_indicator: bool | Literal["silent", "lighten", "normal", "active"] = Field(default=True)
 
     # Fluent .on_xxx() handlers — PrivateAttr so callables never serialize.
     _handlers: dict[str, list[Callable[..., Any]]] = PrivateAttr(default_factory=dict)

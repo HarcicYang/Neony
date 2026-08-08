@@ -34,6 +34,30 @@
   `active_key`, keyboard navigation, and per-leaf `shortcut` combos.
 - **Unified icon type** — one `Icon` (image or glyph) across Tree,
   Sidebar, Tabs and Menu.
+- **Form controls** — `Radio` / `RadioGroup`, `Switch`, `Select`,
+  `ComboBox`, `Slider` and `Progress`, each with two-way `bind_value`
+  and theme-matched styling.
+- **Overlays** — `Dialog` (modal, `open()`/`close()`, outside-click and
+  Esc to close), `Tooltip`, `Dropdown` and `Menu` (popup panel with
+  outside-click dismissal and keyboard navigation).
+- **Content components** — `Card`, `Avatar`, `Badge` and `Image`.
+- **`PromptDialog`** — a modal single-line text input with
+  confirm/cancel; `PromptDialog.prompt(...)` returns the entered value.
+- **System tray** — `Tray` with a native menu and close-to-tray
+  behaviour (via LumiView .dev4).
+- **Typed animation models** — `Transition` (property/duration/timing/
+  delay), `KeyFrame` (chainable builder), `Props` and `Animation`;
+  `@keyframes` injection via `app.register_keyframe()`, with built-in
+  `neony-rise-in` and `neony-fade-in` (Tabs/Sidebar use them by default).
+- **`pointermove` event** — `DomEvent.movement_x`/`movement_y` deltas
+  and `pointer_type`; new `on_pointermove()` on elements and components.
+- **`Styles.accent_color`** — native accent colour field plus
+  `progress`/`datalist`/`option` elements and the `input` `list` attr.
+- **Wayland blur for transparent windows** — Linux compositors with
+  `ext-background-effect-v1` blur the desktop behind transparent windows
+  (Hyprland detected and skipped; failures logged, never fatal).
+- **Clipboard backend** — `clipboard_read()`/`write()` use the platform
+  clipboard implementation (pyclip) instead of in-page JS.
 - **Scroll indicator** — native scrollbars are hidden (WebKitGTK hover
   growth is unsuppressable), so every scroll surface gets a JS-built
   indicator instead: a draggable custom thumb + dynamic edge fade,
