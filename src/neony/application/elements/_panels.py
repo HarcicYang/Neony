@@ -4,9 +4,8 @@ the replayed entrance animation) that keeps pane roots cached and
 mounted — switching never moves DOM elements, so pane state (input
 values, scroll offsets) survives switches.
 
-Used by :class:`Sidebar` for its content panes.  TODO(R2 Shell): Tabs
-owns the same machinery inline today; refactor it onto this host when
-the Shell lands so all three share one implementation.
+Used by :class:`Sidebar`, :class:`Tree` and :class:`Tabs` for their
+content panes.
 """
 
 from __future__ import annotations

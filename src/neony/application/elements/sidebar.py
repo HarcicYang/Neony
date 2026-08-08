@@ -9,6 +9,7 @@ before — content switching stays the user's job in that mode.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import Callable
 from typing import Any, Self
@@ -54,6 +55,10 @@ _GLASS = Styles(
     flex_direction="column",
     gap="4px",
     padding="10px 8px",
+    height="100%",
+    min_height="0",
+    overflow_y="auto",
+    overflow_x="hidden",
     background_color=Color(var="--color-surface-glass-bg"),
     backdrop_filter="blur(20px) saturate(1.2)",
     border_right="1px solid var(--color-border-glass)",
@@ -64,13 +69,21 @@ _SOLID = Styles(
     flex_direction="column",
     gap="4px",
     padding="10px 8px",
+    height="100%",
+    min_height="0",
+    overflow_y="auto",
+    overflow_x="hidden",
+    mask_image=(
+        "linear-gradient(to bottom, transparent, black 12px, "
+        "black calc(100% - 12px), transparent)"
+    ),
     background_color=Color(var="--color-surface"),
     border_right="1px solid var(--color-border)",
 )
 
 # Transparent row wrapper: holds the rail and (in pane mode) the content
 # host.  Shrink-wraps when bare, grows when panes are registered.
-_WRAPPER = Styles(display="flex", flex_direction="row", align_items="stretch", min_height="0")
+_WRAPPER = Styles(display="flex", flex_direction="row", min_height="0")
 
 _GROUP_ROOT = Styles(display="flex", flex_direction="column", gap="4px")
 
@@ -127,7 +140,7 @@ class Pane(BaseModel):
 class SidebarItem(Component):
     #: Event types wired internally (via _bind / custom handlers) —
     #: Component.on() must not wire these again.
-    _bound_events: frozenset[str] = frozenset({"click", "mouseover", "mouseout"})
+    _bound_events: frozenset[str] = frozenset({"click", "keydown", "mouseover", "mouseout"})
 
     """One clickable entry in a :class:`Sidebar`; ``key`` defaults to the
     lowercased label, ``icon`` is an optional glyph shown first."""
@@ -150,10 +163,12 @@ class SidebarItem(Component):
         self._root = Div(
             styles=_ITEM_ACTIVE if active else _ITEM_BASE,
             container=self._text_content(),
+            args={"tabindex": "0", "role": "button"},
         )
         # Clicks land on the icon/label spans — bubble them to this item.
         self._root.bubble_events = True
         self._bind(self._root, "click")
+        self._bind(self._root, "keydown")
         self._bind(self._root, "mouseover")
         self._bind(self._root, "mouseout")
 
@@ -212,6 +227,16 @@ class SidebarItem(Component):
         elif event_type == "mouseout":
             self._hover = False
             self._apply_styles()
+        elif event_type == "keydown":
+            # Enter / Space activate a role="button" — re-dispatch as a
+            # click so the Sidebar's item handler (bound on this root)
+            # selects the item, exactly like a mouse click.
+            if event.value in ("Enter", " "):
+                for fn in self._root._handlers.get("click", []):
+                    result = fn(event)
+                    if asyncio.iscoroutine(result):
+                        await result
+                return
         await self._dispatch(event_type, event)
 
 
@@ -287,6 +312,13 @@ class Sidebar(Component):
         )
         sidebar.on_change(lambda e: print(e.value))  # pane key
         sidebar.selected_key = "settings"  # programmatic, no callback
+
+    Mounting contract: in pane mode the sidebar fills the height its
+    flex parent allocates and scrolls its rail / panes internally.  It
+    must be mounted in a flex container with a *definite* height (e.g.
+    a ``VStack(..., grow=1)`` or ``GlassPanel(grow=True)``); a bare
+    block parent with auto height gives it nothing to bound against and
+    the sidebar pushes the page open instead of scrolling.
     """
 
     def __init__(
@@ -295,29 +327,48 @@ class Sidebar(Component):
         width: str = "200px",
         active_key: str | None = None,
         glass: bool = True,
+        radius: str | None = None,
         corner_radius: str | None = None,
+        fallback_panel: Component | DOMElement | None = None,
+        edge_fade: bool = True,
     ) -> None:
         super().__init__()
         self._width = width
         self._glass = glass
+        self._radius = radius
         self._corner_radius = corner_radius
         self._items: list[SidebarItem] = []
         self._panes: dict[str, Pane] = {}
         self._pane_keys: list[str] = []
         self._selected_key: str | None = None
         self._host: _PanelHost | None = None
+        self._fallback_el: DOMElement | None = None
+        self._fallback_slot: Div | None = None
         self._shortcuts: list[tuple[str | dict[str, str], Callable[[], Any]]] = []
         # Section-grouping state: the open group (None = flat) and the
         # section string that opened it.
         self._open_group: SidebarGroup | None = None
         self._open_section: str | None = None
 
-        self._rail = Div(styles=(_GLASS if glass else _SOLID).model_copy(update={"width": width, "flex_shrink": "0"}))
+        rail_styles = (_GLASS if glass else _SOLID).model_copy(update={"width": width, "flex_shrink": "0"})
+        if not edge_fade:
+            rail_styles = rail_styles.model_copy(update={"mask_image": None})
+        if radius is not None:
+            # All four corners — for a sidebar shown as a standalone block
+            # (e.g. floating in a page), not joined to window chrome.
+            rail_styles = rail_styles.model_copy(update={"border_radius": radius})
+        self._rail = Div(styles=rail_styles)
         if corner_radius is not None:
             # Rounds the corner where the sidebar meets the titlebar.
             self._rail.styles = self._rail.styles.model_copy(update={"border_top_right_radius": corner_radius})
 
         self._root = Div(styles=_WRAPPER, container=[self._rail])
+
+        if fallback_panel is not None:
+            self._fallback_el = fallback_panel.build() if isinstance(fallback_panel, Component) else fallback_panel
+            # Register the fallback as slot 0 before any pane — shown
+            # when selection is None (see selected_key setter).
+            self._fallback_slot = self._ensure_host().add(self._fallback_el)
 
         for child in children:
             if isinstance(child, Pane):
@@ -387,8 +438,13 @@ class Sidebar(Component):
         host.add(panel_el)
         self._panes[resolved_key] = pane
         self._pane_keys.append(resolved_key)
-        if pane.shortcut is not None:
-            self._shortcuts.append((pane.shortcut, self._make_shortcut_handler(resolved_key)))
+        shortcut = pane.shortcut
+        if shortcut is None and len(self._pane_keys) <= 10:
+            # Auto Ctrl+1..9 / Ctrl+0 for the first ten panes — a manual
+            # `shortcut=` still wins.  Page.build auto-registers these.
+            shortcut = f"Ctrl+{len(self._pane_keys) % 10}"
+        if shortcut is not None:
+            self._shortcuts.append((shortcut, self._make_shortcut_handler(resolved_key)))
         self._sync_panes()
         return self
 
@@ -429,6 +485,8 @@ class Sidebar(Component):
 
     @selected_key.setter
     def selected_key(self, value: str | None) -> None:
+        if value is None and self._fallback_slot is None:
+            raise ValueError("Sidebar.selected_key: None needs a fallback_panel to select nothing")
         if value is not None and value not in {item.key for item in self._items}:
             raise ValueError(f"Sidebar.selected_key: unknown key {value!r}")
         self._selected_key = value
@@ -496,19 +554,22 @@ class Sidebar(Component):
 
     def _sync_panes(self) -> None:
         """Mirror the selection onto the pane host: the slot for the
-        selected key (if it owns a pane) is visible, the rest hidden."""
+        selected key (if it owns a pane) is visible, the rest hidden.
+        With a fallback registered (slot 0), None shows it instead of
+        hiding everything."""
         if self._host is None:
             return
         if self._selected_key is None or self._selected_key not in self._panes:
-            self._host.set_active(-1)
+            self._host.set_active(0 if self._fallback_slot is not None else -1)
             return
         try:
             index = self._pane_keys.index(self._selected_key)
         except ValueError:
             # Selected bare item — no pane to show.
-            self._host.set_active(-1)
+            self._host.set_active(0 if self._fallback_slot is not None else -1)
             return
-        self._host.set_active(index)
+        # Pane slots start after the fallback slot (index 0) when present.
+        self._host.set_active(index + (1 if self._fallback_slot is not None else 0))
 
     def _make_item_handler(self, item: SidebarItem):
         async def handler(event: DomEvent) -> None:

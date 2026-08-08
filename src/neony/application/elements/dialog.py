@@ -159,7 +159,6 @@ class Dialog(Component):
         self._open = False
         self._closable = closable
         self._actions = list(actions)
-        self._pseudo_tasks: set[asyncio.Task] = set()
         self._close_task: asyncio.Task | None = None
 
         self._scrim = Div(styles=_SCRIM)
@@ -212,7 +211,7 @@ class Dialog(Component):
                 # No running event loop — hide immediately, skip the fade.
                 self._root.styles = _ROOT
                 self._panel.styles = self._panel_restore
-        self._dispatch_pseudo("open" if value else "close")
+        self._dispatch_pseudo("open" if value else "close", self)
 
     async def _finish_close(self) -> None:
         # await asyncio.sleep(0.2)  # the reversed fade-slide plays out
@@ -280,15 +279,3 @@ class Dialog(Component):
         elif event_type == "outsideclick":
             self.open = False
         await self._dispatch(event_type, event)
-
-    def _dispatch_pseudo(self, event_type: str) -> None:
-        """Fire an ``open`` / ``close`` notification with the dialog
-        itself; async callbacks run as fire-and-forget tasks (the state
-        change is synchronous)."""
-        for fn in self._callbacks.get(event_type, []):
-            result = fn(self)
-            if asyncio.iscoroutine(result):
-                task = asyncio.create_task(result)
-                # Keep a reference so the task isn't GC'd mid-run.
-                self._pseudo_tasks.add(task)
-                task.add_done_callback(self._pseudo_tasks.discard)

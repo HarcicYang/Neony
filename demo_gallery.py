@@ -1352,7 +1352,7 @@ home_pane = GlassPanel(
     Text("Home content — the Sidebar owns this pane.", role="secondary"),
     gap="12px",
     padding="16px",
-    radius="0px",
+    radius="12px",
     grow=True,
 )
 settings_pane = GlassPanel(
@@ -1360,7 +1360,7 @@ settings_pane = GlassPanel(
     Text("Settings content — select another entry to switch panes.", role="secondary"),
     gap="12px",
     padding="16px",
-    radius="0px",
+    radius="12px",
     grow=True,
 )
 profile_pane = GlassPanel(
@@ -1368,7 +1368,7 @@ profile_pane = GlassPanel(
     Text("Profile content — pane state remains mounted while hidden.", role="secondary"),
     gap="12px",
     padding="16px",
-    radius="0px",
+    radius="12px",
     grow=True,
 )
 
@@ -1377,7 +1377,7 @@ sidebar = Sidebar(
     Pane("Home", key="home", icon=Icon.glyph("🏠"), panel=home_pane),
     Pane("Settings", key="settings", icon=Icon.glyph("⚙️"), panel=settings_pane),
     Pane("Profile", key="profile", icon=Icon.glyph("👤"), panel=profile_pane),
-    corner_radius="0px",
+    radius="12px",
 )
 sidebar.bind_selected(active_pane)
 sidebar_state = Text("", role="secondary", size="12px")

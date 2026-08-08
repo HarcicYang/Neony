@@ -64,6 +64,8 @@ _PANEL = Styles(
     flex_direction="column",
     padding="6px",
     gap="2px",
+    max_height="calc(100vh - 8px)",
+    overflow="auto",
     border_radius="8px",
     border="1px solid var(--color-border-glass)",
     background_color=Color(var="--color-surface-glass-bg"),

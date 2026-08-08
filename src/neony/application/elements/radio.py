@@ -175,6 +175,7 @@ class RadioGroup(Component):
     ) -> None:
         super().__init__()
         self._items: list[Radio] = []
+        self._input_keys: dict[str, Radio] = {}  # input element key -> radio
         self._value: str | None = None
         self._disabled = disabled
         self._name = f"neony-radio-{id(self)}"
@@ -196,8 +197,10 @@ class RadioGroup(Component):
         radio._assign_name(self._name)
         # Attach to the input, not the root: user `change` events target
         # the input element (nearest keyed ancestor) and the label root
-        # would need bubble_events to hear them.
-        radio._input.on("change", self._make_radio_handler(radio))
+        # would need bubble_events to hear them.  Bound via _bind so the
+        # base dispatcher sets source == "user" on the group's change.
+        self._input_keys[radio._input.key] = radio
+        self._bind(radio._input, "change")
         self._items.append(radio)
         self._root.container.append(el)
         if self._value is None:
@@ -213,24 +216,26 @@ class RadioGroup(Component):
         return list(self._items)
 
     @property
-    def value(self) -> str | None:
+    def selected_key(self) -> str | None:
+        """The selected option's value — the primary selection property
+        (shared with Sidebar / Tree)."""
         return self._value
 
-    @value.setter
-    def value(self, value: str | None) -> None:
+    @selected_key.setter
+    def selected_key(self, value: str | None) -> None:
         self._value = value
         for item in self._items:
             item.checked = item.value == value
 
     @property
-    def selected_key(self) -> str | None:
-        """Alias of :attr:`value` — completes the selection API shared by
-        navigation components (Sidebar, Tabs)."""
-        return self._value
+    def value(self) -> str | None:
+        """Alias of :attr:`selected_key` — retained for radio-group
+        familiarity; selection components expose ``selected_key``."""
+        return self.selected_key
 
-    @selected_key.setter
-    def selected_key(self, value: str | None) -> None:
-        self.value = value
+    @value.setter
+    def value(self, value: str | None) -> None:
+        self.selected_key = value
 
     @property
     def disabled(self) -> bool:
@@ -244,10 +249,12 @@ class RadioGroup(Component):
 
     # ---- internals ----
 
-    def _make_radio_handler(self, radio: Radio):
-        async def handler(event: DomEvent) -> None:
+    async def _on_event(self, event_type: str, event: DomEvent) -> None:
+        # The base dispatcher routes each radio's `change` here via the
+        # input's key (source is already "user") — identify which radio
+        # and forward its value.
+        radio = self._input_keys.get(event.key)
+        if radio is not None and event_type == "change":
             self.value = radio.value
             event.value = radio.value
-            await self._dispatch("change", event)
-
-        return handler
+        await self._dispatch(event_type, event)

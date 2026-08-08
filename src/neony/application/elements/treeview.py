@@ -107,6 +107,11 @@ _RAIL = Styles(
     min_height="0",
     overflow_y="auto",
     overflow_x="hidden",
+    # Edge fade hints at off-screen rows.
+    mask_image=(
+        "linear-gradient(to bottom, transparent, black 12px, "
+        "black calc(100% - 12px), transparent)"
+    ),
 )
 
 
@@ -202,10 +207,6 @@ class TreeNode:
 
 
 class Tree(Component):
-    #: Event types wired internally (via _bind / custom handlers) —
-    #: Component.on() must not wire these again.
-    _bound_events: frozenset[str] = frozenset({"click", "keydown"})
-
     """Left navigation rail of :class:`TreeNode` entries + a right content
     host; exactly one leaf's panel is visible at a time.
 
@@ -226,6 +227,13 @@ class Tree(Component):
     expanded.  Rows mirror the :class:`Accordion` header styling —
     rounded, transparent, with the same chevron rotation — and the rail
     is chrome-free: no wrapper box, no background, no divider.
+
+    Mounting contract: the tree is self-bounding — it fills the height
+    its flex parent allocates and scrolls its rail internally.  It must
+    be mounted in a flex container with a *definite* height (e.g. a
+    ``VStack(..., grow=1)`` or ``GlassPanel(grow=True)``); a bare block
+    parent with auto height gives it nothing to bound against and the
+    tree pushes the page open instead of scrolling.
     """
 
     def __init__(
@@ -234,6 +242,8 @@ class Tree(Component):
         width: str = "220px",
         expanded_branches: bool = True,
         active_key: str | None = None,
+        fallback_panel: Component | DOMElement | None = None,
+        edge_fade: bool = True,
     ) -> None:
         super().__init__()
         self._width = width
@@ -245,12 +255,21 @@ class Tree(Component):
         self._children_cols: dict[str, Div] = {}  # branch key -> children column
         self._selected_key: str | None = None
         self._host = _PanelHost()
+        self._fallback_slot: Div | None = None
         self._shortcuts: list[tuple[str | dict[str, str], Callable[[], Any]]] = []
         # Breathe around the host's content: an inner margin so leaf
         # panels don't hug the rail border / window edge.
         self._host.root.styles = self._host.root.styles.model_copy(update={"padding": "8px 24px"})
 
-        self._rail = Div(styles=_RAIL.model_copy(update={"width": width, "flex_shrink": "0"}))
+        if fallback_panel is not None:
+            # Shown when selection is None (see selected_key setter).
+            fallback_el = fallback_panel.build() if isinstance(fallback_panel, Component) else fallback_panel
+            self._fallback_slot = self._host.add(fallback_el)
+
+        rail_styles = _RAIL.model_copy(update={"width": width, "flex_shrink": "0"})
+        if not edge_fade:
+            rail_styles = rail_styles.model_copy(update={"mask_image": None})
+        self._rail = Div(styles=rail_styles)
 
         # Root = rail (fixed width) + host (absorbs the rest) side by
         # side.  flex-grow:1 + min-height:0 make the tree consume the
@@ -311,6 +330,8 @@ class Tree(Component):
 
     @selected_key.setter
     def selected_key(self, value: str | None) -> None:
+        if value is None and self._fallback_slot is None:
+            raise ValueError("Tree.selected_key: None needs a fallback_panel to select nothing")
         if value is not None and value not in self._leaf_keys:
             raise ValueError(f"Tree.selected_key: unknown leaf key {value!r}")
         self._selected_key = value
@@ -517,11 +538,13 @@ class Tree(Component):
 
     def _sync_host(self) -> None:
         if self._selected_key is None:
-            self._host.set_active(-1)
+            # With a fallback registered (slot 0), show it; else hide all.
+            self._host.set_active(0 if self._fallback_slot is not None else -1)
             return
         try:
             index = self._leaf_keys.index(self._selected_key)
         except ValueError:
-            self._host.set_active(-1)
+            self._host.set_active(0 if self._fallback_slot is not None else -1)
             return
-        self._host.set_active(index)
+        # Leaf slots start after the fallback slot (index 0) when present.
+        self._host.set_active(index + (1 if self._fallback_slot is not None else 0))

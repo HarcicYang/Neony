@@ -439,6 +439,11 @@ class Styles(BaseModel):
     background_size: str | None = Field(default=None)
     background_position: str | None = Field(default=None)
     background_repeat: str | None = Field(default=None)
+    # Edge fade for scroll surfaces — also emitted with the -webkit-
+    # prefix (WebKitGTK).  A linear-gradient mask fades overflow content
+    # at the edges; scrolling brings it back into view.
+    mask_image: str | None = Field(default=None)
+    mask_size: str | None = Field(default=None)
     overflow: (
         Literal[
             "visible",

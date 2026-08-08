@@ -126,7 +126,8 @@ class TestComponentBuild:
         tabs.add("One", Text("panel 1"))
         tabs.add("Two", Text("panel 2"))
         node = tabs.build().to_node()
-        assert len(node.children) == 3  # bar + 2 panels
+        assert len(node.children) == 2  # bar + panel host
+        assert len(node.children[1].children) == 2  # two slots
 
     def test_tabs_active_styles(self):
         tabs = Tabs()
@@ -139,23 +140,26 @@ class TestComponentBuild:
         assert bar.children[1].styles["background-color"] == "var(--color-surface)"
 
     def test_tabs_active_panel_animates(self):
-        """The visible panel carries the built-in rise-in animation."""
+        """The visible panel's slot carries the built-in rise-in animation."""
         tabs = Tabs()
         tabs.add("One", Text("p1"))
         tabs.add("Two", Text("p2"))
         node = tabs.build().to_node()
-        active_panel, inactive_panel = node.children[1], node.children[2]
-        assert active_panel.styles["display"] == "flex"
-        assert active_panel.styles["animation"] == "neony-rise-in 0.25s ease-out"
-        assert inactive_panel.styles["display"] == "none"
-        assert "animation" not in inactive_panel.styles
+        active_slot, inactive_slot = node.children[1].children[0], node.children[1].children[1]
+        assert active_slot.styles["display"] == "flex"
+        assert active_slot.styles["animation"] == "neony-rise-in 0.25s ease-out"
+        assert inactive_slot.styles["display"] == "none"
+        assert "animation" not in inactive_slot.styles
 
     def test_tabs_glass_panel_animates(self):
         tabs = Tabs(glass=True)
         tabs.add("One", Text("p1"))
         node = tabs.build().to_node()
-        panel = node.children[1]
-        assert panel.styles["animation"] == "neony-rise-in 0.25s ease-out"
+        slot = node.children[1].children[0]
+        assert slot.styles["animation"] == "neony-rise-in 0.25s ease-out"
+        # Glass tint lives on the panel element inside the slot.
+        panel = slot.children[0]
+        assert panel.styles["backdrop-filter"] == "blur(16px)"
 
     def test_tabs_tab_button_transitions(self):
         tabs = Tabs()
@@ -700,19 +704,18 @@ class TestRadioGroup:
         assert "checked" not in a_node.attrs
 
     def test_group_change_carries_item_value(self):
-        """The group-level change fires once with the selected value.
-        (Source is ``program`` here — the group handler is a raw
-        DOMElement handler, Sidebar parity; the item-level change that
-        preceded it carried ``user``.)"""
+        """The group-level change fires once with the selected value and
+        carries ``source == "user"`` — the group binds each radio via
+        ``_bind`` so the base dispatcher tags user-driven events."""
         group = RadioGroup(Radio("A", value="a"), Radio("B", value="b"))
         fired: list = []
 
         async def handler(event: DomEvent):
-            fired.append(event.value)
+            fired.append((event.value, event.source))
 
         group.on_change(handler)
         self._user_change(group.items[1])
-        assert fired == ["b"]
+        assert fired == [("b", "user")]
 
     def test_programmatic_value_set_fires_nothing(self):
         group = RadioGroup(Radio("A", value="a"), Radio("B", value="b"))
@@ -2605,7 +2608,8 @@ class TestTabsSelection:
     def test_constructor_children_pairs(self):
         tabs = Tabs(("One", Text("p1")), ("Two", Text("p2")))
         node = tabs.build().to_node()
-        assert len(node.children) == 3  # bar + 2 panels
+        assert len(node.children) == 2  # bar + panel host
+        assert len(node.children[1].children) == 2  # one slot per panel
 
     def test_constructor_children_equal_chain(self):
         chained = Tabs()
@@ -2620,8 +2624,9 @@ class TestTabsSelection:
         # Binding the raw DOMElement (build() once already mounted it).
         tabs.selected_panel = p2._root
         node = tabs.build().to_node()
-        assert node.children[2].styles["display"] == "flex"
-        assert node.children[1].styles["display"] == "none"
+        host = node.children[1]
+        assert host.children[1].styles["display"] == "flex"
+        assert host.children[0].styles["display"] == "none"
 
     def test_selected_panel_component_binding(self):
         p1, p2 = Text("p1"), Text("p2")
@@ -2913,6 +2918,15 @@ class TestSidebarSelection:
         )
         sidebar.selected_key = "settings"
         assert sidebar.selected_key == "settings"
+        # None needs a fallback_panel — without one it raises.
+        with pytest.raises(ValueError):
+            sidebar.selected_key = None
+
+    def test_selected_key_none_with_fallback(self):
+        sidebar = Sidebar(
+            Pane("Home", panel=Text("h"), key="home"),
+            fallback_panel=Text("nothing selected"),
+        )
         sidebar.selected_key = None
         assert sidebar.selected_key is None
 
@@ -2927,8 +2941,9 @@ class TestSidebarSelection:
             active_key="home",
         )
         assert sidebar.active_key == "home"
-        sidebar.active_key = None
-        assert sidebar.selected_key is None
+        # Deprecated alias follows the same None rule.
+        with pytest.raises(ValueError):
+            sidebar.active_key = None
 
     def test_first_pane_auto_selected(self):
         sidebar = Sidebar(Pane("Home", panel=Text("h"), key="home"))
@@ -3027,9 +3042,18 @@ class TestSidebarShortcuts:
         assert pairs[0][0] == "Ctrl+1"
         assert pairs[1][0] == {"darwin": "Meta+2", "default": "Ctrl+2"}
 
-    def test_no_shortcuts_by_default(self):
+    def test_auto_shortcut_by_default(self):
+        # The first pane gets an auto Ctrl+1 unless it declares a manual
+        # shortcut (which wins).
         sidebar = Sidebar(Pane("Home", panel=Text("h")))
-        assert sidebar.shortcuts() == []
+        assert [combo for combo, _ in sidebar.shortcuts()] == ["Ctrl+1"]
+
+    def test_auto_shortcuts_1_to_9_then_0(self):
+        sidebar = Sidebar(
+            *[Pane(f"P{i}", panel=Text("x"), key=f"p{i}") for i in range(1, 11)]
+        )
+        combos = [combo for combo, _ in sidebar.shortcuts()]
+        assert combos == [f"Ctrl+{i % 10}" for i in range(1, 11)]  # Ctrl+1..9, then Ctrl+0
 
     def test_shortcut_handler_selects_and_dispatches(self):
         import asyncio
