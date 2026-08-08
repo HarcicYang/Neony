@@ -154,6 +154,21 @@ class DOMElement(BaseModel):
     container: list[DOMElement | str] = Field(default_factory=list)
     styles: Styles = Field(default_factory=Styles)
     args: dict[str, Any] = Field(default_factory=dict)
+    # Scroll indicator control: when enabled (default) and the element's
+    # overflow is auto/scroll, serialization auto-injects a
+    # ``data-neony-scroll`` marker (x/y/true) that the JS engine turns
+    # into a custom thumb + dynamic edge fade.  Not an html_attr — it is
+    # a switch, not a rendered attribute of its own name.
+    # Accepts a preset name for the thumb's rest/active look:
+    #   "silent"  — hidden until hover/scroll, then a thin solid thumb
+    #   "lighten" — faint thin thumb at rest, solid thin on hover/scroll
+    #   "normal"  — faint thin at rest, solid wide on hover/scroll (default)
+    #   "active"  — solid wide thumb always
+    #   False     — suppress the indicator entirely
+    #   True      — equivalent to "normal"
+    scroll_indicator: bool | Literal["silent", "lighten", "normal", "active"] = Field(
+        default=True
+    )
 
     # Fluent .on_xxx() handlers — PrivateAttr so callables never serialize.
     _handlers: dict[str, list[Callable[..., Any]]] = PrivateAttr(default_factory=dict)
@@ -504,6 +519,29 @@ class DOMElement(BaseModel):
                     items.append((html_name, value))
         for k, v in self.args.items():
             items.append((k, v))
+        # Scroll-indicator auto-derivation: when scroll_indicator is on,
+        # no explicit data-neony-scroll was given, and an axis is actually
+        # scrollable (overflow auto/scroll), inject the marker so the JS
+        # engine builds a thumb + dynamic edge fade on this surface.
+        # Axis: overflow_y scrollable → "y", overflow_x → "x", both →
+        # "true" (JS resolves which way at runtime).  A preset name
+        # (silent/lighten/normal/active) rides as a suffix so the JS
+        # engine picks the thumb's rest/active look.
+        si = self.scroll_indicator
+        if si and not any(k == "data-neony-scroll" for k, _ in items):
+            # normal is the default preset — no suffix (keeps the marker
+            # lean for the common case).
+            suffix = "" if si is True or si == "normal" else f"-{si}"
+            oy = self.styles.overflow_y or self.styles.overflow
+            ox = self.styles.overflow_x or self.styles.overflow
+            scrolls_y = oy in ("auto", "scroll")
+            scrolls_x = ox in ("auto", "scroll")
+            if scrolls_y and scrolls_x:
+                items.append(("data-neony-scroll", f"true{suffix}"))
+            elif scrolls_y:
+                items.append(("data-neony-scroll", f"y{suffix}"))
+            elif scrolls_x:
+                items.append(("data-neony-scroll", f"x{suffix}"))
         return items
 
     def _build_attrs(self) -> list[str]:

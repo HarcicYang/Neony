@@ -6,6 +6,7 @@ from neony.dom import (
     Button,
     Canvas,
     Details,
+    Div,
     Form,
     IFrame,
     Img,
@@ -18,6 +19,7 @@ from neony.dom import (
     Select,
     Source,
     Style,
+    Styles,
     Textarea,
     Video,
 )
@@ -187,3 +189,62 @@ class TestPrecedence:
         html = Input(type="text", args={"type": "password"}).build()
         # first occurrence wins in HTML — the typed field comes first
         assert html.index('type="text"') < html.index('type="password"')
+
+
+class TestScrollIndicatorDerivation:
+    """``data-neony-scroll`` is auto-derived from overflow when
+    ``scroll_indicator`` is on (default) and not explicitly set."""
+
+    def test_vertical_overflow_derives_y(self):
+        node = Div(styles=Styles(overflow_y="auto")).to_node()
+        assert node.attrs.get("data-neony-scroll") == "y"
+
+    def test_horizontal_overflow_derives_x(self):
+        node = Div(styles=Styles(overflow_x="auto")).to_node()
+        assert node.attrs.get("data-neony-scroll") == "x"
+
+    def test_both_axes_derives_true(self):
+        node = Div(styles=Styles(overflow="auto")).to_node()
+        assert node.attrs.get("data-neony-scroll") == "true"
+
+    def test_scroll_keyword_also_derives(self):
+        # overflow:scroll is a scroll surface too.
+        node = Div(styles=Styles(overflow_y="scroll")).to_node()
+        assert node.attrs.get("data-neony-scroll") == "y"
+
+    def test_non_scrollable_derives_nothing(self):
+        node = Div(styles=Styles(overflow_y="hidden")).to_node()
+        assert "data-neony-scroll" not in node.attrs
+
+    def test_unset_overflow_derives_nothing(self):
+        node = Div().to_node()
+        assert "data-neony-scroll" not in node.attrs
+
+    def test_scroll_indicator_false_suppresses(self):
+        node = Div(styles=Styles(overflow_y="auto"), scroll_indicator=False).to_node()
+        assert "data-neony-scroll" not in node.attrs
+
+    def test_explicit_marker_respected(self):
+        # An explicit args value wins over derivation.
+        node = Div(styles=Styles(overflow_y="auto"), args={"data-neony-scroll": "off"}).to_node()
+        assert node.attrs.get("data-neony-scroll") == "off"
+
+    def test_build_renders_derived_marker(self):
+        html = Div(styles=Styles(overflow_y="auto")).build()
+        assert 'data-neony-scroll="y"' in html
+
+    def test_preset_silent_derives_suffix(self):
+        node = Div(styles=Styles(overflow_y="auto"), scroll_indicator="silent").to_node()
+        assert node.attrs.get("data-neony-scroll") == "y-silent"
+
+    def test_preset_active_derives_suffix(self):
+        node = Div(styles=Styles(overflow_x="auto"), scroll_indicator="active").to_node()
+        assert node.attrs.get("data-neony-scroll") == "x-active"
+
+    def test_preset_normal_derives_plain(self):
+        node = Div(styles=Styles(overflow_y="auto"), scroll_indicator="normal").to_node()
+        assert node.attrs.get("data-neony-scroll") == "y"
+
+    def test_preset_false_suppresses(self):
+        node = Div(styles=Styles(overflow_y="auto"), scroll_indicator=False).to_node()
+        assert "data-neony-scroll" not in node.attrs

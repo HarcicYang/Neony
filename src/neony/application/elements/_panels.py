@@ -53,7 +53,10 @@ class _PanelHost:
     model (key → slot index) onto it."""
 
     def __init__(self) -> None:
-        self._root = Div(styles=_HOST)
+        # scroll_indicator=False: this is the CONTENT pane, not a
+        # navigation surface — the custom thumb/edge-fade would be visual
+        # noise on every pane's internal scroll.
+        self._root = Div(styles=_HOST, scroll_indicator=False)
         self._slots: list[Div] = []
         self._active: int = -1
 

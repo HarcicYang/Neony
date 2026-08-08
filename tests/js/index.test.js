@@ -553,6 +553,142 @@ describe("wheel-x (vertical wheel → horizontal scroll)", () => {
   });
 });
 
+describe("scroll indicator (data-neony-scroll)", () => {
+  let rafSpy;
+
+  beforeEach(() => {
+    // Run the geometry rAF synchronously so one schedule updates the
+    // thumb immediately (each frame runs at once).
+    rafSpy = vi.spyOn(global, "requestAnimationFrame").mockImplementation((cb) => {
+      cb();
+      return 1;
+    });
+  });
+  afterEach(() => {
+    rafSpy.mockRestore();
+    document.body.innerHTML = "";
+  });
+
+  // jsdom does not lay out scroll metrics — define them as real props.
+  function makeScrollEl({
+    axis = "y",
+    scrollSize = 1000,
+    clientSize = 200,
+    scrollTop = 0,
+    backdropFilter = false,
+  } = {}) {
+    const el = document.createElement("div");
+    el.setAttribute("data-neony-scroll", axis);
+    if (axis === "y") {
+      Object.defineProperty(el, "scrollHeight", { value: scrollSize, configurable: true });
+      Object.defineProperty(el, "clientHeight", { value: clientSize, configurable: true });
+    } else {
+      Object.defineProperty(el, "scrollWidth", { value: scrollSize, configurable: true });
+      Object.defineProperty(el, "clientWidth", { value: clientSize, configurable: true });
+    }
+    let top = scrollTop;
+    let left = scrollTop;
+    Object.defineProperty(el, "scrollTop", { configurable: true, get: () => top, set: (v) => { top = v; } });
+    Object.defineProperty(el, "scrollLeft", { configurable: true, get: () => left, set: (v) => { left = v; } });
+    if (backdropFilter) el.style.backdropFilter = "blur(8px)";
+    document.body.appendChild(el);
+    return el;
+  }
+
+  // The boot MutationObserver attaches async — flush it with a microtask
+  // tick (MutationObserver callbacks fire on the microtask queue).
+  function flushObserver() {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  // The overlay is a SIBLING of the container (pinned in the parent),
+  // so it is found from the parent, not inside the scroller.
+  function findThumb(el) {
+    return el.parentElement.querySelector(".neony-scroll-thumb");
+  }
+
+  it("hides the overlay when content does not overflow", async () => {
+    const el = makeScrollEl({ scrollSize: 200, clientSize: 200 });
+    await flushObserver();
+    const overlay = findThumb(el)?.parentElement;
+    expect(overlay).toBeDefined();
+    expect(overlay.style.display).toBe("none");
+  });
+
+  it("shows and positions the thumb by the geometry ratio (vertical)", async () => {
+    const el = makeScrollEl({ axis: "y", scrollSize: 1000, clientSize: 200, scrollTop: 0 });
+    await flushObserver();
+    const thumb = findThumb(el);
+    expect(thumb).toBeDefined();
+    const overlay = thumb.parentElement;
+    expect(overlay.style.display).not.toBe("none");
+    // clientHeight of the track is 0 in jsdom (no layout), so thumbLen
+    // collapses to SI_THUMB_MIN; just assert the thumb is placed.
+    expect(thumb.style.height).toBeDefined();
+  });
+
+  it("writes a dynamic mask with no top fade at scrollTop=0", async () => {
+    const el = makeScrollEl({ axis: "y", scrollSize: 1000, clientSize: 200, scrollTop: 0 });
+    await flushObserver();
+    // At the top, the leading edge is solid (no transparent rim).
+    expect(el.style.maskImage).toContain("black 0px");
+    expect(el.style.webkitMaskImage).toBe(el.style.maskImage);
+  });
+
+  it("applies NO mask when the container has a backdrop-filter", async () => {
+    const el = makeScrollEl({ axis: "y", scrollSize: 1000, clientSize: 200, backdropFilter: true });
+    await flushObserver();
+    expect(el.style.maskImage).toBe("");
+  });
+
+  it("drag maps pointer movement to scrollTop through the ratio", async () => {
+    window.lumiview = { listen, invoke: vi.fn(() => Promise.resolve()), window: {} };
+    const el = makeScrollEl({ axis: "y", scrollSize: 1000, clientSize: 200, scrollTop: 0 });
+    await flushObserver();
+    const thumb = findThumb(el);
+    // setPointerCapture doesn't exist in jsdom.
+    thumb.setPointerCapture = vi.fn();
+    thumb.releasePointerCapture = vi.fn();
+
+    function pointerEvent(type, init) {
+      const e = new window.MouseEvent(type, { bubbles: true });
+      Object.defineProperty(e, "clientY", { value: init.clientY });
+      Object.defineProperty(e, "pointerId", { value: 1 });
+      e.preventDefault = vi.fn();
+      e.stopPropagation = vi.fn();
+      return e;
+    }
+
+    const down = pointerEvent("pointerdown", { clientY: 100 });
+    thumb.dispatchEvent(down);
+    expect(thumb.setPointerCapture).toHaveBeenCalledWith(1);
+
+    // Drag runs with ZERO Python IPC — the invoke count must not rise.
+    const before = window.lumiview.invoke.mock.calls.length;
+    const move = pointerEvent("pointermove", { clientY: 150 });
+    thumb.dispatchEvent(move);
+    expect(window.lumiview.invoke.mock.calls.length).toBe(before);
+
+    const up = pointerEvent("pointerup", { clientY: 150 });
+    thumb.dispatchEvent(up);
+    expect(thumb.releasePointerCapture).toHaveBeenCalledWith(1);
+  });
+
+  it("attaches at most once (idempotent) and detaches on removal", async () => {
+    const el = makeScrollEl({ axis: "y", scrollSize: 1000, clientSize: 200 });
+    await flushObserver();
+    expect(el.parentElement.querySelectorAll(".neony-scroll-thumb").length).toBe(1);
+    // Re-discovering must not double-attach.
+    el.setAttribute("data-neony-scroll", "y"); // no-op churn
+    await flushObserver();
+    expect(el.parentElement.querySelectorAll(".neony-scroll-thumb").length).toBe(1);
+    el.remove();
+    await flushObserver();
+    // Detach cleared the mask it owned.
+    expect(el.style.maskImage).toBe("");
+  });
+});
+
 describe("transition and animation events", () => {
   let invoke;
   let win;

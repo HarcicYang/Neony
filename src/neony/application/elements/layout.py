@@ -221,9 +221,7 @@ class GlassPanel(Component):
             # more than the wrapper (100% basis + grown space) and
             # overlap its siblings.
             face = Div(
-                styles=glass_styles.model_copy(
-                    update={"flex_grow": "1", "flex_basis": "0", "min_height": "0"}
-                ),
+                styles=glass_styles.model_copy(update={"flex_grow": "1", "flex_basis": "0", "min_height": "0"}),
                 container=children_el,
             )
             if background:

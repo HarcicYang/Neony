@@ -73,9 +73,7 @@ class Tabs(Component):
 
     def __init__(
         self,
-        *panes: (
-            tuple[str, Component | DOMElement] | tuple[str, Component | DOMElement, str]
-        ),
+        *panes: (tuple[str, Component | DOMElement] | tuple[str, Component | DOMElement, str]),
         glass: bool = False,
         fallback_panel: Component | DOMElement | None = None,
         edge_fade: bool = True,
@@ -97,46 +95,25 @@ class Tabs(Component):
             overflow_x="auto",
             overflow_y="hidden",
             min_width="0",
-            # Horizontal padding matches the mask's fade zones (36px each
-            # side) so the first/last tabs sit clear of the fade — the mask
-            # only clips content once tabs actually overflow and scroll
-            # under it.
+            # Horizontal padding reserves a breathing rim.  The edge fade
+            # is now owned and applied dynamically by the JS scroll
+            # indicator (data-neony-scroll), so this no longer has to
+            # match a static mask width — it just keeps the first/last
+            # tabs from kissing the strip edge.
             padding="0 36px",
         )
-        if edge_fade:
-            # Edge fade hints at off-screen tabs.  A flat low-opacity
-            # plateau (alpha 0.7) spans 6→30px — ~67% of the 36px edge
-            # zone — so the faded region dominates instead of being a thin
-            # whisper.  Only the final 30→36px climbs to solid black (a
-            # short crisp boundary), and the first 6px ramps transparent→
-            # 0.7 to enter the plateau.  Matching 36px padding keeps
-            # anchored tabs out of the fade unless they scroll into it.
-            bar_styles = bar_styles.model_copy(
-                update={
-                    "mask_image": (
-                        # Genuine gradient (NOT a flat plateau — a
-                        # near-solid plateau flattened the fade to
-                        # nothing).  The edge is held fully transparent
-                        # out to 6px (the "deep" extreme — content truly
-                        # hidden), then climbs slowly to alpha 0.5 by
-                        # 26px and only snaps to solid in the last
-                        # 26→36px.  So the low-opacity region (alpha
-                        # < 0.5) spans ~72% of the 36px edge zone: a
-                        # large, clearly visible fade, deep at the rim.
-                        "linear-gradient(to right, "
-                        "transparent 6px, rgba(0,0,0,0.5) 26px, "
-                        "black 36px, black calc(100% - 36px), "
-                        "rgba(0,0,0,0.5) calc(100% - 26px), "
-                        "transparent calc(100% - 6px))"
-                    )
-                }
-            )
         # Horizontal tab strip: no-wrap + scroll so too many tabs scroll
         # sideways instead of wrapping into extra rows.  data-neony-wheel-x
         # routes a plain vertical wheel through the JS engine's smooth
         # horizontal scroll (WebKitGTK does not turn vertical wheel into
-        # horizontal on its own) — no Shift required.
-        self._bar = Div(styles=bar_styles, args={"data-neony-wheel-x": "true"})
+        # horizontal on its own) — no Shift required.  The scroll
+        # indicator is explicit ("x-silent"): on a compact strip a resting
+        # gutter is intrusive, so the thumb stays hidden until
+        # hover/scroll and only the edge fade hints at rest.
+        bar_args = {"data-neony-wheel-x": "true"}
+        if edge_fade:
+            bar_args["data-neony-scroll"] = "x-silent"
+        self._bar = Div(styles=bar_styles, args=bar_args, scroll_indicator=edge_fade)
         self._root = Div(
             styles=Styles(display="flex", flex_direction="column", width="100%"),
             container=[self._bar, self._host.root],
