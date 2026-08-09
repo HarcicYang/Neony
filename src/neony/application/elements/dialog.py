@@ -26,7 +26,8 @@ from typing import Any, Literal, Self
 
 from pydantic import BaseModel
 
-from neony.dom import Animation, Color, Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.application.theme import stub
+from neony.dom import Animation, Div, DOMElement, DomEvent, Span, Styles, Transition
 
 from .base import Component
 from .button import Button
@@ -85,7 +86,7 @@ _SCRIM = Styles(
     left="0",
     right="0",
     bottom="0",
-    background_color=Color(var="--color-bg-overlay"),
+    background_color=stub.bg_overlay,
     opacity=0.0,
     transition=Transition(property="opacity", duration="0.2s", timing="ease"),
 )
@@ -99,7 +100,7 @@ _GLASS_PANEL = Styles(
     overflow="auto",
     padding="20px",
     border_radius="12px",
-    background_color=Color(var="--color-surface-panel-glass-bg"),
+    background_color=stub.surface_panel_glass_bg,
     backdrop_filter="blur(20px) saturate(1.2)",
     border="1px solid var(--color-border-glass)",
     box_shadow="0 16px 48px var(--color-shadow)",
@@ -109,7 +110,7 @@ _GLASS_PANEL = Styles(
 
 _SOLID_PANEL = _GLASS_PANEL.model_copy(
     update={
-        "background_color": Color(var="--color-surface"),
+        "background_color": stub.surface,
         "backdrop_filter": None,
         "border": "1px solid var(--color-border)",
     }
@@ -118,7 +119,7 @@ _SOLID_PANEL = _GLASS_PANEL.model_copy(
 _TITLE = Styles(
     font_size="16px",
     font_weight="700",
-    color=Color(var="--color-text-primary"),
+    color=stub.text_primary,
     margin="0 0 12px 0",
 )
 

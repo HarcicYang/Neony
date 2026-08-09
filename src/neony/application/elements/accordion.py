@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import Self
 
+from neony.application.theme import stub
 from neony.dom import Animation, Color, Div, DOMElement, DomEvent, Span, Styles, Transition
 
 from .base import Component
@@ -45,7 +46,7 @@ _HEADER = Styles(
     font_size="14px",
     font_weight="600",
     background_color=Color(name="transparent"),
-    color=Color(var="--color-text-secondary"),
+    color=stub.text_secondary,
     # Smooth the open/closed background + chevron rotation switch.
     transition=Transition(property="background-color", duration="0.15s", timing="ease"),
     user_select="none",
@@ -54,8 +55,8 @@ _HEADER = Styles(
 # Open header: a faint accent tint surfaces which groups are expanded.
 _HEADER_OPEN = _HEADER.model_copy(
     update={
-        "background_color": Color(var="--color-surface"),
-        "color": Color(var="--color-text-primary"),
+        "background_color": stub.surface,
+        "color": stub.text_primary,
     }
 )
 
@@ -63,7 +64,7 @@ _HEADER_OPEN = _HEADER.model_copy(
 _CHEVRON = Styles(
     display="inline-flex",
     font_size="11px",
-    color=Color(var="--color-text-secondary"),
+    color=stub.text_secondary,
     transition=Transition(property="transform", duration="0.15s", timing="ease"),
 )
 _CHEVRON_OPEN = _CHEVRON.model_copy(update={"transform": "rotate(90deg)"})

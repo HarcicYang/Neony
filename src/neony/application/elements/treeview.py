@@ -30,6 +30,7 @@ import uuid
 from collections.abc import Callable
 from typing import Any, Self
 
+from neony.application.theme import stub
 from neony.dom import Animation, Color, Div, DOMElement, DomEvent, Span, Styles, Transition
 
 from .. import shortcuts
@@ -48,7 +49,7 @@ _ROW_BASE = Styles(
     font_size="14px",
     cursor="pointer",
     background_color=Color(name="transparent"),
-    color=Color(var="--color-text-secondary"),
+    color=stub.text_secondary,
     white_space="nowrap",
     overflow="hidden",
     text_overflow="ellipsis",
@@ -58,8 +59,8 @@ _ROW_BASE = Styles(
 
 _ROW_ACTIVE = _ROW_BASE.model_copy(
     update={
-        "background_color": Color(var="--color-surface"),
-        "color": Color(var="--color-text-primary"),
+        "background_color": stub.surface,
+        "color": stub.text_primary,
     }
 )
 

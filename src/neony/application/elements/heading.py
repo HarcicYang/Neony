@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Literal
 
+from neony.application.theme import stub
 from neony.dom import H1 as _H1
 from neony.dom import H2 as _H2
 from neony.dom import H3 as _H3
 from neony.dom import H4 as _H4
 from neony.dom import H5 as _H5
 from neony.dom import H6 as _H6
-from neony.dom import Color, DOMElement, Styles
+from neony.dom import DOMElement, Styles
 
 from .base import Component
 
@@ -30,7 +31,7 @@ class Heading(Component):
             styles=Styles(
                 font_size=_SIZES[level],
                 font_weight="700",
-                color=Color(var="--color-text-primary"),
+                color=stub.text_primary,
                 margin="0",
             ),
         )

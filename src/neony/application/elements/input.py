@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Literal
 
-from neony.application.theme import Theme
-from neony.dom import Color, DomEvent, Styles, Transition
+from neony.application.theme import Theme, stub
+from neony.dom import DomEvent, Styles, Transition
 from neony.dom import Input as _InputElem
 
 from .base import Component
@@ -15,8 +15,8 @@ _FIELD = Styles(
     padding="10px 14px",
     border_radius="8px",
     border="1px solid var(--color-border)",
-    background_color=Color(var="--color-surface"),
-    color=Color(var="--color-text-primary"),
+    background_color=stub.surface,
+    color=stub.text_primary,
     font_size="15px",
     outline="none",
     transition=Transition(property="border-color", duration="0.15s", timing="ease"),
@@ -24,7 +24,7 @@ _FIELD = Styles(
 
 _GLASS_FIELD = _FIELD.model_copy(
     update={
-        "background_color": Color(var="--color-surface-glass-bg"),
+        "background_color": stub.surface_glass_bg,
         "backdrop_filter": "blur(8px)",
         "border": f"1px solid {Theme.glass_border('neutral')}",
     }

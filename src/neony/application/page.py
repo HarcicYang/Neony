@@ -6,7 +6,8 @@ import asyncio
 from collections.abc import Callable
 from typing import Any, Literal, Self
 
-from neony.dom import Color, Div, DOMElement, DomEvent, Styles
+from neony.application.theme import stub
+from neony.dom import Div, DOMElement, DomEvent, Styles
 
 from . import shortcuts
 from .elements import Component
@@ -223,7 +224,7 @@ class Page:
         outer = Styles(
             min_height="100vh",
             width="100%",
-            color=Color(var="--color-text-primary"),
+            color=stub.text_primary,
             font_family="system-ui, -apple-system, sans-serif",
         )
 

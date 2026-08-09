@@ -13,8 +13,8 @@ from __future__ import annotations
 import asyncio
 from typing import Literal
 
-from neony.application.theme import Theme
-from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.application.theme import Theme, stub
+from neony.dom import Div, DOMElement, DomEvent, Span, Styles, Transition
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
@@ -22,7 +22,7 @@ from .base import Component
 
 _ROW = Styles(display="flex", flex_direction="column", gap="6px", width="100%")
 
-_LABEL = Styles(font_size="14px", color=Color(var="--color-text-secondary"))
+_LABEL = Styles(font_size="14px", color=stub.text_secondary)
 
 # The thumb (8px radius) travels the track's full width, so the track
 # is inset by 8px each side — at 0%/100% the thumb centres exactly on
@@ -39,7 +39,7 @@ _TRACK = Styles(
     right=_THUMB_RADIUS,
     height="6px",
     border_radius="999px",
-    background_color=Color(var="--color-surface-raised"),
+    background_color=stub.surface_raised,
     overflow="hidden",
 )
 
@@ -47,7 +47,7 @@ _FILL = Styles(
     height="100%",
     width="0%",
     border_radius="999px",
-    background_color=Color(var="--color-accent"),
+    background_color=stub.accent,
     transition=Transition(property="width", duration="0.2s", timing="ease"),
 )
 
@@ -59,7 +59,7 @@ _THUMB = Styles(
     width="16px",
     height="16px",
     border_radius="50%",
-    background_color=Color(var="--color-surface-raised"),
+    background_color=stub.surface_raised,
     border="2px solid var(--color-accent)",
     box_shadow="0 2px 6px var(--color-shadow)",
     transition=Transition(property="left", duration="0.2s", timing="ease"),

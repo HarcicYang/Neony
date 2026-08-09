@@ -18,7 +18,8 @@ import asyncio
 from collections.abc import Callable
 from typing import Any, Self
 
-from neony.dom import Color, Div, DomEvent, Span, Styles
+from neony.application.theme import stub
+from neony.dom import Div, DomEvent, Span, Styles
 
 from .dialog import Dialog  # reuses its module-level panel/scrim styles
 from .input import Input
@@ -58,7 +59,7 @@ class PromptDialog(Dialog):
         if message is not None:
             content_parts.append(
                 Div(
-                    styles=Styles(color=Color(var="--color-text-secondary"), margin="0 0 12px 0"),
+                    styles=Styles(color=stub.text_secondary, margin="0 0 12px 0"),
                     container=[message],
                 )
             )

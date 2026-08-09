@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.application.theme import stub
+from neony.dom import Div, DOMElement, DomEvent, Span, Styles, Transition
 
 from ._panels import _PanelHost
 from .base import Component
@@ -14,8 +15,8 @@ _TAB_BASE = Styles(
     font_size="14px",
     font_weight="500",
     cursor="pointer",
-    background_color=Color(var="--color-surface"),
-    color=Color(var="--color-text-secondary"),
+    background_color=stub.surface,
+    color=stub.text_secondary,
     # Long titles (e.g. "Section J") stay on one line instead of wrapping
     # and collapsing the tab to two stacked rows.
     white_space="nowrap",
@@ -25,8 +26,8 @@ _TAB_BASE = Styles(
 
 _TAB_ACTIVE = _TAB_BASE.model_copy(
     update={
-        "background_color": Color(var="--color-accent"),
-        "color": Color(var="--color-text-primary"),
+        "background_color": stub.accent,
+        "color": stub.text_primary,
     }
 )
 
@@ -39,14 +40,14 @@ _PANEL_BASE = Styles(
     flex_direction="column",
     gap="16px",
     padding="24px",
-    background_color=Color(var="--color-surface"),
+    background_color=stub.surface,
     border_radius="8px",
     width="100%",
 )
 
 _PANEL_GLASS = _PANEL_BASE.model_copy(
     update={
-        "background_color": Color(var="--color-surface-glass-bg"),
+        "background_color": stub.surface_glass_bg,
         "backdrop_filter": "blur(16px)",
         "border": "1px solid var(--color-border-glass)",
     }

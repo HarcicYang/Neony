@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Literal
 
-from neony.application.theme import Theme
+from neony.application.theme import Theme, stub
 from neony.dom import Div, DOMElement, DomEvent, Styles
 
 from .base import Component
@@ -86,13 +86,9 @@ class Card(Component):
         self._clickable = clickable
 
         # --- styles ---
-        from neony.dom import Color
-
         card_styles = _SOLID.model_copy(
             update={
-                "background_color": (
-                    Color(var="--color-surface-panel-glass-bg") if glass else Color(var="--color-surface")
-                ),
+                "background_color": (stub.surface_panel_glass_bg if glass else stub.surface),
                 "padding": padding,
                 "gap": gap,
                 "border_radius": radius,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from neony.application.theme import Theme
+from neony.application.theme import Theme, stub
 from neony.dom import Button as _ButtonElem
 from neony.dom import Color, DOMElement, DomEvent, Styles, Transition
 
@@ -91,7 +91,7 @@ class Button(Component):
             font_weight="500",
             cursor="pointer",
             transition=Transition(duration="0.15s", timing="ease"),
-            color=Color(var="--color-text-primary"),
+            color=stub.text_primary,
         )
 
         if glass:
@@ -99,7 +99,7 @@ class Button(Component):
             role = {"primary": "accent", "ghost": "surface"}.get(variant, variant)
             # Saturated roles need their contrasting on-* text colour; the
             # neutral ghost sits on a surface and keeps the body text colour.
-            fg = Color(var=f"--color-on-{role}") if role in ("accent", "danger") else Color(var="--color-text-primary")
+            fg = Color(var=f"--color-on-{role}") if role in ("accent", "danger") else stub.text_primary
             return base.model_copy(
                 update={
                     "background_color": Color(var=f"--color-{role}-glass-bg"),
@@ -113,21 +113,21 @@ class Button(Component):
         if variant == "ghost":
             return base.model_copy(
                 update={
-                    "background_color": Color(var="--color-surface"),
+                    "background_color": stub.surface,
                     "border": "1px solid var(--color-border)",
                 }
             )
         if variant == "danger":
             return base.model_copy(
                 update={
-                    "background_color": Color(var="--color-danger"),
-                    "color": Color(var="--color-on-danger"),
+                    "background_color": stub.danger,
+                    "color": stub.on_danger,
                 }
             )
         return base.model_copy(
             update={
-                "background_color": Color(var="--color-accent"),
-                "color": Color(var="--color-on-accent"),
+                "background_color": stub.accent,
+                "color": stub.on_accent,
             }
         )
 

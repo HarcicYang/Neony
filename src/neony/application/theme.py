@@ -18,6 +18,8 @@ from typing import ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
+from neony.dom.css import BoxShadow, Color, Shadow
+
 
 class Theme(BaseModel):
     """Semantic colour palette for one display mode.
@@ -43,37 +45,38 @@ class Theme(BaseModel):
 
     mode: str
 
-    # --- semantic tokens (hex strings / rgba) ---
-    bg: str
-    surface: str
-    surface_raised: str
-    text_primary: str
-    text_secondary: str
-    accent: str
-    accent_dim: str
-    danger: str
-    success: str
-    border: str
-    shadow: str
+    # --- semantic tokens (Color values / rgba) ---
+    bg: Color
+    surface: Color
+    surface_raised: Color
+    text_primary: Color
+    text_secondary: Color
+    accent: Color
+    accent_dim: Color
+    danger: Color
+    success: Color
+    border: Color
+    #: Box-shadow token — typed as BoxShadow, NOT a plain str.
+    shadow: BoxShadow
     #: Text colour on a filled ``accent`` background (white across built-ins).
-    on_accent: str
+    on_accent: Color
     #: Text colour on a filled ``danger`` background (white across built-ins).
-    on_danger: str
+    on_danger: Color
 
     # --- background overlay (theme colour at ~70% for dimming) ---
-    bg_overlay: str
+    bg_overlay: Color
 
     # --- glass tokens (opt-in frosted look, per-theme) ---
-    surface_glass: str
-    surface_raised_glass: str
-    border_glass: str
-    accent_glass: str
-    danger_glass: str
-    success_glass: str
-    surface_glass_bg: str
-    surface_panel_glass_bg: str
-    accent_glass_bg: str
-    danger_glass_bg: str
+    surface_glass: Color
+    surface_raised_glass: Color
+    border_glass: Color
+    accent_glass: Color
+    danger_glass: Color
+    success_glass: Color
+    surface_glass_bg: Color
+    surface_panel_glass_bg: Color
+    accent_glass_bg: Color
+    danger_glass_bg: Color
 
     @classmethod
     def modes(cls) -> tuple[str, ...]:
@@ -114,10 +117,17 @@ class Theme(BaseModel):
 
     @staticmethod
     def glass_border(role: str = "neutral") -> str:
-        """Highlight border colour for a semantic role (``var(--color-*-glass)``)."""
-        if role in ("accent", "danger", "success"):
-            return f"var(--color-{role}-glass)"
-        return "var(--color-border-glass)"
+        """Highlight border colour for a semantic role (``var(--color-*-glass)``).
+
+        Resolved from the :data:`stub` token namespace — no raw ``var()``
+        strings here; the token's ``var`` field carries the CSS name.
+        """
+        tok = {
+            "accent": stub.accent_glass,
+            "danger": stub.danger_glass,
+            "success": stub.success_glass,
+        }.get(role, stub.border_glass)
+        return f"var({tok.var})"
 
     @staticmethod
     def focus_glow(role: str = "accent") -> str:
@@ -172,84 +182,139 @@ class Theme(BaseModel):
 
 DARK = Theme(
     mode="dark",
-    bg="#0d0d12",
-    surface="#1a1a24",
-    surface_raised="#242436",
-    text_primary="#e8e8ed",
-    text_secondary="#707088",
-    accent="#6c8cff",
-    accent_dim="#5570cc",
-    danger="#ff6b6b",
-    success="#4ecdc4",
-    border="rgba(255, 255, 255, 0.06)",
-    shadow="0 8px 32px rgba(0, 0, 0, 0.25)",
-    on_accent="#ffffff",
-    on_danger="#ffffff",
-    bg_overlay="rgba(13, 13, 18, 0.7)",
-    surface_glass="rgba(52, 52, 56, 0.92)",
-    surface_raised_glass="rgba(60, 60, 64, 0.92)",
-    border_glass="rgba(255, 255, 255, 0.08)",
-    accent_glass="rgba(108, 140, 255, 0.25)",
-    danger_glass="rgba(255, 107, 107, 0.25)",
-    success_glass="rgba(78, 205, 196, 0.25)",
-    surface_glass_bg="rgba(40, 40, 44, 0.60)",
-    surface_panel_glass_bg="rgba(40, 40, 44, 0.85)",
-    accent_glass_bg="rgba(74, 144, 217, 0.60)",
-    danger_glass_bg="rgba(255, 107, 107, 0.60)",
+    bg=Color(hex="#0d0d12"),
+    surface=Color(hex="#1a1a24"),
+    surface_raised=Color(hex="#242436"),
+    text_primary=Color(hex="#e8e8ed"),
+    text_secondary=Color(hex="#707088"),
+    accent=Color(hex="#6c8cff"),
+    accent_dim=Color(hex="#5570cc"),
+    danger=Color(hex="#ff6b6b"),
+    success=Color(hex="#4ecdc4"),
+    border=Color(rgba=(255, 255, 255, 0.06)),
+    shadow=BoxShadow(layers=[Shadow(x=0, y=8, blur=32, color=Color(rgba=(0, 0, 0, 0.25)))]),
+    on_accent=Color(hex="#ffffff"),
+    on_danger=Color(hex="#ffffff"),
+    bg_overlay=Color(rgba=(13, 13, 18, 0.7)),
+    surface_glass=Color(rgba=(52, 52, 56, 0.92)),
+    surface_raised_glass=Color(rgba=(60, 60, 64, 0.92)),
+    border_glass=Color(rgba=(255, 255, 255, 0.08)),
+    accent_glass=Color(rgba=(108, 140, 255, 0.25)),
+    danger_glass=Color(rgba=(255, 107, 107, 0.25)),
+    success_glass=Color(rgba=(78, 205, 196, 0.25)),
+    surface_glass_bg=Color(rgba=(40, 40, 44, 0.60)),
+    surface_panel_glass_bg=Color(rgba=(40, 40, 44, 0.85)),
+    accent_glass_bg=Color(rgba=(74, 144, 217, 0.60)),
+    danger_glass_bg=Color(rgba=(255, 107, 107, 0.60)),
 )
 
 LIGHT = Theme(
     mode="light",
-    bg="#f4f5f7",
-    surface="#ffffff",
-    surface_raised="#ebebeb",
-    text_primary="#1a1a2e",
-    text_secondary="#5a5a72",
-    accent="#3a7bc8",
-    accent_dim="#2e6bb0",
-    danger="#d9534f",
-    success="#2fa89a",
-    border="rgba(0, 0, 0, 0.08)",
-    shadow="0 8px 32px rgba(0, 0, 0, 0.08)",
-    on_accent="#ffffff",
-    on_danger="#ffffff",
-    bg_overlay="rgba(244, 245, 247, 0.7)",
-    surface_glass="rgba(255, 255, 255, 0.88)",
-    surface_raised_glass="rgba(255, 255, 255, 0.88)",
-    border_glass="rgba(0, 0, 0, 0.12)",
-    accent_glass="rgba(58, 123, 200, 0.2)",
-    danger_glass="rgba(217, 83, 79, 0.2)",
-    success_glass="rgba(47, 168, 154, 0.2)",
-    surface_glass_bg="rgba(255, 255, 255, 0.60)",
-    surface_panel_glass_bg="rgba(255, 255, 255, 0.85)",
-    accent_glass_bg="rgba(58, 123, 200, 0.60)",
-    danger_glass_bg="rgba(217, 83, 79, 0.60)",
+    bg=Color(hex="#f4f5f7"),
+    surface=Color(hex="#ffffff"),
+    surface_raised=Color(hex="#ebebeb"),
+    text_primary=Color(hex="#1a1a2e"),
+    text_secondary=Color(hex="#5a5a72"),
+    accent=Color(hex="#3a7bc8"),
+    accent_dim=Color(hex="#2e6bb0"),
+    danger=Color(hex="#d9534f"),
+    success=Color(hex="#2fa89a"),
+    border=Color(rgba=(0, 0, 0, 0.08)),
+    shadow=BoxShadow(layers=[Shadow(x=0, y=8, blur=32, color=Color(rgba=(0, 0, 0, 0.08)))]),
+    on_accent=Color(hex="#ffffff"),
+    on_danger=Color(hex="#ffffff"),
+    bg_overlay=Color(rgba=(244, 245, 247, 0.7)),
+    surface_glass=Color(rgba=(255, 255, 255, 0.88)),
+    surface_raised_glass=Color(rgba=(255, 255, 255, 0.88)),
+    border_glass=Color(rgba=(0, 0, 0, 0.12)),
+    accent_glass=Color(rgba=(58, 123, 200, 0.2)),
+    danger_glass=Color(rgba=(217, 83, 79, 0.2)),
+    success_glass=Color(rgba=(47, 168, 154, 0.2)),
+    surface_glass_bg=Color(rgba=(255, 255, 255, 0.60)),
+    surface_panel_glass_bg=Color(rgba=(255, 255, 255, 0.85)),
+    accent_glass_bg=Color(rgba=(58, 123, 200, 0.60)),
+    danger_glass_bg=Color(rgba=(217, 83, 79, 0.60)),
 )
 
 DEEP_BLUE = Theme(
     mode="deep-blue",
-    bg="#1a1a2e",
-    surface="#252540",
-    surface_raised="#2e2e4a",
-    text_primary="#ffffff",
-    text_secondary="#8080a0",
-    accent="#4a90d9",
-    accent_dim="#3a7bc8",
-    danger="#ff6b6b",
-    success="#4ecdc4",
-    border="rgba(255, 255, 255, 0.06)",
-    shadow="0 8px 32px rgba(0, 0, 0, 0.12)",
-    on_accent="#ffffff",
-    on_danger="#ffffff",
-    bg_overlay="rgba(26, 26, 46, 0.7)",
-    surface_glass="rgba(54, 54, 92, 0.92)",
-    surface_raised_glass="rgba(64, 64, 104, 0.92)",
-    border_glass="rgba(255, 255, 255, 0.08)",
-    accent_glass="rgba(74, 144, 217, 0.25)",
-    danger_glass="rgba(255, 107, 107, 0.25)",
-    success_glass="rgba(78, 205, 196, 0.25)",
-    surface_glass_bg="rgba(34, 34, 74, 0.60)",
-    surface_panel_glass_bg="rgba(34, 34, 74, 0.85)",
-    accent_glass_bg="rgba(74, 144, 217, 0.60)",
-    danger_glass_bg="rgba(255, 107, 107, 0.60)",
+    bg=Color(hex="#1a1a2e"),
+    surface=Color(hex="#252540"),
+    surface_raised=Color(hex="#2e2e4a"),
+    text_primary=Color(hex="#ffffff"),
+    text_secondary=Color(hex="#8080a0"),
+    accent=Color(hex="#4a90d9"),
+    accent_dim=Color(hex="#3a7bc8"),
+    danger=Color(hex="#ff6b6b"),
+    success=Color(hex="#4ecdc4"),
+    border=Color(rgba=(255, 255, 255, 0.06)),
+    shadow=BoxShadow(layers=[Shadow(x=0, y=8, blur=32, color=Color(rgba=(0, 0, 0, 0.12)))]),
+    on_accent=Color(hex="#ffffff"),
+    on_danger=Color(hex="#ffffff"),
+    bg_overlay=Color(rgba=(26, 26, 46, 0.7)),
+    surface_glass=Color(rgba=(54, 54, 92, 0.92)),
+    surface_raised_glass=Color(rgba=(64, 64, 104, 0.92)),
+    border_glass=Color(rgba=(255, 255, 255, 0.08)),
+    accent_glass=Color(rgba=(74, 144, 217, 0.25)),
+    danger_glass=Color(rgba=(255, 107, 107, 0.25)),
+    success_glass=Color(rgba=(78, 205, 196, 0.25)),
+    surface_glass_bg=Color(rgba=(34, 34, 74, 0.60)),
+    surface_panel_glass_bg=Color(rgba=(34, 34, 74, 0.85)),
+    accent_glass_bg=Color(rgba=(74, 144, 217, 0.60)),
+    danger_glass_bg=Color(rgba=(255, 107, 107, 0.60)),
 )
+
+
+class _ThemeStub(Theme):
+    """Token namespace — references to theme tokens as :class:`Color` objects.
+
+    Inherit-and-override: each color field from :class:`Theme` (which on a
+    preset *instance* holds a concrete :class:`Color`) is overridden here as a
+    ``ClassVar[Color]`` pointing at the token's ``Color(var="--color-<name>")``
+    reference.  A ``ClassVar`` overriding an instance variable always trips
+    pyrefly's ``[bad-override]`` (LSP); the rule is disabled project-wide in
+    ``pyproject.toml`` (``[tool.pyrefly.errors] bad-override = false``), so
+    the rows carry no inline ignores and the resolved type stays ``Color``.
+
+    Exposed via the single instance :data:`stub` (this class stays private).
+    ``stub.text_primary`` carries full static typing + autocomplete: a typo
+    is both a type-check error and a runtime ``AttributeError`` (never a
+    silently-broken CSS string). The instance never registers itself, so the
+    preset registry is not polluted.
+    """
+
+    def model_post_init(self, __context: object) -> None:
+        """No-op — the stub is a token namespace, never a registered preset."""
+
+    mode: str = "stub"
+
+    bg: ClassVar[Color] = Color(var="--color-bg")
+    surface: ClassVar[Color] = Color(var="--color-surface")
+    surface_raised: ClassVar[Color] = Color(var="--color-surface-raised")
+    text_primary: ClassVar[Color] = Color(var="--color-text-primary")
+    text_secondary: ClassVar[Color] = Color(var="--color-text-secondary")
+    accent: ClassVar[Color] = Color(var="--color-accent")
+    accent_dim: ClassVar[Color] = Color(var="--color-accent-dim")
+    danger: ClassVar[Color] = Color(var="--color-danger")
+    success: ClassVar[Color] = Color(var="--color-success")
+    border: ClassVar[Color] = Color(var="--color-border")
+    #: Parent field is ``BoxShadow``; here it is the ``--color-shadow``
+    #: *token* reference — a deliberate cross-type override.
+    shadow: ClassVar[Color] = Color(var="--color-shadow")
+    on_accent: ClassVar[Color] = Color(var="--color-on-accent")
+    on_danger: ClassVar[Color] = Color(var="--color-on-danger")
+    bg_overlay: ClassVar[Color] = Color(var="--color-bg-overlay")
+    surface_glass: ClassVar[Color] = Color(var="--color-surface-glass")
+    surface_raised_glass: ClassVar[Color] = Color(var="--color-surface-raised-glass")
+    border_glass: ClassVar[Color] = Color(var="--color-border-glass")
+    accent_glass: ClassVar[Color] = Color(var="--color-accent-glass")
+    danger_glass: ClassVar[Color] = Color(var="--color-danger-glass")
+    success_glass: ClassVar[Color] = Color(var="--color-success-glass")
+    surface_glass_bg: ClassVar[Color] = Color(var="--color-surface-glass-bg")
+    surface_panel_glass_bg: ClassVar[Color] = Color(var="--color-surface-panel-glass-bg")
+    accent_glass_bg: ClassVar[Color] = Color(var="--color-accent-glass-bg")
+    danger_glass_bg: ClassVar[Color] = Color(var="--color-danger-glass-bg")
+
+
+#: Public token namespace — reference any theme token as a typed Color object.
+stub = _ThemeStub()

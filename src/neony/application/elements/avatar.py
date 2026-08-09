@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from neony.application.theme import stub
 from neony.dom import Color, Div, Img, Span, Styles
 from neony.dom.base import DOMElement
 
@@ -144,7 +145,7 @@ class Avatar(Component):
                 update={
                     "align_items": "center",
                     "justify_content": "center",
-                    "background_color": Color(var="--color-accent"),
+                    "background_color": stub.accent,
                 }
             )
             self._inner.styles = styles

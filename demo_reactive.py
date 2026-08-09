@@ -13,6 +13,7 @@ Usage:
 
 from neony.application import Page, launch
 from neony.application.elements import Button, Checkbox, Component, Input, Tabs, Text, VStack
+from neony.application.theme import stub
 from neony.dom import Color, Computed, Div, DomEvent, Signal, Styles, effect
 
 # ── tab 1: counter — the label is bound to the signal ─────────────
@@ -84,7 +85,7 @@ class HeatBar(Component):
             styles=Styles(
                 height=height,
                 border_radius="7px",
-                background_color=Color(var="--color-border"),
+                background_color=stub.border,
                 transition="all 0.15s ease",
             )
         )
@@ -128,7 +129,7 @@ level_text = Div(
     styles=Styles(
         font_family=_MONO,
         font_size="13px",
-        color=Color(var="--color-text-secondary"),
+        color=stub.text_secondary,
     )
 )
 level_text.bind_text(level_log)
@@ -178,7 +179,7 @@ secret_block = Div(
         border="1px solid var(--color-border)",
         border_radius="8px",
         padding="12px 16px",
-        background_color=Color(var="--color-surface"),
+        background_color=stub.surface,
     ),
     container=["This box's display is bound to a Signal."],
 )

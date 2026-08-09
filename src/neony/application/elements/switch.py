@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import urllib.parse
 
-from neony.application.theme import Theme
+from neony.application.theme import Theme, stub
 from neony.dom import Color, DomEvent, Span, Styles, Transition
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
@@ -23,7 +23,7 @@ _ROW = Styles(
     gap="10px",
     font_size="15px",
     cursor="pointer",
-    color=Color(var="--color-text-primary"),
+    color=stub.text_primary,
 )
 
 _THUMB_SVG = (
@@ -37,7 +37,7 @@ _TRACK = Styles(
     width="38px",
     height="22px",
     border_radius="999px",
-    background_color=Color(var="--color-surface-raised"),
+    background_color=stub.surface_raised,
     background_image=_THUMB,
     background_size="18px 18px",
     background_position="2px center",
@@ -46,13 +46,13 @@ _TRACK = Styles(
     cursor="pointer",
     flex_shrink="0",
     # Thumb fill (currentColor) — muted when off, white when on.
-    color=Color(var="--color-text-secondary"),
+    color=stub.text_secondary,
     transition=Transition(duration="0.15s", timing="ease"),
 )
 
 _GLASS_TRACK = _TRACK.model_copy(
     update={
-        "background_color": Color(var="--color-surface-glass-bg"),
+        "background_color": stub.surface_glass_bg,
         "backdrop_filter": "blur(8px)",
     }
 )
@@ -61,14 +61,14 @@ _CHECKED_TRACK = _TRACK.model_copy(
     update={
         # 38 - 22 + 2 = 18 — the thumb sits flush against the right edge.
         "background_position": "18px center",
-        "background_color": Color(var="--color-accent"),
+        "background_color": stub.accent,
         "color": Color(name="white"),
     }
 )
 
 _GLASS_CHECKED_TRACK = _CHECKED_TRACK.model_copy(
     update={
-        "background_color": Color(var="--color-accent-glass-bg"),
+        "background_color": stub.accent_glass_bg,
         "backdrop_filter": "blur(8px)",
     }
 )

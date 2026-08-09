@@ -45,6 +45,7 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.pyrefly.errors]
 bad-override-mutable-attribute = false
+bad-override = false
 
 
 [tool.pytest.ini_options]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from neony.application.theme import stub
 from neony.dom import Color, Span, Styles
 
 from .base import Component
@@ -40,12 +41,12 @@ class Text(Component):
     @staticmethod
     def _role_color(role: str) -> Color:
         if role == "secondary":
-            return Color(var="--color-text-secondary")
+            return stub.text_secondary
         if role == "danger":
-            return Color(var="--color-danger")
+            return stub.danger
         if role == "success":
-            return Color(var="--color-success")
-        return Color(var="--color-text-primary")
+            return stub.success
+        return stub.text_primary
 
     @property
     def text(self) -> str:

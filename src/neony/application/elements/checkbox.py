@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import urllib.parse
 
-from neony.application.theme import Theme
-from neony.dom import Color, DomEvent, Span, Styles, Transition
+from neony.application.theme import Theme, stub
+from neony.dom import DomEvent, Span, Styles, Transition
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
@@ -22,7 +22,7 @@ _ROW = Styles(
     gap="10px",
     font_size="15px",
     cursor="pointer",
-    color=Color(var="--color-text-primary"),
+    color=stub.text_primary,
 )
 
 _BOX = Styles(
@@ -30,7 +30,7 @@ _BOX = Styles(
     height="18px",
     border_radius="5px",
     border="1px solid var(--color-border)",
-    background_color=Color(var="--color-surface-raised"),
+    background_color=stub.surface_raised,
     appearance="none",
     cursor="pointer",
     flex_shrink="0",
@@ -39,7 +39,7 @@ _BOX = Styles(
 
 _GLASS_BOX = _BOX.model_copy(
     update={
-        "background_color": Color(var="--color-surface-glass-bg"),
+        "background_color": stub.surface_glass_bg,
         "backdrop_filter": "blur(8px)",
     }
 )
@@ -55,7 +55,7 @@ _CHECK_MARK = f'url("data:image/svg+xml,{urllib.parse.quote(_CHECK_SVG)}")'
 
 _CHECKED = _BOX.model_copy(
     update={
-        "background_color": Color(var="--color-accent"),
+        "background_color": stub.accent,
         "background_image": _CHECK_MARK,
         "background_size": "12px 12px",
         "background_position": "center",
@@ -136,9 +136,7 @@ class Checkbox(Component):
             base = _GLASS_BOX if self._glass else _BOX
             styles = base.model_copy(
                 update={
-                    "background_color": (
-                        Color(var="--color-accent-glass-bg") if self._glass else Color(var="--color-accent")
-                    ),
+                    "background_color": (stub.accent_glass_bg if self._glass else stub.accent),
                     "background_image": _CHECK_MARK,
                     "background_size": "12px 12px",
                     "background_position": "center",

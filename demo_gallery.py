@@ -64,6 +64,7 @@ from neony.application.elements import (
     TreeNode,
     VStack,
 )
+from neony.application.theme import stub
 from neony.dom import (
     Animation,
     Color,
@@ -108,7 +109,7 @@ def CodeBlock(code: str) -> DOMElement:
     """Render *code* as a monospace, surface-toned block."""
     return Div(
         styles=Styles(
-            background_color=Color(var="--color-surface"),
+            background_color=stub.surface,
             border_radius="8px",
             padding="12px 16px",
             border="1px solid var(--color-border)",
@@ -117,7 +118,7 @@ def CodeBlock(code: str) -> DOMElement:
             line_height="1.6",
             white_space="pre",
             overflow="auto",
-            color=Color(var="--color-text-secondary"),
+            color=stub.text_secondary,
         ),
         container=[code],
     )
@@ -144,7 +145,7 @@ def StatusChip(label: str) -> tuple[HStack, Div]:
             width="10px",
             height="10px",
             border_radius="50%",
-            background_color=Color(var="--color-border"),
+            background_color=stub.border,
             flex_shrink="0",
         )
     )
@@ -159,7 +160,7 @@ def StatusChip(label: str) -> tuple[HStack, Div]:
 
 def set_dot(dot: Div, active: bool) -> None:
     """Light (or dim) a status dot."""
-    dot.styles.background_color = Color(var="--color-accent") if active else Color(var="--color-border")
+    dot.styles.background_color = stub.accent if active else stub.border
 
 
 def Mono(size: str = "13px") -> Div:
@@ -168,7 +169,7 @@ def Mono(size: str = "13px") -> Div:
         styles=Styles(
             font_family=_MONO,
             font_size=size,
-            color=Color(var="--color-text-secondary"),
+            color=stub.text_secondary,
         )
     )
 
@@ -837,7 +838,7 @@ enter_card = Div(
         border="1px solid var(--color-border)",
         border_radius="8px",
         padding="16px",
-        background_color=Color(var="--color-surface"),
+        background_color=stub.surface,
         animation=Animation(name="fade-slide", duration="0.4s", timing="ease-out"),
     ),
     container=["Fades + slides in on mount"],
@@ -897,7 +898,7 @@ drop_zone.bind_style(
 drop_zone.bind_style(
     dragging,
     "background_color",
-    fmt=lambda active: Color(var="--color-surface") if active else None,
+    fmt=lambda active: stub.surface if active else None,
 )
 
 
@@ -1070,7 +1071,7 @@ class HeatBar(Component):
             styles=Styles(
                 height=height,
                 border_radius="7px",
-                background_color=Color(var="--color-border"),
+                background_color=stub.border,
                 transition="all 0.15s ease",
             )
         )
@@ -1163,7 +1164,7 @@ secret_block = Div(
         border="1px solid var(--color-border)",
         border_radius="8px",
         padding="12px 16px",
-        background_color=Color(var="--color-surface"),
+        background_color=stub.surface,
     ),
     container=["This box's display is bound to a Signal."],
 )
@@ -1881,7 +1882,7 @@ content = Div(
         flex_grow="1",
         min_height="0",
         overflow="auto",
-        background_color=Color(var="--color-bg"),
+        background_color=stub.bg,
     ),
     # grow=1: the header + tree column must be a flex item with the
     # tree's allocated height (the tree self-bounds via flex-grow +

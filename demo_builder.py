@@ -7,13 +7,14 @@ all content without exposing the native window or document builders.
 
 from neony.application import Page, launch
 from neony.application.elements import Heading, Text, VStack
-from neony.dom import Color, Div, Styles
+from neony.application.theme import stub
+from neony.dom import Div, Styles
 
 disc = Div(
     container=["Hello!"],
     styles=Styles(
-        color=Color(var="--color-text-primary"),
-        background_color=Color(var="--color-accent"),
+        color=stub.text_primary,
+        background_color=stub.accent,
         width="100px",
         height="100px",
         display="flex",

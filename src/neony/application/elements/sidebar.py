@@ -16,6 +16,7 @@ from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict
 
+from neony.application.theme import stub
 from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles, Transition
 
 from .. import shortcuts
@@ -33,7 +34,7 @@ _ITEM_BASE = Styles(
     font_weight="500",
     cursor="pointer",
     background_color=Color(name="transparent"),
-    color=Color(var="--color-text-secondary"),
+    color=stub.text_secondary,
     # Always-present left border avoids a layout shift on activation.
     border_left="3px solid transparent",
     # Smooth the active/inactive background + border-color switch.
@@ -43,9 +44,9 @@ _ITEM_BASE = Styles(
 _ITEM_ACTIVE = _ITEM_BASE.model_copy(
     update={
         # Frosted like the rest of the chrome, not a flat fill.
-        "background_color": Color(var="--color-surface-glass-bg"),
+        "background_color": stub.surface_glass_bg,
         "backdrop_filter": "blur(20px) saturate(1.2)",
-        "color": Color(var="--color-text-primary"),
+        "color": stub.text_primary,
         "border_left": "3px solid var(--color-accent)",
     }
 )
@@ -59,7 +60,7 @@ _GLASS = Styles(
     min_height="0",
     overflow_y="auto",
     overflow_x="hidden",
-    background_color=Color(var="--color-surface-glass-bg"),
+    background_color=stub.surface_glass_bg,
     backdrop_filter="blur(20px) saturate(1.2)",
     border_right="1px solid var(--color-border-glass)",
 )
@@ -78,7 +79,7 @@ _SOLID = Styles(
     min_height="0",
     overflow_y="auto",
     overflow_x="hidden",
-    background_color=Color(var="--color-surface"),
+    background_color=stub.surface,
     border_right="1px solid var(--color-border)",
 )
 
@@ -91,7 +92,7 @@ _GROUP_ROOT = Styles(display="flex", flex_direction="column", gap="4px")
 _GROUP_LABEL = Styles(
     font_size="11px",
     font_weight="600",
-    color=Color(var="--color-text-secondary"),
+    color=stub.text_secondary,
     text_transform="uppercase",
     letter_spacing="0.08em",
     padding="12px 12px 4px 12px",
@@ -192,7 +193,7 @@ class SidebarItem(Component):
     def _apply_styles(self) -> None:
         styles = _ITEM_ACTIVE if self._active else _ITEM_BASE
         if self._hover and not self._active:
-            styles = styles.model_copy(update={"background_color": Color(var="--color-surface")})
+            styles = styles.model_copy(update={"background_color": stub.surface})
         self._root.styles = styles
 
     # ---- state ----

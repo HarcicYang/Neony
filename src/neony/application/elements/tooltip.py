@@ -26,7 +26,8 @@ from __future__ import annotations
 import asyncio
 from typing import Literal
 
-from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.application.theme import stub
+from neony.dom import Div, DOMElement, DomEvent, Span, Styles, Transition
 
 from .base import Component
 
@@ -39,9 +40,9 @@ _BUBBLE = Styles(
     white_space="nowrap",
     padding="6px 10px",
     border_radius="6px",
-    background_color=Color(var="--color-surface-raised"),
+    background_color=stub.surface_raised,
     border="1px solid var(--color-border)",
-    color=Color(var="--color-text-primary"),
+    color=stub.text_primary,
     font_size="12px",
     box_shadow="0 4px 12px var(--color-shadow)",
     transition=Transition(property="opacity", duration="0.15s", timing="ease"),

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from neony.application.theme import stub
 from neony.dom import Color, Span, Styles
 
 from .base import Component
@@ -67,7 +68,7 @@ _DOT = Styles(
     width="8px",
     height="8px",
     border_radius="999px",
-    background_color=Color(var="--color-accent"),
+    background_color=stub.accent,
 )
 
 

@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from typing import Literal, Self
 
-from neony.application.theme import Theme
-from neony.dom import Color, Div, DomEvent, Span, Styles, Transition
+from neony.application.theme import Theme, stub
+from neony.dom import Div, DomEvent, Span, Styles, Transition
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
@@ -24,7 +24,7 @@ _ROW = Styles(
     gap="10px",
     font_size="15px",
     cursor="pointer",
-    color=Color(var="--color-text-primary"),
+    color=stub.text_primary,
 )
 
 _DOT = Styles(
@@ -32,7 +32,7 @@ _DOT = Styles(
     height="18px",
     border_radius="50%",
     border="1px solid var(--color-border)",
-    background_color=Color(var="--color-surface-raised"),
+    background_color=stub.surface_raised,
     appearance="none",
     cursor="pointer",
     flex_shrink="0",

@@ -36,10 +36,12 @@ from .bridge import (
 )
 from .css import (
     Animation,
+    BoxShadow,
     Color,
     KeyFrame,
     KeyFrameStop,
     Props,
+    Shadow,
     Styles,
     Transition,
 )
@@ -144,6 +146,7 @@ __all__ = [
     "Blockquote",
     "Body",
     "Bold",
+    "BoxShadow",
     "Br",
     "Button",
     "Canvas",
@@ -199,6 +202,7 @@ __all__ = [
     "Section",
     "Select",
     "SetTextPatch",
+    "Shadow",
     "SharedSignal",
     "Signal",
     "Small",

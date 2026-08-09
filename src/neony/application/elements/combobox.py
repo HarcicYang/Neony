@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from neony.application.theme import Theme
+from neony.application.theme import Theme, stub
 from neony.dom import Animation, Color, Div, DomEvent, Span, Styles, Transition
 from neony.dom import Button as _ButtonElem
 from neony.dom import Input as _InputElem
@@ -30,7 +30,7 @@ _ROW = Styles(
     gap="10px",
     font_size="15px",
     cursor="pointer",
-    color=Color(var="--color-text-primary"),
+    color=stub.text_primary,
 )
 
 _FIELD = Styles(
@@ -38,8 +38,8 @@ _FIELD = Styles(
     padding="10px 14px",
     border_radius="8px",
     border="1px solid var(--color-border)",
-    background_color=Color(var="--color-surface"),
-    color=Color(var="--color-text-primary"),
+    background_color=stub.surface,
+    color=stub.text_primary,
     font_size="15px",
     outline="none",
     transition=Transition(property="border-color", duration="0.15s", timing="ease"),
@@ -47,7 +47,7 @@ _FIELD = Styles(
 
 _GLASS_FIELD = _FIELD.model_copy(
     update={
-        "background_color": Color(var="--color-surface-glass-bg"),
+        "background_color": stub.surface_glass_bg,
         "backdrop_filter": "blur(8px)",
         "border": f"1px solid {Theme.glass_border('neutral')}",
     }
@@ -69,7 +69,7 @@ _PANEL = Styles(
     overflow="auto",
     border_radius="8px",
     border="1px solid var(--color-border-glass)",
-    background_color=Color(var="--color-surface-glass-bg"),
+    background_color=stub.surface_glass_bg,
     backdrop_filter="blur(20px) saturate(1.2)",
     box_shadow="0 8px 32px var(--color-shadow)",
 )
@@ -89,14 +89,14 @@ _OPTION = Styles(
     border_radius="6px",
     border="none",
     background_color=Color(name="transparent"),
-    color=Color(var="--color-text-primary"),
+    color=stub.text_primary,
     font_size="14px",
     text_align="left",
     cursor="pointer",
     transition=Transition(duration="0.15s", timing="ease"),
 )
-_OPTION_ACTIVE = _OPTION.model_copy(update={"background_color": Color(var="--color-accent-glass-bg")})
-_OPTION_HOVER = _OPTION.model_copy(update={"background_color": Color(var="--color-surface-glass-bg")})
+_OPTION_ACTIVE = _OPTION.model_copy(update={"background_color": stub.accent_glass_bg})
+_OPTION_HOVER = _OPTION.model_copy(update={"background_color": stub.surface_glass_bg})
 
 
 class ComboBox(Component):

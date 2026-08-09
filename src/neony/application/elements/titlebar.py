@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Self
 
+from neony.application.theme import stub
 from neony.dom import Button as _ButtonElem
 from neony.dom import Color, Div, DomEvent, Span, Styles
 
@@ -68,7 +69,7 @@ class TitleBar(Component):
                 font_size="13px",
                 font_weight="500",
                 line_height=f"calc({self._height} - 16px)",
-                color=Color(var="--color-text-primary"),
+                color=stub.text_primary,
                 white_space="nowrap",
                 overflow="hidden",
             ),
@@ -86,7 +87,7 @@ class TitleBar(Component):
                 align_items="center",
                 height=self._height,
                 padding="0 12px",
-                background_color=Color(var="--color-surface-glass-bg"),
+                background_color=stub.surface_glass_bg,
                 backdrop_filter="blur(20px) saturate(1.2)",
                 border_bottom="1px solid var(--color-border-glass)",
                 flex_shrink="0",
@@ -134,7 +135,7 @@ class TitleBar(Component):
             border="none",
             border_radius="6px",
             background_color=Color(name="transparent"),
-            color=Color(var="--color-text-secondary"),
+            color=stub.text_secondary,
             font_size="14px",
             display="flex",
             align_items="center",
@@ -163,7 +164,7 @@ class TitleBar(Component):
         if self._close_hover:
             self._btn_close.styles = self._btn_close.styles.model_copy(
                 update={
-                    "background_color": Color(var="--color-danger"),
+                    "background_color": stub.danger,
                     "color": Color(name="white"),
                 }
             )
@@ -171,7 +172,7 @@ class TitleBar(Component):
             self._btn_close.styles = self._btn_close.styles.model_copy(
                 update={
                     "background_color": Color(name="transparent"),
-                    "color": Color(var="--color-text-secondary"),
+                    "color": stub.text_secondary,
                 }
             )
 
@@ -179,7 +180,7 @@ class TitleBar(Component):
             (self._btn_min, self._min_hover),
             (self._btn_max, self._max_hover),
         ):
-            base = Color(var="--color-surface") if hover else Color(name="transparent")
+            base = stub.surface if hover else Color(name="transparent")
             btn.styles = btn.styles.model_copy(update={"background_color": base})
 
     # ---- state ----

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from neony.application.theme import stub
 from neony.dom import Color, Div, Img, Styles
 from neony.dom.base import DOMElement
 
@@ -77,7 +78,7 @@ class Image(Component):
         # placeholder tint layer below the image.
         placeholder_color: Color | None
         if placeholder is None:
-            placeholder_color = Color(var="--color-surface-raised")
+            placeholder_color = stub.surface_raised
         elif placeholder.startswith("var("):
             # Already a CSS var() expression → take the token name.
             token = placeholder[4:].rstrip(")").strip()

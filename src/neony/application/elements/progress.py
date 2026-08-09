@@ -10,19 +10,20 @@ accessible.
 
 from __future__ import annotations
 
-from neony.dom import Animation, Color, Div, DOMElement, Span, Styles, Transition
+from neony.application.theme import stub
+from neony.dom import Animation, Div, DOMElement, Span, Styles, Transition
 
 from .base import Component
 
 _WRAP = Styles(display="flex", flex_direction="column", gap="6px", width="100%")
 
-_LABEL = Styles(font_size="14px", color=Color(var="--color-text-secondary"))
+_LABEL = Styles(font_size="14px", color=stub.text_secondary)
 
 _TRACK = Styles(
     width="100%",
     height="8px",
     border_radius="999px",
-    background_color=Color(var="--color-surface-raised"),
+    background_color=stub.surface_raised,
     overflow="hidden",
 )
 
@@ -30,7 +31,7 @@ _FILL = Styles(
     height="100%",
     width="0%",
     border_radius="999px",
-    background_color=Color(var="--color-accent"),
+    background_color=stub.accent,
     transition=Transition(property="width", duration="0.3s", timing="ease"),
 )
 

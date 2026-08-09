@@ -37,7 +37,7 @@ from neony.application.elements import (
     TreeNode,
     VStack,
 )
-from neony.dom import Animation, Div, DOMElement, DomEvent, NodeDescriptor
+from neony.dom import Animation, BoxShadow, Color, Div, DOMElement, DomEvent, NodeDescriptor, Shadow
 
 
 def _find_by_key(node: NodeDescriptor, key: str) -> NodeDescriptor | None:
@@ -567,40 +567,63 @@ class TestPageAndTheme:
 
     def test_theme_immutable(self):
         with pytest.raises(ValidationError):
-            DARK.bg = "#000000"  # type: ignore[misc]
+            DARK.bg = Color(hex="#000000")  # type: ignore[misc]
 
     def test_theme_requires_all_tokens(self):
         # No defaults: a mode-only construction must be rejected.
         with pytest.raises(ValidationError):
             Theme(mode="x")  # type: ignore[missing-argument]
 
+    def test_theme_stub_tokens_resolve(self):
+        """The stub instance exposes typed Color tokens, not strings."""
+        from neony.application.theme import stub
+
+        assert isinstance(stub.text_primary, Color)
+        assert stub.text_primary.var == "--color-text-primary"
+        assert stub.accent_glass.var == "--color-accent-glass"
+        assert stub.shadow.var == "--color-shadow"
+        # Serialises through the same contract as any Color.
+        assert str(stub.text_primary) == "var(--color-text-primary)"
+
+    def test_theme_stub_covers_every_token(self):
+        """Every Theme semantic field (minus mode) has a matching token stub.
+
+        ``Theme.shadow`` is a BoxShadow value while ``stub.shadow`` is the
+        ``--color-shadow`` Color token reference — a deliberate cross-type pair.
+        """
+        from neony.application.theme import stub
+
+        stub_attrs = {name for name in stub.__annotations__ if isinstance(getattr(stub, name, None), Color)}
+        semantic_fields = {name for name in Theme.model_fields if name != "mode"}
+        assert stub_attrs == semantic_fields
+
     def test_theme_custom_preset_registers(self):
         sepia = Theme(
             mode="sepia",
-            bg="#1a1a2e",
-            surface="#252540",
-            surface_raised="#2e2e4a",
-            text_primary="#ffffff",
-            text_secondary="#8080a0",
-            accent="#4a90d9",
-            accent_dim="#3a7bc8",
-            danger="#ff6b6b",
-            success="#4ecdc4",
-            border="rgba(255, 255, 255, 0.06)",
-            shadow="0 8px 32px rgba(0, 0, 0, 0.12)",
-            on_accent="#ffffff",
-            on_danger="#ffffff",
-            bg_overlay="rgba(26, 26, 46, 0.7)",
-            surface_glass="rgba(54, 54, 92, 0.92)",
-            surface_raised_glass="rgba(64, 64, 104, 0.92)",
-            border_glass="rgba(255, 255, 255, 0.08)",
-            accent_glass="rgba(74, 144, 217, 0.25)",
-            danger_glass="rgba(255, 107, 107, 0.25)",
-            success_glass="rgba(78, 205, 196, 0.25)",
-            surface_glass_bg="rgba(34, 34, 74, 0.60)",
-            surface_panel_glass_bg="rgba(34, 34, 74, 0.85)",
-            accent_glass_bg="rgba(74, 144, 217, 0.60)",
-            danger_glass_bg="rgba(255, 107, 107, 0.60)",
+            bg=Color(hex="#1a1a2e"),
+            surface=Color(hex="#252540"),
+            surface_raised=Color(hex="#2e2e4a"),
+            text_primary=Color(hex="#ffffff"),
+            text_secondary=Color(hex="#8080a0"),
+            accent=Color(hex="#4a90d9"),
+            accent_dim=Color(hex="#3a7bc8"),
+            danger=Color(hex="#ff6b6b"),
+            success=Color(hex="#4ecdc4"),
+            border=Color(rgba=(255, 255, 255, 0.06)),
+            shadow=BoxShadow(layers=[Shadow(x=0, y=8, blur=32, color=Color(rgba=(0, 0, 0, 0.12)))]),
+            on_accent=Color(hex="#ffffff"),
+            on_danger=Color(hex="#ffffff"),
+            bg_overlay=Color(rgba=(26, 26, 46, 0.7)),
+            surface_glass=Color(rgba=(54, 54, 92, 0.92)),
+            surface_raised_glass=Color(rgba=(64, 64, 104, 0.92)),
+            border_glass=Color(rgba=(255, 255, 255, 0.08)),
+            accent_glass=Color(rgba=(74, 144, 217, 0.25)),
+            danger_glass=Color(rgba=(255, 107, 107, 0.25)),
+            success_glass=Color(rgba=(78, 205, 196, 0.25)),
+            surface_glass_bg=Color(rgba=(34, 34, 74, 0.60)),
+            surface_panel_glass_bg=Color(rgba=(34, 34, 74, 0.85)),
+            accent_glass_bg=Color(rgba=(74, 144, 217, 0.60)),
+            danger_glass_bg=Color(rgba=(255, 107, 107, 0.60)),
         )
         try:
             assert Theme.get("sepia") is sepia

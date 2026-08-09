@@ -6,7 +6,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Literal
 
-from neony.dom import Color, Div, DOMElement, Styles
+from neony.application.theme import Theme, stub
+from neony.dom import Div, DOMElement, Styles
 
 from .base import Component
 
@@ -136,7 +137,7 @@ class Separator(Component):
             styles=Styles(
                 width=width if type == "horizontal" else thickness,
                 height=thickness if type == "horizontal" else width,
-                background_color=Color(var="--color-border"),
+                background_color=stub.border,
                 margin="8px 0" if type == "horizontal" else "0 8px",
             ),
         )
@@ -179,7 +180,6 @@ class GlassPanel(Component):
         border_bottom_right_radius: str | None = None,
     ) -> None:
         super().__init__()
-        from neony.application.theme import Theme
 
         # Default 12px; pass "0px" (or any radius) to override.
         radius = radius if radius is not None else "12px"
@@ -196,7 +196,7 @@ class GlassPanel(Component):
             border_radius=radius,
             border=f"1px solid {Theme.glass_border(role)}",
             # Denser glass (0.85) keeps text readable over the background.
-            background_color=Color(var="--color-surface-panel-glass-bg"),
+            background_color=stub.surface_panel_glass_bg,
             backdrop_filter="blur(16px)",
             box_shadow=shadow,
             border_top_left_radius=border_top_left_radius,
@@ -279,7 +279,7 @@ class GlassPanel(Component):
             # drops from the dense 0.85 panel fill to the lighter 0.60
             # surface fill so the image shows through (0.85 + the 0.7
             # overlay underneath leave only ~4% of the image visible).
-            glass_styles = glass_styles.model_copy(update={"background_color": Color(var="--color-surface-glass-bg")})
+            glass_styles = glass_styles.model_copy(update={"background_color": stub.surface_glass_bg})
             backdrop = Div(
                 styles=Styles(
                     position="absolute",
