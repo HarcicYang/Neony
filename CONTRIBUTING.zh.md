@@ -109,9 +109,8 @@ JS 运行时（事件委托、diff 引擎、合成的 `outsideclick`）有自己
    更新 `docs/api.en.md` / `docs/api.zh.md`。
 4. **遵循 Conventional Commits** — 提交信息加类型与可选 scope 前缀:
    `feat(scope):`、`fix(scope):`、`perf(scope):`、`refactor(scope):`、
-   `docs:`、`chore:`、……。每次推送 `v*` tag 时,git-cliff 会从提交信息
-   自动生成 changelog(`CHANGELOG.md`)与 GitHub release 描述——无需手动
-   编辑 changelog。
+   `docs:`、`chore:`、……。Changelog(`CHANGELOG.md`)由人工维护;
+   GitHub release 描述由 GitHub 根据提交列表自动生成。
 
 ## Pull Request 流程
 

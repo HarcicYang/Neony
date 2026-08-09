@@ -158,9 +158,7 @@ jobs:
           if-no-files-found: error
 
   # Tag pushes only: collect every platform's artifact and attach them
-  # to the GitHub Release.  The release description and CHANGELOG.md
-  # entries are generated from Conventional Commits by git-cliff
-  # (cliff.toml), not by GitHub's commit list.
+  # to the GitHub Release.
   release:
     name: attach-to-release
     if: startsWith(github.ref, 'refs/tags/v')
@@ -169,25 +167,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-        with:
-          # git-cliff needs the full history and all tags to find the
-          # commit range since the previous tag.
-          fetch-depth: 0
-
-      - name: Install git-cliff
-        run: |
-          VERSION=$(curl -sL https://api.github.com/repos/orhun/git-cliff/releases/latest | jq -r .tag_name)
-          curl -sL "https://github.com/orhun/git-cliff/releases/download/${VERSION}/git-cliff-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
-            | tar xz -C /usr/local/bin
-          chmod +x /usr/local/bin/git-cliff
-
-      # `--latest` (not `--unreleased`): the workflow's checkout sits ON
-      # the new tag, so "unreleased" would be empty — `--latest` emits
-      # the commits between the previous tag and this one.
-      - name: Generate release body
-        run: git cliff --latest --strip all --output /tmp/release-body.md
-
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -196,17 +175,3 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
-          body_path: /tmp/release-body.md
-
-      # Keep CHANGELOG.md in sync: prepend the newly released section
-      # and push it to master.  The commit is `chore(changelog)` —
-      # excluded from future changelogs via cliff.toml's skip parser.
-      - name: Update CHANGELOG.md
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git cliff --latest --prepend CHANGELOG.md
-          git add CHANGELOG.md
-          # On a tag push the checkout is detached; push explicitly to
-          # master.  Skipped when the changelog is unchanged.
-          git diff --cached --quiet || (git commit -m "chore(changelog): update for ${{ github.ref_name }}" && git push origin HEAD:master)

@@ -48,7 +48,9 @@
 - **Typed animation models** — `Transition` (property/duration/timing/
   delay), `KeyFrame` (chainable builder), `Props` and `Animation`;
   `@keyframes` injection via `app.register_keyframe()`, with built-in
-  `neony-rise-in` and `neony-fade-in` (Tabs/Sidebar use them by default).
+  `neony-rise-in`, `neony-fade-in` and `neony-drop-in` (the downward
+  slide-in entrance used by Dropdown/Select/ComboBox popups and
+  Accordion/Treeview expands).
 - **`pointermove` event** — `DomEvent.movement_x`/`movement_y` deltas
   and `pointer_type`; new `on_pointermove()` on elements and components.
 - **`Styles.accent_color`** — native accent colour field plus
@@ -76,6 +78,17 @@
 - **Tabs demo in the gallery** — basic switching with `bind_selected`
   + status readout, and a 10-tab strip exercising horizontal overflow
   with the edge fade.
+- **Typed CSS value models** — `Border`, `Filter`, `Transform`
+  (with `translate`/`rotate`/`scale` factories) and `BoxShadow` +
+  `Shadow`, plus length helpers `px()` / `pct()` / `calc()`; raw
+  strings still accepted as escape hatches. `dom/css` is now a
+  subpackage (`_values` / `_animation` / `_styles`) with a stable
+  re-export surface.
+- **Immutable theme presets** — `Theme` is frozen and self-registers
+  by mode; lookup via `Theme.get(name)`, toggle order via
+  `Theme.modes()`, rotation via `theme.next()`, and `app.set_theme()`
+  swaps the active preset. New `on_accent` token (text/icon colour on
+  accent surfaces, e.g. accent buttons).
 
 ### Changed
 
@@ -105,6 +118,9 @@
   idiomatic bindings and event patterns; selection APIs unified
   (`selected_*` everywhere); layout/event plumbing aligned across
   components.
+- **Theme API** — `Theme.set_mode()` / `toggle()` removed in favour of
+  `app.set_theme(theme)` / `theme.next()`; presets are immutable
+  (mutating a `Theme` field now raises).
 
 ### Deprecated
 
