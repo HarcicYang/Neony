@@ -26,7 +26,7 @@ from neony.application._helpers import (
 )
 from neony.application.config import Config
 from neony.application.page import Page
-from neony.application.theme import Theme
+from neony.application.theme import DARK, Theme
 from neony.application.tray import Tray
 from neony.dom import DOMElement, DomEvent, KeyFrame
 from neony.dom.bridge import Neony
@@ -59,7 +59,7 @@ class NeonApplication(Generic[_S]):
         # ...) register their handlers on the next render.
         self._registered: list[set[tuple[str, str]]] = []
         self.state: _S = state if state is not None else cast(_S, SimpleNamespace())
-        self.theme: Theme = Theme()
+        self.theme: Theme = DARK
         self.ready_handler: Any = None  # optional async callable, run after windows ready
         self.close_handler: Any = None  # optional async callable, run when the app exits
 
@@ -364,6 +364,11 @@ class NeonApplication(Generic[_S]):
             f"{body_bg} }})()"
         )
         await entry.window.eval_js(js)
+
+    async def set_theme(self, theme: Theme) -> None:
+        """Swap the active theme preset and re-inject its CSS into every page."""
+        self.theme = theme
+        await self.sync_theme()
 
     def register_keyframe(self, kf: KeyFrame) -> Self:
         """Register a :class:`KeyFrame` for injection into every window

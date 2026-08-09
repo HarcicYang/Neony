@@ -179,8 +179,7 @@ theme_btn = Button("Light mode", variant="ghost")
 
 
 async def on_theme_click(_event: DomEvent) -> None:
-    app.theme.toggle()
-    await app.sync_theme()
+    await app.set_theme(app.theme.next())
     theme_btn.label = Theme.mode_label(app.theme.mode)
 
 

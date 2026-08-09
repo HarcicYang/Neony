@@ -97,9 +97,13 @@ class Button(Component):
         if glass:
             # Frosted version of the variant's own colour.
             role = {"primary": "accent", "ghost": "surface"}.get(variant, variant)
+            # Saturated roles need their contrasting on-* text colour; the
+            # neutral ghost sits on a surface and keeps the body text colour.
+            fg = Color(var=f"--color-on-{role}") if role in ("accent", "danger") else Color(var="--color-text-primary")
             return base.model_copy(
                 update={
                     "background_color": Color(var=f"--color-{role}-glass-bg"),
+                    "color": fg,
                     "backdrop_filter": "blur(12px)",
                     "border": f"1px solid {Theme.glass_border(role)}",
                     "box_shadow": ("0 2px 12px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.04)"),
@@ -114,8 +118,18 @@ class Button(Component):
                 }
             )
         if variant == "danger":
-            return base.model_copy(update={"background_color": Color(var="--color-danger")})
-        return base.model_copy(update={"background_color": Color(var="--color-accent")})
+            return base.model_copy(
+                update={
+                    "background_color": Color(var="--color-danger"),
+                    "color": Color(var="--color-on-danger"),
+                }
+            )
+        return base.model_copy(
+            update={
+                "background_color": Color(var="--color-accent"),
+                "color": Color(var="--color-on-accent"),
+            }
+        )
 
     def _apply_state(self) -> None:
         """Recompute the button styles from variant + hover + pressed + focus."""

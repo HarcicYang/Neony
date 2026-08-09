@@ -12,7 +12,7 @@ The application object — owns the window, the bridge, the theme, and
 shared state. Construct with a `Config`, build a `Page`, then `run()`.
 
 ```python
-from neony.application import Config, NeonApplication, Page, WebViewConfig, WindowConfig
+from neony.application import Config, NeonApplication, Page, Theme, WebViewConfig, WindowConfig
 
 app = NeonApplication(
     Config(
@@ -21,7 +21,7 @@ app = NeonApplication(
     )
 )
 app.state.count = 0  # shared mutable state
-app.theme.set_mode("light")  # switch theme
+app.theme = Theme.get("light")  # pick the initial preset before run()
 
 
 def main() -> None:
@@ -63,7 +63,7 @@ counterpart to [`SharedSignal`](#sharedsignal) for cross-window data.
 `exit()` is the way out — e.g. a tray "Quit" menu item.
 
 **Theme / rendering:**
-`sync_theme()`, `set_background(url)`, `render()`
+`set_theme(theme)`, `sync_theme()`, `set_background(url)`, `render()`
 
 ### `launch()`
 
@@ -840,20 +840,27 @@ contain/center/no-repeat, so it never stretches).
 
 ## Theming
 
-Three presets — `DARK`, `LIGHT`, `DEEP_BLUE` — as CSS custom properties.
+Three built-in presets — `DARK`, `LIGHT`, `DEEP_BLUE` — exposed as CSS custom
+properties. Each preset is an **immutable** `Theme` instance; constructing any
+`Theme` auto-registers it under its `mode`.
 
 ```python
-app.theme.set_mode("dark")  # dark | light | deep-blue
-app.theme.toggle()  # cycle
-Theme.modes  # ("dark", "light", "deep-blue")
-Theme.mode_label("dark")  # "Light mode" — the next mode
-await app.sync_theme()  # re-inject variables
+app.theme  # the active preset (defaults to DARK)
+Theme.get("light")  # single-shot lookup of a registered preset by mode name
+app.theme.next()  # the preset that follows the active one in toggle order
+Theme.modes()  # registered mode names, in preset-construction order
+Theme.mode_label("dark")  # "Light mode" — the label of the next mode
+await app.set_theme(LIGHT)  # swap the active preset and re-inject variables
 ```
+
+`Theme.set_mode` / `Theme.toggle` were removed — switching swaps the active
+reference via `App.set_theme` rather than mutating an instance in place.
 
 Token families: `--color-bg`, `--color-surface`,
 `--color-text-primary` / `--color-text-secondary`, `--color-accent`,
-`--color-danger`, `--color-success`, `--color-border`, `--color-shadow`,
-`--color-*-glass*` (frosted variants).
+`--color-on-accent` / `--color-on-danger` (text colour on a saturated accent /
+danger fill), `--color-danger`, `--color-success`, `--color-border`,
+`--color-shadow`, `--color-*-glass*` (frosted variants).
 
 Components reference tokens via `Color(var="--color-*")` so theme
 switches redraw with zero DOM diff.
@@ -862,9 +869,10 @@ Custom themes:
 
 ```python
 from neony.application import Theme
-my_theme = Theme(mode="dark", bg="#0a0a0f", accent="#7c4dff", ...)
-app.theme = my_theme
-await app.sync_theme()
+my_theme = Theme(mode="sepia", bg="#1a1a2e", accent="#4a90d9", on_accent="#ffffff", ...)
+# Construction auto-registers it; supply every token — Theme has no defaults.
+await app.set_theme(my_theme)
+Theme.get("sepia") is my_theme  # True
 ```
 
 ---

@@ -1,8 +1,9 @@
 """Test the component library: build, state, events, theming."""
 
 import pytest
+from pydantic import ValidationError
 
-from neony.application import Page, Theme
+from neony.application import DARK, DEEP_BLUE, LIGHT, Page, Theme
 from neony.application.elements import (
     Accordion,
     Avatar,
@@ -96,6 +97,21 @@ class TestComponentBuild:
         btn = Button("Cancel", variant="ghost")
         node = btn.build().to_node()
         assert node.styles["background-color"] == "var(--color-surface)"
+
+    def test_button_primary_text_color(self):
+        # Primary sits on a saturated accent fill — text must contrast, not
+        # reuse the body text colour (which is dark in light mode).
+        node = Button("Save").build().to_node()
+        assert node.styles["color"] == "var(--color-on-accent)"
+
+    def test_button_danger_text_color(self):
+        node = Button("Delete", variant="danger").build().to_node()
+        assert node.styles["color"] == "var(--color-on-danger)"
+
+    def test_button_ghost_text_color(self):
+        # Ghost sits on the surface, so it keeps the body text colour.
+        node = Button("Cancel", variant="ghost").build().to_node()
+        assert node.styles["color"] == "var(--color-text-primary)"
 
     def test_checkbox_build(self):
         cb = Checkbox("Pizza")
@@ -511,25 +527,24 @@ class TestPageAndTheme:
         assert len(inner.children) == 1
 
     def test_theme_to_css(self):
-        theme = Theme()
-        css = theme.to_css()
+        css = DARK.to_css()
         assert "--color-bg" in css
         assert "--color-surface" in css
         assert ":root" in css
 
     def test_theme_modes_cycle_order(self):
-        theme = Theme(mode="dark")
-        theme.toggle()
-        assert theme.mode == "light"
-        theme.toggle()
-        assert theme.mode == "deep-blue"
-        theme.toggle()
-        assert theme.mode == "dark"
-        assert Theme.modes == ("dark", "light", "deep-blue")
+        # next() is parameter-less and resolves the next preset via the registry.
+        assert DARK.next() is LIGHT
+        assert LIGHT.next() is DEEP_BLUE
+        assert DEEP_BLUE.next() is DARK
+        # Built-ins register in insertion order.
+        assert Theme.modes() == ("dark", "light", "deep-blue")
 
     def test_theme_modes_not_serialized(self):
-        # ClassVar — must never leak into the CSS block.
-        assert "--color-modes" not in Theme().to_css()
+        # modes() is a classmethod (not a model field) and must never leak
+        # into the CSS block; neither must the registry.
+        assert "--color-modes" not in DARK.to_css()
+        assert "--color-registry" not in DARK.to_css()
 
     def test_theme_mode_label(self):
         assert Theme.mode_label("dark") == "Light mode"
@@ -538,36 +553,84 @@ class TestPageAndTheme:
         with pytest.raises(ValueError):
             Theme.mode_label("sepia")
 
-    def test_theme_toggle(self):
-        theme = Theme()
-        assert theme.mode == "dark"
-        theme.toggle()
-        assert theme.mode == "light"
-        assert theme.bg != "#1a1a2e"
+    def test_theme_registry_lookup(self):
+        assert Theme.get("dark") is DARK
+        assert Theme.get("light") is LIGHT
+        assert Theme.get("deep-blue") is DEEP_BLUE
+        with pytest.raises(KeyError):
+            Theme.get("nonexistent")
+
+    def test_theme_on_tokens_radiate(self):
+        for preset in (DARK, LIGHT, DEEP_BLUE):
+            assert "--color-on-accent: #ffffff" in preset.to_css()
+            assert "--color-on-danger: #ffffff" in preset.to_css()
+
+    def test_theme_immutable(self):
+        with pytest.raises(ValidationError):
+            DARK.bg = "#000000"  # type: ignore[misc]
+
+    def test_theme_requires_all_tokens(self):
+        # No defaults: a mode-only construction must be rejected.
+        with pytest.raises(ValidationError):
+            Theme(mode="x")  # type: ignore[missing-argument]
+
+    def test_theme_custom_preset_registers(self):
+        sepia = Theme(
+            mode="sepia",
+            bg="#1a1a2e",
+            surface="#252540",
+            surface_raised="#2e2e4a",
+            text_primary="#ffffff",
+            text_secondary="#8080a0",
+            accent="#4a90d9",
+            accent_dim="#3a7bc8",
+            danger="#ff6b6b",
+            success="#4ecdc4",
+            border="rgba(255, 255, 255, 0.06)",
+            shadow="0 8px 32px rgba(0, 0, 0, 0.12)",
+            on_accent="#ffffff",
+            on_danger="#ffffff",
+            bg_overlay="rgba(26, 26, 46, 0.7)",
+            surface_glass="rgba(54, 54, 92, 0.92)",
+            surface_raised_glass="rgba(64, 64, 104, 0.92)",
+            border_glass="rgba(255, 255, 255, 0.08)",
+            accent_glass="rgba(74, 144, 217, 0.25)",
+            danger_glass="rgba(255, 107, 107, 0.25)",
+            success_glass="rgba(78, 205, 196, 0.25)",
+            surface_glass_bg="rgba(34, 34, 74, 0.60)",
+            surface_panel_glass_bg="rgba(34, 34, 74, 0.85)",
+            accent_glass_bg="rgba(74, 144, 217, 0.60)",
+            danger_glass_bg="rgba(255, 107, 107, 0.60)",
+        )
+        try:
+            assert Theme.get("sepia") is sepia
+            assert "sepia" in Theme.modes()
+            # Custom preset appends last; next() cycles back to the first mode.
+            assert sepia.next() is DARK
+        finally:
+            Theme._registry.pop("sepia", None)
 
 
 class TestScrollbarTheming:
     # Scrollbars are hidden entirely — WebKitGTK's native hover grows the
     # thumb unsuppressably, so nothing is drawn rather than styled.
     def test_webkit_scrollbar_is_hidden(self):
-        css = Theme().to_css()
+        css = DARK.to_css()
         assert "::-webkit-scrollbar{width:0;height:0;display:none}" in css
 
     def test_firefox_scrollbar_is_hidden(self):
-        css = Theme().to_css()
+        css = DARK.to_css()
         assert "scrollbar-width:none" in css
 
-    def test_scrollbar_rules_survive_theme_toggle(self):
-        theme = Theme()
-        theme.set_mode("light")
-        css = theme.to_css()
+    def test_scrollbar_rules_survive_theme_switch(self):
+        css = LIGHT.to_css()
         assert "::-webkit-scrollbar" in css
         assert "scrollbar-width:none" in css
 
     def test_thumb_class_rule_present(self):
         # The custom scroll-indicator thumb (JS-built overlay) is themed
         # via a CSS variable so it follows light/dark mode.
-        css = Theme().to_css()
+        css = DARK.to_css()
         assert ".neony-scroll-thumb{background-color:var(--color-text-secondary);border-radius:999px;}" in css
 
 

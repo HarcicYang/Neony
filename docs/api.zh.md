@@ -12,7 +12,7 @@
 组装 `Page`，然后 `run()`。
 
 ```python
-from neony.application import Config, NeonApplication, Page, WebViewConfig, WindowConfig
+from neony.application import Config, NeonApplication, Page, Theme, WebViewConfig, WindowConfig
 
 app = NeonApplication(
     Config(
@@ -21,7 +21,7 @@ app = NeonApplication(
     )
 )
 app.state.count = 0  # 共享可变状态
-app.theme.set_mode("light")  # 切换主题
+app.theme = Theme.get("light")  # run() 前选定初始预设
 
 
 def main() -> None:
@@ -63,7 +63,7 @@ app.state.user_name = "Ada"
 "退出"项。
 
 **主题与渲染:**
-`sync_theme()`， `set_background(url)`， `render()`
+`set_theme(theme)`， `sync_theme()`， `set_background(url)`， `render()`
 
 ### `launch()`
 
@@ -729,16 +729,23 @@ Icon.glyph("🏠")  # emoji / Nerd Font 字符
 
 ## 主题
 
-三套预设 — `DARK`， `LIGHT`， `DEEP_BLUE` — 以 CSS 自定义属性暴露。
+三套内置预设 — `DARK`， `LIGHT`， `DEEP_BLUE` — 以 CSS 自定义属性暴露。每个预设都是
+**不可变**的 `Theme` 实例；构造任意 `Theme` 即按其 `mode` 自动注册。
 
 ```python
-app.theme.set_mode("dark")  # dark | light | deep-blue
-app.theme.toggle()  # 循环切换
-await app.sync_theme()  # 重新注入变量
+app.theme  # 当前激活的预设（默认 DARK）
+Theme.get("light")  # 按 mode 名单次查询已注册预设
+app.theme.next()  # 切换顺序里紧接当前预设的下一个
+Theme.modes()  # 已注册 mode 名，按预设构造顺序排列
+Theme.mode_label("dark")  # "Light mode" — 下一个 mode 的标签
+await app.set_theme(LIGHT)  # 切换当前预设并重新注入变量
 ```
+
+`Theme.set_mode` / `Theme.toggle` 已移除 —— 切换改为经 `App.set_theme` 换引用，而非就地改实例。
 
 令牌族: `--color-bg`， `--color-surface`，
 `--color-text-primary` / `--color-text-secondary`， `--color-accent`，
+`--color-on-accent` / `--color-on-danger`（饱和 accent / danger 填充上的文字色），
 `--color-danger`， `--color-success`， `--color-border`， `--color-shadow`，
 `--color-*-glass*`(磨砂变体)。
 
@@ -748,9 +755,10 @@ await app.sync_theme()  # 重新注入变量
 
 ```python
 from neony.application import Theme
-my_theme = Theme(mode="dark", bg="#0a0a0f", accent="#7c4dff", ...)
-app.theme = my_theme
-await app.sync_theme()
+my_theme = Theme(mode="sepia", bg="#1a1a2e", accent="#4a90d9", on_accent="#ffffff", ...)
+# 构造即自动注册；需提供全部令牌 —— Theme 无默认值。
+await app.set_theme(my_theme)
+Theme.get("sepia") is my_theme  # True
 ```
 
 ---
