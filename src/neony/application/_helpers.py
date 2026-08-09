@@ -69,8 +69,16 @@ _DEFERRED_EVENTS = frozenset(
 # ``Animation(name="neony-rise-in", ...)``.  User-registered keyframes
 # with the same name override these (later-wins in ``_inject_keyframes``).
 _BUILTIN_KEYFRAMES: list[KeyFrame] = [
+    # Slide-up entrance for content that pops upward or into view
+    # neutrally (Menu anchors above the cursor; Dialog plays fade-slide).
     KeyFrame("neony-rise-in")
     .set("0%", Props(opacity=0, transform="translateY(8px)"))
+    .set("100%", Props(opacity=1, transform="translateY(0)")),
+    # Slide-down entrance for popups that expand downward from a trigger
+    # (Dropdown / Select / ComboBox popups, Accordion / Treeview expands):
+    # the panel starts slightly above the trigger and settles down into place.
+    KeyFrame("neony-drop-in")
+    .set("0%", Props(opacity=0, transform="translateY(-8px)"))
     .set("100%", Props(opacity=1, transform="translateY(0)")),
     # Fade + slide-up appearance — the gallery's section enter
     # animation; Dialog panels play it on open and, reversed, on

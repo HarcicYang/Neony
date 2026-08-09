@@ -78,7 +78,7 @@ _PANEL = Styles(
 _PANEL_OPEN = _PANEL.model_copy(
     update={
         "display": "flex",
-        "animation": Animation(name="neony-rise-in", duration="0.2s", timing="ease-out"),
+        "animation": Animation(name="neony-drop-in", duration="0.2s", timing="ease-out"),
     }
 )
 

@@ -131,6 +131,7 @@ class TestBuiltinKeyframes:
 
         names = [kf.name for kf in _BUILTIN_KEYFRAMES]
         assert "neony-rise-in" in names
+        assert "neony-drop-in" in names
         assert "neony-fade-in" in names
 
     def test_rise_in_starts_offset(self):
@@ -140,6 +141,15 @@ class TestBuiltinKeyframes:
         css = rise.to_css()
         assert "opacity: 0" in css
         assert "translateY(8px)" in css
+        assert "translateY(0)" in css
+
+    def test_drop_in_starts_offset_above(self):
+        from neony.application._helpers import _BUILTIN_KEYFRAMES
+
+        drop = next(kf for kf in _BUILTIN_KEYFRAMES if kf.name == "neony-drop-in")
+        css = drop.to_css()
+        assert "opacity: 0" in css
+        assert "translateY(-8px)" in css
         assert "translateY(0)" in css
 
     def test_builtins_then_user_later_wins(self):

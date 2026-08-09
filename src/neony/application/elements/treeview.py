@@ -20,7 +20,7 @@ children.  Several branches can be open at once.
 Selection is single-valued (exactly one leaf is shown at a time), so
 ``selected_key`` / ``bind_selected`` work like :class:`Sidebar` — unlike
 the multi-open :class:`Accordion`.  Only the ``display`` property
-switches (plus the replayed ``neony-rise-in`` entrance animation), so
+switches (plus the replayed ``neony-drop-in`` entrance animation), so
 this is pure Python — no JS-layer involvement.
 """
 
@@ -75,14 +75,14 @@ _CHEVRON = Styles(
 )
 _CHEVRON_OPEN = _CHEVRON.model_copy(update={"transform": "rotate(90deg)"})
 
-# Expanding a branch flips display none→flex, which replays neony-rise-in
-# (mirrors _panels._SLOT_ACTIVE).
+# Expanding a branch flips display none→flex, which replays neony-drop-in
+# (mirrors accordion _CONTENT_VISIBLE).
 _CHILDREN_HIDDEN = Styles(display="none")
 _CHILDREN_VISIBLE = Styles(
     display="flex",
     flex_direction="column",
     gap="2px",
-    animation=Animation(name="neony-rise-in", duration="0.2s", timing="ease-out"),
+    animation=Animation(name="neony-drop-in", duration="0.2s", timing="ease-out"),
 )
 
 _INDENT = "16px"

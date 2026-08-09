@@ -1,9 +1,9 @@
 """Accordion / Collapsible — expandable sections in a single scroll flow.
 
 A :class:`Collapsible` is one titled row that toggles a content panel
-between hidden and visible (replaying the built-in ``neony-rise-in``
-entrance animation on every expand, like :class:`Tabs` / :class:`Sidebar`
-panels).  An :class:`Accordion` stacks collapsibles; with ``multiple``
+between hidden and visible (replaying the built-in ``neony-drop-in``
+entrance animation on every expand).  An :class:`Accordion` stacks
+collapsibles; with ``multiple``
 (the default) several can be open at once, with ``multiple=False`` only
 one — opening a new one closes the others.
 
@@ -74,14 +74,14 @@ _CONTENT_HIDDEN = Styles(display="none", width="100%")
 
 # Mirrors tabs.py _PANEL_ACTIVE / _panels.py _SLOT_ACTIVE: the switch from
 # _CONTENT_HIDDEN (no animation) to _CONTENT_VISIBLE changes the animation
-# value, so the browser replays neony-rise-in on every expand.
+# value, so the browser replays neony-drop-in on every expand.
 _CONTENT_VISIBLE = Styles(
     display="flex",
     flex_direction="column",
     width="100%",
     gap="12px",
     padding="8px 0 4px 0",
-    animation=Animation(name="neony-rise-in", duration="0.25s", timing="ease-out"),
+    animation=Animation(name="neony-drop-in", duration="0.25s", timing="ease-out"),
 )
 
 # ---- accordion root ----

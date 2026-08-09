@@ -1059,7 +1059,7 @@ class TestSelectEvents:
         node = sel.build().to_node()
         popup = _find_by_key(node, sel._popup.key)
         assert popup is not None
-        assert popup.styles["animation"] == "neony-rise-in 0.2s ease-out"
+        assert popup.styles["animation"] == "neony-drop-in 0.2s ease-out"
 
 
 class TestComboBoxBuild:
@@ -1291,7 +1291,7 @@ class TestComboBoxEvents:
         node = cb.build().to_node()
         popup = _find_by_key(node, cb._popup.key)
         assert popup is not None
-        assert popup.styles["animation"] == "neony-rise-in 0.2s ease-out"
+        assert popup.styles["animation"] == "neony-drop-in 0.2s ease-out"
 
 
 class TestSliderBuild:
@@ -3240,7 +3240,7 @@ class TestCollapsibleBuild:
         assert closed.children[1].styles["display"] == "none"
         opened = Collapsible("B", Text("b"), expanded=True).build().to_node()
         assert opened.children[1].styles["display"] == "flex"
-        assert opened.children[1].styles["animation"] == "neony-rise-in 0.25s ease-out"
+        assert opened.children[1].styles["animation"] == "neony-drop-in 0.25s ease-out"
 
     def test_chevron_rotates_when_open(self):
         closed = Collapsible("A", Text("a")).build().to_node()
