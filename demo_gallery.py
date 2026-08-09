@@ -1600,14 +1600,26 @@ page.on_shortcut({"darwin": "Meta+K", "default": "Ctrl+K"}, theme)
 # panel's rise-in animation) would hijack `position: fixed` in WebKit.
 # Closes via scrim / Escape / click-away; the action buttons run their
 # callbacks and close by default.
+# Action callbacks receive the dialog itself; each records the pick so
+# the close callback can tell a button choice apart from a dismiss.
+chosen = {"value": ""}
+
+
+def choose(value: str):
+    def handler(_dialog: Dialog) -> None:
+        chosen["value"] = value
+
+    return handler
+
+
 dialog = Dialog(
     title="Confirm",
     content=VStack(Text("Try the scrim, Escape, click-away, or the buttons below.")),
     width="380px",
     actions=[
-        DialogAction("Confirm", variant="danger", on_click=lambda d: setattr(dialog_status, "text", "Confirm clicked")),
-        DialogAction("Cancel", variant="ghost"),
-        DialogAction("Close"),
+        DialogAction("Confirm", variant="danger", on_click=choose("Confirm")),
+        DialogAction("Cancel", variant="ghost", on_click=choose("Cancel")),
+        DialogAction("Close", on_click=choose("Close")),
     ],
 )
 dialog_state = Signal("closed")
@@ -1621,8 +1633,22 @@ async def on_dialog_open(_event: DomEvent) -> None:
 
 
 dialog_open_btn.on_click(on_dialog_open)
-dialog.on_open(lambda _dialog: dialog_state.set("open"))
-dialog.on_close(lambda _dialog: dialog_state.set("closed"))
+
+
+def on_dialog_opened(_dialog: Dialog) -> None:
+    chosen["value"] = ""
+    dialog_state.set("open — waiting for a choice")
+
+
+def on_dialog_closed(_dialog: Dialog) -> None:
+    if chosen["value"]:
+        dialog_state.set(f"closed — chose {chosen['value']!r}")
+    else:
+        dialog_state.set("closed — dismissed (scrim / Escape / click-away)")
+
+
+dialog.on_open(on_dialog_opened)
+dialog.on_close(on_dialog_closed)
 
 # Tooltip: anchor-relative bubble, placement offsets, hover delay.
 tip_top = Tooltip("Tooltip on top", anchor=Button("Hover (top)"), placement="top", delay=1)
@@ -1699,6 +1725,8 @@ overlays_panel = Section(
 )
 dialog.open = True                        # or read the property
 dialog.on_close(lambda d: print("closed"))
+# action callbacks get the dialog: record which button was picked so
+# on_close can tell a choice apart from a scrim / Escape dismiss.
 
 ask = PromptDialog("Your name?", value="Ada", placeholder="Type…")
 ask.open = True                           # show it
