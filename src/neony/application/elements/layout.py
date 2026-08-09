@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from typing import Literal
 
 from neony.application.theme import Theme, stub
-from neony.dom import Div, DOMElement, Styles
+from neony.dom import BoxShadow, Color, Div, DOMElement, Filter, Shadow, Styles
 
 from .base import Component
 
@@ -49,7 +49,7 @@ class Flex(Component):
                 justify_content=justify,
                 padding=padding,
                 width=width,
-                flex_grow=str(grow),
+                flex_grow=grow,
                 # Without this, min-height:auto stretches the container
                 # to its content and overflow:auto never engages.
                 min_height="0",
@@ -119,7 +119,7 @@ class Spacer(Component):
         super().__init__()
         self._root = Div(
             styles=Styles(
-                flex_grow=str(flex) if flex is not None else None,
+                flex_grow=flex if flex is not None else None,
                 width=width,
                 height=height,
             ),
@@ -184,9 +184,19 @@ class GlassPanel(Component):
         # Default 12px; pass "0px" (or any radius) to override.
         radius = radius if radius is not None else "12px"
         # Semantic roles add a colour-matched outer glow; neutral keeps the plain shadow.
-        shadow = "0 8px 32px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.04)"
+        shadow = BoxShadow(
+            layers=[
+                Shadow(x=0, y=8, blur=32, color=Color(rgba=(0, 0, 0, 0.15))),
+                Shadow(inset=True, blur=0, spread="1px", color=Color(rgba=(255, 255, 255, 0.04))),
+            ]
+        )
         if role != "neutral":
-            shadow = f"0 0 24px {Theme.glass_border(role)}, " + shadow
+            tok = {
+                "accent": stub.accent_glass,
+                "danger": stub.danger_glass,
+                "success": stub.success_glass,
+            }.get(role, stub.border_glass)
+            shadow = BoxShadow(layers=[Shadow(x=0, y=0, blur=24, color=tok), *shadow.layers])
         glass_styles = Styles(
             position="relative",
             display="flex",
@@ -197,7 +207,7 @@ class GlassPanel(Component):
             border=f"1px solid {Theme.glass_border(role)}",
             # Denser glass (0.85) keeps text readable over the background.
             background_color=stub.surface_panel_glass_bg,
-            backdrop_filter="blur(16px)",
+            backdrop_filter=Filter(blur="16px"),
             box_shadow=shadow,
             border_top_left_radius=border_top_left_radius,
             border_top_right_radius=border_top_right_radius,

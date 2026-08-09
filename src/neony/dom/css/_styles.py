@@ -13,7 +13,7 @@ from pydantic import BaseModel, PrivateAttr
 from pydantic.fields import Field
 
 from ._animation import Animation, Transition
-from ._values import Color
+from ._values import Border, BoxShadow, Color, Filter, Shadow, Transform
 
 if TYPE_CHECKING:
     from neony.dom.base import DOMElement
@@ -112,8 +112,9 @@ class Styles(BaseModel):
         | None
     ) = Field(default=None)
     flex_wrap: Literal["nowrap", "wrap", "wrap-reverse"] | None = Field(default=None)
-    flex_grow: str | None = Field(default=None)
-    flex_shrink: str | None = Field(default=None)
+    # Unitless flex factors — bare numbers render as-is (str() of an int).
+    flex_grow: int | float | str | None = Field(default=None)
+    flex_shrink: int | float | str | None = Field(default=None)
     flex_basis: str | None = Field(default=None)
     gap: str | None = Field(default=None)
 
@@ -202,12 +203,12 @@ class Styles(BaseModel):
     letter_spacing: str | None = Field(default=None)
 
     # --- Borders ---
-    border: str | None = Field(default=None)
+    border: Border | str | None = Field(default=None)
     border_radius: str | None = Field(default=None)
-    border_top: str | None = Field(default=None)
-    border_right: str | None = Field(default=None)
-    border_bottom: str | None = Field(default=None)
-    border_left: str | None = Field(default=None)
+    border_top: Border | str | None = Field(default=None)
+    border_right: Border | str | None = Field(default=None)
+    border_bottom: Border | str | None = Field(default=None)
+    border_left: Border | str | None = Field(default=None)
     # Corner-specific radii (for joining rounded chrome pieces).
     border_top_left_radius: str | None = Field(default=None)
     border_top_right_radius: str | None = Field(default=None)
@@ -216,18 +217,20 @@ class Styles(BaseModel):
 
     # --- Visual ---
     opacity: float | None = Field(default=None)
-    box_shadow: str | None = Field(default=None)
+    box_shadow: BoxShadow | Shadow | str | None = Field(default=None)
     # CSS transition — a typed descriptor or a raw shorthand string.
     transition: Transition | str | None = Field(default=None)
     # CSS animation — a typed descriptor referencing a registered
     # KeyFrame name, or a raw shorthand string.
     animation: Animation | str | None = Field(default=None)
+    # CSS filter (regular) — symmetric with backdrop_filter.
+    filter: Filter | str | None = Field(default=None)
     # Transform functions (e.g. "translateX(10px) scale(1.2)").
-    transform: str | None = Field(default=None)
+    transform: Transform | str | None = Field(default=None)
     # Focus-ring outline (commonly "none"; input.py relies on this).
-    outline: str | None = Field(default=None)
+    outline: Border | str | None = Field(default=None)
     # Frosted glass; also emitted with the -webkit- prefix (WebKitGTK).
-    backdrop_filter: str | None = Field(default=None)
+    backdrop_filter: Filter | str | None = Field(default=None)
     # Native control appearance reset (e.g. custom-styled checkboxes).
     appearance: str | None = Field(default=None)
     background_image: str | None = Field(default=None)

@@ -14,7 +14,7 @@ viewport (no auto-flip in v1).
 from __future__ import annotations
 
 from neony.application.theme import stub
-from neony.dom import Animation, Color, Div, DomEvent, Styles, Transition
+from neony.dom import Animation, Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, Styles, Transition, calc, px
 from neony.dom import Button as _ButtonElem
 
 from .base import Component
@@ -30,10 +30,10 @@ _PANEL = Styles(
     max_height="calc(100vh - 8px)",
     overflow="auto",
     border_radius="8px",
-    border="1px solid var(--color-border-glass)",
+    border=Border(width="1px", color=stub.border_glass),
     background_color=stub.surface_glass_bg,
-    backdrop_filter="blur(20px) saturate(1.2)",
-    box_shadow="0 8px 32px var(--color-shadow)",
+    backdrop_filter=Filter(blur="20px", saturate=1.2),
+    box_shadow=BoxShadow(layers=[Shadow(x=0, y=8, blur=32, color=stub.shadow)]),
 )
 _PANEL_OPEN = _PANEL.model_copy(
     update={
@@ -106,11 +106,11 @@ class Menu(Component):
             self._apply_option_styles(0)
         self._root.styles = _PANEL_OPEN.model_copy(
             update={
-                "left": f"{x:.0f}px",
+                "left": px(round(x)),
                 "top": None,  # pop upward: anchor the bottom edge instead
-                "bottom": f"calc(100% - {y:.0f}px - 8px)",
-                "max_width": f"calc(100% - {x:.0f}px - 8px)",
-                "max_height": f"calc({max(0.0, y - 8):.0f}px)",
+                "bottom": calc(f"100% - {round(y)}px - 8px"),
+                "max_width": calc(f"100% - {round(x)}px - 8px"),
+                "max_height": calc(f"{max(0.0, y - 8):.0f}px"),  # inner math keeps its own rounding
             }
         )
         self._root.args = {**self._root.args, "data-neony-outside": "true"}

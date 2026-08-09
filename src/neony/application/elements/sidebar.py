@@ -17,7 +17,7 @@ from typing import Any, Self
 from pydantic import BaseModel, ConfigDict
 
 from neony.application.theme import stub
-from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.dom import Border, Color, Div, DOMElement, DomEvent, Filter, Span, Styles, Transition
 
 from .. import shortcuts
 from ._panels import _PanelHost
@@ -36,7 +36,7 @@ _ITEM_BASE = Styles(
     background_color=Color(name="transparent"),
     color=stub.text_secondary,
     # Always-present left border avoids a layout shift on activation.
-    border_left="3px solid transparent",
+    border_left=Border(width="3px", color=Color(name="transparent")),
     # Smooth the active/inactive background + border-color switch.
     transition=Transition(duration="0.15s", timing="ease"),
 )
@@ -45,7 +45,7 @@ _ITEM_ACTIVE = _ITEM_BASE.model_copy(
     update={
         # Frosted like the rest of the chrome, not a flat fill.
         "background_color": stub.surface_glass_bg,
-        "backdrop_filter": "blur(20px) saturate(1.2)",
+        "backdrop_filter": Filter(blur="20px", saturate=1.2),
         "color": stub.text_primary,
         "border_left": "3px solid var(--color-accent)",
     }
@@ -61,8 +61,8 @@ _GLASS = Styles(
     overflow_y="auto",
     overflow_x="hidden",
     background_color=stub.surface_glass_bg,
-    backdrop_filter="blur(20px) saturate(1.2)",
-    border_right="1px solid var(--color-border-glass)",
+    backdrop_filter=Filter(blur="20px", saturate=1.2),
+    border_right=Border(width="1px", color=stub.border_glass),
 )
 
 _SOLID = Styles(
@@ -80,7 +80,7 @@ _SOLID = Styles(
     overflow_y="auto",
     overflow_x="hidden",
     background_color=stub.surface,
-    border_right="1px solid var(--color-border)",
+    border_right=Border(width="1px", color=stub.border),
 )
 
 # Transparent row wrapper: holds the rail and (in pane mode) the content

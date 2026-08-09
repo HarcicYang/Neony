@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Literal, Self
 
 from neony.application.theme import Theme, stub
-from neony.dom import Div, DomEvent, Span, Styles, Transition
+from neony.dom import Border, BoxShadow, Div, DomEvent, Shadow, Span, Styles, Transition
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
@@ -31,7 +31,7 @@ _DOT = Styles(
     width="18px",
     height="18px",
     border_radius="50%",
-    border="1px solid var(--color-border)",
+    border=Border(width="1px", color=stub.border),
     background_color=stub.surface_raised,
     appearance="none",
     cursor="pointer",
@@ -41,10 +41,10 @@ _DOT = Styles(
 
 _CHECKED_DOT = _DOT.model_copy(
     update={
-        "border": "1px solid var(--color-accent)",
+        "border": Border(width="1px", color=stub.accent),
         # The inset shadow rounds with the 50% radius — the inner dot
         # needs no pseudo-element.
-        "box_shadow": "inset 0 0 0 4px var(--color-accent)",
+        "box_shadow": BoxShadow(layers=[Shadow(inset=True, blur=0, spread="4px", color=stub.accent)]),
     }
 )
 
@@ -133,8 +133,10 @@ class Radio(Component):
             # Compose the focus ring OUTSIDE the inner dot — replacing
             # box_shadow outright would drop the checked dot.
             glow = Theme.focus_glow("accent")
-            inner = "inset 0 0 0 4px var(--color-accent)" if self._checked else None
-            styles = styles.model_copy(update={"box_shadow": f"{glow}, {inner}" if inner else glow})
+            layers = [glow.layers[0]]
+            if self._checked:
+                layers.append(Shadow(inset=True, blur=0, spread="4px", color=stub.accent))
+            styles = styles.model_copy(update={"box_shadow": BoxShadow(layers=layers)})
         self._input.styles = styles
 
     # ---- events ----

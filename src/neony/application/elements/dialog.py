@@ -27,7 +27,7 @@ from typing import Any, Literal, Self
 from pydantic import BaseModel
 
 from neony.application.theme import stub
-from neony.dom import Animation, Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.dom import Animation, Border, BoxShadow, Div, DOMElement, DomEvent, Filter, Shadow, Span, Styles, Transition
 
 from .base import Component
 from .button import Button
@@ -101,9 +101,9 @@ _GLASS_PANEL = Styles(
     padding="20px",
     border_radius="12px",
     background_color=stub.surface_panel_glass_bg,
-    backdrop_filter="blur(20px) saturate(1.2)",
-    border="1px solid var(--color-border-glass)",
-    box_shadow="0 16px 48px var(--color-shadow)",
+    backdrop_filter=Filter(blur="20px", saturate=1.2),
+    border=Border(width="1px", color=stub.border_glass),
+    box_shadow=BoxShadow(layers=[Shadow(x=0, y=16, blur=48, color=stub.shadow)]),
     transition=Transition(property="opacity", duration="0.2s", timing="ease"),
     animation=Animation(name="fade-slide", duration="0.2s", timing="ease-out"),
 )

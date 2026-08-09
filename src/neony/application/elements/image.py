@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Literal
 
 from neony.application.theme import stub
-from neony.dom import Color, Div, Img, Styles
+from neony.dom import Color, Div, Img, Styles, px
 from neony.dom.base import DOMElement
 
 from .base import Component
@@ -26,9 +26,7 @@ def _dim(value: str | int | None) -> str | None:
     stays ``None``."""
     if value is None:
         return None
-    if isinstance(value, int):
-        return f"{value}px"
-    return value
+    return px(value)
 
 
 class Image(Component):

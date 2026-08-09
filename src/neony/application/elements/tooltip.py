@@ -27,7 +27,7 @@ import asyncio
 from typing import Literal
 
 from neony.application.theme import stub
-from neony.dom import Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.dom import Border, BoxShadow, Div, DOMElement, DomEvent, Shadow, Span, Styles, Transform, Transition
 
 from .base import Component
 
@@ -41,19 +41,19 @@ _BUBBLE = Styles(
     padding="6px 10px",
     border_radius="6px",
     background_color=stub.surface_raised,
-    border="1px solid var(--color-border)",
+    border=Border(width="1px", color=stub.border),
     color=stub.text_primary,
     font_size="12px",
-    box_shadow="0 4px 12px var(--color-shadow)",
+    box_shadow=BoxShadow(layers=[Shadow(x=0, y=4, blur=12, color=stub.shadow)]),
     transition=Transition(property="opacity", duration="0.15s", timing="ease"),
 )
 
 # Per-placement offsets — all anchor-relative, zero measurement.
 _PLACEMENTS: dict[str, Styles] = {
-    "top": Styles(bottom="calc(100% + 8px)", left="50%", transform="translateX(-50%)"),
-    "bottom": Styles(top="calc(100% + 8px)", left="50%", transform="translateX(-50%)"),
-    "left": Styles(top="50%", right="calc(100% + 8px)", transform="translateY(-50%)"),
-    "right": Styles(top="50%", left="calc(100% + 8px)", transform="translateY(-50%)"),
+    "top": Styles(bottom="calc(100% + 8px)", left="50%", transform=Transform.translate(x="-50%")),
+    "bottom": Styles(top="calc(100% + 8px)", left="50%", transform=Transform.translate(x="-50%")),
+    "left": Styles(top="50%", right="calc(100% + 8px)", transform=Transform.translate(y="-50%")),
+    "right": Styles(top="50%", left="calc(100% + 8px)", transform=Transform.translate(y="-50%")),
 }
 
 
@@ -93,8 +93,11 @@ class Tooltip(Component):
             anchor_el = Span(container=[anchor])  # element-only children (reactive mode)
         else:
             anchor_el = anchor
+        offsets = _PLACEMENTS[placement]
         self._bubble = Div(
-            styles=_BUBBLE.model_copy(update=_PLACEMENTS[placement].model_dump(exclude_none=True)),
+            styles=_BUBBLE.model_copy(
+                update={k: getattr(offsets, k) for k in offsets.model_fields_set if getattr(offsets, k) is not None}
+            ),
             container=[text],
         )
         self._root = Div(styles=_WRAP, container=[anchor_el, self._bubble])

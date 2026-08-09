@@ -130,10 +130,16 @@ class Theme(BaseModel):
         return f"var({tok.var})"
 
     @staticmethod
-    def focus_glow(role: str = "accent") -> str:
+    def focus_glow(role: str = "accent") -> BoxShadow:
         """3px focus-ring halo using the role's glass token (neutral
-        roles resolve to the subtle border glass)."""
-        return f"0 0 0 3px {Theme.glass_border(role)}"
+        roles resolve to the subtle border glass) — a typed
+        :class:`BoxShadow` ready for ``Styles.box_shadow``."""
+        tok = {
+            "accent": stub.accent_glass,
+            "danger": stub.danger_glass,
+            "success": stub.success_glass,
+        }.get(role, stub.border_glass)
+        return BoxShadow(layers=[Shadow(x=0, y=0, blur=0, spread="3px", color=tok)])
 
     @staticmethod
     def _scrollbar_css() -> str:

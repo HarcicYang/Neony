@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from neony.application.theme import stub
-from neony.dom import Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.dom import Div, DOMElement, DomEvent, Filter, Span, Styles, Transition
 
 from ._panels import _PanelHost
 from .base import Component
@@ -48,7 +48,7 @@ _PANEL_BASE = Styles(
 _PANEL_GLASS = _PANEL_BASE.model_copy(
     update={
         "background_color": stub.surface_glass_bg,
-        "backdrop_filter": "blur(16px)",
+        "backdrop_filter": Filter(blur="16px"),
         "border": "1px solid var(--color-border-glass)",
     }
 )

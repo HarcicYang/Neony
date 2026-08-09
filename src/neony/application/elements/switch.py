@@ -11,7 +11,7 @@ from __future__ import annotations
 import urllib.parse
 
 from neony.application.theme import Theme, stub
-from neony.dom import Color, DomEvent, Span, Styles, Transition
+from neony.dom import Color, DomEvent, Filter, Span, Styles, Transition
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
@@ -53,7 +53,7 @@ _TRACK = Styles(
 _GLASS_TRACK = _TRACK.model_copy(
     update={
         "background_color": stub.surface_glass_bg,
-        "backdrop_filter": "blur(8px)",
+        "backdrop_filter": Filter(blur="8px"),
     }
 )
 
@@ -69,7 +69,7 @@ _CHECKED_TRACK = _TRACK.model_copy(
 _GLASS_CHECKED_TRACK = _CHECKED_TRACK.model_copy(
     update={
         "background_color": stub.accent_glass_bg,
-        "backdrop_filter": "blur(8px)",
+        "backdrop_filter": Filter(blur="8px"),
     }
 )
 

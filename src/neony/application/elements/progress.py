@@ -11,7 +11,7 @@ accessible.
 from __future__ import annotations
 
 from neony.application.theme import stub
-from neony.dom import Animation, Div, DOMElement, Span, Styles, Transition
+from neony.dom import Animation, Div, DOMElement, Span, Styles, Transition, pct
 
 from .base import Component
 
@@ -124,5 +124,5 @@ class Progress(Component):
 
     def _pct(self) -> str:
         """The fill width for the current value (0% when max <= 0)."""
-        pct = 0.0 if self._max <= 0 else self._value / self._max * 100.0
-        return f"{pct:.1f}%"
+        ratio = 0.0 if self._max <= 0 else self._value / self._max * 100.0
+        return pct(f"{ratio:.1f}")

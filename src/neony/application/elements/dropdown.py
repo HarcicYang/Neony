@@ -14,7 +14,7 @@ import urllib.parse
 from collections.abc import Sequence
 
 from neony.application.theme import Theme, stub
-from neony.dom import Animation, Color, Div, DomEvent, Span, Styles, Transition
+from neony.dom import Animation, Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, Span, Styles, Transition
 from neony.dom import Button as _ButtonElem
 
 from .base import Component
@@ -26,7 +26,7 @@ _TRIGGER = Styles(
     gap="8px",
     padding="10px 14px",
     border_radius="8px",
-    border="1px solid var(--color-border)",
+    border=Border(width="1px", color=stub.border),
     background_color=stub.surface,
     color=stub.text_primary,
     font_size="15px",
@@ -39,7 +39,7 @@ _TRIGGER = Styles(
 _GLASS_TRIGGER = _TRIGGER.model_copy(
     update={
         "background_color": stub.surface_glass_bg,
-        "backdrop_filter": "blur(8px)",
+        "backdrop_filter": Filter(blur="8px"),
         "border": f"1px solid {Theme.glass_border('neutral')}",
     }
 )
@@ -67,10 +67,10 @@ _PANEL = Styles(
     max_height="calc(100vh - 8px)",
     overflow="auto",
     border_radius="8px",
-    border="1px solid var(--color-border-glass)",
+    border=Border(width="1px", color=stub.border_glass),
     background_color=stub.surface_glass_bg,
-    backdrop_filter="blur(20px) saturate(1.2)",
-    box_shadow="0 8px 32px var(--color-shadow)",
+    backdrop_filter=Filter(blur="20px", saturate=1.2),
+    box_shadow=BoxShadow(layers=[Shadow(x=0, y=8, blur=32, color=stub.shadow)]),
 )
 # Entrance animation replays on every open (display: none → flex swaps
 # the animation value, Tabs precedent).

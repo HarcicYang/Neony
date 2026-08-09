@@ -10,7 +10,7 @@ from __future__ import annotations
 import urllib.parse
 
 from neony.application.theme import Theme, stub
-from neony.dom import DomEvent, Span, Styles, Transition
+from neony.dom import Border, DomEvent, Filter, Span, Styles, Transition
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
@@ -29,7 +29,7 @@ _BOX = Styles(
     width="18px",
     height="18px",
     border_radius="5px",
-    border="1px solid var(--color-border)",
+    border=Border(width="1px", color=stub.border),
     background_color=stub.surface_raised,
     appearance="none",
     cursor="pointer",
@@ -40,7 +40,7 @@ _BOX = Styles(
 _GLASS_BOX = _BOX.model_copy(
     update={
         "background_color": stub.surface_glass_bg,
-        "backdrop_filter": "blur(8px)",
+        "backdrop_filter": Filter(blur="8px"),
     }
 )
 

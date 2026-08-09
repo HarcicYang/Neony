@@ -18,7 +18,7 @@ from collections.abc import Sequence
 from typing import Literal
 
 from neony.application.theme import Theme, stub
-from neony.dom import Div, DOMElement, DomEvent, Styles
+from neony.dom import Border, BoxShadow, Div, DOMElement, DomEvent, Filter, Shadow, Styles
 
 from .base import Component
 from .button import Button
@@ -40,8 +40,8 @@ _SOLID = Styles(
     padding="20px",
     border_radius="12px",
     background_color=None,  # set below — needs a Color var
-    border="1px solid var(--color-border)",
-    box_shadow="0 2px 8px var(--color-shadow)",
+    border=Border(width="1px", color=stub.border),
+    box_shadow=BoxShadow(layers=[Shadow(x=0, y=2, blur=8, color=stub.shadow)]),
 )
 
 _BODY = Styles(display="flex", flex_direction="column", gap="16px")
@@ -97,14 +97,24 @@ class Card(Component):
         if glass:
             card_styles = card_styles.model_copy(
                 update={
-                    "backdrop_filter": "blur(16px)",
+                    "backdrop_filter": Filter(blur="16px"),
                     "border": f"1px solid {Theme.glass_border(role)}",
                 }
             )
             if role != "neutral":
-                card_styles = card_styles.model_copy(
-                    update={"box_shadow": f"0 0 24px {Theme.glass_border(role)}, " + (card_styles.box_shadow or "")}
+                glow = Shadow(
+                    x=0,
+                    y=0,
+                    blur=24,
+                    color={
+                        "accent": stub.accent_glass,
+                        "danger": stub.danger_glass,
+                        "success": stub.success_glass,
+                    }.get(role, stub.border_glass),
                 )
+                existing = card_styles.box_shadow
+                existing_layers = existing.layers if isinstance(existing, BoxShadow) else []
+                card_styles = card_styles.model_copy(update={"box_shadow": BoxShadow(layers=[glow, *existing_layers])})
         if width is not None:
             card_styles = card_styles.model_copy(update={"width": width})
         if clickable:

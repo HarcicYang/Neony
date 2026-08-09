@@ -9,10 +9,29 @@ loop's ``model_dump()``) and via ``__str__`` / ``__repr__`` delegating to
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Literal, cast
 
 from pydantic import BaseModel, model_serializer
 from pydantic.fields import Field
+
+
+def px(v: int | float | str) -> str:
+    """Bare number → ``"Npx"`` (0 stays bare ``0``); strings pass through."""
+    if isinstance(v, (int, float)):
+        return "0" if v == 0 else f"{v}px"
+    return v
+
+
+def pct(v: int | float | str) -> str:
+    """Number or bare string → ``"N%"`` (idempotent: a ``%``-suffixed
+    string passes through)."""
+    s = f"{v}" if not isinstance(v, str) else v
+    return s if s.endswith("%") else f"{s}%"
+
+
+def calc(expr: str) -> str:
+    """Wrap an expression as ``calc(...)``."""
+    return f"calc({expr})"
 
 
 class Color(BaseModel):
@@ -54,14 +73,8 @@ class Color(BaseModel):
 def _coerce_len(v: int | float | str) -> str:
     """Bare number → px; zero stays bare ``0`` (matches the pre-refactor
     box-shadow literals like ``"0 8px 32px ..."`` byte-for-byte); strings
-    (already a CSS length / compound) pass through verbatim.
-
-    Minimal today (Length model arrives in a later phase); keeps Shadow/BoxShadow
-    usable now without depending on Length.
-    """
-    if isinstance(v, (int, float)):
-        return "0" if v == 0 else f"{v}px"
-    return v
+    (already a CSS length / compound) pass through verbatim."""
+    return px(v)
 
 
 class Shadow(BaseModel):
@@ -84,11 +97,11 @@ class Shadow(BaseModel):
         parts: list[str] = []
         if self.inset:
             parts.append("inset")
-        parts += [_coerce_len(self.x), _coerce_len(self.y)]
+        parts += [px(self.x), px(self.y)]
         if self.blur is not None:
-            parts.append(_coerce_len(self.blur))
+            parts.append(px(self.blur))
         if self.spread is not None:
-            parts.append(_coerce_len(self.spread))
+            parts.append(px(self.spread))
         if self.color is not None:
             parts.append(cast(str, self.color.model_dump()))
         return " ".join(parts)
@@ -113,6 +126,112 @@ class BoxShadow(BaseModel):
     @model_serializer
     def to_css(self) -> str:
         return ", ".join(cast(str, layer.model_dump()) for layer in self.layers)
+
+    def __str__(self) -> str:
+        return cast(str, self.model_dump())
+
+    def __repr__(self) -> str:
+        return cast(str, self.model_dump())
+
+
+_BorderStyle = Literal["none", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"]
+
+
+class Border(BaseModel):
+    """CSS border shorthand — ``width style color``.
+
+    ``style="none"`` renders just ``none`` (the width/color are ignored).
+    ``width`` is a CSS length string (use :func:`px` for bare numbers);
+    ``color`` is a typed :class:`Color` (commonly a ``var(--color-*)``
+    token reference).
+    """
+
+    width: str | None = None
+    style: _BorderStyle = "solid"
+    color: Color | None = None
+
+    @model_serializer
+    def to_css(self) -> str:
+        if self.style == "none":
+            return "none"
+        parts = []
+        if self.width is not None:
+            parts.append(self.width)
+        parts.append(self.style)
+        if self.color is not None:
+            parts.append(cast(str, self.color.model_dump()))
+        return " ".join(parts)
+
+    def __str__(self) -> str:
+        return cast(str, self.model_dump())
+
+    def __repr__(self) -> str:
+        return cast(str, self.model_dump())
+
+
+class Filter(BaseModel):
+    """CSS filter chain — ``blur(...)`` / ``saturate(...)`` compose
+    space-joined; anything else goes through the raw ``str`` escape hatch
+    on ``Styles.backdrop_filter`` / ``Styles.filter``."""
+
+    blur: str | None = None
+    saturate: float | str | None = None
+
+    @model_serializer
+    def to_css(self) -> str:
+        parts = []
+        if self.blur is not None:
+            parts.append(f"blur({self.blur})")
+        if self.saturate is not None:
+            parts.append(f"saturate({self.saturate})")
+        return " ".join(parts)
+
+    def __str__(self) -> str:
+        return cast(str, self.model_dump())
+
+    def __repr__(self) -> str:
+        return cast(str, self.model_dump())
+
+
+class Transform(BaseModel):
+    """CSS transform — ordered transform-function list, chainable.
+
+    ``Transform.translate(x=50, y="-50%")`` builds the common translate
+    helpers (bare numbers become ``px``); anything more exotic goes
+    through :meth:`func` or a raw ``str`` on ``Styles.transform``.
+    """
+
+    funcs: list[str]
+
+    @classmethod
+    def translate(cls, x: int | float | str | None = None, y: int | float | str | None = None) -> Transform:
+        """``translateX(...)`` / ``translateY(...)`` / ``translate(x, y)``."""
+        if x is not None and y is not None:
+            return cls(funcs=[f"translate({px(x)}, {px(y)})"])
+        if y is not None:
+            return cls(funcs=[f"translateY({px(y)})"])
+        if x is not None:
+            return cls(funcs=[f"translateX({px(x)})"])
+        return cls(funcs=[])
+
+    @classmethod
+    def rotate(cls, deg: int | float | str) -> Transform:
+        """``rotate(Ndeg)`` — a bare number becomes degrees."""
+        return cls(funcs=[f"rotate({deg}deg)" if isinstance(deg, (int, float)) else f"rotate({deg})"])
+
+    @classmethod
+    def scale(cls, s: int | float | str) -> Transform:
+        """``scale(N)``."""
+        return cls(funcs=[f"scale({s})"])
+
+    @classmethod
+    def func(cls, *funcs: str) -> Transform:
+        """Raw-function escape hatch — ``Transform.func("skewX(10deg)")``."""
+        return cls(funcs=list(funcs))
+
+    @model_serializer
+    def to_css(self) -> str:
+        return " ".join(self.funcs)
 
     def __str__(self) -> str:
         return cast(str, self.model_dump())

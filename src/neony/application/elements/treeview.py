@@ -31,7 +31,7 @@ from collections.abc import Callable
 from typing import Any, Self
 
 from neony.application.theme import stub
-from neony.dom import Animation, Color, Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.dom import Animation, Color, Div, DOMElement, DomEvent, Span, Styles, Transition, calc
 
 from .. import shortcuts
 from ._panels import _PanelHost
@@ -383,7 +383,7 @@ class Tree(Component):
                 self._chevron_span(node),
                 *label,
             ],
-            styles=_BRANCH_ROW.model_copy(update={"padding_left": f"calc(16px + {depth} * {_INDENT})"}),
+            styles=_BRANCH_ROW.model_copy(update={"padding_left": calc(f"16px + {depth} * {_INDENT}")}),
             args=_attr_roles("treeitem", **{"aria-expanded": "true" if node.expanded else "false", "tabindex": "0"}),
         )
         # Clicks land on the chevron / icon / label spans — bubble them
@@ -411,7 +411,7 @@ class Tree(Component):
         row = Div(
             container=self._label_content(node),
             styles=(_ROW_ACTIVE if active else _ROW_BASE).model_copy(
-                update={"padding_left": f"calc(16px + {depth} * {_INDENT})"}
+                update={"padding_left": calc(f"16px + {depth} * {_INDENT}")}
             ),
             args=_attr_roles("treeitem", **{"aria-selected": "true" if active else "false", "tabindex": "0"}),
         )
@@ -536,7 +536,7 @@ class Tree(Component):
             return
         active = node.resolved_key == self._selected_key
         row.styles = (_ROW_ACTIVE if active else _ROW_BASE).model_copy(
-            update={"padding_left": f"calc(16px + {node._depth} * {_INDENT})"}
+            update={"padding_left": calc(f"16px + {node._depth} * {_INDENT}")}
         )
         row.args = {**row.args, "aria-selected": "true" if active else "false"}
 

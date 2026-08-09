@@ -14,7 +14,7 @@ import asyncio
 from typing import Literal
 
 from neony.application.theme import Theme, stub
-from neony.dom import Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.dom import Border, BoxShadow, Div, DOMElement, DomEvent, Shadow, Span, Styles, Transform, Transition, pct
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
@@ -34,7 +34,7 @@ _WRAP = Styles(position="relative", width="100%", height="22px")
 _TRACK = Styles(
     position="absolute",
     top="50%",
-    transform="translateY(-50%)",
+    transform=Transform.translate(y="-50%"),
     left=_THUMB_RADIUS,
     right=_THUMB_RADIUS,
     height="6px",
@@ -55,13 +55,13 @@ _THUMB = Styles(
     position="absolute",
     top="50%",
     left="0%",
-    transform="translate(-50%, -50%)",  # centres the knob on the value point
+    transform=Transform.translate(x="-50%", y="-50%"),  # centres the knob on the value point
     width="16px",
     height="16px",
     border_radius="50%",
     background_color=stub.surface_raised,
-    border="2px solid var(--color-accent)",
-    box_shadow="0 2px 6px var(--color-shadow)",
+    border=Border(width="2px", color=stub.accent),
+    box_shadow=BoxShadow(layers=[Shadow(x=0, y=2, blur=6, color=stub.shadow)]),
     transition=Transition(property="left", duration="0.2s", timing="ease"),
 )
 
@@ -192,8 +192,8 @@ class Slider(Component):
         fill glides to the new position).
         """
         span = self._max - self._min
-        pct = 0.0 if span <= 0 else (self._value - self._min) / span * 100.0
-        width = f"{pct:.2f}%"
+        ratio = 0.0 if span <= 0 else (self._value - self._min) / span * 100.0
+        width = pct(f"{ratio:.2f}")
         fill_style = _FILL.model_copy(update={"width": width})
         thumb_style = _THUMB.model_copy(update={"left": width})
         if not animated:

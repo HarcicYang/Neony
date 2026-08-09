@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Literal
 
 from neony.application.theme import Theme, stub
+from neony.dom import BoxShadow, Color, DOMElement, DomEvent, Shadow, Styles, Transition
 from neony.dom import Button as _ButtonElem
-from neony.dom import Color, DOMElement, DomEvent, Styles, Transition
 
 from .base import Component
 
@@ -141,23 +141,30 @@ class Button(Component):
             styles = styles.model_copy(
                 update={
                     "opacity": 0.8,
-                    "box_shadow": "inset 0 2px 6px rgba(0, 0, 0, 0.25)",
+                    "box_shadow": BoxShadow(
+                        layers=[Shadow(inset=True, y=2, blur=6, color=Color(rgba=(0, 0, 0, 0.25)))]
+                    ),
                 }
             )
         else:
-            update: dict[str, str | float] = {}
-            shadows: list[str] = []
+            update: dict[str, object] = {}
+            layers: list[Shadow] = []
             if self._focused:
                 # Focus ring first so it renders on top.
-                shadows.append(Theme.focus_glow(self._role))
+                layers.append(Theme.focus_glow(self._role).layers[0])
             if self._hover:
                 update["opacity"] = 0.92
-                shadows.append("0 4px 16px var(--color-shadow)")
+                layers.append(Shadow(x=0, y=4, blur=16, color=stub.shadow))
                 # Colour-matched glow — the lift reads as the element's
                 # own colour.
-                shadows.append(f"0 0 20px {Theme.glass_border(self._role)}")
-            if shadows:
-                update["box_shadow"] = ", ".join(shadows)
+                glow = {
+                    "accent": stub.accent_glass,
+                    "danger": stub.danger_glass,
+                    "success": stub.success_glass,
+                }.get(self._role, stub.border_glass)
+                layers.append(Shadow(x=0, y=0, blur=20, color=glow))
+            if layers:
+                update["box_shadow"] = BoxShadow(layers=layers)
                 styles = styles.model_copy(update=update)
         if self._disabled:
             styles = styles.model_copy(update={"opacity": 0.5})

@@ -292,7 +292,7 @@ class TestButtonFeedback:
         assert btn._btn.styles.box_shadow is None
         handler = btn._btn._handlers["mouseover"][0]
         asyncio.run(handler(DomEvent(key=btn._btn.key, type="mouseover")))
-        assert btn._btn.styles.box_shadow == ("0 4px 16px var(--color-shadow), 0 0 20px var(--color-accent-glass)")
+        assert str(btn._btn.styles.box_shadow) == ("0 4px 16px var(--color-shadow), 0 0 20px var(--color-accent-glass)")
 
     def test_danger_hover_glow_uses_danger_color(self):
         import asyncio
@@ -300,7 +300,7 @@ class TestButtonFeedback:
         btn = Button("x", variant="danger")
         handler = btn._btn._handlers["mouseover"][0]
         asyncio.run(handler(DomEvent(key=btn._btn.key, type="mouseover")))
-        assert "var(--color-danger-glass)" in (btn._btn.styles.box_shadow or "")
+        assert "var(--color-danger-glass)" in str(btn._btn.styles.box_shadow or "")
 
     def test_focus_adds_ring_blur_removes(self):
         import asyncio
@@ -309,7 +309,7 @@ class TestButtonFeedback:
         h_in = btn._btn._handlers["focus"][0]
         h_out = btn._btn._handlers["blur"][0]
         asyncio.run(h_in(DomEvent(key=btn._btn.key, type="focus")))
-        assert btn._btn.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
+        assert str(btn._btn.styles.box_shadow) == "0 0 0 3px var(--color-accent-glass)"
         asyncio.run(h_out(DomEvent(key=btn._btn.key, type="blur")))
         assert not btn._btn.styles.box_shadow
 
@@ -371,7 +371,7 @@ class TestFocusGlow:
         inp = Input()
         assert inp._input.styles.box_shadow is None
         asyncio.run(inp._input._handlers["focus"][0](DomEvent(key=inp._input.key, type="focus")))
-        assert inp._input.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
+        assert str(inp._input.styles.box_shadow) == "0 0 0 3px var(--color-accent-glass)"
         asyncio.run(inp._input._handlers["blur"][0](DomEvent(key=inp._input.key, type="blur")))
         assert inp._input.styles.box_shadow is None
 
@@ -395,7 +395,7 @@ class TestFocusGlow:
         cb = Checkbox("x")
         assert cb._input.styles.box_shadow is None
         asyncio.run(cb._input._handlers["focus"][0](DomEvent(key=cb._input.key, type="focus")))
-        assert cb._input.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
+        assert str(cb._input.styles.box_shadow) == "0 0 0 3px var(--color-accent-glass)"
         asyncio.run(cb._input._handlers["blur"][0](DomEvent(key=cb._input.key, type="blur")))
         assert cb._input.styles.box_shadow is None
 
@@ -407,7 +407,7 @@ class TestFocusGlow:
         cb = Checkbox("x")
         asyncio.run(cb._input._handlers["focus"][0](DomEvent(key=cb._input.key, type="focus")))
         asyncio.run(cb._input._handlers["change"][0](DomEvent(key=cb._input.key, type="change", value=True)))
-        assert cb._input.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
+        assert str(cb._input.styles.box_shadow) == "0 0 0 3px var(--color-accent-glass)"
         bg = cb._input.styles.background_color
         assert bg is not None and bg.var == "--color-accent"
 
@@ -703,8 +703,8 @@ class TestRadioState:
         radio = Radio("x")
         assert radio._input.styles.box_shadow is None
         radio.checked = True
-        assert radio._input.styles.box_shadow == "inset 0 0 0 4px var(--color-accent)"
-        assert radio._input.styles.border == "1px solid var(--color-accent)"
+        assert str(radio._input.styles.box_shadow) == "inset 0 0 0 4px var(--color-accent)"
+        assert str(radio._input.styles.border) == "1px solid var(--color-accent)"
 
     def test_programmatic_set_does_not_fire(self):
         radio = Radio("x")
@@ -739,9 +739,9 @@ class TestRadioEvents:
         radio = Radio("x", checked=True)
         asyncio.run(radio._input._handlers["focus"][0](DomEvent(key=radio._input.key, type="focus")))
         shadow = radio._input.styles.box_shadow
-        assert shadow == "0 0 0 3px var(--color-accent-glass), inset 0 0 0 4px var(--color-accent)"
+        assert str(shadow) == "0 0 0 3px var(--color-accent-glass), inset 0 0 0 4px var(--color-accent)"
         asyncio.run(radio._input._handlers["blur"][0](DomEvent(key=radio._input.key, type="blur")))
-        assert radio._input.styles.box_shadow == "inset 0 0 0 4px var(--color-accent)"
+        assert str(radio._input.styles.box_shadow) == "inset 0 0 0 4px var(--color-accent)"
 
 
 class TestRadioGroup:
@@ -900,7 +900,7 @@ class TestSwitchEvents:
 
         sw = Switch("x")
         asyncio.run(sw._input._handlers["focus"][0](DomEvent(key=sw._input.key, type="focus")))
-        assert sw._input.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
+        assert str(sw._input.styles.box_shadow) == "0 0 0 3px var(--color-accent-glass)"
         asyncio.run(sw._input._handlers["blur"][0](DomEvent(key=sw._input.key, type="blur")))
         assert not sw._input.styles.box_shadow
 
@@ -1037,7 +1037,7 @@ class TestSelectEvents:
 
         sel = Select(options=["a"])
         asyncio.run(sel._trigger._handlers["focus"][0](DomEvent(key=sel._trigger.key, type="focus")))
-        assert sel._trigger.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
+        assert str(sel._trigger.styles.box_shadow) == "0 0 0 3px var(--color-accent-glass)"
         asyncio.run(sel._trigger._handlers["blur"][0](DomEvent(key=sel._trigger.key, type="blur")))
         assert not sel._trigger.styles.box_shadow
 
@@ -1425,9 +1425,9 @@ class TestSliderEvents:
 
         sl = Slider()
         asyncio.run(sl._input._handlers["focus"][0](DomEvent(key=sl._input.key, type="focus")))
-        assert sl._thumb.styles.box_shadow == "0 0 0 3px var(--color-accent-glass)"
+        assert str(sl._thumb.styles.box_shadow) == "0 0 0 3px var(--color-accent-glass)"
         asyncio.run(sl._input._handlers["blur"][0](DomEvent(key=sl._input.key, type="blur")))
-        assert sl._thumb.styles.box_shadow == "0 2px 6px var(--color-shadow)"
+        assert str(sl._thumb.styles.box_shadow) == "0 2px 6px var(--color-shadow)"
 
     def test_pageup_pagedown_correct_the_reversed_native_direction(self):
         """WebKit's native range moves PageUp DOWN / PageDown UP (spec
@@ -2113,10 +2113,10 @@ class TestTooltipBuild:
     def test_placement_offsets(self):
         top = Tooltip("x", anchor=Button("a"), placement="top")
         assert top._bubble.styles.bottom == "calc(100% + 8px)"
-        assert top._bubble.styles.transform == "translateX(-50%)"
+        assert str(top._bubble.styles.transform) == "translateX(-50%)"
         right = Tooltip("x", anchor=Button("a"), placement="right")
         assert right._bubble.styles.left == "calc(100% + 8px)"
-        assert right._bubble.styles.transform == "translateY(-50%)"
+        assert str(right._bubble.styles.transform) == "translateY(-50%)"
 
     def test_string_anchor_wrapped_in_span(self):
         tip = Tooltip("x", anchor="hover me")

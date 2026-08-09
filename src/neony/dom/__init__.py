@@ -36,14 +36,20 @@ from .bridge import (
 )
 from .css import (
     Animation,
+    Border,
     BoxShadow,
     Color,
+    Filter,
     KeyFrame,
     KeyFrameStop,
     Props,
     Shadow,
     Styles,
+    Transform,
     Transition,
+    calc,
+    pct,
+    px,
 )
 from .elems import (
     # Headings
@@ -146,6 +152,7 @@ __all__ = [
     "Blockquote",
     "Body",
     "Bold",
+    "Border",
     "BoxShadow",
     "Br",
     "Button",
@@ -165,6 +172,7 @@ __all__ = [
     "Fieldset",
     "Figcaption",
     "Figure",
+    "Filter",
     "Footer",
     "Form",
     "Head",
@@ -223,6 +231,7 @@ __all__ = [
     "TableRow",
     "Textarea",
     "Title",
+    "Transform",
     "Transition",
     "Underline",
     "UnorderedList",
@@ -230,6 +239,9 @@ __all__ = [
     "UpdateStylesPatch",
     "Video",
     "batch",
+    "calc",
     "effect",
+    "pct",
+    "px",
     "untrack",
 ]

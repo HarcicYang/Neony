@@ -13,7 +13,7 @@ from typing import Any, Literal, Self
 from pydantic import BaseModel, model_serializer
 from pydantic.fields import Field
 
-from ._values import Color
+from ._values import Color, Transform
 
 
 class Transition(BaseModel):
@@ -86,7 +86,7 @@ class Props(BaseModel):
     """
 
     opacity: float | None = None
-    transform: str | None = None
+    transform: Transform | str | None = None
     color: Color | None = None
     background_color: Color | None = None
     border_color: Color | None = None
@@ -117,8 +117,8 @@ class KeyFrame(BaseModel):
 
     Usage::
 
-        spin = KeyFrame("spin").set("0%", Props(transform="rotate(0deg)"))
-                               .set("100%", Props(transform="rotate(360deg)"))
+        spin = KeyFrame("spin").set("0%", Props(transform=Transform.rotate(0)))
+                               .set("100%", Props(transform=Transform.rotate(360)))
         app.register_keyframe(spin)
 
     Registering a second KeyFrame with the same name replaces the first

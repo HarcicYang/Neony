@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Literal
 
 from neony.application.theme import stub
-from neony.dom import Color, Div, Img, Span, Styles
+from neony.dom import Border, Color, Div, Img, Span, Styles
 from neony.dom.base import DOMElement
 
 from .badge import Badge
@@ -124,7 +124,7 @@ class Avatar(Component):
             width=self._size,
             height=self._size,
             border_radius=self._radius,
-            border="1px solid var(--color-border)" if self._border else None,
+            border=Border(width="1px", color=stub.border) if self._border else None,
         )
 
     def _apply_inner(self) -> None:

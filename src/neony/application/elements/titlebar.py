@@ -13,8 +13,8 @@ from collections.abc import Callable
 from typing import Any, Self
 
 from neony.application.theme import stub
+from neony.dom import Border, Color, Div, DomEvent, Filter, Span, Styles, calc
 from neony.dom import Button as _ButtonElem
-from neony.dom import Color, Div, DomEvent, Span, Styles
 
 from .base import Component
 from .icon import Icon
@@ -68,7 +68,7 @@ class TitleBar(Component):
             styles=Styles(
                 font_size="13px",
                 font_weight="500",
-                line_height=f"calc({self._height} - 16px)",
+                line_height=calc(f"{self._height} - 16px"),
                 color=stub.text_primary,
                 white_space="nowrap",
                 overflow="hidden",
@@ -88,8 +88,8 @@ class TitleBar(Component):
                 height=self._height,
                 padding="0 12px",
                 background_color=stub.surface_glass_bg,
-                backdrop_filter="blur(20px) saturate(1.2)",
-                border_bottom="1px solid var(--color-border-glass)",
+                backdrop_filter=Filter(blur="20px", saturate=1.2),
+                border_bottom=Border(width="1px", color=stub.border_glass),
                 flex_shrink="0",
             ),
             container=[

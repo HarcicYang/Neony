@@ -378,8 +378,8 @@ class NeonApplication(Generic[_S]):
 
         Usage::
 
-            spin = KeyFrame("spin").set("0%", Props(transform="rotate(0deg)"))
-                                   .set("100%", Props(transform="rotate(360deg)"))
+            spin = KeyFrame("spin").set("0%", Props(transform=Transform.rotate(0)))
+                                   .set("100%", Props(transform=Transform.rotate(360)))
             app.register_keyframe(spin)
         """
         self._keyframes[kf.name] = kf.to_css()

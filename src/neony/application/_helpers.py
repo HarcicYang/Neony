@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from lumiview import Window, WindowEffect
 
-from neony.dom import DOMElement, KeyFrame, Props
+from neony.dom import DOMElement, KeyFrame, Props, Transform
 from neony.dom.bridge import Neony
 
 if TYPE_CHECKING:
@@ -72,27 +72,27 @@ _BUILTIN_KEYFRAMES: list[KeyFrame] = [
     # Slide-up entrance for content that pops upward or into view
     # neutrally (Menu anchors above the cursor; Dialog plays fade-slide).
     KeyFrame("neony-rise-in")
-    .set("0%", Props(opacity=0, transform="translateY(8px)"))
-    .set("100%", Props(opacity=1, transform="translateY(0)")),
+    .set("0%", Props(opacity=0, transform=Transform.translate(y=8)))
+    .set("100%", Props(opacity=1, transform=Transform.translate(y=0))),
     # Slide-down entrance for popups that expand downward from a trigger
     # (Dropdown / Select / ComboBox popups, Accordion / Treeview expands):
     # the panel starts slightly above the trigger and settles down into place.
     KeyFrame("neony-drop-in")
-    .set("0%", Props(opacity=0, transform="translateY(-8px)"))
-    .set("100%", Props(opacity=1, transform="translateY(0)")),
+    .set("0%", Props(opacity=0, transform=Transform.translate(y=-8)))
+    .set("100%", Props(opacity=1, transform=Transform.translate(y=0))),
     # Fade + slide-up appearance — the gallery's section enter
     # animation; Dialog panels play it on open and, reversed, on
     # close.  Same stops as neony-rise-in with a longer duration.
     KeyFrame("fade-slide")
-    .set("0%", Props(opacity=0, transform="translateY(8px)"))
-    .set("100%", Props(opacity=1, transform="translateY(0)")),
+    .set("0%", Props(opacity=0, transform=Transform.translate(y=8)))
+    .set("100%", Props(opacity=1, transform=Transform.translate(y=0))),
     KeyFrame("neony-fade-in").set("0%", Props(opacity=0)).set("100%", Props(opacity=1)),
     # Sweep for indeterminate progress: a 40%-wide fill translates
     # past the track's overflow-hidden edges (-100% → 300% of its own
     # width) for a left-to-right indeterminate slide.
     KeyFrame("neony-indeterminate")
-    .set("0%", Props(transform="translateX(-100%)"))
-    .set("100%", Props(transform="translateX(300%)")),
+    .set("0%", Props(transform=Transform.translate(x="-100%")))
+    .set("100%", Props(transform=Transform.translate(x="300%"))),
 ]
 
 
