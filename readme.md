@@ -96,6 +96,7 @@ Import from `neony.application.elements`.
 | `Tooltip`                 | Hover bubble wrapped around an anchor, placement offsets, hover delay        |
 | `Dropdown`                | Themed popup under a trigger — full keyboard nav + click-away close          |
 | `Menu`                    | Fixed popup positioned at the cursor (`open_at(x, y)` from contextmenu)      |
+| `Toast`                   | Transient notifications at a screen edge — 6 placements, success/info/error, placement-tied directional animations |
 | `Input`                   | Single-line text field — text / password / email / number…                     |
 | `Heading`                 | Themed heading (h1–h6) with automatic sizing                                   |
 | `Text`                    | Inline body copy with semantic roles (primary / secondary / danger / success)  |
@@ -118,6 +119,8 @@ Import from `neony.application.elements`.
 | `Avatar`                  | User avatar — image, letter initial, or placeholder, optional corner `badge`   |
 | `Badge`                   | Status pill or corner count — variants, status dot, `99+` clamp, zero hides    |
 | `Card`                    | Titled content panel — actions, footer, optional frosted-glass `glass` surface |
+| `MessageBubble`           | QQ/Telegram-style chat message — from_me alignment/colors, optional avatar + name, built-in right-click menu, hover quick actions |
+| `NoticeBubble`            | Centered system message pill for chat notices                                   |
 
 All components share a fluent, chainable API — see the
 [API reference](docs/api.en.md) for usage.
@@ -164,7 +167,7 @@ Run from the repository root:
 | File                          | Shows                                                            |
 | ----------------------------- | ---------------------------------------------------------------- |
 | `demo_hello.py`               | Minimal first app (same as the Quick Start example)              |
-| `demo_gallery.py`             | Component gallery with docs & code samples, glass TitleBar       |
+| `gallery` package (`uv run gallery`) | Component gallery with docs & code samples, glass TitleBar |
 | `demo_custom_window.py`       | Frameless window: TitleBar + Sidebar chrome                      |
 | `demo_transparent_panel.py`   | Floating transparent panel with native blur                      |
 | `demo_multi_window.py`        | Two windows sharing one app state                                |
@@ -175,7 +178,7 @@ Run from the repository root:
 | `demo_builder.py`             | Minimal app built with `Page` + components + `launch()`    |
 
 ```bash
-uv run demo_gallery.py
+uv run gallery
 ```
 
 ---
@@ -196,7 +199,7 @@ manager and runner.
 uv sync --group dev   # install dependencies (incl. dev tools)
 npm ci                # install JS dev dependencies (vitest, jsdom)
 
-uv run demo_gallery.py            # run a demo
+uv run gallery                  # run the component gallery
 uv run pytest -q                  # run the Python test suite
 uv run ruff check .               # lint
 uv run ruff format --check .      # format check

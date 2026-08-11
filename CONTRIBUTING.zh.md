@@ -54,7 +54,8 @@ Pull Request 都非常欢迎。本文档说明项目约定与贡献方式。
 
 ### 5. 示例位于仓库根目录
 
-可运行示例是根目录的 `demo_*.py` 文件(如 `demo_gallery.py`)。
+可运行示例是根目录的 `demo_*.py` 文件(如 `demo_custom_window.py`)。
+组件画廊是例外——它位于 `neony.gallery` 包中(`uv run gallery`)。
 新组件应附带示例，并把示例加入 `.zed/tasks.json`。
 
 ---
@@ -80,7 +81,7 @@ sudo apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 ## 运行项目
 
 ```bash
-uv run demo_gallery.py              # 组件画廊示例
+uv run gallery                      # 组件画廊示例
 uv run demo_custom_window.py        # 无边框窗口示例
 uv run demo_multi_window.py         # 多窗口示例
 uv run pytest -q                    # Python 测试套件

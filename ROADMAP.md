@@ -42,6 +42,7 @@ Planned work, roughly in priority order.
 - [x] **Overlays** — Dialog (fixed scrim + centered glass panel; scrim/Escape/✕/outsideclick close), Tooltip (anchor-relative, placement + delay, zero measurement), Dropdown (Select's popup pattern, full keyboard nav), Menu (`open_at(x, y)` from contextmenu coords)
 - [x] **Data views** — DataTable (sticky-header grid, click-to-sort, single/multi row selection), List (scrollable single-select data list), Tree (navigation rail + content host)
 - [x] **Content** — Card (titled content panel; actions/footer; optional glass), Avatar (image/initial/placeholder + optional corner badge), Badge (pill or corner count; dot; 99+ clamp; zero hides), Image (rounded overflow-hidden frame; `src` is any URL)
+- [x] **Notifications & Chat** — Toast (6 placements, success/info/error, placement-tied directional enter/exit animations), MessageBubble (QQ/Telegram style: from_me alignment/colors, optional avatar + name, built-in right-click menu, hover quick actions), NoticeBubble (centered system pill)
 
 ## Animation
 
@@ -73,14 +74,15 @@ Planned work, roughly in priority order.
 
 ## Distribution
 
-- [x] **Demo smoke test** — every `demo_*.py` spawns under `xvfb-run` in CI
-  (`tests/smoke_demos.py`); a demo that fails to reach the event loop
-  fails the build
-- [x] **Executable packaging workflow** — `packaging.yml` builds
-  `demo_gallery` as a one-file executable on Linux / Windows / macOS
-  with both **PyInstaller and Nuitka** (`workflow_dispatch` for test
-  builds, `v*` tags for releases, artifacts named
-  `<os>_<arch>_<version>_<builder>[.exe]`); Windows and macOS are fully
+- [x] **Demo smoke test** — every `demo_*.py`, plus the `neony.gallery`
+  package, spawns under `xvfb-run` in CI (`tests/smoke_demos.py`); a demo
+  that fails to reach the event loop fails the build
+- [x] **Executable packaging workflow** — `packaging.yml` builds the
+  gallery (`neony.gallery.__main__`) as a one-file executable on Linux /
+  Windows / macOS with **Nuitka** (`workflow_dispatch` for test builds,
+  `v*` tags for releases, artifacts named
+  `<os>_<arch>_<version>_nuitka[.exe]`); Windows and macOS are fully
   self-contained, Linux needs `libwebkit2gtk-4.1`
 - [ ] **Briefcase** — if native installers (MSI / AppImage / .app) are
-  wanted later, re-evaluate BeeWare as an alternative to PyInstaller
+  wanted later, re-evaluate BeeWare as an alternative to the current
+  Nuitka packaging

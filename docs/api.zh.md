@@ -515,6 +515,32 @@ menu.on_change(lambda e: print(e.value))
 点击外部关闭。面板**向上弹出**——底边锚在光标上方 8px——并通过
 `calc()` 的 max-width/height 钳制在视口内，靠近屏幕边缘也不会溢出。
 
+### `Toast`
+
+```python
+toast = Toast(placement="top-right", duration=3.0, top_offset="40px")
+page.add(toast)  # 挂载一次到页根
+toast.show("File saved", type="success")  # success / info / error
+toast.show("Update available", type="info", duration=5.0)
+toast.show("New message", on_click=open_it)  # 点击卡片（✕ 不触发）
+toast.placement = "bottom-left"  # 运行时移动堆叠方位
+toast.clear()  # 全部移除
+```
+
+宿主组件，把瞬时通知堆叠在六个屏幕方位之一（`top-left` /
+`top-center` / `top-right` / `bottom-left` / `bottom-center` /
+`bottom-right`）。`show(text, type=...)` 推入一张卡片 ——
+`success` / `info` / `error` 决定左侧类型圆点颜色；`duration` 按次
+覆盖宿主默认值，`0` 表示一直停留（点 ✕ 关闭）。`on_click`（同步或
+异步）在点击卡片时触发——✕ 永不触发它——可点击的卡片会显示指针
+光标。`max_toasts` 超限时驱逐最旧卡片。`top_offset` 让 top 组从窗口
+顶部往下偏移——留出 `TitleBar` 的高度；bottom 组始终贴窗边。每张
+卡片的**入场动画与方位方向绑定**（top 组从上方落下、bottom 组从
+下方升起、角位对角滑入），出场反向重放同一 keyframe 滑向该方位
+角/边。宿主是 `position: fixed` 全视口层，z-index 1100、
+`pointer-events: none`（点击穿透到页面）——挂载在页根，避开
+`backdrop-filter` / `transform` 祖先。
+
 ---
 
 ### `Image`
@@ -594,6 +620,42 @@ card.title = "已重命名"
 `success`——辉光跟随主题）。`clickable=True` 让整张卡片可点击
 （`cursor: pointer` + `on_click`）。`title` 与 `subtitle` 构造后可改。
 Card 保留自己紧凑的样式常量（不包裹 `GlassPanel`），默认就很轻。
+
+### `MessageBubble`
+
+```python
+other = MessageBubble(
+    "Hey! Have you seen the new gallery?",
+    avatar=Avatar(name="Ada"),
+    name="Ada",
+    actions=[("reply", "Reply"), Icon.glyph("😊")],
+)
+me = MessageBubble("Hi!", from_me=True)
+other.on_change(lambda e: print(e.value))  # 右键菜单选择
+other.on_action(lambda v: print(v))  # 快捷操作点击
+```
+
+单条聊天消息，QQ/Telegram 风格。`from_me` 切换行对齐（自己 → 右侧，
+他人 → 左侧）与气泡填充色（自己 → accent 白字，他人 → 抬升面）；
+朝向头像一侧的圆角做方角处理。`avatar` 是可选的 `Avatar`，放在消息
+自身一侧（构造时 build 一次）；`name` 是气泡上方的可选发送者名。
+`actions` 在气泡下方渲染 hover 时出现的快捷按钮——`(value, label)`
+或 `str` 变成文本按钮，`Icon` 变成图标按钮；点击触发
+`on_action(value)`。快捷操作行**绝对定位**在气泡正下方，出现时覆盖
+下一条消息，不会撑高组件体积。`menu_items` 配置内置右键 `Menu`（默认
+复制/删除；`[]` 关闭菜单但 `on_contextmenu` 仍触发），选择通过
+`on_change` 派发（携带 value）。注意：菜单是气泡内的 `position:
+fixed` 元素；聊天容器请避开 `backdrop-filter` / `transform` 祖先。
+
+### `NoticeBubble`
+
+```python
+NoticeBubble("You joined the group")
+```
+
+居中的系统消息——在 flex 列消息列表里 `align-self: center` 居中，
+半透明底的淡色药丸。`text` 是消息文本，或传 `content` 放自定义元素；
+`text` 构造后可改。
 
 ---
 

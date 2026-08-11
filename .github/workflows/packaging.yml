@@ -1,13 +1,13 @@
 name: Packaging
 
-# Build standalone executables of the gallery demo, per platform, with
-# both PyInstaller and Nuitka.  Triggered manually (workflow_dispatch)
-# for test builds, or by a v* tag push (release) — not on every commit:
-# 6 builds cost ~20 CI minutes per run, and ci.yml's smoke-demos job
-# already catches demo breakage on every push.
+# Build a standalone executable of the gallery demo with Nuitka, per
+# platform.  Triggered manually (workflow_dispatch) for test builds, or
+# by a v* tag push (release) — not on every commit: 3 builds cost ~10
+# CI minutes per run, and ci.yml's smoke-demos job already catches demo
+# breakage on every push.
 #
-# Artifact naming: <os>_<arch>_<version>_<builder>[.exe]
-#   e.g. linux_x86_64_0.1.0_nuitka, win_x86_64_0.1.0_pyinstaller.exe
+# Artifact naming: <os>_<arch>_<version>_nuitka[.exe]
+#   e.g. linux_x86_64_0.1.0_nuitka, win_x86_64_0.1.0_nuitka.exe
 # Version comes from pyproject.toml (works for workflow_dispatch too).
 #
 # Wheel availability (verified against PyPI): lumiview + wryview publish
@@ -20,81 +20,6 @@ on:
     tags: ["v*"]
 
 jobs:
-  pyinstaller:
-    name: pyinstaller-${{ matrix.label }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            label: linux_x86_64
-          - os: windows-latest
-            label: win_x86_64
-          - os: macos-latest
-            label: macos_arm64
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Linux system dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libgtk-3-dev
-
-      - uses: astral-sh/setup-uv@v4
-        with:
-          python-version: "3.12"
-
-      - run: uv sync --group dev
-      - run: uv pip install pyinstaller
-
-      # demo_gallery.spec handles the platform split: on Linux the
-      # GTK/WebKit system libraries are stripped from the bundle (the
-      # executable must use the target machine's webkit2gtk, whose
-      # helper-process paths are distro-specific), while Windows/macOS
-      # bundle the native bindings and rely on the OS-provided WebView.
-      # NOTE: macOS uses the console bootloader (bare executable) —
-      # windowed mode would need a BUNDLE target for a .app.  Only
-      # Linux has been run-tested locally; the first CI run validates
-      # the Windows/macOS branches.
-      - name: Build executable (PyInstaller)
-        shell: bash
-        run: uv run pyinstaller --noconfirm demo_gallery.spec
-
-      - name: Rename artifact
-        shell: bash
-        run: |
-          version="$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
-          ext=""
-          if [ "${{ runner.os }}" = "Windows" ]; then ext=".exe"; fi
-          mv "dist/neony-gallery${ext}" "dist/neony-gallery_${{ matrix.label }}_${version}_pyinstaller${ext}"
-
-      - name: Write Linux runtime README
-        if: runner.os == 'Linux'
-        run: |
-          cat > README-linux.md <<'EOF'
-          # neony-gallery (Linux)
-
-          This executable needs the WebKitGTK runtime to run:
-
-            Ubuntu/Debian: sudo apt install libwebkit2gtk-4.1-0
-            Fedora:        sudo dnf install webkit2gtk4.1
-            Arch:          sudo pacman -S webkit2gtk-6.0
-
-          All other dependencies are bundled. Windows and macOS builds
-          are fully self-contained (WebView2 / WebKit are OS-provided).
-          EOF
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: neony-gallery_${{ matrix.label }}_pyinstaller
-          path: |
-            dist/neony-gallery_*
-            README-linux.md
-          if-no-files-found: error
-
   nuitka:
     name: nuitka-${{ matrix.label }}
     runs-on: ${{ matrix.os }}
@@ -127,34 +52,57 @@ jobs:
       # win/mac, whose runners happen to ship zstandard).
       - run: uv pip install "nuitka[onefile]"
 
+      # The entry is the gallery package's __main__ module; the rest of
+      # the package (and neony, with its JS assets) is pulled in via
+      # --include-package / --include-package-data.
       - name: Build executable (Nuitka)
         shell: bash
         run: |
           uv run python -m nuitka \
             --onefile \
             --assume-yes-for-downloads \
+            --include-package=neony.gallery \
             --include-package-data=neony \
             --include-module=lumiview.events \
             --include-module=lumiview.task \
             --include-module=lumiview.plugins.window_controls \
-            demo_gallery.py
+            --output-filename=neony-gallery \
+            neony.gallery.__main__
 
       - name: Rename artifact
         shell: bash
         run: |
           version="$(uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
-          # Nuitka emits demo_gallery.bin (Linux/macOS) or demo_gallery.exe
-          # (Windows) for --onefile builds.
-          src="demo_gallery.bin"
+          # With --output-filename Nuitka emits exactly that name — no
+          # .bin suffix — except Windows, which always gets .exe.
+          src="neony-gallery"
           ext=""
-          if [ "${{ runner.os }}" = "Windows" ]; then src="demo_gallery.exe"; ext=".exe"; fi
+          if [ "${{ runner.os }}" = "Windows" ]; then src="neony-gallery.exe"; ext=".exe"; fi
           mv "$src" "neony-gallery_${{ matrix.label }}_${version}_nuitka${ext}"
+
+      - name: Write Linux runtime README
+        if: runner.os == 'Linux'
+        run: |
+          cat > README-linux.md <<'EOF'
+          # neony-gallery (Linux)
+
+          This executable needs the WebKitGTK runtime to run:
+
+            Ubuntu/Debian: sudo apt install libwebkit2gtk-4.1-0
+            Fedora:        sudo dnf install webkit2gtk4.1
+            Arch:          sudo pacman -S webkit2gtk-6.0
+
+          All other dependencies are bundled. Windows and macOS builds
+          are fully self-contained (WebView2 / WebKit are OS-provided).
+          EOF
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: neony-gallery_${{ matrix.label }}_nuitka
-          path: neony-gallery_*
+          path: |
+            neony-gallery_*
+            README-linux.md
           if-no-files-found: error
 
   # Tag pushes only: collect every platform's artifact and attach them
@@ -162,7 +110,7 @@ jobs:
   release:
     name: attach-to-release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [pyinstaller, nuitka]
+    needs: [nuitka]
     runs-on: ubuntu-latest
     permissions:
       contents: write

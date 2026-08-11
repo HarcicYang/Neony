@@ -65,9 +65,10 @@ New features must update both language versions.
 
 ### 5. Demos live at the repository root
 
-Working demos are `demo_*.py` files at the root (e.g. `demo_gallery.py`).
-New components should ship with a demo, and the demo should be added to
-`.zed/tasks.json`.
+Working demos are `demo_*.py` files at the root (e.g. `demo_custom_window.py`).
+The component gallery is the exception — it lives in the `neony.gallery`
+package (`uv run gallery`).  New components should ship with a demo, and the
+demo should be added to `.zed/tasks.json`.
 
 ---
 
@@ -93,7 +94,7 @@ sudo apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 ## Running the project
 
 ```bash
-uv run demo_gallery.py              # component gallery demo
+uv run gallery                      # component gallery demo
 uv run demo_custom_window.py        # frameless window demo
 uv run demo_multi_window.py         # multi-window demo
 uv run pytest -q                    # Python test suite

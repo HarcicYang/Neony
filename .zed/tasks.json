@@ -40,7 +40,7 @@
   },
   {
     "label": "Run component gallery",
-    "command": "uv run demo_gallery.py",
+    "command": "uv run gallery",
     "use_new_terminal": true,
     "allow_concurrent_runs": false,
     "reveal": "always",

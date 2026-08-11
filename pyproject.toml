@@ -27,6 +27,9 @@ dependencies = [
     "pydantic>=2.13.4",
 ]
 
+[project.scripts]
+gallery = "neony.gallery.__main__:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["neony*"]

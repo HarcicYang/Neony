@@ -568,6 +568,35 @@ or click-away. The panel pops upward — its bottom edge anchors 8px
 above the cursor — and clamps to the viewport via `calc()` max
 width/height, so it never overflows an edge.
 
+### `Toast`
+
+```python
+toast = Toast(placement="top-right", duration=3.0, top_offset="40px")
+page.add(toast)  # mount once at the page root
+toast.show("File saved", type="success")  # success / info / error
+toast.show("Update available", type="info", duration=5.0)
+toast.show("New message", on_click=open_it)  # click the card (✕ excluded)
+toast.placement = "bottom-left"  # relocate the stack live
+toast.clear()  # remove everything
+```
+
+A host component stacking transient notifications at one of six screen
+edges (`top-left` / `top-center` / `top-right` / `bottom-left` /
+`bottom-center` / `bottom-right`). `show(text, type=...)` pushes a
+card — `success` / `info` / `error` pick the accent dot colour;
+`duration` overrides the host default per call, and `0` sticks until
+the ✕ is clicked. `on_click` (sync or async) fires when the card is
+clicked — the ✕ never fires it — and the card shows a pointer cursor
+when it's clickable. `max_toasts` evicts the oldest card beyond the cap.
+`top_offset` drops the top placements below window chrome (a `TitleBar`
+height); bottom placements always hug the window edge. Each card enters
+with a placement-specific directional animation (top placements drop
+in, bottom ones rise up, corners slide diagonally) and leaves by
+replaying the same keyframe reversed toward that edge. The host is a
+full-viewport `position: fixed` layer at z-index 1100 with
+`pointer-events: none` (clicks pass through to the page) — mount it at
+the page root, away from `backdrop-filter` / `transform` ancestors.
+
 ---
 
 ### `Image`
@@ -658,6 +687,47 @@ the theme). `clickable=True` turns the card into a clickable surface
 (`cursor: pointer` + `on_click`). `title` and `subtitle` are settable
 after construction. Card keeps its own compact style constants (it does
 not wrap `GlassPanel`), so it stays light by default.
+
+### `MessageBubble`
+
+```python
+other = MessageBubble(
+    "Hey! Have you seen the new gallery?",
+    avatar=Avatar(name="Ada"),
+    name="Ada",
+    actions=[("reply", "Reply"), Icon.glyph("😊")],
+)
+me = MessageBubble("Hi!", from_me=True)
+other.on_change(lambda e: print(e.value))  # right-click menu selection
+other.on_action(lambda v: print(v))  # quick action click
+```
+
+A single chat message in the QQ/Telegram style. `from_me` flips the
+row's alignment (self → right, others → left) and the bubble fill
+(self → accent with white text, others → raised surface); the corner
+toward the avatar is squared off. `avatar` is an optional `Avatar` on
+the message's own side (built on construction), `name` an optional
+sender label above the bubble. `actions` renders quick buttons below
+the bubble that appear on hover — a `(value, label)` pair or `str`
+becomes a text button, an `Icon` an icon button; clicking fires
+`on_action(value)`. The action row is absolutely positioned below the
+bubble, so showing it overlays the message beneath instead of shifting
+the row's height. `menu_items` configures the built-in right-click
+`Menu` (default Copy / Delete; `[]` disables it — `on_contextmenu`
+still fires) and selections dispatch to `on_change` with the value.
+NOTE: the menu is a `position: fixed` element inside the bubble; keep
+chat panes away from `backdrop-filter` / `transform` ancestors.
+
+### `NoticeBubble`
+
+```python
+NoticeBubble("You joined the group")
+```
+
+The centered system message — a muted pill that centers itself in a
+flex message column (`align-self: center`) with a translucent
+background. `text` is the message, or pass `content` for a custom
+element; `text` is settable.
 
 ---
 

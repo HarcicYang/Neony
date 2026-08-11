@@ -93,6 +93,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Tooltip`                 | 包裹 anchor 的悬停气泡，placement 偏移 + 悬停延迟               |
 | `Dropdown`                | trigger 下的主题化弹出面板 — 完整键盘导航 + 点击外部关闭        |
 | `Menu`                    | 光标定位的固定弹出菜单（`open_at(x, y)` 来自 contextmenu）      |
+| `Toast`                   | 屏幕边缘的瞬时通知 — 6 方位、success/info/error、与方位绑定的方向性动画 |
 | `Input`                   | 单行输入框 — text / password / email / number…                 |
 | `Heading`                 | 主题标题(h1–h6)，自动字号                                      |
 | `Text`                    | 内联文本，支持语义角色(primary / secondary / danger / success) |
@@ -115,6 +116,8 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Avatar`                  | 用户头像 — 图片 / 字母占位 / 空占位，可选角标 `badge`         |
 | `Badge`                   | 状态标签或角标计数 — 多变体、状态点、`99+` 截断、0 自动隐藏    |
 | `Card`                    | 带标题的内容卡片 — 操作区、页脚、可选毛玻璃 `glass` 表面       |
+| `MessageBubble`           | QQ/Telegram 风格聊天消息 — from_me 对齐/配色、可选头像 + 昵称、内置右键菜单、hover 快捷操作 |
+| `NoticeBubble`            | 聊天居中的系统提示药丸                                           |
 
 所有组件共享链式 API，用法见 [API 参考](docs/api.zh.md)。
 
@@ -157,7 +160,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | 文件                            | 演示内容                               |
 | ------------------------------- | -------------------------------------- |
 | `demo_hello.py`                 | 最小示例(与快速入门一致)               |
-| `demo_gallery.py`               | 带文档与代码示例的组件画廊，玻璃标题栏 |
+| `gallery` 包(`uv run gallery`) | 带文档与代码示例的组件画廊，玻璃标题栏 |
 | `demo_custom_window.py`         | 无边框窗口:TitleBar + Sidebar 一体装饰 |
 | `demo_transparent_panel.py`     | 带原生模糊的透明悬浮面板               |
 | `demo_multi_window.py`          | 共享同一 app 状态的双窗口              |
@@ -168,7 +171,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `demo_builder.py`               | 使用 `Page` + 组件 + `launch()` 的最小应用 |
 
 ```bash
-uv run demo_gallery.py
+uv run gallery
 ```
 
 ---
@@ -188,7 +191,7 @@ uv run demo_gallery.py
 uv sync --group dev   # 安装依赖(含开发工具)
 npm ci                # 安装 JS 开发依赖(vitest、jsdom)
 
-uv run demo_gallery.py            # 运行示例
+uv run gallery                  # 运行组件画廊
 uv run pytest -q                  # 运行 Python 测试
 uv run ruff check .               # 代码检查
 uv run ruff format --check .      # 格式检查

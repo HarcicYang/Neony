@@ -7,6 +7,10 @@ enter the blocking event loop, then SIGTERM'd.  An early exit with a
 non-zero code means the demo crashed during startup — the captured
 stderr is reported so the traceback is visible in the test output.
 
+The component gallery is no longer a ``demo_*.py`` — it lives in the
+``neony.gallery`` package (``python -m neony.gallery``), so it gets its
+own smoke test that spawns the module directly.
+
 Marked ``smoke``: excluded from the default pytest run (``-m 'not smoke'``
 in pyproject.toml), because real windows would pop up on any display.
 Run explicitly under a virtual display — on Wayland sessions this must
@@ -34,9 +38,7 @@ DEMOS = sorted(ROOT.glob("demo_*.py"))
 STARTUP_GRACE = 6.0
 
 
-@pytest.mark.parametrize("demo_path", DEMOS, ids=lambda p: p.name)
-def test_demo_starts(demo_path: Path) -> None:
-    """Spawn the demo; it must still be alive after the grace period."""
+def _env() -> dict[str, str]:
     env = os.environ.copy()
     if sys.platform == "linux" and os.environ.get("DISPLAY"):
         # ``xvfb-run`` only sets DISPLAY (X11) — a live Wayland session
@@ -45,10 +47,15 @@ def test_demo_starts(demo_path: Path) -> None:
         # X11 backend so demos render into whatever DISPLAY points to.
         env["WAYLAND_DISPLAY"] = ""
         env["GDK_BACKEND"] = "x11"
+    return env
+
+
+def _assert_starts(argv: list[str], label: str) -> None:
+    """Spawn *argv*; it must still be alive after the grace period."""
     proc = subprocess.Popen(
-        [sys.executable, str(demo_path)],
+        argv,
         cwd=ROOT,
-        env=env,
+        env=_env(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -62,7 +69,7 @@ def test_demo_starts(demo_path: Path) -> None:
         # Exited early: a crash during import/build/window creation.
         stdout, stderr = proc.communicate(timeout=2)
         pytest.fail(
-            f"{demo_path.name} exited during startup (code {exit_code}).\n"
+            f"{label} exited during startup (code {exit_code}).\n"
             f"--- stdout (last 1000 chars) ---\n{stdout[-1000:]}\n"
             f"--- stderr (last 2000 chars) ---\n{stderr[-2000:]}"
         )
@@ -73,3 +80,14 @@ def test_demo_starts(demo_path: Path) -> None:
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+
+
+@pytest.mark.parametrize("demo_path", DEMOS, ids=lambda p: p.name)
+def test_demo_starts(demo_path: Path) -> None:
+    _assert_starts([sys.executable, str(demo_path)], demo_path.name)
+
+
+def test_gallery_package_starts() -> None:
+    """The gallery now ships as ``neony.gallery`` (was ``demo_gallery.py``),
+    so the ``demo_*.py`` glob no longer covers it — smoke the module."""
+    _assert_starts([sys.executable, "-m", "neony.gallery"], "neony.gallery")
