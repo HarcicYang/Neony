@@ -8,7 +8,7 @@ from neony.application.theme import Theme, stub
 from neony.dom import Border, DomEvent, Filter, Styles, Transition
 from neony.dom import Input as _InputElem
 
-from .base import Component
+from .base import Component, ReactiveText
 
 _FIELD = Styles(
     width="100%",
@@ -49,7 +49,7 @@ class Input(Component):
 
     def __init__(
         self,
-        placeholder: str = "",
+        placeholder: ReactiveText = "",
         *,
         value: str = "",
         type: Literal["text", "password", "email", "number", "search", "tel", "url"] = "text",
@@ -58,18 +58,23 @@ class Input(Component):
         maxlength: int | None = None,
     ) -> None:
         super().__init__()
+        self._placeholder: ReactiveText = placeholder
         self._value = value
         self._disabled = disabled
 
         self._input = _InputElem(
             type=type,
-            placeholder=placeholder,
+            placeholder=placeholder if isinstance(placeholder, str) else None,
             value=value,
             maxlength=maxlength,
             disabled=disabled,
             styles=_GLASS_FIELD if glass else _FIELD,
         )
         self._root = self._input
+        # placeholder is an HTML attribute, not text content — a reactive
+        # placeholder (e.g. ``tr.forms.name_placeholder``) binds to it.
+        if not isinstance(placeholder, str):
+            self._input.bind_attr(placeholder, "placeholder")
 
         self._bind(self._input, "input")
         self._bind(self._input, "change")
@@ -87,6 +92,17 @@ class Input(Component):
         self._value = value
         self._input.value = value  # immediate write; no callback
         self._mirror_value(value)
+
+    @property
+    def placeholder(self) -> str:
+        if isinstance(self._placeholder, str):
+            return self._placeholder
+        return self._placeholder()
+
+    @placeholder.setter
+    def placeholder(self, value: str) -> None:
+        self._placeholder = value
+        self._input.placeholder = value
 
     @property
     def disabled(self) -> bool:

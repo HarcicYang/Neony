@@ -18,7 +18,7 @@ from neony.dom import Border, BoxShadow, Div, DOMElement, DomEvent, Shadow, Span
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 _ROW = Styles(display="flex", flex_direction="column", gap="6px", width="100%")
 
@@ -109,7 +109,7 @@ class Slider(Component):
 
     def __init__(
         self,
-        label: str = "",
+        label: ReactiveText = "",
         *,
         min: float = 0.0,
         max: float = 100.0,
@@ -120,6 +120,7 @@ class Slider(Component):
         super().__init__()
         if isinstance(step, (int, float)) and step <= 0:
             step = 1.0  # step=0 is invalid HTML; WebKit clamps it to 1 anyway
+        self._label: ReactiveText = label
         self._min = min
         self._max = max
         self._step = step
@@ -138,9 +139,14 @@ class Slider(Component):
         self._track = Div(styles=_TRACK, container=[self._fill])
         self._wrapper = Div(styles=_WRAP, container=[self._track, self._thumb, self._input])
 
-        self._label_span = Span(container=[label], styles=_LABEL)
+        # A reactive label (Signal/Computed) is always shown; a plain
+        # string only when non-empty.
+        show_label = bool(label) or not isinstance(label, str)
+        self._label_span = Span(container=[], styles=_LABEL)
+        if show_label:
+            _mount_text(self._label_span, label)
         parts: list[DOMElement | str] = [self._wrapper]
-        if label:
+        if show_label:
             parts.insert(0, self._label_span)
         self._root = _LabelElem(styles=_ROW, container=parts)
 
@@ -166,10 +172,13 @@ class Slider(Component):
 
     @property
     def label(self) -> str:
-        return str(self._label_span.container[0]) if self._label_span.container else ""
+        if isinstance(self._label, str):
+            return self._label
+        return self._label()
 
     @label.setter
     def label(self, value: str) -> None:
+        self._label = value
         self._label_span.container = [value]
 
     @property

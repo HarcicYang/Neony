@@ -14,7 +14,7 @@ from neony.dom import Border, DomEvent, Filter, Span, Styles, Transition
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 _ROW = Styles(
     display="flex",
@@ -82,15 +82,17 @@ class Checkbox(Component):
     - ``glass=True`` gives the box a frosted, translucent surface
     """
 
-    def __init__(self, label: str = "", *, checked: bool = False, glass: bool = False, disabled: bool = False) -> None:
+    def __init__(self, label: ReactiveText = "", *, checked: bool = False, glass: bool = False, disabled: bool = False) -> None:
         super().__init__()
+        self._label: ReactiveText = label
         self._checked = checked
         self._disabled = disabled
         self._glass = glass
         self._focused = False
 
         self._input = _InputElem(type="checkbox", checked=checked, disabled=disabled)
-        self._label_span = Span(container=[label])
+        self._label_span = Span(container=[])
+        _mount_text(self._label_span, label)
         self._root = _LabelElem(styles=_ROW, container=[self._input, self._label_span])
 
         self._apply_box_style()
@@ -113,10 +115,13 @@ class Checkbox(Component):
 
     @property
     def label(self) -> str:
-        return str(self._label_span.container[0]) if self._label_span.container else ""
+        if isinstance(self._label, str):
+            return self._label
+        return self._label()
 
     @label.setter
     def label(self, value: str) -> None:
+        self._label = value
         self._label_span.container = [value]
 
     @property

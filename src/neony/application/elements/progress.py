@@ -13,7 +13,7 @@ from __future__ import annotations
 from neony.application.theme import stub
 from neony.dom import Animation, Div, DOMElement, Span, Styles, Transition, pct
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 _WRAP = Styles(display="flex", flex_direction="column", gap="6px", width="100%")
 
@@ -73,7 +73,7 @@ class Progress(Component):
       (its ``value`` is ignored)
     """
 
-    def __init__(self, label: str = "", *, value: float = 0.0, max: float = 100.0, indeterminate: bool = False) -> None:
+    def __init__(self, label: ReactiveText = "", *, value: float = 0.0, max: float = 100.0, indeterminate: bool = False) -> None:
         super().__init__()
         self._max = max
         self._indeterminate = indeterminate
@@ -88,9 +88,14 @@ class Progress(Component):
         )
         self._track = Div(styles=_TRACK, args=args, container=[self._fill])
 
+        # A reactive label (Signal/Computed) is always shown; a plain
+        # string only when non-empty.
+        show_label = bool(label) or not isinstance(label, str)
         parts: list[DOMElement | str] = [self._track]
-        if label:
-            parts.insert(0, Span(container=[label], styles=_LABEL))
+        if show_label:
+            label_span = Span(container=[], styles=_LABEL)
+            _mount_text(label_span, label)
+            parts.insert(0, label_span)
         self._root = Div(styles=_WRAP, container=parts)
 
     # ---- state ----

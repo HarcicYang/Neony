@@ -16,7 +16,7 @@ from neony.dom import Border, BoxShadow, Div, DomEvent, Shadow, Span, Styles, Tr
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 _ROW = Styles(
     display="flex",
@@ -68,16 +68,25 @@ class Radio(Component):
     """
 
     def __init__(
-        self, label: str = "", *, value: str | None = None, checked: bool = False, disabled: bool = False
+        self, label: ReactiveText = "", *, value: str | None = None, checked: bool = False, disabled: bool = False
     ) -> None:
         super().__init__()
+        self._label: ReactiveText = label
         self._checked = checked
         self._disabled = disabled
-        self._value = value or label.lower()
+        # value is a static selection key (never reactive, never user-
+        # visible); a reactive label MUST pass an explicit value, since
+        # there is no stable string to lowercase.
+        if value is None:
+            if not isinstance(label, str):
+                raise ValueError("Radio with a reactive label needs an explicit value=")
+            value = label.lower()
+        self._value = value
         self._focused = False
 
         self._input = _InputElem(type="radio", checked=checked, disabled=disabled)
-        self._label_span = Span(container=[label])
+        self._label_span = Span(container=[])
+        _mount_text(self._label_span, label)
         self._root = _LabelElem(styles=_ROW, container=[self._input, self._label_span])
 
         self._apply_dot_style()
@@ -103,10 +112,13 @@ class Radio(Component):
 
     @property
     def label(self) -> str:
-        return str(self._label_span.container[0]) if self._label_span.container else ""
+        if isinstance(self._label, str):
+            return self._label
+        return self._label()
 
     @label.setter
     def label(self, value: str) -> None:
+        self._label = value
         self._label_span.container = [value]
 
     @property
