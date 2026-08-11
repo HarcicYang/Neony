@@ -17,7 +17,7 @@ from neony.application.theme import Theme, stub
 from neony.dom import Animation, Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, Span, Styles, Transition
 from neony.dom import Button as _ButtonElem
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 _TRIGGER = Styles(
     display="flex",
@@ -118,15 +118,16 @@ class Dropdown(Component):
 
     def __init__(
         self,
-        label: str = "",
+        label: ReactiveText = "",
         *,
-        items: Sequence[str | tuple[str, str]] = (),
+        items: Sequence[str | tuple[str, ReactiveText]] = (),
         width: str = "200px",
         glass: bool = False,
     ) -> None:
         super().__init__()
-        self._options: list[tuple[str, str]] = []
-        self._label_by_value: dict[str, str] = {}
+        self._label: ReactiveText = label
+        self._options: list[tuple[str, ReactiveText]] = []
+        self._label_by_value: dict[str, ReactiveText] = {}
         self._rows: list[tuple[str, _ButtonElem]] = []
         self._row_by_key: dict[str, str] = {}
         self._hovered: set[int] = set()
@@ -135,7 +136,8 @@ class Dropdown(Component):
         self._open = False
         self._focused = False
 
-        self._label_span = Span(container=[label])
+        self._label_span = Span(container=[])
+        _mount_text(self._label_span, label)
         self._chevron = Span(container=["▾"])
         self._trigger = Div(
             styles=(_GLASS_TRIGGER if glass else _TRIGGER).model_copy(update={"width": width}),
@@ -176,11 +178,11 @@ class Dropdown(Component):
         self._mirror_value(value)
 
     @property
-    def items(self) -> list[tuple[str, str]]:
+    def items(self) -> list[tuple[str, ReactiveText]]:
         return list(self._options)
 
     @items.setter
-    def items(self, items: Sequence[str | tuple[str, str]]) -> None:
+    def items(self, items: Sequence[str | tuple[str, ReactiveText]]) -> None:
         self._popup.container.clear()
         self._rows.clear()
         self._row_by_key.clear()
@@ -192,20 +194,36 @@ class Dropdown(Component):
 
     # ---- internals ----
 
-    def _add_option(self, entry: str | tuple[str, str]) -> None:
+    def _add_option(self, entry: str | tuple[str, ReactiveText]) -> None:
         if isinstance(entry, tuple):
             value, label = entry
         else:
             value = label = entry
         self._options.append((value, label))
         self._label_by_value[value] = label
-        row = _ButtonElem(type="button", container=[label], styles=_OPTION, args={"role": "option"})
+        # The label rides a child span so a reactive ``tr`` binding can
+        # re-render on language switch.
+        label_span = Span(container=[])
+        _mount_text(label_span, label)
+        row = _ButtonElem(type="button", container=[label_span], styles=_OPTION, args={"role": "option"})
+        row.bubble_events = True  # label-span clicks/hovers reach the row
         self._rows.append((value, row))
         self._row_by_key[row.key] = value
-        self._bind(row, "click")
-        self._bind(row, "mouseover")
-        self._bind(row, "mouseout")
+        for event_type in ("click", "mouseover", "mouseout"):
+            row.on(event_type, self._make_row_handler(event_type, row.key))
         self._popup.container.append(row)
+
+    def _make_row_handler(self, event_type: str, row_key: str):
+        """Per-row handler: the label rides a child span, so a click on
+        the text arrives with the span's key — rewrite it to the row's
+        own key so the shared ``_on_event`` row lookup works."""
+
+        async def handler(event: DomEvent) -> None:
+            event.key = row_key
+            event.source = "user"
+            await self._on_event(event_type, event)
+
+        return handler
 
     def _index_of(self, value: str | None) -> int:
         for i, (opt_value, _row) in enumerate(self._rows):
@@ -215,7 +233,9 @@ class Dropdown(Component):
 
     def _sync_trigger(self) -> None:
         label = self._label_by_value.get(self._value or "")
-        self._label_span.container = [label if label is not None else self._label_span.container[0]]
+        if label is not None:
+            # Re-mount the selected label (possibly a reactive binding).
+            _mount_text(self._label_span, label)
 
     def _apply_option_styles(self, index: int) -> None:
         _value, row = self._rows[index]

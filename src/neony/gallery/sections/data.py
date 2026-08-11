@@ -6,35 +6,37 @@ from neony.application.elements import Button, Column, DataTable, Icon, List, Li
 from neony.dom import Div, DomEvent, Signal, Styles
 
 from ..core import Section
+from ..i18n import tr, tr_now
 
 # ── tab: list ────────────────────────────────────────────────────
 
+# List items keep static identity keys while their visible labels follow the
+# active catalog language.
 fruits = List(
-    "Apple",
-    "Banana",
-    ListItem("Cherry", icon=Icon.glyph("🍒")),
+    ListItem(tr.data.apple, key="Apple"),
+    ListItem(tr.data.banana, key="Banana"),
+    ListItem(tr.data.cherry, key="Cherry", icon=Icon.glyph("🍒")),
     active_key="Apple",
 )
-fruits.children(ListItem("Durian"), "Elderberry")  # chainable append
+fruits.children(
+    ListItem(tr.data.durian, key="Durian"),
+    ListItem(tr.data.elderberry, key="Elderberry"),
+)  # chainable append
 fruits_sig = Signal("Apple")
 fruits.bind_selected(fruits_sig)  # two-way: clicks AND selected_key write the signal
 list_echo = Text("", role="secondary")
-list_echo.bind_text(fruits_sig, fmt=lambda key: f"selected: {key}")
+list_echo.bind_text(fruits_sig, fmt=lambda key: tr.data.selected_fmt.format(key=key).get())
 
 
 def on_pick_durian(_event: DomEvent) -> None:
     fruits.selected_key = "Durian"  # programmatic — mirrors into fruits_sig
 
 
-durian_btn = Button("Select 'Durian'").on_click(on_pick_durian)
+durian_btn = Button(tr.data.select_durian).on_click(on_pick_durian)
 
 list_panel = Section(
-    "List",
-    "A scrollable, single-select data list — the listbox model. Arrow "
-    "keys move the selection directly (each move fires change), Home/End "
-    "jump to the ends, Enter/Space select, and a click selects. The "
-    "selection is two-way reactive via bind_selected — user clicks write "
-    "the signal, and programmatic selected_key writes mirror into it.",
+    tr.data.list_title,
+    tr.data.list_blurb,
     """fruits = List(
     "Apple", "Banana",
     ListItem("Cherry", icon=Icon.glyph("🍒")),
@@ -52,36 +54,38 @@ fruits.selected_key = "Durian"      # programmatic — mirrors into sig""",
 
 # ── tab: datatable ───────────────────────────────────────────────
 
-table_picked = Signal("selected: Ada")
+table_picked = Signal("selected: Kiana")
 table_echo = Text("", role="secondary")
 table_echo.bind_text(table_picked)
 
+# Row identity is a stable key (selection, sorting); the displayed name is a
+# reactive tr ref so the cell follows the catalog language live.
 people = DataTable(
     columns=[
-        Column("Name", key="name", sortable=True, width="2fr"),
-        Column("Role", key="role"),
-        Column("Age", key="age", sortable=True, align="right", width="80px"),
-        Column("Score", key="score", sortable=True, align="right", width="70px", format=lambda v: f"{v}%"),
+        Column(tr.data.name, key="name", sortable=True, width="2fr", sort_key=lambda r: r["key"]),
+        Column(tr.data.role, key="role"),
+        Column(tr.data.age, key="age", sortable=True, align="right", width="80px"),
+        Column(tr.data.score, key="score", sortable=True, align="right", width="70px", format=lambda v: f"{v}%"),
     ],
     rows=[
-        {"name": "Ada", "role": "Engineer", "age": 38, "score": 92},
-        {"name": "Bob", "role": "Designer", "age": 24, "score": 77},
-        {"name": "Cleo", "role": "Manager", "age": 31, "score": 85},
-        {"name": "Dmitri", "role": "Engineer", "age": 29, "score": 64},
-        {"name": "Ella", "role": "PM", "age": 34, "score": 90},
+        {"key": "Kiana", "name": tr.data.kiana, "role": tr.data.engineer, "age": 38, "score": 92},
+        {"key": "Mei", "name": tr.data.mei, "role": tr.data.designer, "age": 24, "score": 77},
+        {"key": "Bronya", "name": tr.data.bronya, "role": tr.data.manager, "age": 31, "score": 85},
+        {"key": "Elysia", "name": tr.data.elysia, "role": tr.data.engineer, "age": 29, "score": 64},
+        {"key": "Eden", "name": tr.data.eden, "role": tr.data.pm, "age": 34, "score": 90},
     ],
-    row_key=lambda r: r["name"],
-    active_key="Ada",
+    row_key=lambda r: r["key"],
+    active_key="Kiana",
 )
-people.on_change(lambda e: table_picked.set(f"selected: {e.value}"))
-people.bind_selected(Signal("Ada"))
+people.on_change(lambda e: table_picked.set(tr_now(tr.data.selected_fmt).format(key=e.value)))
+people.bind_selected(Signal("Kiana"))
 
 
 def on_age_sort(_event: DomEvent) -> None:
     people.sort_by = ("age", "desc")
 
 
-age_btn = Button("Sort by age ↓").on_click(on_age_sort)
+age_btn = Button(tr.data.sort_by_age).on_click(on_age_sort)
 
 multi_picked = Signal("selected: web")
 multi_echo = Text("", role="secondary")
@@ -89,13 +93,13 @@ multi_echo.bind_text(multi_picked)
 
 multi = DataTable(
     columns=[
-        Column("Service", key="service"),
-        Column("Status", key="status", align="center"),
+        Column(tr.data.service, key="service"),
+        Column(tr.data.status, key="status", align="center"),
     ],
     rows=[
-        {"service": "web", "status": "ok"},
-        {"service": "db", "status": "degraded"},
-        {"service": "cache", "status": "ok"},
+        {"service": "web", "status": tr.data.ok},
+        {"service": "db", "status": tr.data.degraded},
+        {"service": "cache", "status": tr.data.ok},
     ],
     row_key=lambda r: r["service"],
     selection="multi",
@@ -104,28 +108,24 @@ multi.selected_keys = {"web"}
 
 
 def on_multi_change(_event: DomEvent) -> None:
-    picked = ", ".join(sorted(multi.selected_keys)) or "none"
-    multi_picked.set(f"selected: {picked}")
+    picked = ", ".join(sorted(multi.selected_keys)) or tr_now(tr.data.selected_none)
+    multi_picked.set(tr_now(tr.data.selected_fmt).format(key=picked))
 
 
 multi.on_change(on_multi_change)
 
 datatable_panel = Section(
-    "DataTable",
-    "Column config + data rows with a sticky header, click-to-sort "
-    "columns, and row selection. Columns lay out with CSS grid "
-    "(width tracks like '2fr' / '80px'), the header sticks while the "
-    "body scrolls, and sorting is numeric-aware (or via a per-column "
-    "sort_key). Selection is single by default or multi at construction.",
+    tr.data.table_title,
+    tr.data.table_blurb,
     """people = DataTable(
     columns=[
         Column("Name", key="name", sortable=True, width="2fr"),
         Column("Age", key="age", sortable=True, align="right", width="80px"),
         Column("Score", key="score", align="right", format=lambda v: f"{v}%"),
     ],
-    rows=[{"name": "Ada", "age": 38, "score": 92}, ...],
-    row_key=lambda r: r["name"],     # default: row index
-    active_key="Ada",
+    rows=[{"key": "Kiana", "name": tr.data.kiana, "age": 38, "score": 92}, ...],
+    row_key=lambda r: r["key"],      # stable identity; name may be reactive
+    active_key="Kiana",
 )
 people.on_change(lambda e: print(e.value))     # selected row key
 people.sort_by = ("age", "desc")               # header clicks sort too

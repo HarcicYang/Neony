@@ -50,7 +50,7 @@ from neony.application.theme import stub
 from neony.dom import Border, Color, Div, DOMElement, DomEvent, Signal, Span, Styles, Transition
 from neony.dom.reactive import Computed
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 # ---- shared row / cell recipes ----
 
@@ -150,7 +150,7 @@ class Column(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    title: str
+    title: ReactiveText
     key: str | None = None
     width: str | None = None
     sortable: bool = False
@@ -160,7 +160,7 @@ class Column(BaseModel):
 
     def __init__(
         self,
-        title: str = "",
+        title: ReactiveText = "",
         *,
         key: str | None = None,
         width: str | None = None,
@@ -183,8 +183,10 @@ class Column(BaseModel):
 
     @property
     def resolved_key(self) -> str:
-        """The key — lowercased title, resolved once."""
+        """The key — explicit, else lowercased title (title must be a str)."""
         if self.key is None:
+            if not isinstance(self.title, str):
+                raise ValueError("Column: a reactive title needs an explicit key")
             self.key = self.title.lower()
         return self.key
 
@@ -372,7 +374,9 @@ class DataTable(Component):
         return header
 
     def _header_content(self, col: Column) -> list[DOMElement | str]:
-        parts: list[DOMElement | str] = [Span(container=[col.title])]
+        title_span = Span()
+        _mount_text(title_span, col.title)
+        parts: list[DOMElement | str] = [title_span]
         if col.sortable:
             glyph = Span(container=["↕"], styles=_GLYPH)
             self._glyphs[col.resolved_key] = glyph
@@ -447,9 +451,18 @@ class DataTable(Component):
 
     def _cell(self, col: Column, row: dict) -> Div:
         value = row.get(col.resolved_key, "")
-        text = col.format(value) if col.format is not None else ("" if value is None else str(value))
+        if col.format is not None:
+            text: ReactiveText = col.format(value)
+        elif value is None:
+            text = ""
+        elif isinstance(value, (Signal, Computed)):
+            text = value
+        else:
+            text = str(value)
         styles = _CELL.model_copy(update={"text_align": col.align or "left"})
-        return Div(container=[text], styles=styles, args={"role": "cell"})
+        cell = Div(styles=styles, args={"role": "cell"})
+        _mount_text(cell, text)
+        return cell
 
     def _column_by_key(self, key: str) -> Column | None:
         for col in self._columns:

@@ -22,8 +22,9 @@ from typing import Literal
 
 from neony.application.theme import stub
 from neony.dom import Color, Span, Styles
+from neony.dom.reactive import Computed, Signal
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 _Variant = Literal["accent", "danger", "success", "neutral"]
 _Position = Literal["inline", "top-right", "top-left", "bottom-right", "bottom-left"]
@@ -99,7 +100,7 @@ class Badge(Component):
 
     def __init__(
         self,
-        content: str | int = "",
+        content: ReactiveText | int = "",
         *,
         variant: _Variant = "neutral",
         dot: bool = False,
@@ -116,18 +117,22 @@ class Badge(Component):
         self._overlap = overlap
         self._show_zero = show_zero
         self._max = max
+        # Tracks whether the reactive text binding is already wired — variant
+        # / position setters re-run ``_apply`` and must not re-bind.
+        self._bound = False
         self._root = Span()
         self._apply()
 
     # ---- state ----
 
     @property
-    def content(self) -> str | int:
+    def content(self) -> ReactiveText | int:
         return self._content
 
     @content.setter
-    def content(self, value: str | int) -> None:
+    def content(self, value: ReactiveText | int) -> None:
         self._content = value
+        self._bound = False
         self._apply()
 
     @property
@@ -154,15 +159,29 @@ class Badge(Component):
         """The visible text, or ``None`` to omit it (dot / empty)."""
         if self._dot:
             return None
-        if isinstance(self._content, int):
-            if self._content > self._max:
+        content = self._content
+        # A reactive source is resolved for display purposes only — the live
+        # binding is wired once in ``_apply`` (it stays reactive in the DOM).
+        if isinstance(content, (Signal, Computed)):
+            resolved = content()
+            if isinstance(resolved, int):
+                content = resolved
+            else:
+                return str(resolved)
+        if isinstance(content, int):
+            if content > self._max:
                 return f"{self._max}+"
-            return str(self._content)
-        return str(self._content)
+            return str(content)
+        return str(content)
 
     def _hidden(self) -> bool:
         # A zero integer count hides the badge unless show_zero is set.
-        return isinstance(self._content, int) and self._content == 0 and not self._show_zero
+        # Reactive sources are treated as non-numeric labels (never hidden).
+        content = self._content
+        if isinstance(content, (Signal, Computed)):
+            resolved = content()
+            content = resolved if isinstance(resolved, int) else 0
+        return isinstance(content, int) and content == 0 and not self._show_zero
 
     def _build_styles(self) -> Styles:
         if self._dot:
@@ -202,5 +221,12 @@ class Badge(Component):
         if self._hidden():
             styles = styles.model_copy(update={"display": "none"})
         self._root.styles = styles
-        text = self._format_content()
-        self._root.container = [] if text is None else [text]
+        # Reactive text binds live on first apply; later applies (variant /
+        # position setters) only re-derive styles so the binding is not reset.
+        if isinstance(self._content, (Signal, Computed)) and not self._dot and not self._bound:
+            self._root.container = []
+            _mount_text(self._root, self._content)
+            self._bound = True
+        else:
+            text = self._format_content()
+            self._root.container = [] if text is None else [text]

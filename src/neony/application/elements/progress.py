@@ -73,7 +73,9 @@ class Progress(Component):
       (its ``value`` is ignored)
     """
 
-    def __init__(self, label: ReactiveText = "", *, value: float = 0.0, max: float = 100.0, indeterminate: bool = False) -> None:
+    def __init__(
+        self, label: ReactiveText = "", *, value: float = 0.0, max: float = 100.0, indeterminate: bool = False
+    ) -> None:
         super().__init__()
         self._max = max
         self._indeterminate = indeterminate

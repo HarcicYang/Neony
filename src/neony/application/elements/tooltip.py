@@ -29,7 +29,7 @@ from typing import Literal
 from neony.application.theme import stub
 from neony.dom import Border, BoxShadow, Div, DOMElement, DomEvent, Shadow, Span, Styles, Transform, Transition
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 _WRAP = Styles(position="relative", display="inline-flex")
 
@@ -75,7 +75,7 @@ class Tooltip(Component):
 
     def __init__(
         self,
-        text: str = "",
+        text: ReactiveText = "",
         *,
         anchor: Component | DOMElement | str | None = None,
         placement: Literal["top", "bottom", "left", "right"] = "top",
@@ -94,11 +94,15 @@ class Tooltip(Component):
         else:
             anchor_el = anchor
         offsets = _PLACEMENTS[placement]
+        # The bubble's text rides a child span so a reactive ``tr``
+        # binding re-renders on language switch.
+        text_span = Span(container=[])
+        _mount_text(text_span, text)
         self._bubble = Div(
             styles=_BUBBLE.model_copy(
                 update={k: getattr(offsets, k) for k in offsets.model_fields_set if getattr(offsets, k) is not None}
             ),
-            container=[text],
+            container=[text_span],
         )
         self._root = Div(styles=_WRAP, container=[anchor_el, self._bubble])
         # Enter/leave/focus events target the keyed anchor — bubble them

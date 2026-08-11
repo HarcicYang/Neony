@@ -20,34 +20,35 @@ from neony.application.elements import (
 from neony.dom import Signal
 
 from ..core import _BACKGROUND_URL, Section
+from ..i18n import tr, tr_now
 
 # ── tab: glass ───────────────────────────────────────────────────
 
-glass_input = Input(placeholder="Glass input…", glass=True)
+glass_input = Input(placeholder=tr.glass.input_placeholder, glass=True)
 glass_input_echo = Text("", role="secondary")
 glass_value = Signal("")
 glass_input.bind_value(glass_value)
-glass_input_echo.bind_text(glass_value, fmt=lambda value: f"Typed: {value}" if value else "")
+glass_input_echo.bind_text(
+    glass_value,
+    fmt=lambda value: tr.glass.typed_fmt.format(value=value).get() if value else "",
+)
 
 # One frosted stage carries the background image; the glass components
 # inside it (glass=True, no background of their own) blur it through
 # their translucent, theme-tinted surfaces.  role="accent" adds a
 # persistent colour-matched glow around the panel.
 glass_demo = GlassPanel(
-    Heading("Frosted Stage", level=4),
-    Text(
-        "Components inside keep their theme colours while gaining the frosted look.",
-        role="secondary",
-    ),
+    Heading(tr.glass.frosted_stage, level=4),
+    Text(tr.glass.stage_desc, role="secondary"),
     HStack(
-        Button("Primary", glass=True),
-        Button("Ghost", variant="ghost", glass=True),
-        Button("Danger", variant="danger", glass=True),
+        Button(tr.glass.primary, glass=True),
+        Button(tr.glass.ghost, variant="ghost", glass=True),
+        Button(tr.glass.danger, variant="danger", glass=True),
         gap="8px",
     ),
     glass_input,
     glass_input_echo,
-    Checkbox("Glass checkbox", glass=True),
+    Checkbox(tr.glass.glass_checkbox, glass=True),
     gap="16px",
     background=_BACKGROUND_URL,
     role="accent",
@@ -56,13 +57,13 @@ glass_demo = GlassPanel(
 # Role glows: a semantic role tints both the hairline border and the
 # persistent outer glow — success below, danger right.
 success_stage = GlassPanel(
-    Text("Success — role glows follow the theme", role="success"),
+    Text(tr.glass.success_glow, role="success"),
     gap="8px",
     padding="12px 16px",
     role="success",
 )
 danger_stage = GlassPanel(
-    Text("Danger — destructive emphasis", role="danger"),
+    Text(tr.glass.danger_emphasis, role="danger"),
     gap="8px",
     padding="12px 16px",
     role="danger",
@@ -71,7 +72,7 @@ danger_stage = GlassPanel(
 # Per-corner radii: each corner gets its own rounding — useful when a
 # panel joins rounded chrome (e.g. the titlebar / sidebar seams).
 corners_stage = GlassPanel(
-    Text("Per-corner radii — 24px / 4px / 24px / 4px", role="secondary"),
+    Text(tr.glass.corners_desc, role="secondary"),
     gap="8px",
     padding="12px 16px",
     border_top_left_radius="24px",
@@ -81,11 +82,8 @@ corners_stage = GlassPanel(
 )
 
 glass_panel = Section(
-    "Frosted Glass",
-    "GlassPanel blurs the background image; components with glass=True "
-    "keep their theme colours while gaining the frosted surface. A "
-    "semantic role tints the panel's border AND its outer glow; "
-    "per-corner radii join chrome at any angle.",
+    tr.glass.glass_title,
+    tr.glass.glass_blurb,
     """GlassPanel(Heading("Frosted"), background=url, role="accent")
 GlassPanel(Text("…"), role="success")
 GlassPanel(..., border_top_left_radius="24px", ...)
@@ -103,11 +101,8 @@ Checkbox("Glass", glass=True)""",
 # via WindowConfig — it's painted inline in the TitleBar instead.  The
 # window header above shows the live result.
 icon_panel = Section(
-    "Window Icon",
-    "Frameless windows show the icon inline in the TitleBar; decorated "
-    "windows hand it to the OS window chrome via WindowConfig.icon — "
-    "both take the same URL or file path. file_url() / data_url() turn "
-    "local files into URL strings for icons, backgrounds and images.",
+    tr.glass.icon_title,
+    tr.glass.icon_blurb,
     """# Frameless — inline in the TitleBar (this window):
 TitleBar("My App", icon=Icon.image("https://harcic.is-a.dev/resource/favicon.svg"))
 
@@ -123,12 +118,8 @@ from neony.application import file_url, data_url
 GlassPanel(background=file_url("bg.png"))
 TitleBar(icon=Icon.image(data_url("logo.svg")))""",
     VStack(
-        Text("Live: the favicon in the titlebar above uses TitleBar(icon=...).", role="secondary"),
-        Text(
-            "For decorated windows the taskbar / titlebar icon comes from "
-            "WindowConfig.icon; TitleBar(icon=...) only affects frameless chrome.",
-            role="secondary",
-        ),
+        Text(tr.glass.icon_live, role="secondary"),
+        Text(tr.glass.icon_decorated, role="secondary"),
         gap="8px",
     ),
 )
@@ -139,21 +130,22 @@ _IMAGE_SRC = "https://harcic.is-a.dev/resource/head.webp"
 
 # Image: themed frame around an <img>. src is an already-built URL — pass
 # it file_url(path), data_url(path), or an https URL.
-img_demo = Image(_IMAGE_SRC, alt="Neony icon", width=96, height=96, radius="12px")
-img_round = Image(_IMAGE_SRC, alt="round", width=64, height=64, radius="50%")
+img_demo = Image(_IMAGE_SRC, alt=tr_now(tr.glass.image_alt), width=96, height=96, radius="12px")
+img_round = Image(_IMAGE_SRC, alt=tr_now(tr.glass.image_alt_round), width=64, height=64, radius="50%")
 
-# Avatar: image, initial, or placeholder; optional corner badge.
+# Avatar: image, initial, or placeholder; optional corner badge.  The
+# ``name`` is a display name (people/projects) — not translated.
 av_image = Avatar(_IMAGE_SRC, name="Neony", size="56px")
-av_letter = Avatar(name="Ada Lovelace", size="56px")
+av_letter = Avatar(name=tr_now(tr.glass.av_ada), size="56px")
 av_unknown = Avatar(size="56px")
 av_badge = Avatar(_IMAGE_SRC, name="Inbox", size="56px", badge=Badge(3, position="top-right", variant="accent"))
 
 # Badge: inline pill or corner count. Counts clamp at 99+, zero hides.
 badge_inline = HStack(
-    Badge("New", variant="accent"),
+    Badge(tr_now(tr.glass.badge_new), variant="accent"),
     Badge("12", variant="danger"),
-    Badge("verified", variant="success"),
-    Badge("plain"),
+    Badge(tr_now(tr.glass.badge_verified), variant="success"),
+    Badge(tr_now(tr.glass.badge_plain)),
     Badge(dot=True),
     gap="8px",
     align="center",
@@ -171,49 +163,48 @@ badge_count = HStack(
 # on_click (the badge above overlays an Avatar the same way).
 card_echo = Text("", role="secondary")
 plain_card = Card(
-    Text("The body holds any children — text, components, or raw nodes."),
-    title="Plain card",
-    subtitle="A solid surface with a soft shadow",
-    actions=[Button("Edit")],
-    footer=[Button("Cancel"), Button("OK")],
+    Text(tr.glass.card_body),
+    title=tr.glass.plain_card_title,
+    subtitle=tr.glass.plain_card_subtitle,
+    actions=[Button(tr.glass.edit)],
+    footer=[Button(tr.common.cancel), Button(tr.common.ok)],
     clickable=True,
 )
-plain_card.on_click(lambda _event: setattr(card_echo, "text", "Card clicked."))
+plain_card.on_click(lambda _event: setattr(card_echo, "text", tr_now(tr.glass.card_clicked)))
 
 
 glass_card = Card(
-    Text("Frosted glass tinted by role — the accent glow follows the theme."),
-    title="Glass card",
-    subtitle="role='accent'",
+    Text(tr.glass.glass_card_body),
+    title=tr.glass.glass_card_title,
+    subtitle=tr.glass.glass_card_subtitle,
     glass=True,
     role="accent",
 )
 
 content_panel = Section(
-    "Content",
-    "Display components — Image, Avatar, Badge, and Card. Pure presentation; "
-    "they reuse the theme tokens so they redraw on theme switch.",
+    tr.glass.content_title,
+    tr.glass.content_blurb,
     """img  = Image(src, width=96, height=96, radius="12px")  # src is any URL
-av   = Avatar(src, name="Ada", size="56px")
+av   = Avatar(src, name="Elysia", size="56px")
 av_b = Avatar(src, name="Inbox", badge=Badge(3, position="top-right"))
 bdg  = Badge("New", variant="accent")          # or Badge(150) → "99+"
 dot  = Badge(dot=True)                          # status dot
 card = Card(Text("body"), title="T", subtitle="s",
             actions=[Button("Edit")], footer=[Button("OK")], clickable=True)
 glass= Card(Text("body"), title="T", glass=True, role="accent")""",
-    Heading("Image", level=4),
+    Heading(tr.glass.image_heading, level=4),
     HStack(img_demo, img_round, gap="16px", align="center"),
     Separator(),
-    Heading("Avatar", level=4),
+    Heading(tr.glass.avatar_heading, level=4),
     HStack(av_image, av_letter, av_unknown, av_badge, gap="16px", align="center"),
     Separator(),
-    Heading("Badge", level=4),
-    Text("Inline pills:", role="secondary"),
+    Heading(tr.glass.badge_heading, level=4),
+    Text(tr.glass.inline_pills, role="secondary"),
     badge_inline,
-    Text("Counts (150 → 99+, 0 hidden unless show_zero):", role="secondary"),
+    Text(tr.glass.counts_desc, role="secondary"),
     badge_count,
     Separator(),
-    Heading("Card", level=4),
+    Heading(tr.glass.card_heading, level=4),
     plain_card,
     glass_card,
     card_echo,

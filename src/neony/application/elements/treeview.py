@@ -35,7 +35,7 @@ from neony.dom import Animation, Color, Div, DOMElement, DomEvent, Span, Styles,
 
 from .. import shortcuts
 from ._panels import _PanelHost
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
 # ---- node rows ----
@@ -147,7 +147,7 @@ class TreeNode:
 
     def __init__(
         self,
-        label: str = "",
+        label: ReactiveText = "",
         *,
         key: str | None = None,
         icon: Icon | None = None,
@@ -373,12 +373,11 @@ class Tree(Component):
 
     def _render_branch(self, node: TreeNode, *, depth: int) -> tuple[Div, Div]:
         # Branch rows always carry the chevron Span, so the label must be
-        # element-only too (reactive mode forbids mixing).
-        label: list[DOMElement | str]
-        if node.icon is not None:
-            label = [node.icon.render("14px"), Span(container=[node.label])]
-        else:
-            label = [Span(container=[node.label])]
+        # element-only too (reactive mode forbids mixing).  The label rides
+        # a child span so a reactive ``tr`` binding can re-render live.
+        label_span = Span(container=[])
+        _mount_text(label_span, node.label)
+        label = [node.icon.render("14px"), label_span] if node.icon is not None else [label_span]
         row = Div(
             container=[
                 self._chevron_span(node),
@@ -445,10 +444,13 @@ class Tree(Component):
     def _label_content(self, node: TreeNode) -> list[DOMElement | str]:
         """The label row children: an optional Icon span + the label text
         (element-only when an icon is present — reactive mode forbids
-        mixing)."""
+        mixing).  The label always rides a child span so a reactive ``tr``
+        binding can re-render live."""
+        label_span = Span(container=[])
+        _mount_text(label_span, node.label)
         if node.icon is not None:
-            return [node.icon.render("14px"), Span(container=[node.label])]
-        return [node.label]
+            return [node.icon.render("14px"), label_span]
+        return [label_span]
 
     # ---- internals: events ----
 

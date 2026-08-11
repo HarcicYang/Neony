@@ -20,7 +20,7 @@ from neony.dom import Animation, Border, BoxShadow, Color, Div, DomEvent, Filter
 from neony.dom import Button as _ButtonElem
 from neony.dom import Label as _LabelElem
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 _ROW = Styles(
     display="flex",
@@ -136,17 +136,18 @@ class Select(Component):
 
     def __init__(
         self,
-        label: str = "",
+        label: ReactiveText = "",
         *,
-        options: Sequence[str | tuple[str, str]] = (),
+        options: Sequence[str | tuple[str, ReactiveText]] = (),
         value: str | None = None,
         placeholder: str | None = None,
         glass: bool = False,
         disabled: bool = False,
     ) -> None:
         super().__init__()
-        self._options: list[tuple[str, str]] = []
-        self._label_by_value: dict[str, str] = {}
+        self._label: ReactiveText = label
+        self._options: list[tuple[str, ReactiveText]] = []
+        self._label_by_value: dict[str, ReactiveText] = {}
         self._rows: list[tuple[str | None, _ButtonElem]] = []
         self._row_by_key: dict[str, str | None] = {}
         self._hovered: set[int] = set()
@@ -157,7 +158,7 @@ class Select(Component):
         self._focused = False
         self._open = False
 
-        self._selected_span = Span(container=[""])
+        self._selected_span = Span(container=[])
         self._trigger = Div(
             styles=_GLASS_TRIGGER if glass else _TRIGGER,
             args={"tabindex": "0", "role": "combobox", "aria-haspopup": "listbox", "aria-expanded": "false"},
@@ -170,7 +171,8 @@ class Select(Component):
         # the wrapper.
         self._trigger.bubble_events = True
         self._wrapper.bubble_events = True
-        self._label_span = Span(container=[label])
+        self._label_span = Span(container=[])
+        _mount_text(self._label_span, label)
         self._root = _LabelElem(styles=_ROW, container=[self._wrapper, self._label_span])
 
         self._build_placeholder()
@@ -204,10 +206,13 @@ class Select(Component):
 
     @property
     def label(self) -> str:
-        return str(self._label_span.container[0]) if self._label_span.container else ""
+        if isinstance(self._label, str):
+            return self._label
+        return self._label()
 
     @label.setter
     def label(self, value: str) -> None:
+        self._label = value
         self._label_span.container = [value]
 
     @property
@@ -223,7 +228,7 @@ class Select(Component):
 
     # ---- internals ----
 
-    def _add_option(self, entry: str | tuple[str, str]) -> None:
+    def _add_option(self, entry: str | tuple[str, ReactiveText]) -> None:
         if isinstance(entry, tuple):
             value, label = entry
         else:
@@ -232,20 +237,36 @@ class Select(Component):
         self._label_by_value[value] = label
         self._popup.container.append(self._make_option(value, label))
 
-    def _make_option(self, value: str | None, label: str, *, placeholder: bool = False) -> _ButtonElem:
+    def _make_option(self, value: str | None, label: ReactiveText, *, placeholder: bool = False) -> _ButtonElem:
+        # The label rides a child span so a reactive ``tr`` binding can
+        # re-render on language switch.
+        label_span = Span(container=[])
+        _mount_text(label_span, label)
         row = _ButtonElem(
             type="button",
-            container=[label],
+            container=[label_span],
             styles=_OPTION_DISABLED if placeholder else _OPTION,
             args={"role": "option"} if not placeholder else {"role": "option", "disabled": ""},
         )
+        row.bubble_events = True  # label-span clicks/hovers reach the row
         self._rows.append((value, row))
         self._row_by_key[row.key] = value
         if not placeholder:
-            self._bind(row, "click")
-            self._bind(row, "mouseover")
-            self._bind(row, "mouseout")
+            for event_type in ("click", "mouseover", "mouseout"):
+                row.on(event_type, self._make_row_handler(event_type, row.key))
         return row
+
+    def _make_row_handler(self, event_type: str, row_key: str):
+        """Per-row handler: the label rides a child span, so a click on
+        the text arrives with the span's key — rewrite it to the row's
+        own key so the shared ``_on_event`` row lookup works."""
+
+        async def handler(event: DomEvent) -> None:
+            event.key = row_key
+            event.source = "user"
+            await self._on_event(event_type, event)
+
+        return handler
 
     def _build_placeholder(self) -> None:
         """Insert the placeholder option first (it must stay first —
@@ -265,7 +286,8 @@ class Select(Component):
         label = self._label_by_value.get(self._value or "")
         if label is None:
             label = self._placeholder or ""
-        self._selected_span.container = [label]
+        # Re-mount the selected label (possibly a reactive ``tr`` binding).
+        _mount_text(self._selected_span, label)
         self._selected_span.styles = _PLACEHOLDER_TEXT if self._value is None else Styles()
 
     def _apply_option_styles(self, index: int) -> None:

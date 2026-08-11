@@ -31,7 +31,7 @@ from typing import Self
 from neony.application.theme import stub
 from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles, Transition
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
 _ROW_BASE = Styles(
@@ -82,7 +82,7 @@ class ListItem:
 
     __slots__ = ("icon", "key", "label")
 
-    def __init__(self, label: str, *, key: str | None = None, icon: Icon | None = None) -> None:
+    def __init__(self, label: ReactiveText, *, key: str | None = None, icon: Icon | None = None) -> None:
         self.label = label
         self.key = key
         self.icon = icon
@@ -124,16 +124,26 @@ class List(Component):
         """Append an entry (chainable).  Strings are wrapped as
         :class:`ListItem` (key = the label)."""
         entry = item if isinstance(item, ListItem) else ListItem(item)
-        key = entry.key or entry.label
+        # A reactive label cannot serve as the entry's identity key — require
+        # an explicit key in that case.
+        key = entry.key
+        if key is None:
+            if not isinstance(entry.label, str):
+                raise ValueError("List: a reactive label needs an explicit key")
+            key = entry.label
         if key in self._row_by_key:
             raise ValueError(f"List: duplicate item key {key!r}")
         entry.key = key  # persist the resolved identity
+        reactive_label = entry.icon is None and not isinstance(entry.label, str)
         row = Div(
-            container=self._label_content(entry),
+            container=[] if reactive_label else self._label_content(entry),
             styles=_ROW_ACTIVE if key == self._selected_key else _ROW_BASE,
             args={"role": "option", "tabindex": "0", "aria-selected": "true" if key == self._selected_key else "false"},
             key=f"row:{key}",
         )
+        # A reactive bare label (no icon) binds live via _mount_text.
+        if reactive_label:
+            _mount_text(row, entry.label)
         # Clicks land on the icon/label spans — bubble them to this row.
         row.bubble_events = True
         row.on_click(self._make_click_handler(key))
@@ -177,11 +187,16 @@ class List(Component):
 
     # ---- internals ----
 
-    def _label_content(self, entry: ListItem) -> list[DOMElement | str]:
+    def _label_content(self, entry: ListItem) -> list[DOMElement | ReactiveText]:
         # Element-only children when an icon is present (reactive mode
         # forbids mixing); a bare string otherwise.
         if entry.icon is not None:
-            return [entry.icon.render("14px"), Span(container=[entry.label])]
+            span = Span()
+            if isinstance(entry.label, str):
+                span.container = [entry.label]
+            else:
+                _mount_text(span, entry.label)
+            return [entry.icon.render("14px"), span]
         return [entry.label]
 
     def _select(self, key: str | None, *, focused: bool = False) -> None:

@@ -22,7 +22,7 @@ from neony.dom import Button as _ButtonElem
 from neony.dom import Input as _InputElem
 from neony.dom import Label as _LabelElem
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 _ROW = Styles(
     display="flex",
@@ -122,15 +122,16 @@ class ComboBox(Component):
 
     def __init__(
         self,
-        label: str = "",
+        label: ReactiveText = "",
         *,
         options: Sequence[str] = (),
         value: str = "",
-        placeholder: str = "",
+        placeholder: ReactiveText = "",
         glass: bool = False,
         disabled: bool = False,
     ) -> None:
         super().__init__()
+        self._label: ReactiveText = label
         self._options = list(options)
         self._value = value
         self._disabled = disabled
@@ -142,16 +143,21 @@ class ComboBox(Component):
 
         self._input = _InputElem(
             type="text",
-            placeholder=placeholder,
+            placeholder=placeholder if isinstance(placeholder, str) else None,
             value=value,
             disabled=disabled,
             styles=_GLASS_FIELD if glass else _FIELD,
         )
+        # placeholder is an HTML attribute — a reactive placeholder (e.g.
+        # a ``tr`` binding) binds to it.
+        if not isinstance(placeholder, str):
+            self._input.bind_attr(placeholder, "placeholder")
         self._popup = Div(styles=_PANEL, container=[])
         self._wrapper = Div(styles=_WRAP, container=[self._input, self._popup])
         # Keydowns from the input bubble up here.
         self._wrapper.bubble_events = True
-        self._label_span = Span(container=[label])
+        self._label_span = Span(container=[])
+        _mount_text(self._label_span, label)
         self._root = _LabelElem(styles=_ROW, container=[self._wrapper, self._label_span])
 
         self._bind(self._input, "input")

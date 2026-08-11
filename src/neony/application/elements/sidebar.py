@@ -21,7 +21,7 @@ from neony.dom import Border, Color, Div, DOMElement, DomEvent, Filter, Span, St
 
 from .. import shortcuts
 from ._panels import _PanelHost
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
 _ITEM_BASE = Styles(
@@ -117,7 +117,7 @@ class Pane(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    label: str
+    label: ReactiveText
     panel: Component | DOMElement | None = None
     key: str | None = None
     icon: Icon | None = None
@@ -126,7 +126,7 @@ class Pane(BaseModel):
 
     def __init__(
         self,
-        label: str = "",
+        label: ReactiveText = "",
         *,
         panel: Component | DOMElement | None = None,
         key: str | None = None,
@@ -149,15 +149,22 @@ class SidebarItem(Component):
 
     def __init__(
         self,
-        label: str,
+        label: ReactiveText,
         *,
         key: str | None = None,
         icon: Icon | None = None,
         active: bool = False,
     ) -> None:
         super().__init__()
-        self._label = label
-        self._key = key or label.lower()
+        self._label: ReactiveText = label
+        # key is a static internal identifier — a reactive label (e.g. a
+        # ``tr`` binding) has no stable string to lowercase into a key, so
+        # it needs an explicit one.
+        if key is None:
+            if not isinstance(label, str):
+                raise ValueError("SidebarItem with a reactive label needs an explicit key=")
+            key = label.lower()
+        self._key = key
         self._icon = icon
         self._active = active
         self._hover = False
@@ -181,13 +188,13 @@ class SidebarItem(Component):
         parts: list[DOMElement | str] = []
         if self._icon:
             parts.append(self._icon.render("16px"))
-        if self._label:
-            parts.append(
-                Span(
-                    container=[self._label],
-                    styles=Styles(font_size="14px"),
-                )
-            )
+        # A reactive label (Signal/Computed) is always shown; a plain
+        # string only when non-empty.
+        if isinstance(self._label, str) and not self._label:
+            return parts
+        label_span = Span(container=[], styles=Styles(font_size="14px"))
+        _mount_text(label_span, self._label)
+        parts.append(label_span)
         return parts
 
     def _apply_styles(self) -> None:
@@ -204,7 +211,9 @@ class SidebarItem(Component):
 
     @property
     def label(self) -> str:
-        return self._label
+        if isinstance(self._label, str):
+            return self._label
+        return self._label()
 
     @label.setter
     def label(self, value: str) -> None:
@@ -247,15 +256,17 @@ class SidebarGroup(Component):
     above its items.  ``add`` is chainable and works after the group is
     attached to a sidebar (new items are wired into it automatically)."""
 
-    def __init__(self, label: str, *items: SidebarItem) -> None:
+    def __init__(self, label: ReactiveText, *items: SidebarItem) -> None:
         super().__init__()
-        self._label = label
+        self._label: ReactiveText = label
         self._items: list[SidebarItem] = []
         # Set by Sidebar._attach — called with each item added from now
         # on, so the sidebar wires it without building it again.
         self._on_item_added: Callable[[SidebarItem], None] | None = None
 
-        self._root = Div(styles=_GROUP_ROOT, container=[Span(container=[label], styles=_GROUP_LABEL)])
+        group_label = Span(container=[], styles=_GROUP_LABEL)
+        _mount_text(group_label, label)
+        self._root = Div(styles=_GROUP_ROOT, container=[group_label])
         for item in items:
             self.add(item)
 
@@ -281,7 +292,9 @@ class SidebarGroup(Component):
 
     @property
     def label(self) -> str:
-        return self._label
+        if isinstance(self._label, str):
+            return self._label
+        return self._label()
 
     @property
     def items(self) -> list[SidebarItem]:

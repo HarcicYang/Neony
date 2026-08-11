@@ -6,22 +6,23 @@ from neony.application.elements import Button, Separator, Text
 from neony.dom import Color, Signal, Styles
 
 from ..core import Section
+from ..i18n import tr, tr_now
 
-primary_btn = Button("Primary Action")
-ghost_btn = Button("Ghost Button", variant="ghost")
-danger_btn = Button("Delete", variant="danger")
-disabled_btn = Button("Disabled", disabled=True)
+primary_btn = Button(tr.buttons.primary)
+ghost_btn = Button(tr.buttons.ghost, variant="ghost")
+danger_btn = Button(tr.buttons.danger, variant="danger")
+disabled_btn = Button(tr.buttons.disabled, disabled=True)
 
 # Signal-driven counter: the click handler only bumps the signal; the
 # label follows via bind_text — the reactive way to hold UI state.
 clicks = Signal(0)
-clicks_btn = Button("Click me")
+clicks_btn = Button(tr.buttons.click_me)
 clicks_btn.on_click(lambda _e: clicks.update(lambda n: n + 1))
-clicks_text = Text("0 clicks", role="secondary")
-clicks_text.bind_text(clicks, fmt=lambda n: f"{n} clicks")
+clicks_text = Text(tr_now(tr.buttons.clicks_fmt).format(n=0), role="secondary")
+clicks_text.bind_text(clicks, fmt=lambda n: tr.buttons.clicks_fmt.format(n=n).get())
 
 # reset_styles demo: custom green button, hover feedback still works
-custom_btn = Button("Custom").reset_styles(
+custom_btn = Button(tr.buttons.custom).reset_styles(
     Styles(
         padding="10px 20px",
         border_radius="20px",
@@ -35,12 +36,8 @@ custom_btn = Button("Custom").reset_styles(
 )
 
 buttons_panel = Section(
-    "Buttons",
-    "Three variants (primary, ghost, danger) with hover / press feedback "
-    "and colour-matched glows — hover lifts with a halo in the variant's "
-    "own colour, focus draws a tinted ring. reset_styles() replaces the "
-    "base look while keeping the feedback. The counter holds its state "
-    "in a Signal — the click only bumps it, bind_text redraws the label.",
+    tr.buttons.section_title,
+    tr.buttons.section_blurb,
     """Button("Primary Action")
 Button("Ghost Button", variant="ghost")
 Button("Delete", variant="danger")

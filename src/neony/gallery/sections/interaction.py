@@ -30,6 +30,7 @@ from neony.application.theme import stub
 from neony.dom import Div, DomEvent, Signal, Styles
 
 from ..core import Mono, Section, StatusChip, app, set_dot
+from ..i18n import tr, tr_now
 
 if TYPE_CHECKING:
     from neony.application import Page
@@ -39,7 +40,7 @@ if TYPE_CHECKING:
 # Mouse tracker: mousedown anywhere inside the zone (even on its text
 # labels) bubbles to this bubble_events Div.  The DomEvent carries the
 # viewport (x/y) and element-relative (offset_x/offset_y) coordinates.
-tracker_text = Text("Click anywhere in this box", role="secondary")
+tracker_text = Text(tr.interaction.click_anywhere, role="secondary")
 click_info = Signal("—")
 click_pos = Mono()
 click_pos.bind_text(click_info)
@@ -69,7 +70,7 @@ tracker.on_mousedown(on_tracker_down)
 # Modifier keys: window-level handlers (registered on the Page below)
 # — the lights follow Ctrl / Shift / Alt / Meta wherever keys land,
 # no input focus required.
-mod_input = Input(placeholder="Type anywhere — the lights follow the modifiers…")
+mod_input = Input(placeholder=tr.interaction.mod_placeholder)
 ctrl_chip, ctrl_dot = StatusChip("Ctrl")
 shift_chip, shift_dot = StatusChip("Shift")
 alt_chip, alt_dot = StatusChip("Alt")
@@ -109,8 +110,8 @@ wheel_zone = Div(
         Div(
             styles=Styles(height="300px", padding_top="4px"),
             container=[
-                Text("Tall content so the zone scrolls…", role="secondary").build(),
-                Text("Keep scrolling to see live deltas.", role="secondary").build(),
+                Text(tr.interaction.wheel_tall, role="secondary").build(),
+                Text(tr.interaction.wheel_keep, role="secondary").build(),
             ],
         )
     ],
@@ -165,12 +166,8 @@ async def on_pointer_move(event: DomEvent) -> None:
 pointer_zone.on_pointermove(on_pointer_move)
 
 events_panel = Section(
-    "Rich Events",
-    "Every delegated event carries the full payload: modifier keys "
-    "(ctrl/shift/alt/meta), viewport and element-relative mouse "
-    "coordinates, wheel deltas, and pointer movement — live delta and "
-    "device type. Click the box, hold modifiers while typing, scroll "
-    "the zone, move the pointer across the bottom box.",
+    tr.interaction.events_title,
+    tr.interaction.events_blurb,
     """div.on_mousedown(lambda e: f"{e.x}, {e.y} — {e.offset_x}, {e.offset_y}")
 div.on_keydown(lambda e: e.ctrl_key or e.meta_key)
 div.on_wheel(lambda e: f"dx: {e.delta_x}  dy: {e.delta_y}")
@@ -178,13 +175,7 @@ div.on_pointermove(lambda e: f"{e.movement_x}, {e.movement_y} — {e.pointer_typ
     tracker,
     HStack(mod_input, gap="8px"),
     HStack(ctrl_chip, shift_chip, alt_chip, meta_chip, gap="16px"),
-    Text(
-        "Meta (Super) is often reserved by the window manager on Linux — "
-        "hyprland grabs it for its own bindings, so it may never reach "
-        "the page. The other three modifiers always arrive.",
-        role="secondary",
-        size="12px",
-    ),
+    Text(tr.interaction.meta_reserved, role="secondary", size="12px"),
     wheel_zone,
     wheel_delta,
     pointer_zone,
@@ -192,10 +183,13 @@ div.on_pointermove(lambda e: f"{e.movement_x}, {e.movement_y} — {e.pointer_typ
 
 # ── tab: drop ────────────────────────────────────────────────────
 
-drop_hint = Text("Drop files anywhere in this box", role="secondary")
+drop_hint = Text(tr.interaction.drop_hint, role="secondary")
 dragging = Signal(False)
 drop_files = Signal("")
-drop_hint.bind_text(dragging, fmt=lambda active: "Release to drop" if active else "Drop files anywhere in this box")
+drop_hint.bind_text(
+    dragging,
+    fmt=lambda active: tr.interaction.drop_release.get() if active else tr.interaction.drop_hint.get(),
+)
 drop_list = Mono(size="12px")
 drop_list.bind_text(drop_files)
 
@@ -247,26 +241,19 @@ async def on_drop_leave(_event: DomEvent) -> None:
 async def on_drop(event: DomEvent) -> None:
     dragging.set(False)
     if not event.drop_files:
-        drop_files.set("(no files — on WKWebView the file path is empty)")
+        drop_files.set(tr_now(tr.interaction.no_files))
         return
     lines = [f"{file['name']}   ({fmt_size(file['size'])}, {file['type']})" for file in event.drop_files]
     lines.append("")
-    lines.extend(f"path: {file['path'] or '<unavailable>'}" for file in event.drop_files)
+    lines.extend(f"path: {file['path'] or tr_now(tr.interaction.path_unavailable)}" for file in event.drop_files)
     drop_files.set("\n".join(lines))
 
 
 drop_zone.on_dragover(on_drop_over).on_dragleave(on_drop_leave).on_drop(on_drop)
 
 drop_panel = Section(
-    "File Drop",
-    "Drag files from the file manager into the dashed zone. The drop "
-    "event carries each file's name, local filesystem path, size and "
-    "MIME type. On WebKitGTK the webview reports empty files, so Neony "
-    "takes the drop over at the native layer, hit-tests the position, "
-    "and re-dispatches the drop event with the real paths; on WebView2 "
-    "File.path arrives directly, on WKWebView it is empty. "
-    "dragover/dragleave/drop are all delegated, and the browser's "
-    "navigate-on-drop default is prevented for you.",
+    tr.interaction.drop_title,
+    tr.interaction.drop_blurb,
     """zone = Div(styles=Styles(border="2px dashed var(--color-border)"))
 zone.on_dragover(lambda e: highlight(zone))
 zone.on_dragleave(lambda e: unhighlight(zone))
@@ -279,7 +266,7 @@ zone.on_drop(lambda e: [print(f["name"], f["path"]) for f in e.drop_files])""",
 clip_log = Text("", role="secondary")
 clip_history = Signal("")
 clip_log.bind_text(clip_history)
-paste_input = Input(placeholder="Paste (Ctrl+V) into this field…")
+paste_input = Input(placeholder=tr.interaction.paste_placeholder)
 clip_value = Signal("")
 clip_line = Mono(size="12px")
 clip_line.bind_text(clip_value)
@@ -296,26 +283,26 @@ async def on_paste(event: DomEvent) -> None:
     # clipboard_text may be None on some backends — the input's own
     # value (updated by the input event right after) is the fallback.
     if event.clipboard_text is None:
-        clip_value.set("clipboard_text: <not exposed by this backend>")
+        clip_value.set(tr_now(tr.interaction.clip_not_exposed))
     else:
-        clip_value.set(
-            f"clipboard_text: {event.clipboard_text!r}"
-            + (f"  html: {event.clipboard_html!r}" if event.clipboard_html else "")
-        )
-    clip_log_line("paste event — clipboard carried into Python")
+        text = tr_now(tr.interaction.clip_text_fmt).format(value=event.clipboard_text)
+        if event.clipboard_html:
+            text += tr_now(tr.interaction.clip_text_html_fmt).format(html=event.clipboard_html)
+        clip_value.set(text)
+    clip_log_line(tr_now(tr.interaction.clip_paste_event))
 
 
 async def on_paste_input(event: DomEvent) -> None:
     if event.value:
-        clip_value.set(f"input value: {event.value!r}")
+        clip_value.set(tr_now(tr.interaction.clip_input_fmt).format(value=event.value))
 
 
 async def on_copy(event: DomEvent) -> None:
-    clip_log_line("copy event (user pressed Ctrl+C)")
+    clip_log_line(tr_now(tr.interaction.clip_copy_event))
 
 
 async def on_cut(event: DomEvent) -> None:
-    clip_log_line("cut event (user pressed Ctrl+X)")
+    clip_log_line(tr_now(tr.interaction.clip_cut_event))
 
 
 paste_input.on_paste(on_paste)
@@ -323,39 +310,36 @@ paste_input.on_input(on_paste_input)
 paste_input.on_copy(on_copy)
 paste_input.on_cut(on_cut)
 
-copy_btn = Button("Copy sample text")
-read_btn = Button("Read clipboard", variant="ghost")
+copy_btn = Button(tr.interaction.copy_sample)
+read_btn = Button(tr.interaction.read_clipboard, variant="ghost")
 
 
 async def on_copy_click(event: DomEvent) -> None:
     try:
-        await app.clipboard_write("Neony wrote this from Python!")
+        await app.clipboard_write(tr_now(tr.interaction.wrote_sample))
     except Exception as exc:
-        clip_value.set(f"write failed: {exc}")
-        clip_log_line(f"clipboard_write() failed: {exc}")
+        clip_value.set(tr_now(tr.interaction.write_failed_fmt).format(exc=exc))
+        clip_log_line(tr_now(tr.interaction.write_failed_log_fmt).format(exc=exc))
         return
-    clip_value.set('wrote "Neony wrote this from Python!"')
+    clip_value.set(tr_now(tr.interaction.wrote_fmt).format(text=tr_now(tr.interaction.wrote_sample)))
 
 
 async def on_read_click(event: DomEvent) -> None:
     try:
         text = await app.clipboard_read()
     except Exception as exc:  # permission denied / no gesture
-        clip_value.set(f"read failed: {exc}")
-        clip_log_line(f"clipboard_read() failed: {exc}")
+        clip_value.set(tr_now(tr.interaction.read_failed_fmt).format(exc=exc))
+        clip_log_line(tr_now(tr.interaction.read_failed_log_fmt).format(exc=exc))
         return
-    clip_value.set(f"read: {text!r}")
+    clip_value.set(tr_now(tr.interaction.read_fmt).format(text=text))
 
 
 copy_btn.on_click(on_copy_click)
 read_btn.on_click(on_read_click)
 
 clipboard_panel = Section(
-    "Clipboard",
-    "Clipboard events carry data into Python: paste delivers "
-    "clipboard_text / clipboard_html, copy / cut fire as notifications. "
-    "The write/read API lives in the backend (no user gesture needed to "
-    "write); read still needs the window focused.",
+    tr.interaction.clipboard_title,
+    tr.interaction.clipboard_blurb,
     """inp.on_paste(lambda e: print(e.clipboard_text, e.clipboard_html))
 inp.on_copy(lambda e: print("copy"))
 inp.on_cut(lambda e: print("cut"))
@@ -372,10 +356,10 @@ text = await app.clipboard_read()""",
 shortcut_message = Signal("")
 shortcut_log = Text("", role="secondary")
 shortcut_log.bind_text(shortcut_message)
-b_chip, b_dot = StatusChip("Ctrl+B — bold")
-g_chip, g_dot = StatusChip("Ctrl+G — glow")
-d_chip, d_dot = StatusChip("Ctrl+D — dark")
-k_chip, k_dot = StatusChip("Ctrl+K (Meta+K on macOS) — theme")
+b_chip, b_dot = StatusChip(tr.interaction.ctrl_b)
+g_chip, g_dot = StatusChip(tr.interaction.ctrl_g)
+d_chip, d_dot = StatusChip(tr.interaction.ctrl_d)
+k_chip, k_dot = StatusChip(tr.interaction.ctrl_k)
 
 
 async def shortcut_handler(dot: Div, message: str) -> None:
@@ -387,12 +371,8 @@ async def shortcut_handler(dot: Div, message: str) -> None:
 
 
 shortcuts_panel = Section(
-    "Shortcuts",
-    "Page-level keybindings that fire anywhere in the window — even "
-    "while an input has focus, and on any tab. Register a single "
-    "combo or a per-platform dict (Ctrl+Meta on macOS vs Ctrl on "
-    "Linux/Windows). Modifiers must match exactly; the key matches "
-    "case-insensitively. Try them from here or any other tab:",
+    tr.interaction.shortcuts_title,
+    tr.interaction.shortcuts_blurb,
     """page.on_shortcut("Ctrl+B", bold)
 page.on_shortcut({"darwin": "Meta+K", "default": "Ctrl+K"}, theme)
 # handlers receive no arguments; sync or async""",
@@ -409,6 +389,8 @@ page.on_shortcut({"darwin": "Meta+K", "default": "Ctrl+K"}, theme)
 # callbacks and close by default.
 # Action callbacks receive the dialog itself; each records the pick so
 # the close callback can tell a button choice apart from a dismiss.
+# The recorded values are stable internal sentinels (not the translated
+# labels) so the comparison holds across languages.
 chosen = {"value": ""}
 
 
@@ -420,19 +402,19 @@ def choose(value: str):
 
 
 dialog = Dialog(
-    title="Confirm",
-    content=VStack(Text("Try the scrim, Escape, click-away, or the buttons below.")),
+    title=tr.interaction.dialog_title,
+    content=VStack(Text(tr.interaction.dialog_body)),
     width="380px",
     actions=[
-        DialogAction("Confirm", variant="danger", on_click=choose("Confirm")),
-        DialogAction("Cancel", variant="ghost", on_click=choose("Cancel")),
-        DialogAction("Close", on_click=choose("Close")),
+        DialogAction(tr.interaction.dialog_confirm, variant="danger", on_click=choose("confirm")),
+        DialogAction(tr.interaction.dialog_cancel, variant="ghost", on_click=choose("cancel")),
+        DialogAction(tr.interaction.dialog_close, on_click=choose("close")),
     ],
 )
 dialog_state = Signal("closed")
 dialog_status = Text("", role="secondary")
 dialog_status.bind_text(dialog_state)
-dialog_open_btn = Button("Open dialog")
+dialog_open_btn = Button(tr.interaction.dialog_open_btn)
 
 
 async def on_dialog_open(_event: DomEvent) -> None:
@@ -444,37 +426,47 @@ dialog_open_btn.on_click(on_dialog_open)
 
 def on_dialog_opened(_dialog: Dialog) -> None:
     chosen["value"] = ""
-    dialog_state.set("open — waiting for a choice")
+    dialog_state.set(tr_now(tr.interaction.dialog_open_state))
 
 
 def on_dialog_closed(_dialog: Dialog) -> None:
     if chosen["value"]:
-        dialog_state.set(f"closed — chose {chosen['value']!r}")
+        dialog_state.set(tr_now(tr.interaction.dialog_chose_fmt).format(value=chosen["value"]))
     else:
-        dialog_state.set("closed — dismissed (scrim / Escape / click-away)")
+        dialog_state.set(tr_now(tr.interaction.dialog_dismiss))
 
 
 dialog.on_open(on_dialog_opened)
 dialog.on_close(on_dialog_closed)
 
 # Tooltip: anchor-relative bubble, placement offsets, hover delay.
-tip_top = Tooltip("Tooltip on top", anchor=Button("Hover (top)"), placement="top", delay=1)
-tip_bottom = Tooltip("Tooltip below", anchor=Button("Hover (bottom)"), placement="bottom", delay=1)
+tip_top = Tooltip(tr.interaction.tooltip_top, anchor=Button(tr.interaction.hover_top), placement="top", delay=1)
+tip_bottom = Tooltip(
+    tr.interaction.tooltip_bottom, anchor=Button(tr.interaction.hover_bottom), placement="bottom", delay=1
+)
 
 # Dropdown: themed popup under a trigger (Select's pattern).
 theme_choice = Signal("")
-theme_dd = Dropdown("Theme", items=[("dark", "Dark"), ("light", "Light"), ("deep-blue", "Deep Blue")], width="160px")
+theme_dd = Dropdown(
+    tr.interaction.theme_label,
+    items=[("dark", tr.interaction.dark), ("light", tr.interaction.light), ("deep-blue", tr.interaction.deep_blue)],
+    width="160px",
+)
 theme_dd.bind_value(theme_choice)
 dd_echo = Text("", role="secondary")
-dd_echo.bind_text(theme_choice, fmt=lambda value: f"Dropdown: {value}")
+dd_echo.bind_text(theme_choice, fmt=lambda value: tr.interaction.dropdown_fmt.format(value=value).get())
 
 # Menu: fixed at the cursor — right-click the button.  Also mounted at
 # the page root so no ancestor transform can hijack `position: fixed`.
-ctx_menu = Menu(("rename", "Rename"), ("duplicate", "Duplicate"), ("delete", "Delete"))
+ctx_menu = Menu(
+    ("rename", tr.interaction.rename),
+    ("duplicate", tr.interaction.duplicate),
+    ("delete", tr.interaction.delete),
+)
 menu_echo = Text("", role="secondary")
 menu_value = Signal("")
-menu_echo.bind_text(menu_value, fmt=lambda value: f"Menu: {value}")
-menu_btn = Button("Right-click me", variant="ghost")
+menu_echo.bind_text(menu_value, fmt=lambda value: tr.interaction.menu_fmt.format(value=value).get())
+menu_btn = Button(tr.interaction.right_click, variant="ghost")
 
 
 async def on_menu_contextmenu(event: DomEvent) -> None:
@@ -491,15 +483,15 @@ ctx_menu.on_change(on_menu_change)
 # ── PromptDialog: a single-field text prompt ──────────────────────────
 
 prompt = PromptDialog(
-    "What's your name?",
-    title="Identify",
-    placeholder="Ada Lovelace…",
-    value="Ada",
+    tr.interaction.prompt_question,
+    title=tr.interaction.identify,
+    placeholder=tr.interaction.name_placeholder,
+    value="Hiro",
 )
 prompt_state = Signal("closed")
 prompt_status = Text("", role="secondary")
 prompt_status.bind_text(prompt_state)
-prompt_open_btn = Button("Ask a name")
+prompt_open_btn = Button(tr.interaction.prompt_open_btn)
 
 
 async def on_prompt_open(_event: DomEvent) -> None:
@@ -507,25 +499,19 @@ async def on_prompt_open(_event: DomEvent) -> None:
 
 
 prompt_open_btn.on_click(on_prompt_open)
-prompt.on_open(lambda _dialog: prompt_state.set("open"))
-prompt.on_close(lambda _dialog: prompt_state.set("closed"))
+prompt.on_open(lambda _dialog: prompt_state.set(tr_now(tr.interaction.prompt_open_state)))
+prompt.on_close(lambda _dialog: prompt_state.set(tr_now(tr.interaction.prompt_closed_state)))
 
 
 def on_prompt_submit(value: str) -> None:
-    prompt_state.set(f"submitted: {value!r}")
+    prompt_state.set(tr_now(tr.interaction.prompt_submitted_fmt).format(value=value))
 
 
 prompt.on_submit(on_prompt_submit)
 
 overlays_panel = Section(
-    "Overlays",
-    "Four positioned layers — all CSS-anchored, zero measurement. "
-    "Dialog dims the whole page with a themed scrim and centers a "
-    "panel with configurable action buttons (scrim / Escape / "
-    "click-away close); Tooltip wraps its anchor with placement "
-    "offsets and a hover delay; Dropdown reuses the popup pattern "
-    "(outsideclick close, full keyboard nav); Menu is fixed at the "
-    "cursor via open_at() — right-click the button.",
+    tr.interaction.overlays_title,
+    tr.interaction.overlays_blurb,
     """dialog = Dialog(
     title="Confirm", content=Text("..."), width="380px",
     actions=[DialogAction("Confirm", on_click=fn), DialogAction("Cancel", variant="ghost")],  # click → close
@@ -535,7 +521,7 @@ dialog.on_close(lambda d: print("closed"))
 # action callbacks get the dialog: record which button was picked so
 # on_close can tell a choice apart from a scrim / Escape dismiss.
 
-ask = PromptDialog("Your name?", value="Ada", placeholder="Type…")
+ask = PromptDialog("Your name?", value="Hiro", placeholder="Type…")
 ask.open = True                           # show it
 ask.on_submit(lambda v: print(f"got {v}"))  # confirm / Enter
 
@@ -547,15 +533,15 @@ dd.on_change(lambda e: print(e.value))    # selected value
 menu = Menu(("rename", "Rename"), ("delete", "Delete"))
 btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y))  # cursor position
 menu.on_change(lambda e: print(e.value))""",
-    HStack(Text("Dialog", weight="600"), Spacer(), dialog_open_btn, gap="8px"),
+    HStack(Text(tr.interaction.dialog_label, weight="600"), Spacer(), dialog_open_btn, gap="8px"),
     dialog_status,
     Separator(),
-    HStack(Text("PromptDialog", weight="600"), Spacer(), prompt_open_btn, gap="8px"),
+    HStack(Text(tr.interaction.prompt_label, weight="600"), Spacer(), prompt_open_btn, gap="8px"),
     prompt_status,
     Separator(),
     HStack(tip_top, tip_bottom, gap="12px"),
     Separator(),
-    HStack(Text("Dropdown", weight="600"), Spacer(), theme_dd, gap="8px"),
+    HStack(Text(tr.interaction.dropdown_label, weight="600"), Spacer(), theme_dd, gap="8px"),
     dd_echo,
     Separator(),
     menu_btn,
@@ -582,12 +568,12 @@ def _wire_modifier_keys(page: Page) -> None:
 def _wire_shortcuts(page: Page) -> None:
     # In-app shortcuts fire even while an input has focus, on any tab.
     # The handler lights its dot, then dims it again after a beat.
-    page.on_shortcut("Ctrl+B", lambda: shortcut_handler(b_dot, "Ctrl+B — bold"))
-    page.on_shortcut("Ctrl+G", lambda: shortcut_handler(g_dot, "Ctrl+G — glow"))
-    page.on_shortcut("Ctrl+D", lambda: shortcut_handler(d_dot, "Ctrl+D — dark"))
+    page.on_shortcut("Ctrl+B", lambda: shortcut_handler(b_dot, tr_now(tr.interaction.ctrl_b)))
+    page.on_shortcut("Ctrl+G", lambda: shortcut_handler(g_dot, tr_now(tr.interaction.ctrl_g)))
+    page.on_shortcut("Ctrl+D", lambda: shortcut_handler(d_dot, tr_now(tr.interaction.ctrl_d)))
     page.on_shortcut(
         {"darwin": "Meta+K", "default": "Ctrl+K"},
-        lambda: shortcut_handler(k_dot, "Ctrl+K / Meta+K — theme"),
+        lambda: shortcut_handler(k_dot, tr_now(tr.interaction.ctrl_k)),
     )
 
 

@@ -14,10 +14,24 @@ viewport (no auto-flip in v1).
 from __future__ import annotations
 
 from neony.application.theme import stub
-from neony.dom import Animation, Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, Styles, Transition, calc, px
+from neony.dom import (
+    Animation,
+    Border,
+    BoxShadow,
+    Color,
+    Div,
+    DomEvent,
+    Filter,
+    Shadow,
+    Span,
+    Styles,
+    Transition,
+    calc,
+    px,
+)
 from neony.dom import Button as _ButtonElem
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 _PANEL = Styles(
     position="fixed",
@@ -71,7 +85,7 @@ class Menu(Component):
     - ``on_change(fn)`` fires on selections with the option's value
     """
 
-    def __init__(self, *items: str | tuple[str, str]) -> None:
+    def __init__(self, *items: ReactiveText | tuple[str, ReactiveText]) -> None:
         super().__init__()
         self._rows: list[tuple[str, _ButtonElem]] = []
         self._row_by_key: dict[str, str] = {}
@@ -126,18 +140,38 @@ class Menu(Component):
 
     # ---- internals ----
 
-    def _add_option(self, entry: str | tuple[str, str]) -> None:
+    def _add_option(self, entry: ReactiveText | tuple[str, ReactiveText]) -> None:
         if isinstance(entry, tuple):
             value, label = entry
         else:
+            # A plain-string entry doubles as its own value — a static key,
+            # so a reactive label must come as a (value, label) tuple.
+            if not isinstance(entry, str):
+                raise ValueError("Menu: a reactive item label needs a (value, label) tuple")
             value = label = entry
-        row = _ButtonElem(type="button", container=[label], styles=_OPTION, args={"role": "menuitem"})
+        # The label rides a child span so a reactive ``tr`` binding can
+        # re-render on language switch.
+        label_span = Span(container=[])
+        _mount_text(label_span, label)
+        row = _ButtonElem(type="button", container=[label_span], styles=_OPTION, args={"role": "menuitem"})
+        row.bubble_events = True  # label-span clicks/hovers reach the row
         self._rows.append((value, row))
         self._row_by_key[row.key] = value
-        self._bind(row, "click")
-        self._bind(row, "mouseover")
-        self._bind(row, "mouseout")
+        for event_type in ("click", "mouseover", "mouseout"):
+            row.on(event_type, self._make_row_handler(event_type, row.key))
         self._root.container.append(row)
+
+    def _make_row_handler(self, event_type: str, row_key: str):
+        """Per-row handler: the label rides a child span, so a click on
+        the text arrives with the span's key — rewrite it to the row's
+        own key so the shared ``_on_event`` row lookup works."""
+
+        async def handler(event: DomEvent) -> None:
+            event.key = row_key
+            event.source = "user"
+            await self._on_event(event_type, event)
+
+        return handler
 
     def _apply_option_styles(self, index: int) -> None:
         _value, row = self._rows[index]

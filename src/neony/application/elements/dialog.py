@@ -24,12 +24,12 @@ import asyncio
 from collections.abc import Callable, Sequence
 from typing import Any, Literal, Self
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from neony.application.theme import stub
 from neony.dom import Animation, Border, BoxShadow, Div, DOMElement, DomEvent, Filter, Shadow, Span, Styles, Transition
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 from .button import Button
 
 
@@ -43,14 +43,18 @@ class DialogAction(BaseModel):
       True)
     """
 
-    text: str
+    # ReactiveText includes Signal/Computed — custom types pydantic must
+    # admit into the model (Pane sets the same flag).
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    text: ReactiveText
     on_click: Callable[[Any], Any] | None = None
     variant: Literal["primary", "ghost", "danger"] = "primary"
     close_on_click: bool = True
 
     def __init__(
         self,
-        text: str = "",
+        text: ReactiveText = "",
         *,
         on_click: Callable[[Any], Any] | None = None,
         variant: Literal["primary", "ghost", "danger"] = "primary",
@@ -148,7 +152,7 @@ class Dialog(Component):
     def __init__(
         self,
         *,
-        title: str = "",
+        title: ReactiveText = "",
         content: Component | DOMElement | None = None,
         open: bool = False,
         width: str = "480px",
@@ -157,13 +161,17 @@ class Dialog(Component):
         actions: Sequence[DialogAction] = (),
     ) -> None:
         super().__init__()
+        self._title: ReactiveText = title
         self._open = False
         self._closable = closable
         self._actions = list(actions)
         self._close_task: asyncio.Task | None = None
 
         self._scrim = Div(styles=_SCRIM)
-        self._title_span = Span(container=[title], styles=_TITLE)
+        # The title rides a child span so a reactive ``tr`` binding can
+        # re-render on language switch.
+        self._title_span = Span(container=[], styles=_TITLE)
+        _mount_text(self._title_span, title)
         header = Div(styles=Styles(display="flex", align_items="center"), container=[self._title_span])
         panel_parts: list[DOMElement | str] = [header]
         if content is not None:
@@ -227,10 +235,13 @@ class Dialog(Component):
 
     @property
     def title(self) -> str:
-        return str(self._title_span.container[0]) if self._title_span.container else ""
+        if isinstance(self._title, str):
+            return self._title
+        return self._title()
 
     @title.setter
     def title(self, value: str) -> None:
+        self._title = value
         self._title_span.container = [value]
 
     def on_open(self, fn) -> Self:

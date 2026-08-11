@@ -22,6 +22,7 @@ from neony.application.theme import stub
 from neony.dom import Div, DomEvent, Span, Styles
 
 from ..i18n import tr, tr_now
+from .base import ReactiveText, _mount_text
 from .dialog import Dialog  # reuses its module-level panel/scrim styles
 from .input import Input
 
@@ -42,11 +43,11 @@ class PromptDialog(Dialog):
 
     def __init__(
         self,
-        prompt: str = "",
+        prompt: ReactiveText = "",
         *,
         value: str = "",
-        placeholder: str = "",
-        title: str = "",
+        placeholder: ReactiveText = "",
+        title: ReactiveText = "",
         confirm_label: str | None = None,
         cancel_label: str | None = None,
         open: bool = False,
@@ -55,9 +56,14 @@ class PromptDialog(Dialog):
         # The field lives between the title and the action row.
         self._field = Input(placeholder=placeholder, value=value)
 
-        message = Span(container=[prompt]) if prompt else None
+        # The prompt rides a child span so a reactive ``tr`` binding can
+        # re-render on language switch.  A reactive prompt is always shown;
+        # a plain string only when non-empty (mirrors the old conditional).
+        show_prompt = bool(prompt) or not isinstance(prompt, str)
         content_parts: list[Any] = []
-        if message is not None:
+        if show_prompt:
+            message = Span(container=[])
+            _mount_text(message, prompt)
             content_parts.append(
                 Div(
                     styles=Styles(color=stub.text_secondary, margin="0 0 12px 0"),
@@ -97,7 +103,7 @@ class PromptDialog(Dialog):
         # (Dialog sets bubble_events=True), but we bind the field directly so
         # the intent is local and unambiguous.
         self._field.on_keydown(self._on_field_keydown)
-        self._prompt = prompt
+        self._prompt: ReactiveText = prompt
 
     # ---- state ----
 
@@ -112,7 +118,9 @@ class PromptDialog(Dialog):
     @property
     def prompt(self) -> str:
         """The question text shown above the field."""
-        return self._prompt
+        if isinstance(self._prompt, str):
+            return self._prompt
+        return self._prompt()
 
     def close(self) -> None:
         """Hide the dialog (alias of ``open = False``)."""

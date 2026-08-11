@@ -20,7 +20,7 @@ from typing import Literal
 from neony.application.theme import Theme, stub
 from neony.dom import Border, BoxShadow, Div, DOMElement, DomEvent, Filter, Shadow, Styles
 
-from .base import Component
+from .base import Component, ReactiveText
 from .button import Button
 from .heading import Heading
 from .layout import HStack, Separator, Spacer, VStack
@@ -69,8 +69,8 @@ class Card(Component):
     def __init__(
         self,
         *body: Component | DOMElement | str,
-        title: str | None = None,
-        subtitle: str | None = None,
+        title: ReactiveText | None = None,
+        subtitle: ReactiveText | None = None,
         header: Component | DOMElement | None = None,
         actions: Sequence[Button] | None = None,
         footer: Component | DOMElement | Sequence[Button] | None = None,

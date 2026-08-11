@@ -77,6 +77,21 @@ def _subtree_text(node: NodeDescriptor) -> str:
     return ""
 
 
+def _el_text(el: DOMElement | str) -> str:
+    """The first non-empty string in a DOMElement subtree (mirrors
+    ``_subtree_text`` for live elements, e.g. a component's private root)."""
+    if isinstance(el, str):
+        return el
+    for child in el.container:
+        if isinstance(child, str):
+            return child
+        if isinstance(child, DOMElement):
+            found = _el_text(child)
+            if found:
+                return found
+    return ""
+
+
 def _find_button(node: NodeDescriptor, label: str) -> NodeDescriptor | None:
     """Find a <button> leaf whose text matches ``label``."""
     for n in _walk(node):
@@ -949,7 +964,7 @@ class TestSelectBuild:
         assert popup.styles["background-color"] == "var(--color-surface-glass-bg)"
         assert popup.styles["z-index"] == "500"
         assert [row.attrs["role"] for row in popup.children] == ["option", "option"]
-        assert [row.text for row in popup.children] == ["Red", "Green"]
+        assert [_subtree_text(row) for row in popup.children] == ["Red", "Green"]
 
     def test_bare_string_options_use_value_as_label(self):
         sel = Select(options=["one", "two"])
@@ -963,7 +978,7 @@ class TestSelectBuild:
         assert popup is not None
         placeholder = popup.children[0]
         assert placeholder.attrs["disabled"] == ""
-        assert placeholder.text == "Choose…"
+        assert _subtree_text(placeholder) == "Choose…"
         # the trigger shows the placeholder while nothing is selected
         trigger = _find_by_key(node, sel._trigger.key)
         assert trigger is not None
@@ -1000,6 +1015,25 @@ class TestSelectEvents:
         sel.on_change(handler)
         row = sel._rows[1][1]
         asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert sel.value == "b"
+        assert fired == [("b", "user")]
+
+    def test_label_span_click_selects(self):
+        # The label rides a child span — a real click on the text arrives
+        # with the span's key, not the row's (see TestDropdownEvents).
+        import asyncio
+
+        sel = Select(options=["a", "b"])
+        fired: list[tuple] = []
+
+        async def handler(event: DomEvent):
+            fired.append((event.value, event.source))
+
+        sel.on_change(handler)
+        row = sel._rows[1][1]
+        span = row.container[0]
+        assert isinstance(span, DOMElement)
+        asyncio.run(row._handlers["click"][0](DomEvent(key=span.key, type="click")))
         assert sel.value == "b"
         assert fired == [("b", "user")]
 
@@ -2147,7 +2181,7 @@ class TestTooltipBuild:
         assert bubble.styles["display"] == "none"
         assert bubble.styles["position"] == "absolute"
         assert bubble.styles["z-index"] == "300"
-        assert bubble.text == "hint"
+        assert _subtree_text(bubble) == "hint"
 
     def test_placement_offsets(self):
         top = Tooltip("x", anchor=Button("a"), placement="top")
@@ -2244,13 +2278,13 @@ class TestDropdownBuild:
         assert trigger.attrs["role"] == "combobox"
         assert popup.styles["display"] == "none"
         assert popup.styles["z-index"] == "500"
-        assert [row.text for row in popup.children] == ["Small", "Medium"]
+        assert [_subtree_text(row) for row in popup.children] == ["Small", "Medium"]
         assert [row.attrs["role"] for row in popup.children] == ["option", "option"]
 
     def test_items_setter_rebuilds(self):
         dd = Dropdown(items=["a"])
         dd.items = ["x", "y"]
-        assert [str(row.container[0]) for _value, row in dd._rows] == ["x", "y"]
+        assert [_el_text(row) for _value, row in dd._rows] == ["x", "y"]
 
     def test_value_shows_label_on_trigger(self):
         dd = Dropdown("Pick", items=[("s", "Small")])
@@ -2288,6 +2322,40 @@ class TestDropdownEvents:
         assert dd.value == "b"
         assert fired == [("b", "user")]
         assert dd._open is False
+
+    def test_label_span_click_selects(self):
+        # Regression: the label rides a child span, so a real click on the
+        # text arrives with the SPAN's key — the row handler must rewrite it
+        # to the row's own key before the row lookup (drop-in from the JS
+        # closest() bubbling, not the direct row-key path above).
+        import asyncio
+
+        dd = Dropdown(items=[("a", "A"), ("b", "B")])
+        fired: list[tuple] = []
+
+        async def handler(event: DomEvent):
+            fired.append((event.value, event.source))
+
+        dd.on_change(handler)
+        row = dd._rows[1][1]
+        span = row.container[0]
+        assert isinstance(span, DOMElement)
+        asyncio.run(row._handlers["click"][0](DomEvent(key=span.key, type="click")))
+        assert dd.value == "b"
+        assert fired == [("b", "user")]
+        assert dd._open is False
+
+    def test_label_span_hover_highlights(self):
+        import asyncio
+
+        dd = Dropdown(items=[("a", "A"), ("b", "B")])
+        row = dd._rows[1][1]
+        span = row.container[0]
+        assert isinstance(span, DOMElement)
+        asyncio.run(row._handlers["mouseover"][0](DomEvent(key=span.key, type="mouseover")))
+        assert 1 in dd._hovered
+        asyncio.run(row._handlers["mouseout"][0](DomEvent(key=span.key, type="mouseout")))
+        assert 1 not in dd._hovered
 
     def test_keyboard_navigation(self):
         import asyncio
@@ -2343,7 +2411,7 @@ class TestMenuBuild:
         assert node.styles["position"] == "fixed"
         assert node.styles["z-index"] == "600"
         assert node.styles["display"] == "none"
-        assert [row.text for row in node.children] == ["Action A", "Action B"]
+        assert [_subtree_text(row) for row in node.children] == ["Action A", "Action B"]
         assert node.children[0].attrs["role"] == "menuitem"
 
 
@@ -2373,6 +2441,22 @@ class TestMenuEvents:
         menu.on_change(lambda e: fired.append(e.value))
         row = menu._rows[1][1]
         asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert fired == ["b"]
+        assert menu._open is False
+
+    def test_label_span_click_selects(self):
+        # The label rides a child span — a real click on the text arrives
+        # with the span's key, not the row's (see TestDropdownEvents).
+        import asyncio
+
+        menu = Menu(("a", "A"), ("b", "B"))
+        menu.open_at(0, 0)
+        fired: list = []
+        menu.on_change(lambda e: fired.append(e.value))
+        row = menu._rows[1][1]
+        span = row.container[0]
+        assert isinstance(span, DOMElement)
+        asyncio.run(row._handlers["click"][0](DomEvent(key=span.key, type="click")))
         assert fired == ["b"]
         assert menu._open is False
 

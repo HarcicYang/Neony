@@ -46,6 +46,7 @@ from neony.dom import (
 )
 
 from ..core import Mono, Section, app, heat
+from ..i18n import tr, tr_now
 
 if TYPE_CHECKING:
     from neony.application import Page
@@ -80,7 +81,10 @@ spinner = Div(
 )
 spin_state = Text("", size="12px", role="secondary")
 paused = Signal(False)
-spin_state.bind_text(paused, fmt=lambda is_paused: "paused" if is_paused else "running")
+spin_state.bind_text(
+    paused,
+    fmt=lambda is_paused: tr.system.paused.get() if is_paused else tr.system.running.get(),
+)
 
 
 async def on_spin_toggle(_event: DomEvent) -> None:
@@ -91,7 +95,7 @@ async def on_spin_toggle(_event: DomEvent) -> None:
     paused.set(not is_paused)
 
 
-spin_toggle = Button("Pause", variant="ghost")
+spin_toggle = Button(tr.system.pause, variant="ghost")
 spin_toggle.on_click(on_spin_toggle)
 
 # A card that plays its enter animation once, on mount.
@@ -103,16 +107,12 @@ enter_card = Div(
         background_color=stub.surface,
         animation=Animation(name="fade-slide", duration="0.4s", timing="ease-out"),
     ),
-    container=["Fades + slides in on mount"],
+    container=[Text(tr.system.fades_slides).build()],
 )
 
 animations_panel = Section(
-    "Animations",
-    "Typed @keyframes: build a KeyFrame with the chainable .set() "
-    "builder, register it once, and reference it from any element's "
-    "Animation model — multi-stop, named, and injected into a global "
-    "<style> like the theme. The spinner loops forever; the card plays "
-    "a one-shot fade-slide on mount. Pause/resume toggles play-state.",
+    tr.system.animations_title,
+    tr.system.animations_blurb,
     """spin = KeyFrame("spin").set("0%", Props(transform="rotate(0deg)"))
                      .set("100%", Props(transform="rotate(360deg)"))
 app.register_keyframe(spin)
@@ -157,8 +157,8 @@ class HeatBar(Component):
 
 
 heat_bar = HeatBar(heat)
-heat_label = Text("heat: 30%", role="secondary")
-heat_label.bind_text(heat, fmt=lambda n: f"heat: {n}%")
+heat_label = Text("", role="secondary")
+heat_label.bind_text(heat, fmt=lambda n: tr.system.heat_fmt.format(n=n).get())
 
 plus_btn = Button("+")
 minus_btn = Button("-", variant="ghost")
@@ -168,11 +168,14 @@ minus_btn.on_click(lambda _e: heat.update(lambda n: max(0, min(100, n - 10))))
 # Computed: two signals, one derived value, one bound label.
 first_name = Signal("")
 last_name = Signal("")
-first_input = Input(placeholder="First name").bind_value(first_name)
-last_input = Input(placeholder="Last name").bind_value(last_name)
+first_input = Input(placeholder=tr.system.first_name).bind_value(first_name)
+last_input = Input(placeholder=tr.system.last_name).bind_value(last_name)
 full_name = Computed(lambda: f"{first_name().strip()} {last_name().strip()}".strip())
 full_echo = Text("", role="secondary")
-full_echo.bind_text(full_name, fmt=lambda v: f"Computed full name: {v}" if v else "Type both names…")
+full_echo.bind_text(
+    full_name,
+    fmt=lambda v: tr.system.computed_full_fmt.format(v=v).get() if v else tr.system.type_both.get(),
+)
 
 
 async def on_first(event: DomEvent) -> None:
@@ -188,7 +191,7 @@ last_input.on_input(on_last)
 
 # Effect: re-runs on dependency change, cleans up via dispose().
 level = Signal(50)
-level_log = Signal(f"Effect fired — level = {level()}")
+level_log = Signal(tr_now(tr.system.effect_fired_fmt).format(n=level()))
 level_text = Mono()
 level_text.bind_text(level_log)
 effect_slot = {"eff": None}
@@ -196,16 +199,16 @@ running = Signal(True)
 effect_state = Text("", role="secondary", size="12px")
 effect_state.bind_text(
     running,
-    fmt=lambda active: "effect: running" if active else "effect: disposed — level changes no longer sync",
+    fmt=lambda active: tr.system.effect_running.get() if active else tr.system.effect_disposed.get(),
 )
 
 
 def level_sync() -> None:
-    level_log.set(f"Effect fired — level = {level()}")
+    level_log.set(tr_now(tr.system.effect_fired_fmt).format(n=level()))
 
 
 effect_slot["eff"] = effect(level_sync)
-effect_btn = Button("Dispose effect", variant="ghost")
+effect_btn = Button(tr.system.dispose_effect, variant="ghost")
 
 
 async def on_effect_toggle(_event: DomEvent) -> None:
@@ -215,17 +218,17 @@ async def on_effect_toggle(_event: DomEvent) -> None:
             current.dispose()
         effect_slot["eff"] = None
         running.set(False)
-        effect_btn.label = "Restart effect"
+        effect_btn.label = tr_now(tr.system.restart_effect)
     else:
         effect_slot["eff"] = effect(level_sync)
         running.set(True)
-        effect_btn.label = "Dispose effect"
+        effect_btn.label = tr_now(tr.system.dispose_effect)
 
 
 effect_btn.on_click(on_effect_toggle)
 
-level_up = Button("Level +5")
-level_down = Button("Level -5", variant="ghost")
+level_up = Button(tr.system.level_plus)
+level_down = Button(tr.system.level_minus, variant="ghost")
 level_up.on_click(lambda _e: level.update(lambda n: max(0, min(100, n + 5))))
 level_down.on_click(lambda _e: level.update(lambda n: max(0, min(100, n - 5))))
 
@@ -238,17 +241,20 @@ secret_block = Div(
         padding="12px 16px",
         background_color=stub.surface,
     ),
-    container=["This box's display is bound to a Signal."],
+    container=[Text(tr.system.secret_desc).build()],
 )
 secret_block.bind_visible(secret)
-secret_check = Checkbox("Visible", checked=True).bind_value(secret)
+secret_check = Checkbox(tr.system.visible, checked=True).bind_value(secret)
 
 # batch(): two signals changed together flush ONE effect run.
 batch_a = Signal(0)
 batch_b = Signal(0)
 batch_runs = Signal(0)
 batch_count = Mono()
-batch_count.bind_text(batch_runs, fmt=lambda runs: f"effect runs: {runs}  (a={batch_a()}, b={batch_b()})")
+batch_count.bind_text(
+    batch_runs,
+    fmt=lambda runs: tr.system.effect_runs_fmt.format(runs=runs, a=batch_a(), b=batch_b()).get(),
+)
 
 
 def batch_sync() -> None:
@@ -258,8 +264,8 @@ def batch_sync() -> None:
 
 
 batch_effect = effect(batch_sync)
-batch_single_btn = Button("a + 1", variant="ghost")
-batch_both_btn = Button("a + 1, b + 1 inside batch()", variant="ghost")
+batch_single_btn = Button(tr.system.a_plus_1, variant="ghost")
+batch_both_btn = Button(tr.system.batch_both, variant="ghost")
 
 
 async def on_batch_single(_event: DomEvent) -> None:
@@ -282,10 +288,11 @@ untrack_runs = Signal(0)
 untrack_count = Mono()
 untrack_count.bind_text(
     Computed(
-        lambda: (
-            f"effect runs: {untrack_runs()}  (tracked={untrack_tracked()}, "
-            f"ignored={untrack_ignored()} read via untrack — no subscription)"
-        )
+        lambda: tr.system.untrack_runs_fmt.format(
+            runs=untrack_runs(),
+            tracked=untrack_tracked(),
+            ignored=tr.system.untrack_ignored.format(n=untrack_ignored()).get(),
+        ).get()
     )
 )
 
@@ -297,18 +304,21 @@ def untrack_sync() -> None:
 
 
 untrack_effect = effect(untrack_sync)
-untrack_track_btn = Button("tracked + 1", variant="ghost")
-untrack_ignore_btn = Button("ignored + 1 (untracked — no re-run)", variant="ghost")
+untrack_track_btn = Button(tr.system.tracked_plus, variant="ghost")
+untrack_ignore_btn = Button(tr.system.ignored_plus, variant="ghost")
 untrack_track_btn.on_click(lambda _e: untrack_tracked.update(lambda n: n + 1))
 untrack_ignore_btn.on_click(lambda _e: untrack_ignored.update(lambda n: n + 1))
 
 # bind_attr: a signal drives an HTML attribute (the button's disabled).
 busy = Signal(False)
-busy_btn = Button("Save")
+busy_btn = Button(tr.system.save)
 busy_btn.bind_attr(busy, "disabled")
-busy_state = Text("busy: false — the disabled attribute follows the signal", role="secondary")
-busy_state.bind_text(busy, fmt=lambda b: f"busy: {b} — disabled={' ' if b else ' not '}set on the button")
-busy_toggle = Button("Toggle busy", variant="ghost")
+busy_state = Text(tr.system.busy_state, role="secondary")
+busy_state.bind_text(
+    busy,
+    fmt=lambda b: tr.system.busy_fmt.format(b=b, flag=" " if b else " not ").get(),
+)
+busy_toggle = Button(tr.system.toggle_busy, variant="ghost")
 busy_toggle.on_click(lambda _e: busy.update(lambda b: not b))
 
 # Computed chain: two derived values, one bound label.
@@ -317,12 +327,12 @@ qty = Signal(2)
 rate = Signal(0.9)
 subtotal = Computed(lambda: price() * qty())
 total = Computed(lambda: subtotal() * rate())
-price_up = Button("price +1", variant="ghost")
-price_down = Button("price -1", variant="ghost")
-qty_up = Button("qty +1", variant="ghost")
-qty_down = Button("qty -1", variant="ghost")
-rate_up = Button("rate +0.1", variant="ghost")
-rate_down = Button("rate -0.1", variant="ghost")
+price_up = Button(tr.system.price_plus, variant="ghost")
+price_down = Button(tr.system.price_minus, variant="ghost")
+qty_up = Button(tr.system.qty_plus, variant="ghost")
+qty_down = Button(tr.system.qty_minus, variant="ghost")
+rate_up = Button(tr.system.rate_plus, variant="ghost")
+rate_down = Button(tr.system.rate_minus, variant="ghost")
 price_up.on_click(lambda _e: price.update(lambda v: v + 1))
 price_down.on_click(lambda _e: price.update(lambda v: max(0.0, v - 1)))
 qty_up.on_click(lambda _e: qty.update(lambda v: v + 1))
@@ -332,28 +342,23 @@ rate_down.on_click(lambda _e: rate.update(lambda v: max(0.1, v - 0.1)))
 total_text = Text("", size="16px", weight="600")
 total_text.bind_text(
     total,
-    fmt=lambda v: f"total: ¥{v:.2f}   (subtotal ¥{subtotal():.2f} x rate {rate():.1f})",
+    fmt=lambda v: tr.system.total_fmt.format(v=v, s=subtotal(), r=rate()).get(),
 )
 
 # bind_value: signal ↔ component value, both ways.
 name_signal = Signal("")
-bind_input = Input(placeholder="Type — the signal follows every keystroke…")
+bind_input = Input(placeholder=tr.system.bind_placeholder)
 bind_input.bind_value(name_signal)
 bind_echo_one = Text("", role="secondary")
 bind_echo_two = Text("", role="secondary")
-bind_echo_one.bind_text(name_signal, fmt=lambda v: f"echo 1: {v}")
-bind_echo_two.bind_text(name_signal, fmt=lambda v: f"echo 2: {v}")
-bind_set_btn = Button("Set signal → component", variant="ghost")
-bind_set_btn.on_click(lambda _e: name_signal.set("written from the signal side"))
+bind_echo_one.bind_text(name_signal, fmt=lambda v: tr.system.echo_fmt.format(n=1, v=v).get())
+bind_echo_two.bind_text(name_signal, fmt=lambda v: tr.system.echo_fmt.format(n=2, v=v).get())
+bind_set_btn = Button(tr.system.set_signal, variant="ghost")
+bind_set_btn.on_click(lambda _e: name_signal.set(tr_now(tr.system.written_signal)))
 
 reactive_panel = Section(
-    "Reactive",
-    "Signal, Computed and Effect with declarative bindings — no manual "
-    "refresh calls. bind_text / bind_style / bind_visible / bind_attr "
-    "/ bind_value follow their signal; batch() coalesces writes into "
-    "one flush, untrack() reads without subscribing, computed chains "
-    "compose. The heat bar is shared across tabs — bump it here, watch "
-    "the Forms tab.",
+    tr.system.reactive_title,
+    tr.system.reactive_blurb,
     """count = Signal(0)
 label.bind_text(count)
 
@@ -376,31 +381,31 @@ btn.bind_attr(busy, "disabled")            # signal → attribute
 total = Computed(lambda: subtotal() * rate())  # chains compose
 
 inp.bind_value(name) # two-way: signal ↔ component value""",
-    HStack(Text("Heat bar", weight="600"), Spacer(), minus_btn, plus_btn, gap="8px"),
+    HStack(Text(tr.system.heat_bar, weight="600"), Spacer(), minus_btn, plus_btn, gap="8px"),
     heat_bar,
     heat_label,
     Separator(),
     HStack(first_input, last_input, gap="8px"),
     full_echo,
     Separator(),
-    HStack(Text("Effect", weight="600"), Spacer(), level_down, level_up, effect_btn, gap="8px"),
+    HStack(Text(tr.system.effect, weight="600"), Spacer(), level_down, level_up, effect_btn, gap="8px"),
     level_text,
     effect_state,
     Separator(),
     secret_check,
     secret_block,
     Separator(),
-    HStack(Text("batch()", weight="600"), Spacer(), batch_single_btn, batch_both_btn, gap="8px"),
+    HStack(Text(tr.system.batch, weight="600"), Spacer(), batch_single_btn, batch_both_btn, gap="8px"),
     batch_count,
     Separator(),
-    HStack(Text("untrack()", weight="600"), Spacer(), untrack_track_btn, untrack_ignore_btn, gap="8px"),
+    HStack(Text(tr.system.untrack, weight="600"), Spacer(), untrack_track_btn, untrack_ignore_btn, gap="8px"),
     untrack_count,
     Separator(),
-    HStack(Text("bind_attr", weight="600"), Spacer(), busy_toggle, gap="8px"),
+    HStack(Text(tr.system.bind_attr, weight="600"), Spacer(), busy_toggle, gap="8px"),
     HStack(busy_btn, busy_state, gap="12px", align="center"),
     Separator(),
     HStack(
-        Text("Computed chain", weight="600"),
+        Text(tr.system.computed_chain, weight="600"),
         Spacer(),
         price_down,
         price_up,
@@ -421,24 +426,24 @@ inp.bind_value(name) # two-way: signal ↔ component value""",
 # ── tab: sidebar ─────────────────────────────────────────────────
 
 home_pane = GlassPanel(
-    Heading("Home", level=3),
-    Text("Home content — the Sidebar owns this pane.", role="secondary"),
+    Heading(tr.system.home, level=3),
+    Text(tr.system.home_content, role="secondary"),
     gap="12px",
     padding="16px",
     radius="12px",
     grow=True,
 )
 settings_pane = GlassPanel(
-    Heading("Settings", level=3),
-    Text("Settings content — select another entry to switch panes.", role="secondary"),
+    Heading(tr.system.settings, level=3),
+    Text(tr.system.settings_content, role="secondary"),
     gap="12px",
     padding="16px",
     radius="12px",
     grow=True,
 )
 profile_pane = GlassPanel(
-    Heading("Profile", level=3),
-    Text("Profile content — pane state remains mounted while hidden.", role="secondary"),
+    Heading(tr.system.profile, level=3),
+    Text(tr.system.profile_content, role="secondary"),
     gap="12px",
     padding="16px",
     radius="12px",
@@ -447,20 +452,18 @@ profile_pane = GlassPanel(
 
 active_pane = Signal("home")
 sidebar = Sidebar(
-    Pane("Home", key="home", icon=Icon.glyph("🏠"), panel=home_pane),
-    Pane("Settings", key="settings", icon=Icon.glyph("⚙️"), panel=settings_pane),
-    Pane("Profile", key="profile", icon=Icon.glyph("👤"), panel=profile_pane),
+    Pane(tr.system.home, key="home", icon=Icon.glyph("🏠"), panel=home_pane),
+    Pane(tr.system.settings, key="settings", icon=Icon.glyph("⚙️"), panel=settings_pane),
+    Pane(tr.system.profile, key="profile", icon=Icon.glyph("👤"), panel=profile_pane),
     radius="12px",
 )
 sidebar.bind_selected(active_pane)
 sidebar_state = Text("", role="secondary", size="12px")
-sidebar_state.bind_text(active_pane, fmt=lambda key: f"active: {key}")
+sidebar_state.bind_text(active_pane, fmt=lambda key: tr.system.active_fmt.format(key=key).get())
 
 sidebar_panel = Section(
-    "Sidebar",
-    "A Sidebar can own its content panes. Pane keys are explicit, "
-    "selected state binds to a Signal, and clicking an item switches "
-    "the mounted pane without a hand-written mapping or switch function.",
+    tr.system.sidebar_title,
+    tr.system.sidebar_blurb,
     """active = Signal("home")
 sidebar = Sidebar(
     Pane("Home", key="home", icon=Icon.glyph("🏠"), panel=home_panel),
@@ -479,41 +482,38 @@ state.bind_text(active, fmt=lambda key: f"active: {key}")""",
 # are plain VStacks — the host already supplies the panel chrome
 # (padding/surface), so wrapping in a GlassPanel would double-pad.
 pane_a = VStack(
-    Heading("Pane A", level=4),
-    Text("First pane — Tabs owns its panels.", role="secondary"),
+    Heading(tr.system.pane_a, level=4),
+    Text(tr.system.first_pane, role="secondary"),
     gap="12px",
 )
 pane_b = VStack(
-    Heading("Pane B", level=4),
-    Text("Second pane — state stays mounted while hidden.", role="secondary"),
+    Heading(tr.system.pane_b, level=4),
+    Text(tr.system.second_pane, role="secondary"),
     gap="12px",
 )
-pane_c = VStack(Heading("Pane C", level=4), Text("Third pane.", role="secondary"), gap="12px")
+pane_c = VStack(Heading(tr.system.pane_c, level=4), Text(tr.system.third_pane, role="secondary"), gap="12px")
 
 active_tab = Signal("a")
-tabs = Tabs(("A", pane_a, "a"), ("B", pane_b, "b"), ("C", pane_c, "c"))
+tabs = Tabs((tr.system.pane_a, pane_a, "a"), (tr.system.pane_b, pane_b, "b"), (tr.system.pane_c, pane_c, "c"))
 tabs.bind_selected(active_tab)
 tab_state = Text("", role="secondary", size="12px")
-tab_state.bind_text(active_tab, fmt=lambda key: f"selected: {key}")
+tab_state.bind_text(active_tab, fmt=lambda key: tr.system.tab_selected_fmt.format(key=key).get())
 
 # Too many tabs scroll sideways instead of wrapping into extra rows;
 # the edge-fade mask (on by default) hints at off-screen tabs.
 scroll_tabs = Tabs(
     *[
         (
-            f"Section {chr(65 + i)}",
-            VStack(Text(f"Panel {chr(65 + i)} content.", role="secondary"), gap="12px"),
+            tr_now(tr.system.section_fmt).format(c=chr(65 + i)),
+            VStack(Text(tr_now(tr.system.panel_fmt).format(c=chr(65 + i)), role="secondary"), gap="12px"),
         )
         for i in range(10)
     ]
 )
 
 tabs_panel = Section(
-    "Tabs",
-    "Tabs own their content panes — pane state survives switches because "
-    "the DOM stays mounted. Selection binds to a Signal (like Sidebar). "
-    "When tabs overflow the bar they scroll horizontally with an edge-fade "
-    "hint rather than wrapping; arrow keys rotate, Enter/Space activates.",
+    tr.system.tabs_title,
+    tr.system.tabs_blurb,
     """active = Signal("a")
 tabs = Tabs(("A", pane_a, "a"), ("B", pane_b, "b"), ("C", pane_c, "c"))
 tabs.bind_selected(active)
@@ -534,57 +534,50 @@ scroll = Tabs(*[(f"Section {c}", pane) for c in "ABCDEFGHIJ"])""",
 # resize — the size change proves set_bounds is working either way.
 _ON_WAYLAND = "WAYLAND_DISPLAY" in os.environ and sys.platform.startswith("linux")
 
-win_state = Signal("Window state")
+win_state = Signal(tr_now(tr.system.window_state))
 win_status = Text("", role="secondary")
 win_status.bind_text(win_state)
 win_note = Text(
-    "Hide auto-restores after 2s (the Show button lives inside the window, "
-    "so a permanent hide would trap you). "
-    + (
-        "On Wayland window position is a no-op (the protocol forbids "
-        "client-side positioning). Resize is a request: tiling WMs ignore "
-        "it while the window is tiled — float the window (e.g. Win+F) "
-        "for set_bounds/set_size to apply."
-        if _ON_WAYLAND
-        else "Position is in logical pixels from the top-left of the screen."
+    Computed(
+        lambda: tr.system.hide_note.get() + (tr.system.wayland_note.get() if _ON_WAYLAND else tr.system.pos_note.get())
     ),
     role="secondary",
     size="12px",
 )
 
-hide_btn = Button("Hide", variant="ghost")
-show_btn = Button("Show", variant="ghost")
-focus_btn = Button("Focus", variant="ghost")
-pos1_btn = Button("Compact @ (100, 100)")
-pos2_btn = Button("Default @ (0, 0)", variant="ghost")
+hide_btn = Button(tr.system.hide, variant="ghost")
+show_btn = Button(tr.system.show, variant="ghost")
+focus_btn = Button(tr.system.focus, variant="ghost")
+pos1_btn = Button(tr.system.compact_pos)
+pos2_btn = Button(tr.system.default_pos, variant="ghost")
 
 
 async def on_hide(event: DomEvent) -> None:
     await app.hide()
-    win_state.set("Window hidden — auto-restoring in 2s…")
+    win_state.set(tr_now(tr.system.window_hidden))
     await asyncio.sleep(2)
     await app.show()
-    win_state.set("Window shown again (auto-restore)")
+    win_state.set(tr_now(tr.system.window_shown_restore))
 
 
 async def on_show(event: DomEvent) -> None:
     await app.show()
-    win_state.set("Window shown")
+    win_state.set(tr_now(tr.system.window_shown))
 
 
 async def on_focus_click(event: DomEvent) -> None:
     await app.focus()
-    win_state.set("Window focused")
+    win_state.set(tr_now(tr.system.window_focused))
 
 
 async def on_pos1(event: DomEvent) -> None:
     await app.set_bounds(100, 100, 440, 560)
-    win_state.set("set_bounds(100, 100, 440, 560) applied")
+    win_state.set(tr_now(tr.system.set_bounds_fmt).format(x=100, y=100, w=440, h=560))
 
 
 async def on_pos2(event: DomEvent) -> None:
     await app.set_bounds(0, 0, 560, 720)
-    win_state.set("set_bounds(0, 0, 560, 720) applied")
+    win_state.set(tr_now(tr.system.set_bounds_fmt).format(x=0, y=0, w=560, h=720))
 
 
 hide_btn.on_click(on_hide)
@@ -594,11 +587,8 @@ pos1_btn.on_click(on_pos1)
 pos2_btn.on_click(on_pos2)
 
 window_panel = Section(
-    "Window State",
-    "show / hide / focus move the window on screen; set_bounds positions "
-    "it via tao (outer position) and resizes it. The status line also "
-    "tracks the page's on_focus / on_blur lifecycle hooks (not emitted "
-    "on every stack — Wayland/GTK focus events are backend-dependent).",
+    tr.system.window_title,
+    tr.system.window_blurb,
     """await app.show() / app.hide() / app.focus()
 await app.set_bounds(x, y, w, h)   # outer position + inner size
 page.on_focus(lambda: print("focused"))
@@ -626,11 +616,11 @@ def _wire_lifecycle(page: Page) -> None:
 
 
 async def on_page_focus() -> None:
-    win_state.set("Window focused")
+    win_state.set(tr_now(tr.system.window_focused))
 
 
 async def on_page_blur() -> None:
-    win_state.set("Window lost focus (or hidden)")
+    win_state.set(tr_now(tr.system.window_lost_focus))
 
 
 PAGE_HOOKS: list[Callable[[Page], None]] = [_wire_lifecycle]

@@ -33,10 +33,11 @@ from neony.dom import (
     Styles,
 )
 from neony.dom import Button as _ButtonElem
+from neony.dom.reactive import Computed, Signal
 
 from ..i18n import tr, tr_now
 from .avatar import Avatar
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 from .menu import Menu
 
@@ -153,7 +154,7 @@ class MessageBubble(Component):
 
     def __init__(
         self,
-        text: str = "",
+        text: ReactiveText = "",
         *,
         from_me: bool = False,
         name: str | None = None,
@@ -182,14 +183,15 @@ class MessageBubble(Component):
         else:
             self._avatar_el = None
 
-        if content is not None:
-            content_el: DOMElement = content.build() if isinstance(content, Component) else content
-            bubble_content: list[DOMElement | str] = [content_el]
-        else:
-            bubble_content = [text]
-
         self._name_span = Span(container=[name or ""], styles=_NAME if name else _NAME_HIDDEN)
-        self._bubble = Div(styles=_BUBBLE, container=bubble_content)
+        self._bubble = Div(styles=_BUBBLE, container=[])
+        # Reactive text (Signal/Computed, e.g. ``tr.chat.other_msg``) binds
+        # live; a plain str is mounted directly into the bubble.
+        if content is None:
+            _mount_text(self._bubble, text)
+        else:
+            content_el: DOMElement = content.build() if isinstance(content, Component) else content
+            self._bubble.container = [content_el]
         self._actions = Div(styles=_ACTIONS, container=[])
         self._col = Div(styles=_COL, container=[self._name_span, self._bubble, self._actions])
 
@@ -211,13 +213,14 @@ class MessageBubble(Component):
 
     @property
     def text(self) -> str:
-        return self._text
+        return self._text() if isinstance(self._text, (Signal, Computed)) else self._text
 
     @text.setter
-    def text(self, value: str) -> None:
+    def text(self, value: ReactiveText) -> None:
         self._text = value
         if self._content is None:
-            self._bubble.container = [value]
+            self._bubble.container = []
+            _mount_text(self._bubble, value)
 
     @property
     def name(self) -> str | None:

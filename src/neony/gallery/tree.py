@@ -4,46 +4,47 @@ from __future__ import annotations
 
 from neony.application.elements import Icon, Tree, TreeNode
 
+from .i18n import tr
 from .sections import PANELS
 
 gallery_tree = Tree(width="220px").children(
-    TreeNode("Home", key="home", icon=Icon.glyph("🏠")).panel(PANELS["home"]),
-    TreeNode("Buttons", key="buttons", shortcut="Ctrl+1").panel(PANELS["buttons"]),
-    TreeNode("Inputs & Forms", key="inputs-forms", expanded=True).children(
-        TreeNode("Inputs", key="inputs", shortcut="Ctrl+2").panel(PANELS["inputs"]),
-        TreeNode("Checks", key="checks", shortcut="Ctrl+3").panel(PANELS["checks"]),
-        TreeNode("Forms", key="forms", shortcut="Ctrl+4").panel(PANELS["forms"]),
+    TreeNode(tr.nav.home, key="home", icon=Icon.glyph("🏠")).panel(PANELS["home"]),
+    TreeNode(tr.nav.buttons, key="buttons", shortcut="Ctrl+1").panel(PANELS["buttons"]),
+    TreeNode(tr.nav.inputs_forms, key="inputs-forms", expanded=True).children(
+        TreeNode(tr.nav.inputs, key="inputs", shortcut="Ctrl+2").panel(PANELS["inputs"]),
+        TreeNode(tr.nav.checks, key="checks", shortcut="Ctrl+3").panel(PANELS["checks"]),
+        TreeNode(tr.nav.forms, key="forms", shortcut="Ctrl+4").panel(PANELS["forms"]),
     ),
-    TreeNode("Layout & Type", key="layout-type").children(
-        TreeNode("Layout", key="layout").panel(PANELS["layout"]),
-        TreeNode("Type", key="type").panel(PANELS["type"]),
+    TreeNode(tr.nav.layout_type, key="layout-type").children(
+        TreeNode(tr.nav.layout, key="layout").panel(PANELS["layout"]),
+        TreeNode(tr.nav.type, key="type").panel(PANELS["type"]),
     ),
-    TreeNode("Glass & Content", key="glass-content").children(
-        TreeNode("Glass", key="glass").panel(PANELS["glass"]),
-        TreeNode("Content", key="content").panel(PANELS["content"]),
-        TreeNode("Icon", key="icon").panel(PANELS["icon"]),
+    TreeNode(tr.nav.glass_content, key="glass-content").children(
+        TreeNode(tr.nav.glass, key="glass").panel(PANELS["glass"]),
+        TreeNode(tr.nav.content, key="content").panel(PANELS["content"]),
+        TreeNode(tr.nav.icon, key="icon").panel(PANELS["icon"]),
     ),
-    TreeNode("Interaction & Events", key="interaction").children(
-        TreeNode("Events", key="events").panel(PANELS["events"]),
-        TreeNode("Drop", key="drop").panel(PANELS["drop"]),
-        TreeNode("Clipboard", key="clipboard").panel(PANELS["clipboard"]),
-        TreeNode("Shortcuts", key="shortcuts").panel(PANELS["shortcuts"]),
-        TreeNode("Overlays", key="overlays").panel(PANELS["overlays"]),
+    TreeNode(tr.nav.interaction, key="interaction").children(
+        TreeNode(tr.nav.events, key="events").panel(PANELS["events"]),
+        TreeNode(tr.nav.drop, key="drop").panel(PANELS["drop"]),
+        TreeNode(tr.nav.clipboard, key="clipboard").panel(PANELS["clipboard"]),
+        TreeNode(tr.nav.shortcuts, key="shortcuts").panel(PANELS["shortcuts"]),
+        TreeNode(tr.nav.overlays, key="overlays").panel(PANELS["overlays"]),
     ),
-    TreeNode("Data views", key="data-views").children(
-        TreeNode("List", key="list").panel(PANELS["list"]),
-        TreeNode("DataTable", key="datatable").panel(PANELS["datatable"]),
+    TreeNode(tr.nav.data_views, key="data-views").children(
+        TreeNode(tr.nav.list, key="list").panel(PANELS["list"]),
+        TreeNode(tr.nav.datatable, key="datatable").panel(PANELS["datatable"]),
     ),
-    TreeNode("Notifications & Chat", key="notify-chat").children(
-        TreeNode("Notifications", key="notifications").panel(PANELS["notifications"]),
-        TreeNode("Chat", key="chat").panel(PANELS["chat"]),
+    TreeNode(tr.nav.notify_chat, key="notify-chat").children(
+        TreeNode(tr.nav.notifications, key="notifications").panel(PANELS["notifications"]),
+        TreeNode(tr.nav.chat, key="chat").panel(PANELS["chat"]),
     ),
-    TreeNode("System & Advanced", key="system").children(
-        TreeNode("Animations", key="animations").panel(PANELS["animations"]),
-        TreeNode("Reactive", key="reactive").panel(PANELS["reactive"]),
-        TreeNode("Sidebar", key="sidebar").panel(PANELS["sidebar"]),
-        TreeNode("Tabs", key="tabs").panel(PANELS["tabs"]),
-        TreeNode("Window", key="window").panel(PANELS["window"]),
+    TreeNode(tr.nav.system, key="system").children(
+        TreeNode(tr.nav.animations, key="animations").panel(PANELS["animations"]),
+        TreeNode(tr.nav.reactive, key="reactive").panel(PANELS["reactive"]),
+        TreeNode(tr.nav.sidebar, key="sidebar").panel(PANELS["sidebar"]),
+        TreeNode(tr.nav.tabs, key="tabs").panel(PANELS["tabs"]),
+        TreeNode(tr.nav.window, key="window").panel(PANELS["window"]),
     ),
 )
 gallery_tree.selected_key = "home"

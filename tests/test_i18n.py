@@ -1,5 +1,5 @@
-"""Framework i18n tests — the chainable ``tr`` proxy, typed catalogs,
-reactive language switching, and translated framework defaults.
+"""Framework i18n tests — the typed ``tr`` refs, reactive language
+switching, and translated framework defaults.
 
 The i18n state is module-global, so the autouse fixture registers the
 test catalog pair and restores the language after every test.
@@ -8,6 +8,7 @@ test catalog pair and restores the language after every test.
 from __future__ import annotations
 
 import pytest
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from neony.application import (
     Catalog,
@@ -15,6 +16,7 @@ from neony.application import (
     Config,
     Language,
     NeonApplication,
+    TrRef,
     WindowConfig,
     get_language,
     register_catalog,
@@ -25,14 +27,19 @@ from neony.application import (
 from neony.application.elements import Button, MessageBubble, PromptDialog, Text
 from neony.dom import DOMElement, effect
 
+_FILES_CFG = ConfigDict(frozen=True, extra="forbid", arbitrary_types_allowed=True)
 
-class FilesCatalog(Catalog):
-    count: str = "{n} files"
+
+class Files(BaseModel):
+    """Nested sub-model — plain BaseModel, NOT a Catalog subclass."""
+
+    model_config = _FILES_CFG
+    count: TrRef[dict[str, int]] = TrRef("{n} files")
 
 
 class AppCatalog(Catalog):
-    save: str = "Save"
-    files: FilesCatalog = FilesCatalog()
+    save: TrRef[None] = TrRef("Save")
+    files: Files = Files()
 
 
 @pytest.fixture(autouse=True)
@@ -42,7 +49,7 @@ def _i18n_catalogs():
         Language.ZH,
         AppCatalog(
             save="保存",
-            files=FilesCatalog(count="{n} 个文件"),
+            files=Files(count="{n} 个文件"),
             common=Common(copy_text="复制", delete="删除", ok="确定", cancel="取消", close="关闭"),
         ),
     )
@@ -93,41 +100,67 @@ class TestLanguageEnum:
 
 class TestCatalogModel:
     def test_english_defaults(self):
-        assert AppCatalog().save == "Save"
-        assert AppCatalog().common.copy_text == "Copy"
-        assert AppCatalog().common.delete == "Delete"
+        assert AppCatalog().save.get() == "Save"
+        assert AppCatalog().common.copy_text.get() == "Copy"
+        assert AppCatalog().common.delete.get() == "Delete"
 
     def test_frozen(self):
         with pytest.raises(ValueError):
-            setattr(AppCatalog(), "save", "nope")
+            setattr(AppCatalog(), "save", "nope")  # noqa: B010
 
     def test_extra_forbidden(self):
         with pytest.raises(ValueError):
             AppCatalog(typo="x")  # type: ignore[call-arg]
 
     def test_per_language_override(self):
+        # A standalone instance stores the override on the leaf ref directly.
         zh = AppCatalog(save="保存")
-        assert zh.save == "保存"
+        assert zh.save._default == "保存"
+        assert zh.save._override is True
         # Unset keys fall back to the English class default.
-        assert zh.common.copy_text == "Copy"
+        assert zh.common.copy_text._default == "Copy"
+
+    def test_registered_zh_resolves_via_tr(self):
+        # The ZH catalog registered by the fixture resolves through ``tr``
+        # after a language switch.
+        set_language(Language.ZH)
+        try:
+            assert tr.common.copy_text.get() == "复制"
+        finally:
+            set_language(Language.EN)
+
+    def test_field_type_is_trref(self):
+        """Catalog fields are typed TrRefs — completion + typo-checking source."""
+        assert isinstance(AppCatalog().save, TrRef)
+        assert isinstance(AppCatalog().common.copy_text, TrRef)
+
+    def test_trref_schema_rejects_wrong_type(self):
+        with pytest.raises(ValidationError):
+            AppCatalog(save=123)  # type: ignore[arg-type]
+
+    def test_instance_path_isolation(self):
+        """Each catalog instance owns its leaf refs (no shared-default leak)."""
+        a = AppCatalog()
+        b = AppCatalog()
+        assert a.save is not b.save
+        assert a.common is not b.common
 
 
-class TestTrChain:
-    def test_flat_and_nested(self):
-        assert tr.save.get() == "Save"
+class TestTrRef:
+    def test_flat_and_nested_resolve(self):
         assert tr.common.copy_text.get() == "Copy"
-        assert tr.files.count.get() == "{n} files"
+        # AppCatalog keys are reachable through the test catalog's own ``tr``:
+        app = AppCatalog()
+        assert app.save.get() == "Save"
+        assert app.files.count.get() == "{n} files"
 
     def test_interpolation(self):
-        assert tr.files.count.format(n=5).get() == "5 files"
+        assert AppCatalog().files.count.format(n=5).get() == "5 files"
 
-    def test_unknown_key_raises(self):
-        with pytest.raises(KeyError):
-            tr.nope.get()
-
-    def test_namespace_is_not_text(self):
-        with pytest.raises(TypeError):
-            tr.common.get()  # "common" is a sub-model group, not a string
+    def test_format_preserves_path(self):
+        ref = AppCatalog().files.count.format(n=3)
+        assert ref._path == ("files", "count")
+        assert ref.get() == "3 files"
 
     def test_tr_now_immediate(self):
         assert tr_now(tr.common.copy_text) == "Copy"
@@ -157,13 +190,13 @@ class TestReactiveSwitch:
         assert root.to_node().text == "Copy"
 
     def test_button_label_updates_live(self):
-        b = Button(tr.save)
+        b = Button(tr.common.copy_text)
         root = b.build()
-        assert root.to_node().children[0].text == "Save"
+        assert root.to_node().children[0].text == "Copy"
         set_language(Language.ZH)
-        assert root.to_node().children[0].text == "保存"
+        assert root.to_node().children[0].text == "复制"
         set_language(Language.EN)
-        assert root.to_node().children[0].text == "Save"
+        assert root.to_node().children[0].text == "Copy"
 
     def test_unregistered_language_falls_back_to_english(self):
         t = Text(tr.common.copy_text)
@@ -179,7 +212,7 @@ class TestFrameworkDefaults:
         bubble = MessageBubble("hi")
         menu = bubble._menu
         assert menu is not None
-        assert [row[1].container[0] for row in menu._rows] == ["复制", "删除"]
+        assert [_el_text(row[1]) for row in menu._rows] == ["复制", "删除"]
         set_language(Language.EN)
 
     def test_message_bubble_empty_menu_still_disables(self):

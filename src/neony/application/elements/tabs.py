@@ -6,7 +6,7 @@ from neony.application.theme import stub
 from neony.dom import Div, DOMElement, DomEvent, Filter, Span, Styles, Transition
 
 from ._panels import _PanelHost
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
 _TAB_BASE = Styles(
@@ -74,14 +74,14 @@ class Tabs(Component):
 
     def __init__(
         self,
-        *panes: (tuple[str, Component | DOMElement] | tuple[str, Component | DOMElement, str]),
+        *panes: tuple[ReactiveText, Component | DOMElement] | tuple[ReactiveText, Component | DOMElement, str],
         glass: bool = False,
         fallback_panel: Component | DOMElement | None = None,
         edge_fade: bool = True,
     ) -> None:
         self._glass = glass
         super().__init__()
-        self._titles: list[str] = []
+        self._titles: list[ReactiveText] = []
         self._keys: list[str] = []
         self._panels: list[DOMElement] = []
         self._tab_elems: list[Div] = []
@@ -133,7 +133,7 @@ class Tabs(Component):
 
     def add(
         self,
-        title: str,
+        title: ReactiveText,
         panel: Component | DOMElement,
         *,
         key: str | None = None,
@@ -141,34 +141,43 @@ class Tabs(Component):
     ) -> Tabs:
         """Append a tab and its panel (chainable).
 
-        *key* — optional explicit selection key (defaults to *title*);
-        explicit keys let duplicate titles coexist.  Duplicate titles
-        without explicit keys raise.
+        *key* — optional explicit selection key (defaults to the title when
+        it is a plain string); explicit keys let duplicate titles coexist.
+        A reactive title (a ``tr`` binding) MUST pass an explicit key, since
+        there is no stable string to derive one from.  Duplicate keys raise.
         *icon* renders before the title (an :class:`Icon` — image or glyph).
         """
-        if key is None and title in self._titles:
-            raise ValueError(f"Tabs.add: duplicate title {title!r} — pass an explicit key to disambiguate")
+        # key is a static internal identifier — never the reactive title
+        # itself.  A plain-string title snapshots into the key table; a
+        # reactive title has no stable string, so it needs an explicit key.
+        if key is None:
+            if not isinstance(title, str):
+                raise ValueError("Tabs.add: a reactive title needs an explicit key=")
+            key = title
+        if key in self._keys:
+            raise ValueError(f"Tabs.add: duplicate key {key!r} — pass an explicit key to disambiguate")
         panel_el = panel.build() if isinstance(panel, Component) else panel
         # Panel chrome (padding / glass tint) lives on the element; the
         # host slot owns visibility + the replayed rise-in animation.
         panel_el.styles = _PANEL_GLASS if self._glass else _PANEL_BASE
 
-        if icon is not None:
-            # Element-only children (reactive mode forbids mixing): the icon
-            # Span + the title wrapped in a Span.
-            content: list[DOMElement | str] = [icon.render("14px"), Span(container=[title])]
-        else:
-            content = [title]
+        # The title rides a child span so a reactive ``tr`` binding can
+        # re-render on language switch; ``bubble_events`` lets clicks on
+        # the title/icon spans reach the tab's own click handler.
+        title_span = Span(container=[])
+        _mount_text(title_span, title)
+        content: list[DOMElement | str] = [icon.render("14px"), title_span] if icon is not None else [title_span]
         tab = Div(
             container=content,
             styles=_TAB_ACTIVE if not self._titles else _TAB_BASE,
             args={"tabindex": "0", "role": "tab"},
         )
+        tab.bubble_events = True
         tab.on_click(self._make_tab_handler(len(self._titles)))
         tab.on("keydown", self._make_tab_keydown_handler(len(self._titles)))
         self._tab_elems.append(tab)
         self._titles.append(title)
-        self._keys.append(key or title)
+        self._keys.append(key)
         self._panels.append(panel_el)
 
         self._bar.container.append(tab)
@@ -203,14 +212,21 @@ class Tabs(Component):
         fallback selected)."""
         if self._active < 0 or not self._titles:
             return None
-        return self._titles[self._active]
+        title = self._titles[self._active]
+        return title if isinstance(title, str) else title()
 
     @selected_title.setter
     def selected_title(self, title: str) -> None:
+        # Match the static key first (a reactive title's only stable
+        # identity); fall back to a plain-string title for the legacy case
+        # where title == key.
         try:
-            self._active = self._titles.index(title)
-        except ValueError as exc:
-            raise ValueError(f"Tabs.selected_title: unknown title {title!r}") from exc
+            self._active = self._keys.index(title)
+        except ValueError:
+            try:
+                self._active = self._titles.index(title)
+            except ValueError as exc:
+                raise ValueError(f"Tabs.selected_title: unknown title {title!r}") from exc
         self._apply_visibility()
 
     @property

@@ -82,7 +82,9 @@ class Checkbox(Component):
     - ``glass=True`` gives the box a frosted, translucent surface
     """
 
-    def __init__(self, label: ReactiveText = "", *, checked: bool = False, glass: bool = False, disabled: bool = False) -> None:
+    def __init__(
+        self, label: ReactiveText = "", *, checked: bool = False, glass: bool = False, disabled: bool = False
+    ) -> None:
         super().__init__()
         self._label: ReactiveText = label
         self._checked = checked

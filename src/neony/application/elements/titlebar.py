@@ -16,7 +16,7 @@ from neony.application.theme import stub
 from neony.dom import Border, Color, Div, DomEvent, Filter, Span, Styles, calc
 from neony.dom import Button as _ButtonElem
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
 # WindowControls bridge commands exposed by ``window.lumiview.window.*``.
@@ -37,7 +37,7 @@ class TitleBar(Component):
 
     def __init__(
         self,
-        title: str = "",
+        title: ReactiveText = "",
         *,
         icon: Icon | None = None,
         show_minimize: bool = True,
@@ -62,9 +62,10 @@ class TitleBar(Component):
         self._btn_close = self._make_control_button("close", show_close)
 
         # line-height = height - 16px so the glyph's vertical margins
-        # match the 8px side padding.
+        # match the 8px side padding.  The title rides the span so a
+        # reactive ``tr`` binding re-renders on language switch.
         self._title_span = Span(
-            container=[self._title],
+            container=[],
             styles=Styles(
                 font_size="13px",
                 font_weight="500",
@@ -74,6 +75,7 @@ class TitleBar(Component):
                 overflow="hidden",
             ),
         )
+        _mount_text(self._title_span, self._title)
 
         # Optional inline icon for frameless windows: a fixed-size square
         # painted with the image, so it never stretches with the title.
@@ -187,7 +189,9 @@ class TitleBar(Component):
 
     @property
     def title(self) -> str:
-        return self._title
+        if isinstance(self._title, str):
+            return self._title
+        return self._title()
 
     @title.setter
     def title(self, value: str) -> None:

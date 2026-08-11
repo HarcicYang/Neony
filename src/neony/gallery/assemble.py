@@ -8,6 +8,7 @@ from neony.application.theme import stub
 from neony.dom import Div, Styles
 
 from .core import _ICON_URL, app, header
+from .i18n import tr
 from .sections import PAGE_HOOKS
 from .tree import gallery_tree
 
@@ -18,7 +19,7 @@ page = Page(gap="0px", padding="0px", max_width="100%", fill=True, radius="12px"
 for hook in PAGE_HOOKS:
     hook(page)
 
-titlebar = TitleBar("Neony — Component Gallery", icon=Icon.image(_ICON_URL))
+titlebar = TitleBar(tr.shell.titlebar, icon=Icon.image(_ICON_URL))
 
 # The content stage uses the plain theme background — only the titlebar
 # above it stays transparent, so the desktop shows through the chrome
