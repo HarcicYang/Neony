@@ -45,6 +45,11 @@ class TestStyleSerialization:
         assert node.styles["background-color"] == "#fff"
         assert node.styles["font-size"] == "16px"
 
+    def test_grid_template_columns(self):
+        d = Div(styles=Styles(display="grid", grid_template_columns="80px 1fr"))
+        node = d.to_node()
+        assert node.styles["grid-template-columns"] == "80px 1fr"
+
     def test_none_styles_skipped(self):
         d = Div(styles=Styles(color=Color(name="blue"), width=None))
         node = d.to_node()

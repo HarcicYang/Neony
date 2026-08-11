@@ -228,6 +228,7 @@ class RadioGroup(Component):
         self._value = value
         for item in self._items:
             item.checked = item.value == value
+        self._mirror_selected(value)
 
     @property
     def value(self) -> str | None:

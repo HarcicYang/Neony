@@ -674,7 +674,8 @@ GlassPanel(Heading("Frosted"), background=url, grow=True)  # frosted stage
 - `VStack` / `HStack` / `Flex` accept `grow` to fill remaining space.
 - `GlassPanel`: translucent surface + backdrop blur; `background=url`
   paints an image inside; `grow=True` fills the parent; `radius`
-  overrides the default 12px corner radius.
+  overrides the default 12px corner radius; `width` / `height` fix the
+  panel to a definite size (pair with the default non-`grow` mode).
 
 ---
 
@@ -819,6 +820,99 @@ attaches a branch's children, `.key_(key)` sets the key — all chainable.
 unknown keys.  Branches carry `aria-expanded`, leaves `aria-selected`;
 rows are keyboard-navigable (arrows move the focus ring, Enter / Space
 activate, ← / → collapse / expand branches).
+
+### `List` & `ListItem`
+
+A scrollable, single-select data list (the listbox model).  Exactly one
+entry is selected at a time; `selected_key` / `bind_selected` /
+`on_change` behave like `Sidebar`.
+
+```python
+fruits = List(
+    "Apple",
+    "Banana",
+    ListItem("Cherry", key="cherry", icon=Icon.glyph("🍒")),
+    active_key="Apple",
+)
+fruits.on_change(lambda e: print(e.value))  # value = selected key
+fruits.selected_key = "cherry"  # programmatic, no callback
+fruits.children("Durian", "Elderberry")  # chainable append
+fruits.bind_selected(signal)  # two-way reactive selection
+```
+
+**Options:** `List(*items, active_key=None, edge_fade=True)` — items are
+strings or `ListItem(label, key=None, icon=None)`.  A string item's key
+is its label; pass an explicit `key` when labels collide (duplicate keys
+raise).  Rows are `role="option"` inside a `role="listbox"` container;
+keyboard: Arrow Up/Down move the selection (clamped at the ends, each
+move fires `change`), Home/End jump to the ends, Enter/Space select,
+and a click selects.  The accent focus ring appears during arrow
+navigation and clears on click.  `edge_fade` toggles the scroll
+indicator.
+
+Mounting contract: mount in a *definite-height* flex parent (e.g.
+`VStack(..., grow=1)` or `GlassPanel(grow=True)`); the list scrolls its
+rows internally instead of growing the page.
+
+### `DataTable` & `Column`
+
+A tabular data view — column config plus a list of row dicts, with a
+sticky header, click-to-sort columns, and row selection (single by
+default, or multi at construction).
+
+```python
+people = DataTable(
+    columns=[
+        Column("Name", key="name", sortable=True, width="2fr"),
+        Column("Age", key="age", sortable=True, align="right", width="80px"),
+        Column("Score", key="score", align="right", format=lambda v: f"{v}%"),
+    ],
+    rows=[
+        {"name": "Ada", "age": 38, "score": 92},
+        {"name": "Bob", "age": 24, "score": 77},
+    ],
+    row_key=lambda r: r["name"],  # default: row index
+    active_key="Ada",
+)
+people.on_change(lambda e: print(e.value))  # selected row key
+people.sort_by = ("age", "desc")  # header clicks sort too
+people.bind_selected(signal)  # two-way reactive selection
+```
+
+Columns and rows can also be appended chainably:
+`DataTable().column("Name").row({"name": "Ada"})`.
+
+**Options:** `DataTable(columns=None, rows=None, *, row_key=None,
+selection="single", active_key=None, selected_keys=None, edge_fade=True)`.
+
+`Column(title, key=None, width=None, sortable=False, align=None,
+format=None, sort_key=None)` — `key` defaults to the lowercased title;
+`width` is a CSS grid track (`"1fr"` / `"80px"`); `align` is
+`left|center|right`; `format` maps a cell value to text; `sort_key`
+extracts a custom sort value from a row.
+
+`row_key` derives each row's identity (default: row index) and must be
+unique.  Header cells with `sortable=True` sort on click (asc → desc,
+switching columns starts asc); sorting is numeric-aware (or via
+`sort_key`), keeps the selection, and is observable through `sort_by`.
+The header is `position: sticky` inside the scroll container, so header
+and rows stay aligned under horizontal scroll.
+
+**Selection.** `selection="single"` (default) exposes `selected_key`
+(programmatic writes never fire callbacks); `selection="multi"` exposes
+`selected_keys` (accepts a `set`/`frozenset`/`list`/`None`) and a click
+toggles membership — `change` carries the toggled key, read
+`selected_keys` for the full set.  `bind_selected` works only in single
+mode (raises otherwise); the wrong-mode property raises
+`NotImplementedError`.
+
+Keyboard: single mode arrows move the selection (firing `change`);
+multi mode arrows move a focus ring and Space toggles it.  Home/End
+jump; Enter/Space select or toggle.
+
+Mounting contract: mount in a *definite-height* flex parent; the table
+scrolls (both axes) internally.  `edge_fade` toggles the scroll
+indicator.
 
 ### `Icon`
 

@@ -171,6 +171,7 @@ class ComboBox(Component):
     def value(self, value: str) -> None:
         self._value = value
         self._input.value = value  # immediate write; no callback
+        self._mirror_value(value)
 
     @property
     def options(self) -> list[str]:

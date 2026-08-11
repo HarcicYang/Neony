@@ -102,6 +102,8 @@ Import from `neony.application.elements`.
 | `Tabs`                    | Tab bar + panels, exactly one visible at a time — constructor children, `selected_panel` / `selected_title` / `selected_key` |
 | `Accordion` / `Collapsible` | Expandable sections in one scroll flow — fluent `.section()`, `multiple` open mode, `expanded_keys`, `on_change` |
 | `Tree` / `TreeNode`       | Collapsible navigation tree + content host — arbitrary depth, fluent builders, leaf selection shows its panel on the right |
+| `List` / `ListItem`       | Scrollable single-select data list — listbox model, arrow keys move selection, `selected_key` / `bind_selected` |
+| `DataTable` / `Column`    | Column config + data rows — sticky header, click-to-sort, single / multi row selection |
 | `Icon`                    | One icon — `Icon.image(url)` fixed-size square or `Icon.glyph(text)`, shared by TitleBar / Sidebar / Tabs / Tree |
 | `Flex`                    | Generic flex container with full control                                       |
 | `VStack` / `HStack`       | Vertical / horizontal flex stacks                                              |

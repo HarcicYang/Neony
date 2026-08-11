@@ -12,12 +12,16 @@ from neony.application.elements import (
     Card,
     Checkbox,
     Collapsible,
+    Column,
     ComboBox,
+    DataTable,
     Dialog,
     Dropdown,
     Icon,
     Image,
     Input,
+    List,
+    ListItem,
     Menu,
     Pane,
     Progress,
@@ -489,6 +493,17 @@ class TestGlassPanelBackground:
         assert face.styles["min-height"] == "0"
         # Content is inside the face.
         assert face.text == "content"
+
+    def test_fixed_size_panel_applies_width_height(self):
+        """width/height give a non-grow panel a definite size — the glass
+        face gets them directly, so it covers its content."""
+        from neony.application.elements import GlassPanel
+
+        panel = GlassPanel("content", width="360px", height="252px")
+        node = panel.build().to_node()
+        assert node.styles["width"] == "360px"
+        assert node.styles["height"] == "252px"
+        assert node.styles["background-color"] == "var(--color-surface-panel-glass-bg)"
 
     def test_grow_background_panel_keeps_overlay_inside_wrapper(self):
         from neony.application.elements import GlassPanel
@@ -3883,3 +3898,608 @@ class TestScrollIndicator:
         assert Tabs(("A", Text("p1")))._bar.styles.mask_image is None
         assert Sidebar(SidebarItem("x"))._rail.styles.mask_image is None
         assert Tree(TreeNode("a", key="a").panel(Text("h")))._rail.styles.mask_image is None
+
+
+class TestListBuild:
+    """List construction renders option rows with listbox semantics."""
+
+    def test_renders_label_rows(self):
+        lst = List("Alice", "Bob", ListItem("Carol", key="carol"))
+        node = lst.build().to_node()
+        assert node.attrs["role"] == "listbox"
+        rows = [c for c in node.children if c.attrs.get("role") == "option"]
+        assert [r.text for r in rows] == ["Alice", "Bob", "Carol"]
+        assert [r.attrs.get("aria-selected") for r in rows] == ["false", "false", "false"]
+        assert all(r.attrs.get("tabindex") == "0" for r in rows)
+
+    def test_default_key_is_label(self):
+        lst = List("Alice", "Bob")
+        assert lst.items[0].key == "Alice"
+        assert lst.items[1].key == "Bob"
+
+    def test_icon_renders(self):
+        lst = List(ListItem("X", icon=Icon.glyph("⭐")))
+        node = lst.build().to_node()
+        row = node.children[0]
+        assert _contains_text(row, "X")
+        assert _contains_text(row, "⭐")
+
+    def test_duplicate_key_raises(self):
+        with pytest.raises(ValueError):
+            List("a", ListItem("b", key="a"))
+
+    def test_add_and_children_chainable(self):
+        lst = List("a")
+        lst.add("b").children("c", "d")
+        assert [item.label for item in lst.items] == ["a", "b", "c", "d"]
+
+    def test_scroll_indicator_default(self):
+        lst = List("a")
+        node = lst.build().to_node()
+        assert node.attrs["data-neony-scroll"] == "y"
+
+    def test_edge_fade_false_turns_off_indicator(self):
+        lst = List("a", edge_fade=False)
+        node = lst.build().to_node()
+        assert "data-neony-scroll" not in node.attrs
+
+
+class TestListSelection:
+    """Single-select list semantics mirroring Sidebar / Tree."""
+
+    def test_active_key_at_construction(self):
+        lst = List("a", "b", active_key="b")
+        assert lst.selected_key == "b"
+        node = lst.build().to_node()
+        rows = [c for c in node.children if c.attrs.get("role") == "option"]
+        assert [r.attrs.get("aria-selected") for r in rows] == ["false", "true"]
+
+    def test_unknown_active_key_raises(self):
+        with pytest.raises(ValueError):
+            List("a", active_key="nope")
+
+    def test_click_selects_and_dispatches(self):
+        import asyncio
+
+        lst = List("a", "b")
+        fired: list = []
+        lst.on_change(lambda e: fired.append((e.value, e.source)))
+        row = lst._row_by_key["b"]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert lst.selected_key == "b"
+        assert fired == [("b", "user")]
+
+    def test_programmatic_select_no_callback(self):
+        lst = List("a", "b")
+        fired: list = []
+        lst.on_change(lambda e: fired.append(e.value))
+        lst.selected_key = "b"
+        assert fired == []
+
+    def test_unknown_selected_key_raises(self):
+        lst = List("a")
+        with pytest.raises(ValueError):
+            lst.selected_key = "nope"
+
+    def test_select_none_clears(self):
+        lst = List("a", "b", active_key="a")
+        lst.selected_key = None
+        assert lst.selected_key is None
+
+    def test_enter_selects(self):
+        import asyncio
+
+        lst = List("a", "b")
+        fired: list = []
+        lst.on_change(lambda e: fired.append(e.value))
+        row = lst._row_by_key["a"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value="Enter")))
+        assert lst.selected_key == "a"
+        assert fired == ["a"]
+
+    def test_arrow_down_moves_selection(self):
+        import asyncio
+
+        lst = List("a", "b", "c", active_key="a")
+        fired: list = []
+        lst.on_change(lambda e: fired.append(e.value))
+        row = lst._row_by_key["a"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value="ArrowDown")))
+        assert lst.selected_key == "b"
+        assert fired == ["b"]
+        # the focused row now carries the ring
+        assert lst._row_by_key["b"].styles.box_shadow is not None
+        assert lst._row_by_key["a"].styles.box_shadow is None
+
+    def test_arrow_clamps_at_end_no_dispatch(self):
+        import asyncio
+
+        lst = List("a", "b", "c", active_key="c")
+        fired: list = []
+        lst.on_change(lambda e: fired.append(e.value))
+        row = lst._row_by_key["c"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value="ArrowDown")))
+        assert lst.selected_key == "c"
+        assert fired == []
+
+    def test_home_end_jump(self):
+        import asyncio
+
+        lst = List("a", "b", "c", active_key="b")
+        row = lst._row_by_key["b"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value="Home")))
+        assert lst.selected_key == "a"
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value="End")))
+        assert lst.selected_key == "c"
+
+    def test_click_clears_focus_ring(self):
+        import asyncio
+
+        lst = List("a", "b", "c", active_key="a")
+        row_a = lst._row_by_key["a"]
+        asyncio.run(row_a._handlers["keydown"][0](DomEvent(key=row_a.key, type="keydown", value="ArrowDown")))
+        assert lst._row_by_key["b"].styles.box_shadow is not None
+        row_b = lst._row_by_key["b"]
+        asyncio.run(row_b._handlers["click"][0](DomEvent(key=row_b.key, type="click")))
+        assert lst._row_by_key["b"].styles.box_shadow is None
+
+    def test_bind_selected_two_way(self):
+        import asyncio
+
+        from neony.dom import Signal
+
+        lst = List("a", "b")
+        sig = Signal("a")
+        lst.bind_selected(sig)
+        sig.set("b")
+        assert lst.selected_key == "b"
+        row = lst._row_by_key["a"]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert sig() == "a"
+
+    def test_active_key_alias(self):
+        lst = List("a", "b")
+        lst.active_key = "b"
+        assert lst.selected_key == "b"
+        assert lst.active_key == "b"
+
+
+class TestDataTableBuild:
+    """Column config + data rows render a sticky-header grid table."""
+
+    def test_renders_header_and_rows(self):
+        dt = DataTable(
+            columns=[Column("Name"), Column("Age", align="right", width="80px")],
+            rows=[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 24}],
+        )
+        node = dt.build().to_node()
+        header, body = node.children[0], node.children[1]
+        assert len(header.children) == 2
+        assert _contains_text(header, "Name")
+        assert _contains_text(header, "Age")
+        # sticky header
+        assert header.styles["position"] == "sticky"
+        assert header.styles["top"] == "0"
+        assert header.styles["grid-template-columns"] == "1fr 80px"
+        # rows + cells
+        rows = body.children
+        assert len(rows) == 2
+        assert [r.attrs["role"] for r in rows] == ["row", "row"]
+        assert [[c.text for c in r.children] for r in rows] == [["Alice", "30"], ["Bob", "24"]]
+        assert all(c.attrs["role"] == "cell" for c in rows[0].children)
+        assert rows[0].styles["grid-template-columns"] == "1fr 80px"
+
+    def test_missing_cell_is_empty(self):
+        dt = DataTable(columns=[Column("Name"), Column("Age")], rows=[{"name": "x"}])
+        node = dt.build().to_node()
+        row = node.children[1].children[0]
+        assert [c.text for c in row.children] == ["x", ""]
+
+    def test_format_callback(self):
+        dt = DataTable(columns=[Column("Age", format=lambda v: f"{v}岁")], rows=[{"age": 30}])
+        node = dt.build().to_node()
+        assert node.children[1].children[0].children[0].text == "30岁"
+
+    def test_align_applies_text_align(self):
+        dt = DataTable(columns=[Column("Age", align="right")], rows=[{"age": 1}])
+        node = dt.build().to_node()
+        assert node.children[1].children[0].children[0].styles["text-align"] == "right"
+
+    def test_default_row_key_is_index(self):
+        dt = DataTable(columns=[Column("Name")], rows=[{"name": "a"}, {"name": "b"}])
+        assert dt._row_keys == ["0", "1"]
+
+    def test_custom_row_key(self):
+        dt = DataTable(columns=[Column("Name")], rows=[{"name": "a"}], row_key=lambda r: r["name"])
+        assert dt._row_keys == ["a"]
+
+    def test_duplicate_row_key_raises(self):
+        with pytest.raises(ValueError):
+            DataTable(
+                columns=[Column("Name")],
+                rows=[{"name": "a"}, {"name": "a"}],
+                row_key=lambda r: r["name"],
+            )
+
+    def test_duplicate_column_key_raises(self):
+        with pytest.raises(ValueError):
+            DataTable().column("Name").column(Column("name"))
+
+    def test_chainable_column_row(self):
+        dt = DataTable().column("Name").column("Age").row({"name": "x", "age": 1})
+        assert [col.title for col in dt.columns] == ["Name", "Age"]
+        assert dt.rows == [{"name": "x", "age": 1}]
+        assert dt._row_keys == ["0"]
+
+    def test_rows_setter_rebuilds(self):
+        dt = DataTable(columns=[Column("Name")], rows=[{"name": "a"}], row_key=lambda r: r["name"])
+        dt.rows = [{"name": "b"}, {"name": "c"}]
+        assert [row["name"] for row in dt.rows] == ["b", "c"]
+        assert dt._row_keys == ["b", "c"]
+
+
+class TestDataTableSort:
+    """Header sorting — numeric-aware, sort_key override, glyph state."""
+
+    def test_numeric_sort(self):
+        dt = DataTable(columns=[Column("Age", sortable=True)], rows=[{"age": 30}, {"age": 9}, {"age": 100}])
+        dt.sort_by = ("age", "asc")
+        assert [r["age"] for r in dt._display] == [9, 30, 100]
+        dt.sort_by = ("age", "desc")
+        assert [r["age"] for r in dt._display] == [100, 30, 9]
+
+    def test_str_sort(self):
+        dt = DataTable(columns=[Column("Name", sortable=True)], rows=[{"name": "b"}, {"name": "A"}, {"name": "a"}])
+        dt.sort_by = ("name", "asc")
+        assert [r["name"] for r in dt._display] == ["A", "a", "b"]
+
+    def test_sort_key_override(self):
+        dt = DataTable(
+            columns=[Column("Name", sortable=True, sort_key=lambda r: r["name"].lower())],
+            rows=[{"name": "B"}, {"name": "a"}],
+        )
+        dt.sort_by = ("name", "asc")
+        assert [r["name"] for r in dt._display] == ["a", "B"]
+
+    def test_header_click_toggles(self):
+        import asyncio
+
+        dt = DataTable(columns=[Column("Name", sortable=True)], rows=[{"name": "b"}, {"name": "a"}])
+        cell = dt._header_cells["name"]
+        asyncio.run(cell._handlers["click"][0](DomEvent(key=cell.key, type="click")))
+        assert dt.sort_by == ("name", "asc")
+        assert [r["name"] for r in dt._display] == ["a", "b"]
+        asyncio.run(cell._handlers["click"][0](DomEvent(key=cell.key, type="click")))
+        assert dt.sort_by == ("name", "desc")
+        assert [r["name"] for r in dt._display] == ["b", "a"]
+
+    def test_sort_preserves_selection(self):
+        dt = DataTable(
+            columns=[Column("Name", sortable=True)],
+            rows=[{"name": "b"}, {"name": "a"}],
+            row_key=lambda r: r["name"],
+            active_key="b",
+        )
+        dt.sort_by = ("name", "asc")
+        assert dt.selected_key == "b"
+
+    def test_sort_by_invalid_raises(self):
+        dt = DataTable(columns=[Column("Name", sortable=True)], rows=[{"name": "a"}])
+        with pytest.raises(ValueError):
+            dt.sort_by = ("age", "asc")
+        with pytest.raises(ValueError):
+            dt.sort_by = ("name", "up")
+
+    def test_rows_setter_keeps_sort(self):
+        dt = DataTable(columns=[Column("Age", sortable=True)], rows=[{"age": 2}, {"age": 1}])
+        dt.sort_by = ("age", "asc")
+        dt.rows = [{"age": 5}, {"age": 3}]
+        assert [r["age"] for r in dt._display] == [3, 5]
+
+    def test_glyph_marks_active_sort(self):
+        dt = DataTable(columns=[Column("Name", sortable=True)], rows=[{"name": "a"}])
+        glyph = dt._glyphs["name"]
+        assert glyph.container == ["↕"]
+        dt.sort_by = ("name", "desc")
+        assert glyph.container == ["↓"]
+
+
+class TestDataTableSelection:
+    """Row selection — single (selected_key) and multi (selected_keys)."""
+
+    def test_single_click_selects(self):
+        import asyncio
+
+        dt = DataTable(
+            columns=[Column("Name")],
+            rows=[{"name": "a"}, {"name": "b"}],
+            row_key=lambda r: r["name"],
+        )
+        fired: list = []
+        dt.on_change(lambda e: fired.append((e.value, e.source)))
+        row = dt._row_by_key["b"]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert dt.selected_key == "b"
+        assert fired == [("b", "user")]
+        rows = dt._root.to_node().children[1].children
+        assert [r.attrs.get("aria-selected") for r in rows] == ["false", "true"]
+
+    def test_programmatic_no_callback(self):
+        dt = DataTable(columns=[Column("Name")], rows=[{"name": "a"}], row_key=lambda r: r["name"])
+        fired: list = []
+        dt.on_change(lambda e: fired.append(e.value))
+        dt.selected_key = "a"
+        assert fired == []
+
+    def test_unknown_selected_key_raises(self):
+        dt = DataTable(columns=[Column("Name")], rows=[{"name": "a"}])
+        with pytest.raises(ValueError):
+            dt.selected_key = "nope"
+
+    def test_selected_key_none_clears(self):
+        dt = DataTable(columns=[Column("Name")], rows=[{"name": "a"}], row_key=lambda r: r["name"])
+        dt.selected_key = "a"
+        dt.selected_key = None
+        assert dt.selected_key is None
+
+    def test_multi_toggle(self):
+        import asyncio
+
+        dt = DataTable(
+            columns=[Column("Name")],
+            rows=[{"name": "a"}, {"name": "b"}],
+            row_key=lambda r: r["name"],
+            selection="multi",
+        )
+        dt.selected_keys = {"a"}
+        row = dt._row_by_key["a"]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert dt.selected_keys == frozenset()
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert dt.selected_keys == frozenset({"a"})
+
+    def test_multi_change_carries_toggled_key(self):
+        import asyncio
+
+        dt = DataTable(
+            columns=[Column("Name")],
+            rows=[{"name": "a"}, {"name": "b"}],
+            row_key=lambda r: r["name"],
+            selection="multi",
+        )
+        dt.selected_keys = {"a"}
+        fired: list = []
+        dt.on_change(lambda e: fired.append(e.value))
+        row = dt._row_by_key["b"]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert fired == ["b"]
+        assert dt.selected_keys == frozenset({"a", "b"})
+
+    def test_multi_selected_keys_setter_replaces(self):
+        dt = DataTable(
+            columns=[Column("Name")],
+            rows=[{"name": "a"}, {"name": "b"}, {"name": "c"}],
+            row_key=lambda r: r["name"],
+            selection="multi",
+        )
+        dt.selected_keys = {"a", "b"}
+        dt.selected_keys = ["c"]
+        assert dt.selected_keys == frozenset({"c"})
+        dt.selected_keys = None
+        assert dt.selected_keys == frozenset()
+
+    def test_multi_unknown_key_raises(self):
+        dt = DataTable(columns=[Column("Name")], rows=[{"name": "a"}], selection="multi")
+        with pytest.raises(ValueError):
+            dt.selected_keys = {"nope"}
+
+    def test_wrong_mode_property_raises(self):
+        single = DataTable(columns=[Column("Name")], rows=[{"name": "a"}])
+        with pytest.raises(NotImplementedError):
+            _ = single.selected_keys
+        multi = DataTable(columns=[Column("Name")], rows=[{"name": "a"}], selection="multi")
+        with pytest.raises(NotImplementedError):
+            _ = multi.selected_key
+
+    def test_bind_selected_multi_raises(self):
+        from neony.dom import Signal
+
+        multi = DataTable(columns=[Column("Name")], rows=[{"name": "a"}], selection="multi")
+        with pytest.raises(ValueError):
+            multi.bind_selected(Signal("a"))
+
+    def test_bind_selected_two_way(self):
+        import asyncio
+
+        from neony.dom import Signal
+
+        dt = DataTable(
+            columns=[Column("Name")],
+            rows=[{"name": "a"}, {"name": "b"}],
+            row_key=lambda r: r["name"],
+        )
+        sig = Signal("a")
+        dt.bind_selected(sig)
+        sig.set("b")
+        assert dt.selected_key == "b"
+        row = dt._row_by_key["a"]
+        asyncio.run(row._handlers["click"][0](DomEvent(key=row.key, type="click")))
+        assert sig() == "a"
+
+    def test_rows_replacement_prunes_selection(self):
+        dt = DataTable(
+            columns=[Column("Name")],
+            rows=[{"name": "a"}, {"name": "b"}],
+            row_key=lambda r: r["name"],
+            active_key="a",
+        )
+        dt.rows = [{"name": "c"}]
+        assert dt.selected_key is None
+
+
+class TestDataTableKeyboard:
+    """Keyboard nav — single selects, multi moves a focus ring."""
+
+    def test_arrow_down_single_moves_selection(self):
+        import asyncio
+
+        dt = DataTable(
+            columns=[Column("Name")],
+            rows=[{"name": "a"}, {"name": "b"}],
+            row_key=lambda r: r["name"],
+            active_key="a",
+        )
+        fired: list = []
+        dt.on_change(lambda e: fired.append(e.value))
+        row = dt._row_by_key["a"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value="ArrowDown")))
+        assert dt.selected_key == "b"
+        assert fired == ["b"]
+
+    def test_arrow_clamps_at_end(self):
+        import asyncio
+
+        dt = DataTable(
+            columns=[Column("Name")],
+            rows=[{"name": "a"}, {"name": "b"}],
+            row_key=lambda r: r["name"],
+            active_key="b",
+        )
+        fired: list = []
+        dt.on_change(lambda e: fired.append(e.value))
+        row = dt._row_by_key["b"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value="ArrowDown")))
+        assert dt.selected_key == "b"
+        assert fired == []
+
+    def test_arrow_down_multi_moves_focus_only(self):
+        import asyncio
+
+        dt = DataTable(
+            columns=[Column("Name")],
+            rows=[{"name": "a"}, {"name": "b"}],
+            row_key=lambda r: r["name"],
+            selection="multi",
+        )
+        row = dt._row_by_key["a"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value="ArrowDown")))
+        assert dt.selected_keys == frozenset()
+        assert dt._focus_key == "b"
+
+    def test_space_toggles_multi(self):
+        import asyncio
+
+        dt = DataTable(
+            columns=[Column("Name")],
+            rows=[{"name": "a"}, {"name": "b"}],
+            row_key=lambda r: r["name"],
+            selection="multi",
+        )
+        fired: list = []
+        dt.on_change(lambda e: fired.append(e.value))
+        row = dt._row_by_key["a"]
+        asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value=" ")))
+        assert dt.selected_keys == frozenset({"a"})
+        assert fired == ["a"]
+
+
+class TestProgrammaticMirrorToSignal:
+    """Programmatic value/selected_key/checked writes mirror into the
+    bound signal — the setter is the sync point, users never write
+    ``signal.set`` themselves."""
+
+    def test_list_selected_key_mirrors(self):
+        from neony.dom import Signal
+
+        lst = List("a", "b")
+        sig = Signal("a")
+        lst.bind_selected(sig)
+        lst.selected_key = "b"
+        assert sig() == "b"
+
+    def test_datatable_selected_key_mirrors(self):
+        from neony.dom import Signal
+
+        dt = DataTable(columns=[Column("N")], rows=[{"n": "a"}, {"n": "b"}], row_key=lambda r: r["n"])
+        sig = Signal("a")
+        dt.bind_selected(sig)
+        dt.selected_key = "b"
+        assert sig() == "b"
+
+    def test_combobox_value_mirrors(self):
+        from neony.dom import Signal
+
+        cb = ComboBox("Tag", options=["work"])
+        sig = Signal("")
+        cb.bind_value(sig)
+        cb.value = "work"
+        assert sig() == "work"
+
+    def test_input_value_mirrors(self):
+        from neony.dom import Signal
+
+        inp = Input()
+        sig = Signal("")
+        inp.bind_value(sig)
+        inp.value = "hi"
+        assert sig() == "hi"
+
+    def test_checkbox_checked_mirrors(self):
+        from neony.dom import Signal
+
+        cb = Checkbox("x")
+        sig = Signal(False)
+        cb.bind_value(sig)
+        cb.checked = True
+        assert sig() is True
+
+    def test_mirror_is_loop_safe(self):
+        """signal → component effect must not ping-pong with the mirror."""
+        from neony.dom import Signal
+
+        lst = List("a", "b")
+        sig = Signal("a")
+        lst.bind_selected(sig)
+        lst.selected_key = "b"  # mirror: sig → b
+        sig.set("a")  # drives the component back
+        assert lst.selected_key == "a"
+        assert sig() == "a"
+
+    def test_mirror_fires_no_user_callback(self):
+        from neony.dom import Signal
+
+        lst = List("a", "b")
+        sig = Signal("a")
+        lst.bind_selected(sig)
+        fired: list = []
+        lst.on_change(lambda e: fired.append(e.value))
+        lst.selected_key = "b"
+        assert fired == []
+        assert sig() == "b"
+
+    def test_unbind_stops_mirror(self):
+        from neony.dom import Signal
+
+        lst = List("a", "b")
+        sig = Signal("a")
+        lst.bind_selected(sig)
+        lst.unbind_selected()
+        lst.selected_key = "b"
+        assert sig() == "a"  # no longer mirrored
+
+
+class TestDataTableParentChain:
+    """Rebuilt rows must keep _parent links so dirty changes propagate."""
+
+    def test_body_parent_is_root(self):
+        dt = DataTable(columns=[Column("N")], rows=[{"n": "a"}], row_key=lambda r: r["n"])
+        assert dt._body._parent is dt._root
+
+    def test_rows_parent_is_body(self):
+        dt = DataTable(columns=[Column("N")], rows=[{"n": "a"}, {"n": "b"}], row_key=lambda r: r["n"])
+        assert dt._row_by_key["a"]._parent is dt._body
+
+    def test_column_rebuild_keeps_parent(self):
+        dt = DataTable().column("Name").row({"name": "x"})
+        assert dt._body._parent is dt._root
+        assert dt._row_by_key["0"]._parent is dt._body

@@ -118,6 +118,11 @@ class Styles(BaseModel):
     flex_basis: str | None = Field(default=None)
     gap: str | None = Field(default=None)
 
+    # --- Grid ---
+    # CSS grid-template-columns value, e.g. "1fr 1fr" / "80px 1fr" — the
+    # column tracks a display:grid container lays its items into.
+    grid_template_columns: str | None = Field(default=None)
+
     # --- Spacing ---
     padding: str | None = Field(default=None)
     padding_top: str | None = Field(default=None)

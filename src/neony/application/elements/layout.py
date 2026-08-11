@@ -160,7 +160,8 @@ class GlassPanel(Component):
     must have a *definite* height — a bare block container with auto
     height gives the panel nothing to grow into, and a scroll child
     (e.g. a Tree rail) inside it pushes the page open instead of
-    scrolling internally.
+    scrolling internally.  Fixed-size panels skip ``grow`` and pass an
+    explicit ``width`` / ``height`` instead.
     """
 
     def __init__(
@@ -178,6 +179,10 @@ class GlassPanel(Component):
         border_top_right_radius: str | None = None,
         border_bottom_left_radius: str | None = None,
         border_bottom_right_radius: str | None = None,
+        # Fixed-size panels: pair with ``grow=False`` — the glass face
+        # gets a definite width/height so its content is fully covered.
+        width: str | None = None,
+        height: str | None = None,
     ) -> None:
         super().__init__()
 
@@ -213,6 +218,8 @@ class GlassPanel(Component):
             border_top_right_radius=border_top_right_radius,
             border_bottom_left_radius=border_bottom_left_radius,
             border_bottom_right_radius=border_bottom_right_radius,
+            width=width,
+            height=height,
         )
         for child in children:
             if isinstance(child, Component):

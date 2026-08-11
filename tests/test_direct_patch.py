@@ -11,7 +11,7 @@ from typing import Any, cast
 
 from neony.application import Config, NeonApplication
 from neony.application._helpers import _Entry
-from neony.application.elements import Button, Input, VStack
+from neony.application.elements import Button, Column, DataTable, Input, VStack
 from neony.dom import Color, Div, DOMElement, Span, Styles
 from neony.dom.bridge import Neony
 from neony.dom.reactive import Signal
@@ -346,3 +346,52 @@ class TestAnimationDirectPatch:
         assert msg["rev"] == 2
         assert [op["op"] for op in msg["ops"]] == ["update_styles"]
         assert msg["ops"][0]["set"] == {"animation": "fade 0.5s ease"}
+
+
+class TestDataTableSelectionPatches:
+    """Selection styling must reach the DOM — dirty has to propagate from
+    the rebuilt rows up through the table to the page root."""
+
+    def test_row_click_emits_update_styles(self):
+        import asyncio
+
+        dt = DataTable(
+            columns=[Column("Name"), Column("Age", sortable=True)],
+            rows=[{"name": "Ada", "age": 38}, {"name": "Bob", "age": 24}],
+            row_key=lambda r: r["name"],
+            active_key="Ada",
+        )
+        app, fake, _ = _build_app(dt)
+
+        async def run() -> dict:
+            await app.render()  # mount
+            await _fire(app, "row:Bob", "click", "Bob")
+            await asyncio.sleep(0.05)  # deferred render
+            return fake.patches[-1]
+
+        msg = asyncio.run(run())
+        style_ops = [op for op in msg["ops"] if op["op"] == "update_styles"]
+        keys = {op["key"] for op in style_ops}
+        assert "row:Ada" in keys  # unselected → background removed
+        assert "row:Bob" in keys  # selected → surface applied
+
+    def test_sort_emits_structural_patches(self):
+        import asyncio
+
+        dt = DataTable(
+            columns=[Column("Age", sortable=True)],
+            rows=[{"age": 2}, {"age": 1}],
+            row_key=lambda r: str(r["age"]),
+        )
+        app, fake, _ = _build_app(dt)
+
+        async def run() -> dict:
+            await app.render()
+            dt.sort_by = ("age", "asc")
+            await app.render()
+            return fake.patches[-1]
+
+        msg = asyncio.run(run())
+        ops = {op["op"] for op in msg["ops"]}
+        assert {"create", "reorder"} <= ops
+        assert [r["age"] for r in dt._display] == [1, 2]

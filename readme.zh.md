@@ -99,6 +99,8 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Tabs`                    | 选项卡栏 + 面板，同时只显示一个 — 构造器子项、`selected_panel` / `selected_title` / `selected_key` |
 | `Accordion` / `Collapsible` | 单列滚动流中的可展开分组 — 流畅 `.section()`、多组同时展开、`expanded_keys`、`on_change` |
 | `Tree` / `TreeNode`       | 可折叠导航树 + 内容宿主 — 任意深度、流畅建造器写法、点叶子在右侧显示其面板 |
+| `List` / `ListItem`       | 可滚动单选数据列表 — listbox 模型、方向键移动选中、`selected_key` / `bind_selected` |
+| `DataTable` / `Column`    | 列配置 + 数据行 — 固定表头、点击排序、单选 / 多选行 |
 | `Icon`                    | 统一图标 — `Icon.image(url)` 固定方形图片或 `Icon.glyph(text)` 字形，TitleBar / Sidebar / Tabs / Tree 共用 |
 | `Flex`                    | 通用弹性容器，完全控制                                         |
 | `VStack` / `HStack`       | 纵向 / 横向弹性堆叠                                            |

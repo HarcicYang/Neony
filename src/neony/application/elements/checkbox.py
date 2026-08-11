@@ -109,6 +109,7 @@ class Checkbox(Component):
         self._checked = value
         self._input.checked = value  # immediate write; no callback
         self._apply_box_style()
+        self._mirror_value(value)
 
     @property
     def label(self) -> str:

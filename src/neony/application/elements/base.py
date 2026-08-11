@@ -99,10 +99,16 @@ class Component:
         # bind_value state — disposed/removed by unbind().
         self._value_effect: Effect | None = None
         self._value_writers: dict[str, Callable[[DomEvent], Any]] = {}
+        # The bound Signal — programmatic value/checked writes mirror into
+        # it (set by bind_value, cleared by unbind_value).
+        self._value_signal: Signal[Any] | None = None
         # bind_selected state — disposed/removed by unbind().
         self._selected_effect: Effect | None = None
         self._selected_writer: Callable[[DomEvent], Any] | None = None
         self._selected_event_bound: str | None = None
+        # The bound Signal — programmatic selected_key writes mirror into
+        # it (set by bind_selected, cleared by unbind_selected).
+        self._selected_signal: Signal[Any] | None = None
 
     def _track_component(self, child: Component) -> None:
         """Register a child Component so Page.build can walk the tree
@@ -184,9 +190,9 @@ class Component:
         on Select/Checkbox/Switch/Dropdown, both on ComboBox — carrying
         the value on ``_value_prop``; Checkbox binds ``checked``,
         Progress has no user channel and binds write-only.  Programmatic
-        value writes never fire callbacks, so the loop closes: user →
-        signal → component write-back re-applies the same value without
-        re-dispatching.
+        value writes mirror into the signal (equal values are a no-op,
+        so the signal → component effect never loops) but never fire
+        user ``on_*`` callbacks.
         """
         self.unbind_value()
         prop = type(self)._value_prop
@@ -195,6 +201,8 @@ class Component:
             setattr(self, prop, signal())
 
         self._value_effect = effect(write)
+        if isinstance(signal, Signal):
+            self._value_signal = signal
         events = type(self)._value_events
         if events is None:
             single = type(self)._value_event
@@ -217,7 +225,14 @@ class Component:
             if writer in callbacks:
                 callbacks.remove(writer)
         self._value_writers.clear()
+        self._value_signal = None
         return self
+
+    def _mirror_value(self, value: Any) -> None:
+        """Programmatic value/checked writes mirror into the bound
+        signal (set by :meth:`bind_value`) — equal values are a no-op."""
+        if self._value_signal is not None:
+            self._value_signal.set(value)
 
     def bind_selected(self, signal: Signal[Any] | Computed[Any]) -> Self:
         """Bind *signal* to the component's selected key, both ways.
@@ -228,9 +243,10 @@ class Component:
         signal.  :class:`Computed` is read-only — no write-back.  The
         user channel is the component's ``change`` event, carrying the
         key on ``event.value`` (pseudo-events like shortcuts dispatch
-        with ``source == "user"`` too).  Programmatic selections never
-        fire callbacks, so the loop closes the same way as
-        :meth:`bind_value`.
+        with ``source == "user"`` too).  Programmatic ``selected_key``
+        writes mirror into the signal (equal values are a no-op, so the
+        signal → component effect never loops) but never fire user
+        ``on_*`` callbacks.
         """
         self.unbind_selected()
 
@@ -239,6 +255,7 @@ class Component:
 
         self._selected_effect = effect(write)
         if isinstance(signal, Signal):
+            self._selected_signal = signal
 
             def writer(event: DomEvent) -> None:
                 signal.set(event.value)
@@ -260,7 +277,15 @@ class Component:
                 callbacks.remove(self._selected_writer)
         self._selected_writer = None
         self._selected_event_bound = None
+        self._selected_signal = None
         return self
+
+    def _mirror_selected(self, value: Any) -> None:
+        """Programmatic ``selected_key`` writes mirror into the bound
+        signal (set by :meth:`bind_selected`) — equal values are a
+        no-op."""
+        if self._selected_signal is not None:
+            self._selected_signal.set(value)
 
     def unbind(self) -> Self:
         """Dispose every signal binding on the root element (DOM

@@ -342,6 +342,7 @@ class Tree(Component):
         for node in self._leaves:
             self._apply_leaf_active(node)
         self._sync_host()
+        self._mirror_selected(value)
 
     @property
     def active_key(self) -> str | None:

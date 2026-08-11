@@ -609,7 +609,8 @@ GlassPanel(Heading("磨砂"), background=url, grow=True)  # 磨砂舞台
 
 - `VStack` / `HStack` / `Flex` 接受 `grow` 撑满剩余空间。
 - `GlassPanel`: 半透明表面 + 背景模糊;`background=url` 在面板内绘制图片;
-  `grow=True` 撑满父区域;`radius` 覆盖默认 12px 圆角。
+  `grow=True` 撑满父区域;`radius` 覆盖默认 12px 圆角;`width` / `height`
+  把面板固定为确定尺寸（配合默认非 `grow` 模式）。
 
 ---
 
@@ -712,6 +713,64 @@ for combo, fn in tree.shortcuts():
 `TreeNode(label, key, icon, panel, expanded, children, shortcut)` — 节点不能同时带 `panel` 与 `children`（否则抛错）。流畅建造器：`.panel(panel)` 挂叶子内容、`.children(*nodes)` 挂分支子节点、`.key_(key)` 设 key——全部可链式。
 
 `key` 默认为随机 id；`selected_key` 对未知 key 抛 `ValueError`。分支带 `aria-expanded`、叶子带 `aria-selected`；行支持键盘导航（方向键移动焦点环，Enter / 空格激活，← / → 收起 / 展开分支）。
+
+### `List` & `ListItem`
+
+可滚动单选数据列表（listbox 模型）。同时只有一个条目被选中；`selected_key` / `bind_selected` / `on_change` 与 `Sidebar` 行为一致。
+
+```python
+fruits = List(
+    "Apple",
+    "Banana",
+    ListItem("Cherry", key="cherry", icon=Icon.glyph("🍒")),
+    active_key="Apple",
+)
+fruits.on_change(lambda e: print(e.value))  # value = 选中 key
+fruits.selected_key = "cherry"  # 编程式写入，不触发回调
+fruits.children("Durian", "Elderberry")  # 链式追加
+fruits.bind_selected(signal)  # 双向响应式选中
+```
+
+**参数:** `List(*items, active_key=None, edge_fade=True)` — `items` 为字符串或 `ListItem(label, key=None, icon=None)`。字符串条目的 key 即其标签；标签冲突时须显式传 `key`（重复 key 抛错）。行是 `role="option"`，容器 `role="listbox"`；键盘：↑/↓ 移动选中（端点钳制，每次移动触发 `change`）、Home/End 跳到首尾、Enter/空格选中、点击选中。方向键导航时出现强调色焦点环，点击后清除。`edge_fade` 切换滚动指示器。
+
+挂载契约：须挂在**确定高度**的 flex 父级（如 `VStack(..., grow=1)` 或 `GlassPanel(grow=True)`）；列表内部滚动行，而不是撑破页面。
+
+### `DataTable` & `Column`
+
+表格数据视图——列配置 + 行 dict 列表，带固定表头、点击排序与行选中（默认单选，构造时可选多选）。
+
+```python
+people = DataTable(
+    columns=[
+        Column("Name", key="name", sortable=True, width="2fr"),
+        Column("Age", key="age", sortable=True, align="right", width="80px"),
+        Column("Score", key="score", align="right", format=lambda v: f"{v}%"),
+    ],
+    rows=[
+        {"name": "Ada", "age": 38, "score": 92},
+        {"name": "Bob", "age": 24, "score": 77},
+    ],
+    row_key=lambda r: r["name"],  # 默认：行索引
+    active_key="Ada",
+)
+people.on_change(lambda e: print(e.value))  # 选中行 key
+people.sort_by = ("age", "desc")  # 表头点击同样排序
+people.bind_selected(signal)  # 双向响应式选中
+```
+
+列与行也可链式追加：`DataTable().column("Name").row({"name": "Ada"})`。
+
+**参数:** `DataTable(columns=None, rows=None, *, row_key=None, selection="single", active_key=None, selected_keys=None, edge_fade=True)`。
+
+`Column(title, key=None, width=None, sortable=False, align=None, format=None, sort_key=None)` — `key` 默认为小写标题；`width` 为 CSS 网格轨道（`"1fr"` / `"80px"`）；`align` 为 `left|center|right`；`format` 把单元格值映射为文本；`sort_key` 从行中提取自定义排序值。
+
+`row_key` 派生每行的身份（默认行索引）且必须唯一。`sortable=True` 的表头点击排序（asc → desc，换列从 asc 开始）；排序数字感知（或用 `sort_key`），保留选中，可通过 `sort_by` 观察。表头在滚动容器内 `position: sticky`，横向滚动时表头与行保持对齐。
+
+**选中。** `selection="single"`（默认）暴露 `selected_key`（编程式写入不触发回调）；`selection="multi"` 暴露 `selected_keys`（接受 `set`/`frozenset`/`list`/`None`），点击切换成员——`change` 携带被切换的 key，全量状态读 `selected_keys`。`bind_selected` 仅单选用（否则抛错）；错配模式的属性抛 `NotImplementedError`。
+
+键盘：单选模式下方向键移动选中（触发 `change`）；多选模式下方向键移动焦点环、空格切换。Home/End 跳首尾；Enter/空格选中或切换。
+
+挂载契约：须挂在**确定高度**的 flex 父级；表格内部双轴滚动。`edge_fade` 切换滚动指示器。
 
 ### `Icon`
 

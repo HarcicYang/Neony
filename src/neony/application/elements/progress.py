@@ -106,6 +106,7 @@ class Progress(Component):
         self._value = _clamp(value, 0.0, self._max)
         self._fill.styles = _FILL.model_copy(update={"width": self._pct()})  # immediate write; no callback
         self._track.args = {**self._track.args, "aria-valuenow": f"{self._value:g}"}
+        self._mirror_value(self._value)
 
     @property
     def max(self) -> float:

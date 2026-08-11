@@ -229,12 +229,14 @@ class Tabs(Component):
                 raise ValueError("Tabs.selected_key: None needs a fallback_panel to select nothing")
             self._active = -1
             self._apply_visibility()
+            self._mirror_selected(value)
             return
         try:
             self._active = self._keys.index(value)
         except ValueError as exc:
             raise ValueError(f"Tabs.selected_key: unknown key {value!r}") from exc
         self._apply_visibility()
+        self._mirror_selected(value)
 
     @property
     def active(self) -> int:

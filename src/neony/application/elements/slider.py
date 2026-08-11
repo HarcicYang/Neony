@@ -162,6 +162,7 @@ class Slider(Component):
         self._value = _clamp(value, self._min, self._max)
         self._input.value = str(self._value)  # immediate write; no callback
         self._apply_fill(animated=True)
+        self._mirror_value(self._value)
 
     @property
     def label(self) -> str:

@@ -197,6 +197,7 @@ class Select(Component):
         self._sync_trigger()
         for i in range(len(self._rows)):
             self._apply_option_styles(i)
+        self._mirror_value(value)
 
     @property
     def label(self) -> str:
