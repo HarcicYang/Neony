@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import Literal
 
 from neony.application.theme import Theme, stub
-from neony.dom import BoxShadow, Color, DOMElement, DomEvent, Shadow, Styles, Transition
+from neony.dom import BoxShadow, Color, DOMElement, DomEvent, Shadow, Span, Styles, Transition
 from neony.dom import Button as _ButtonElem
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 
 class Button(Component):
@@ -27,7 +27,7 @@ class Button(Component):
 
     def __init__(
         self,
-        label: str = "",
+        label: ReactiveText = "",
         *,
         variant: Literal["primary", "ghost", "danger"] = "primary",
         glass: bool = False,
@@ -48,12 +48,21 @@ class Button(Component):
         # Semantic role for glow colouring (ghost → surface, subtle).
         self._role = {"primary": "accent", "ghost": "surface"}.get(variant, variant)
 
+        # The label (and icon) are child spans: reactive labels bind to
+        # the label span (a raw string child can't subscribe), and
+        # ``bubble_events`` lets clicks/hovers on those spans reach the
+        # button's own handlers.
+        self._icon_span: Span | None = Span(container=[icon]) if icon else None
+        self._label_span = Span(container=[])
+        _mount_text(self._label_span, label)
+
         self._btn = _ButtonElem(
             type="button",
             container=self._text_content(),
             styles=self._variant_styles(variant, glass),
             disabled=disabled,
         )
+        self._btn.bubble_events = True
 
         self._root = self._btn
         self._bind(self._btn, "click")
@@ -74,10 +83,9 @@ class Button(Component):
 
     def _text_content(self) -> list[DOMElement | str]:
         parts: list[DOMElement | str] = []
-        if self._icon:
-            parts.append(self._icon)
-        if self._label:
-            parts.append(self._label)
+        if self._icon_span is not None:
+            parts.append(self._icon_span)
+        parts.append(self._label_span)
         return parts
 
     @staticmethod
@@ -174,12 +182,14 @@ class Button(Component):
 
     @property
     def label(self) -> str:
-        return self._label
+        if isinstance(self._label, str):
+            return self._label
+        return self._label()
 
     @label.setter
     def label(self, value: str) -> None:
         self._label = value
-        self._btn.container = self._text_content()
+        self._label_span.container = [value]
 
     @property
     def icon(self) -> str | None:
@@ -188,7 +198,15 @@ class Button(Component):
     @icon.setter
     def icon(self, value: str | None) -> None:
         self._icon = value
-        self._btn.container = self._text_content()
+        if self._icon_span is not None:
+            if value:
+                self._icon_span.container = [value]
+            else:
+                self._icon_span = None
+                self._btn.container = self._text_content()
+        elif value:
+            self._icon_span = Span(container=[value])
+            self._btn.container = self._text_content()
 
     @property
     def disabled(self) -> bool:

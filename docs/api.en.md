@@ -251,6 +251,70 @@ page.on_download_completed(lambda url, path, ok: print(f"downloaded {path}"))
 
 ---
 
+## Internationalization
+
+Reactive, framework-wide i18n. The active language is a `Signal`; every
+`tr` reference is a `Computed[str]`, so bound text updates live on
+`set_language()` without losing widget state.
+
+**Catalogs are typed, not dicts.** `Catalog` is a frozen pydantic model —
+each field is a translation key with an English default; one instance per
+language. Subclass it to add app keys (flat `str` fields or nested
+sub-model groups); pydantic class defaults give per-key English fallback.
+
+```python
+from neony.application import Catalog, Common, Language, register_catalog, set_language, tr, tr_now
+
+
+class FilesCatalog(Catalog):
+    count: str = "{n} files"
+
+
+class AppCatalog(Catalog):
+    save: str = "Save"  # → tr.save
+    files: FilesCatalog = FilesCatalog()  # → tr.files.count
+
+
+register_catalog(Language.EN, AppCatalog())
+register_catalog(
+    Language.ZH,
+    AppCatalog(
+        save="保存",
+        files=FilesCatalog(count="{n} 个文件"),
+        common=Common(copy_text="复制", delete="删除", ok="确定", cancel="取消", close="关闭"),
+    ),
+)
+
+tr.common.copy_text  # Computed[str] → "Copy" (updates live on switch)
+tr.files.count.format(n=5)  # interpolation → "5 files"
+tr_now(tr.common.copy_text)  # immediate read, no subscription (display-time)
+set_language(Language.ZH)  # all tr.* bindings re-resolve
+app.set_language(Language.ZH) / app.language  # app-level convenience
+```
+
+- **`Language`** — a `StrEnum` of the built-in languages
+  (`EN/ZH/JA/FR/DE/ES/PT/RU`); `set_language` rejects unknown codes with
+  `ValueError`. A valid language with no registered catalog falls back to
+  English.
+- **`Catalog` / `Common`** — frozen pydantic models
+  (`extra="forbid"` catches key typos). `Common` carries the
+  framework-owned labels (`copy_text`, `delete`, `ok`, `cancel`, `close`).
+- **`tr`** — a chainable proxy. `tr.<key>` and `tr.<group>.<key>` each
+  return a reactive `Computed[str]`; pass them to any component that
+  accepts reactive text (`Text`, `Button` — and the shared
+  `_mount_text` helper lets any component adopt it). `tr.<key>.get()`
+  reads the current value.
+- **`tr_now(tr.xx.xxx)`** — the current value without subscribing; for
+  component defaults and menus resolved at display time. Safe inside
+  effects (no dependency leak).
+- **Reserved key names** — keys that collide with `Computed`'s API
+  (`get`, `format`) or start with `_` cannot be referenced through the
+  `tr` chain.
+- Framework defaults (MessageBubble's built-in right-click menu,
+  `PromptDialog`'s confirm/cancel) resolve through the catalog.
+
+---
+
 ## Components
 
 All inherit `Component` — fluent `on_*` chaining, state properties,

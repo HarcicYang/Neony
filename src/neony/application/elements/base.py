@@ -53,6 +53,20 @@ _DOM_EVENTS = frozenset(
     }
 )
 
+#: A text value that is either a plain string or a reactive source
+#: (Signal/Computed, e.g. ``tr.common.copy``) — components mount these
+#: via :func:`_mount_text` so language switches update live.
+ReactiveText = str | Signal[str] | Computed[str]
+
+
+def _mount_text(root: DOMElement, value: ReactiveText) -> None:
+    """Set *root*'s text content to *value*; bind reactively when it's a
+    Signal/Computed (see :meth:`DOMElement.bind_text`)."""
+    if isinstance(value, (Signal, Computed)):
+        root.bind_text(value)
+    else:
+        root.container = [value]
+
 
 class Component:
     """Base class for all Neony UI components.  Subclasses build their

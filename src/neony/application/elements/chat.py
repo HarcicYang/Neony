@@ -34,6 +34,7 @@ from neony.dom import (
 )
 from neony.dom import Button as _ButtonElem
 
+from ..i18n import tr, tr_now
 from .avatar import Avatar
 from .base import Component
 from .icon import Icon
@@ -101,7 +102,11 @@ _ACTION = Styles(
     cursor="pointer",
 )
 
-_DEFAULT_MENU: tuple[tuple[str, str], ...] = (("copy", "Copy"), ("delete", "Delete"))
+
+def _default_menu() -> tuple[tuple[str, str], ...]:
+    """The built-in right-click menu labels, resolved in the active language."""
+    return (("copy", tr_now(tr.common.copy_text)), ("delete", tr_now(tr.common.delete)))
+
 
 _NOTICE = Styles(
     display="inline-flex",
@@ -155,7 +160,7 @@ class MessageBubble(Component):
         avatar: Avatar | None = None,
         content: Component | DOMElement | None = None,
         actions: Sequence[str | tuple[str, str] | Icon] = (),
-        menu_items: Sequence[str | tuple[str, str]] = _DEFAULT_MENU,
+        menu_items: Sequence[str | tuple[str, str]] | None = None,
     ) -> None:
         super().__init__()
         self._text = text
@@ -166,6 +171,8 @@ class MessageBubble(Component):
         self._actions_shown = False
 
         self._menu: Menu | None = None
+        if menu_items is None:
+            menu_items = _default_menu()
         if menu_items:
             self._menu = Menu(*menu_items)
             self._menu.on_change(self._on_menu_change)

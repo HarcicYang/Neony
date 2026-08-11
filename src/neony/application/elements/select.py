@@ -165,7 +165,10 @@ class Select(Component):
         )
         self._popup = Div(styles=_PANEL, container=[])
         self._wrapper = Div(styles=_WRAP, container=[self._trigger, self._popup])
-        # Keydowns from the trigger or a focused option bubble up here.
+        # Clicks on the selected span bubble to the trigger (which owns
+        # the click handler); keydowns from a focused option bubble up to
+        # the wrapper.
+        self._trigger.bubble_events = True
         self._wrapper.bubble_events = True
         self._label_span = Span(container=[label])
         self._root = _LabelElem(styles=_ROW, container=[self._wrapper, self._label_span])
@@ -321,15 +324,16 @@ class Select(Component):
 
     async def _on_event(self, event_type: str, event: DomEvent) -> None:
         if event_type == "click":
-            if event.key == self._trigger.key:
-                # Trigger toggle — option rows select through their own
-                # _bind handlers (distinguished by key above).
+            if event.key in self._row_by_key:
+                await self._select(self._row_by_key[event.key], event)
+            else:
+                # The trigger's selected span bubbles clicks with the span's
+                # key (not the trigger's) — anything that isn't an option
+                # row is a trigger toggle.
                 if self._open:
                     self._close()
                 else:
                     self._open_popup()
-            elif event.key in self._row_by_key:
-                await self._select(self._row_by_key[event.key], event)
         elif event_type == "mouseover":
             index = self._index_of_row(event.key)
             if index >= 0:

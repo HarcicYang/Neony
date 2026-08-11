@@ -21,6 +21,7 @@ from typing import Any, Self
 from neony.application.theme import stub
 from neony.dom import Div, DomEvent, Span, Styles
 
+from ..i18n import tr, tr_now
 from .dialog import Dialog  # reuses its module-level panel/scrim styles
 from .input import Input
 
@@ -46,8 +47,8 @@ class PromptDialog(Dialog):
         value: str = "",
         placeholder: str = "",
         title: str = "",
-        confirm_label: str = "OK",
-        cancel_label: str = "Cancel",
+        confirm_label: str | None = None,
+        cancel_label: str | None = None,
         open: bool = False,
         width: str = "420px",
     ) -> None:
@@ -77,6 +78,10 @@ class PromptDialog(Dialog):
             width=width,
             actions=(),  # we build our own button row below
         )
+
+        # Default labels come from the active language catalog.
+        confirm_label = confirm_label if confirm_label is not None else tr_now(tr.common.ok)
+        cancel_label = cancel_label if cancel_label is not None else tr_now(tr.common.cancel)
 
         # Replace the (empty) action bar with our confirm/cancel row.
         confirm_btn = self._make_action_button(confirm_label, "primary", self._on_confirm)

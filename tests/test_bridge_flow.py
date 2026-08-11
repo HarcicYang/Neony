@@ -630,6 +630,46 @@ class TestEventBubbling:
         asyncio.run(_fire(app, "parent", "click"))
         assert calls == ["child", "parent", "parent"]
 
+    def test_button_label_span_click_reaches_button(self):
+        """A button's label is a child span — a click there (JS resolves it
+        to the span's key) must bubble to the button's own handler."""
+        from neony.application.elements import Button
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        btn = Button("Save")
+        calls: list[str] = []
+        btn.on_click(lambda e: calls.append("clicked"))
+        _setup_entry(app, btn.build(), fake)
+
+        asyncio.run(_fire(app, btn._label_span.key, "click"))
+        assert calls == ["clicked"]
+
+    def test_dropdown_label_span_click_opens_popup(self):
+        """Regression: clicking the dropdown's label text must open the
+        popup — the label span's click bubbles to the trigger (which owns
+        the click handler and is now bubble_events)."""
+        from neony.application.elements import Dropdown
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        dd = Dropdown("Theme", items=[("dark", "Dark")])
+        _setup_entry(app, dd.build(), fake)
+
+        asyncio.run(_fire(app, dd._label_span.key, "click"))
+        assert dd._open is True
+
+    def test_select_label_span_click_opens_popup(self):
+        from neony.application.elements import Select
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        sel = Select("Size", options=[("s", "Small")])
+        _setup_entry(app, sel.build(), fake)
+
+        asyncio.run(_fire(app, sel._selected_span.key, "click"))
+        assert sel._open is True
+
 
 class TestTypedState:
     """``state=`` accepts a custom dataclass / model; default stays SimpleNamespace."""

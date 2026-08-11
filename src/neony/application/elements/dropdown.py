@@ -144,7 +144,10 @@ class Dropdown(Component):
         )
         self._popup = Div(styles=_PANEL, container=[])
         self._wrapper = Div(styles=_WRAP, container=[self._trigger, self._popup])
-        # Keydowns from the trigger or a focused option bubble up here.
+        # Clicks on the label/chevron spans bubble to the trigger (which
+        # owns the click handler); keydowns from a focused option bubble
+        # up to the wrapper.
+        self._trigger.bubble_events = True
         self._wrapper.bubble_events = True
         self._root = self._wrapper
 
@@ -265,13 +268,16 @@ class Dropdown(Component):
 
     async def _on_event(self, event_type: str, event: DomEvent) -> None:
         if event_type == "click":
-            if event.key == self._trigger.key:
+            if event.key in self._row_by_key:
+                await self._select(self._row_by_key[event.key], event)
+            else:
+                # The trigger's label/chevron spans bubble clicks with the
+                # span's key (not the trigger's) — anything that isn't an
+                # option row is a trigger toggle.
                 if self._open:
                     self._close()
                 else:
                     self._open_popup()
-            elif event.key in self._row_by_key:
-                await self._select(self._row_by_key[event.key], event)
         elif event_type == "mouseover":
             index = self._index_of_row(event.key)
             if index >= 0:

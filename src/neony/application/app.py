@@ -31,6 +31,8 @@ from neony.application.tray import Tray
 from neony.dom import DOMElement, DomEvent, KeyFrame
 from neony.dom.bridge import Neony
 
+from . import i18n
+
 # User state type: inferred from the ``state=`` constructor argument
 # (dataclass, pydantic model, ...).  Falls back to SimpleNamespace.
 _S = TypeVar("_S")
@@ -369,6 +371,17 @@ class NeonApplication(Generic[_S]):
         """Swap the active theme preset and re-inject its CSS into every page."""
         self.theme = theme
         await self.sync_theme()
+
+    def set_language(self, language: i18n.Language | str) -> None:
+        """Switch the active UI language — ``tr`` bindings update live.
+        An invalid code raises ValueError; a valid language with no
+        registered catalog falls back to English."""
+        i18n.set_language(language)
+
+    @property
+    def language(self) -> i18n.Language:
+        """The active UI language."""
+        return i18n.get_language()
 
     def register_keyframe(self, kf: KeyFrame) -> Self:
         """Register a :class:`KeyFrame` for injection into every window

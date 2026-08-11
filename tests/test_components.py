@@ -68,6 +68,15 @@ def _contains_text(node: NodeDescriptor, text: str) -> bool:
     return any(n.text == text for n in _walk(node))
 
 
+def _subtree_text(node: NodeDescriptor) -> str:
+    """The first non-empty text in the subtree — buttons now render their
+    label in a child span, so ``node.text`` on the button is empty."""
+    for n in _walk(node):
+        if n.text:
+            return n.text
+    return ""
+
+
 def _find_button(node: NodeDescriptor, label: str) -> NodeDescriptor | None:
     """Find a <button> leaf whose text matches ``label``."""
     for n in _walk(node):
@@ -97,7 +106,7 @@ class TestComponentBuild:
         btn = Button("Save")
         node = btn.build().to_node()
         assert node.tag == "button"
-        assert node.text == "Save"
+        assert _subtree_text(node) == "Save"
         assert node.styles["background-color"] == "var(--color-accent)"
 
     def test_button_ghost_variant(self):
@@ -236,7 +245,7 @@ class TestComponentState:
     def test_button_label_setter(self):
         btn = Button("A")
         btn.label = "B"
-        assert btn.build().to_node().text == "B"
+        assert _subtree_text(btn.build().to_node()) == "B"
 
 
 class TestComponentEvents:
@@ -1956,7 +1965,7 @@ class TestDialogBuild:
         assert panel is not None
         bar = panel.children[-1]  # the action bar is the last panel child
         assert bar.styles["display"] == "flex"
-        assert [b.text for b in bar.children] == ["确认", "取消"]
+        assert [_subtree_text(b) for b in bar.children] == ["确认", "取消"]
 
 
 class TestDialogEvents:

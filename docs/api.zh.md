@@ -235,6 +235,65 @@ app.tray = Tray(
 
 ---
 
+## 国际化（i18n）
+
+响应式、框架级 i18n。当前语言是一个 `Signal`；每个 `tr` 引用都是
+`Computed[str]`，因此绑定文本在 `set_language()` 时实时更新，不丢失
+widget 状态。
+
+**目录是类型化模型，不是 dict。** `Catalog` 是 frozen pydantic 模型——
+每个字段是一个翻译 key，带英文默认值；每种语言一个实例。子类化以添加
+应用 key（扁平 `str` 字段或嵌套子模型分组）；pydantic 类默认值天然提供
+逐 key 英文回退。
+
+```python
+from neony.application import Catalog, Common, Language, register_catalog, set_language, tr, tr_now
+
+
+class FilesCatalog(Catalog):
+    count: str = "{n} files"
+
+
+class AppCatalog(Catalog):
+    save: str = "Save"  # → tr.save
+    files: FilesCatalog = FilesCatalog()  # → tr.files.count
+
+
+register_catalog(Language.EN, AppCatalog())
+register_catalog(
+    Language.ZH,
+    AppCatalog(
+        save="保存",
+        files=FilesCatalog(count="{n} 个文件"),
+        common=Common(copy_text="复制", delete="删除", ok="确定", cancel="取消", close="关闭"),
+    ),
+)
+
+tr.common.copy_text  # Computed[str] → "Copy"（切换语言时实时更新）
+tr.files.count.format(n=5)  # 插值 → "5 files"
+tr_now(tr.common.copy_text)  # 即时读、不订阅（展示时解析）
+set_language(Language.ZH)  # 所有 tr.* 绑定重新解析
+app.set_language(Language.ZH) / app.language  # app 级便捷方法
+```
+
+- **`Language`** —— 内置语言的 `StrEnum`（`EN/ZH/JA/FR/DE/ES/PT/RU`）；
+  `set_language` 对未知语言抛 `ValueError`。合法但未注册目录的语言回落到英文。
+- **`Catalog` / `Common`** —— frozen pydantic 模型（`extra="forbid"` 抓
+  key 拼写错误）。`Common` 承载框架自带文案（`copy_text`、`delete`、
+  `ok`、`cancel`、`close`）。
+- **`tr`** —— 链式代理。`tr.<key>` 与 `tr.<group>.<key>` 各返回一个
+  响应式 `Computed[str]`；传给任何接受响应式文本的组件（`Text`、
+  `Button`——共享的 `_mount_text` helper 让任意组件都能接入）。
+  `tr.<key>.get()` 读当前值。
+- **`tr_now(tr.xx.xxx)`** —— 不订阅地读当前值；用于组件默认文案与
+  菜单的展示时解析。在 effect 内安全（不漏建依赖）。
+- **保留 key 名** —— 与 `Computed` 方法重名（`get`、`format`）或以 `_`
+  开头的 key 无法经 `tr` 链引用。
+- 框架默认文案（MessageBubble 内置右键菜单、`PromptDialog` 的
+  确定/取消）经目录解析。
+
+---
+
 ## 组件
 
 所有组件继承 `Component` — 链式 `on_*` 方法、状态属性、源感知事件。

@@ -5,7 +5,7 @@ from __future__ import annotations
 from neony.application.theme import stub
 from neony.dom import Color, Span, Styles
 
-from .base import Component
+from .base import Component, ReactiveText, _mount_text
 
 
 class Text(Component):
@@ -21,7 +21,7 @@ class Text(Component):
 
     def __init__(
         self,
-        text: str = "",
+        text: ReactiveText = "",
         *,
         role: str = "primary",
         size: str | None = None,
@@ -30,13 +30,16 @@ class Text(Component):
         super().__init__()
         self._text = text
         self._root = Span(
-            container=[text],
+            container=[],
             styles=Styles(
                 color=self._role_color(role),
                 font_size=size,
                 font_weight=weight,
             ),
         )
+        # Reactive text (a Signal/Computed, e.g. ``tr.common.copy``) binds
+        # so language switches update live; plain strings are set directly.
+        _mount_text(self._root, text)
 
     @staticmethod
     def _role_color(role: str) -> Color:
@@ -50,7 +53,9 @@ class Text(Component):
 
     @property
     def text(self) -> str:
-        return self._text
+        if isinstance(self._text, str):
+            return self._text
+        return self._text()
 
     @text.setter
     def text(self, value: str) -> None:
