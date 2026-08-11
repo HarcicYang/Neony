@@ -10,6 +10,7 @@ from neony.application.elements.badge import Badge
 from neony.application.elements.base import Component
 from neony.application.elements.button import Button
 from neony.application.elements.card import Card
+from neony.application.elements.chat import MessageBubble, NoticeBubble
 from neony.application.elements.checkbox import Checkbox
 from neony.application.elements.combobox import ComboBox
 from neony.application.elements.datatable import Column, DataTable
@@ -32,6 +33,7 @@ from neony.application.elements.switch import Switch
 from neony.application.elements.tabs import Tabs
 from neony.application.elements.text import Text
 from neony.application.elements.titlebar import TitleBar
+from neony.application.elements.toast import Toast
 from neony.application.elements.tooltip import Tooltip
 from neony.application.elements.treeview import Tree, TreeNode
 
@@ -60,6 +62,8 @@ __all__ = [
     "List",
     "ListItem",
     "Menu",
+    "MessageBubble",
+    "NoticeBubble",
     "Pane",
     "Progress",
     "PromptDialog",
@@ -76,6 +80,7 @@ __all__ = [
     "Tabs",
     "Text",
     "TitleBar",
+    "Toast",
     "Tooltip",
     "Tree",
     "TreeNode",

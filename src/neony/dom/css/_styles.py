@@ -63,6 +63,10 @@ class Styles(BaseModel):
     display: Literal["block", "inline", "inline-block", "flex", "grid", "inline-flex", "none"] | None = Field(
         default=None
     )
+    # Hit-testing: ``none`` makes an element (and its subtree) transparent
+    # to the pointer — the toast host's full-viewport overlay uses it so
+    # clicks pass through to the page beneath.
+    pointer_events: Literal["auto", "none"] | None = Field(default=None)
     position: Literal["static", "relative", "absolute", "fixed", "sticky"] | None = Field(default=None)
     top: str | None = Field(default=None)
     left: str | None = Field(default=None)

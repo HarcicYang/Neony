@@ -95,6 +95,26 @@ _BUILTIN_KEYFRAMES: list[KeyFrame] = [
     .set("100%", Props(transform=Transform.translate(x="300%"))),
 ]
 
+# Directional toast entrance keyframes — one per :class:`Toast` placement,
+# sliding in from the edge/corner the toast sits at and settling into
+# place (top placements drop down, bottom rise up, corners slide
+# diagonally).  The ``Toast`` card references one by name and its exit
+# replays the same keyframe reversed, toward the same (dx, dy) offset.
+_TOAST_ENTRY_OFFSETS: dict[str, tuple[int, int]] = {
+    "tl": (-20, -20),
+    "tc": (0, -20),
+    "tr": (20, -20),
+    "bl": (-20, 20),
+    "bc": (0, 20),
+    "br": (20, 20),
+}
+_BUILTIN_KEYFRAMES += [
+    KeyFrame(f"neony-toast-in-{pos}")
+    .set("0%", Props(opacity=0, transform=Transform.translate(x=dx, y=dy)))
+    .set("100%", Props(opacity=1, transform=Transform.translate(x=0, y=0)))
+    for pos, (dx, dy) in _TOAST_ENTRY_OFFSETS.items()
+]
+
 
 def _file_info(path: str) -> dict[str, Any]:
     """One ``drop_files`` entry from a real path: name from the basename,

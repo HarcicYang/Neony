@@ -23,6 +23,8 @@ from neony.application.elements import (
     List,
     ListItem,
     Menu,
+    MessageBubble,
+    NoticeBubble,
     Pane,
     Progress,
     PromptDialog,
@@ -36,6 +38,7 @@ from neony.application.elements import (
     Switch,
     Tabs,
     Text,
+    Toast,
     Tooltip,
     Tree,
     TreeNode,
@@ -1571,6 +1574,18 @@ class TestObjectFitStyle:
         assert "object-fit: cover" in Img(src="x", styles=styles).build()
 
 
+class TestPointerEventsStyle:
+    """The Styles.pointer_events field serializes to pointer-events."""
+
+    def test_pointer_events_serializes(self):
+        from neony.dom import Div, Styles
+
+        assert Styles(pointer_events="none").pointer_events == "none"
+        assert "pointer-events: none" in Div(styles=Styles(pointer_events="none")).build()
+        # the field is nullable — unset means no pointer-events rule.
+        assert "pointer-events" not in Div(styles=Styles(pointer_events=None)).build()
+
+
 class TestSidebarItemBoundEvents:
     """SidebarItem declares its bound events — on_click must not
     double-wire the root (regression for the missing _bound_events)."""
@@ -2823,7 +2838,7 @@ class TestSidebarPaneBuild:
         assert rail.styles["background-color"] == "var(--color-surface-glass-bg)"
 
     def test_gallery_bare_rail_config(self):
-        """demo_gallery's construction must keep working unchanged."""
+        """The gallery's bare-rail Sidebar config must keep working unchanged."""
         sidebar = Sidebar(
             SidebarItem("Home", icon=Icon.glyph("🏠")),
             SidebarItem("Settings", icon=Icon.glyph("⚙️")),
@@ -4503,3 +4518,513 @@ class TestDataTableParentChain:
         dt = DataTable().column("Name").row({"name": "x"})
         assert dt._body._parent is dt._root
         assert dt._row_by_key["0"]._parent is dt._body
+
+
+class TestToastBuild:
+    """Toast host layer + card construction."""
+
+    def test_root_is_pass_through_layer(self):
+        toast = Toast()
+        assert toast._root.styles.position == "fixed"
+        assert toast._root.styles.pointer_events == "none"
+        assert toast._root.styles.z_index == 1100
+        assert toast._root.styles.display == "flex"
+        assert toast._root.styles.flex_direction == "column"
+
+    def test_placement_alignment(self):
+        from neony.application.elements import Toast
+
+        top_right = Toast(placement="top-right")
+        assert top_right._root.styles.align_items == "flex-end"
+        assert top_right._root.styles.justify_content == "flex-start"
+        bottom_center = Toast(placement="bottom-center")
+        assert bottom_center._root.styles.align_items == "center"
+        assert bottom_center._root.styles.justify_content == "flex-end"
+
+    def test_placement_setter_relocates(self):
+        from neony.application.elements import Toast
+
+        toast = Toast(placement="top-right")
+        toast.placement = "bottom-left"
+        assert toast.placement == "bottom-left"
+        assert toast._prepend is False
+        assert toast._suffix == "bl"
+        assert toast._root.styles.align_items == "flex-start"
+        assert toast._root.styles.justify_content == "flex-end"
+        toast.show("x")
+        anim = toast._cards[0].el.styles.animation
+        assert isinstance(anim, Animation)
+        assert anim.name == "neony-toast-in-bl"
+
+    def test_top_offset_clears_chrome(self):
+        """Top placements start below top_offset (e.g. a TitleBar); bottom
+        placements still hug the window edge."""
+        from neony.application.elements import Toast
+
+        top = Toast(placement="top-right", top_offset="40px")
+        assert top._root.styles.top == "40px"
+        # relocating keeps the offset
+        top.placement = "top-left"
+        assert top._root.styles.top == "40px"
+        bottom = Toast(placement="bottom-left", top_offset="40px")
+        assert bottom._root.styles.top == "0"
+
+    def test_show_creates_card(self):
+        from neony.application.theme import stub
+
+        toast = Toast()
+        toast.show("Saved", type="success")
+        assert len(toast._cards) == 1
+        card = toast._cards[0].el
+        assert card.styles.pointer_events == "auto"
+        assert card.args.get("role") == "status"
+        # a coloured accent dot, the message, and a ✕ button.
+        dot = card.container[0]
+        assert isinstance(dot, DOMElement)
+        assert dot.styles.background_color == stub.success
+        assert "Saved" in card.build()
+
+    def test_type_colors(self):
+        from neony.application.elements import Toast
+        from neony.application.theme import stub
+
+        def dot(toast: Toast) -> DOMElement:
+            el = toast._cards[0].el.container[0]
+            assert isinstance(el, DOMElement)
+            return el
+
+        info = Toast()
+        info.show("i", type="info")
+        assert dot(info).styles.background_color == stub.accent
+        error = Toast()
+        error.show("e", type="error")
+        assert dot(error).styles.background_color == stub.danger
+
+    def test_top_prepends_bottom_appends(self):
+        from neony.application.elements import Toast
+
+        def label(record) -> str:
+            span = record.el.container[1]
+            assert isinstance(span, DOMElement)
+            return str(span.container[0])
+
+        top = Toast(placement="top-right")
+        top.show("A")
+        top.show("B")
+        assert label(top._cards[0]) == "B"  # newest on top
+        assert label(top._cards[1]) == "A"
+
+        bottom = Toast(placement="bottom-right")
+        bottom.show("A")
+        bottom.show("B")
+        assert label(bottom._cards[0]) == "A"  # newest hugs the edge
+        assert label(bottom._cards[1]) == "B"
+
+    def test_enter_keyframe_matches_placement(self):
+        from neony.application.elements import Toast
+
+        def enter_name(toast: Toast) -> str:
+            anim = toast._cards[0].el.styles.animation
+            assert isinstance(anim, Animation)
+            return anim.name
+
+        top_right = Toast(placement="top-right")
+        top_right.show("x")
+        assert enter_name(top_right) == "neony-toast-in-tr"
+
+        bottom_center = Toast(placement="bottom-center")
+        bottom_center.show("x")
+        assert enter_name(bottom_center) == "neony-toast-in-bc"
+
+
+class TestToastState:
+    """Auto-dismiss, eviction, clear."""
+
+    def test_auto_dismiss_removes_after_duration(self):
+        import asyncio
+
+        from neony.application.elements import Toast
+
+        toast = Toast(placement="top-right")
+
+        async def run() -> None:
+            toast.show("x", duration=0.02)
+            assert len(toast._cards) == 1
+            await asyncio.sleep(0.4)  # duration + exit animation
+            assert len(toast._cards) == 0
+
+        asyncio.run(run())
+
+    def test_zero_duration_sticks(self):
+        import asyncio
+
+        from neony.application.elements import Toast
+
+        toast = Toast(placement="top-right")
+        toast.show("x", duration=0)
+
+        async def run() -> None:
+            await asyncio.sleep(0.1)
+            assert len(toast._cards) == 1
+
+        asyncio.run(run())
+
+    def test_max_toasts_evicts_oldest(self):
+        import asyncio
+
+        from neony.application.elements import Toast
+
+        toast = Toast(placement="top-right", max_toasts=2)
+
+        async def run() -> None:
+            toast.show("A")
+            toast.show("B")
+            toast.show("C")
+            await asyncio.sleep(0.4)  # let the eviction exit play out
+            # A was furthest from the top edge — evicted.
+            labels = []
+            for c in toast._cards:
+                span = c.el.container[1]
+                assert isinstance(span, DOMElement)
+                labels.append(str(span.container[0]))
+            assert sorted(labels) == ["B", "C"]
+
+        asyncio.run(run())
+
+    def test_clear_removes_all(self):
+        import asyncio
+
+        from neony.application.elements import Toast
+
+        toast = Toast(placement="top-right")
+
+        async def run() -> None:
+            toast.show("a", duration=10)
+            toast.show("b", duration=10)
+            assert len(toast._cards) == 2
+            toast.clear()
+            assert len(toast._cards) == 0
+            assert len(toast._root.container) == 0
+
+        asyncio.run(run())
+
+
+class TestToastEvents:
+    """✕ button dismisses a single card."""
+
+    def test_close_button_dismisses(self):
+        import asyncio
+
+        from neony.application.elements import Toast
+
+        toast = Toast(placement="top-right")
+        toast.show("x")
+        record = toast._cards[0]
+        close = record.close
+
+        async def run() -> None:
+            await close._handlers["click"][0](DomEvent(key=close.key, type="click"))
+            assert len(toast._cards) == 0
+
+        asyncio.run(run())
+
+    def test_exit_reverses_enter_keyframe(self):
+        import asyncio
+
+        from neony.application.elements import Toast
+
+        toast = Toast(placement="bottom-left")
+        toast.show("x")
+        record = toast._cards[0]
+
+        async def run() -> None:
+            task = asyncio.create_task(record.close._handlers["click"][0](DomEvent(key=record.close.key, type="click")))
+            await asyncio.sleep(0)
+            exit_anim = record.el.styles.animation
+            assert isinstance(exit_anim, Animation)
+            assert exit_anim.name == "neony-toast-in-bl"
+            assert exit_anim.direction == "reverse"
+            assert exit_anim.fill_mode == "forwards"
+            await task
+
+        asyncio.run(run())
+
+    def test_card_click_fires_on_click(self):
+        import asyncio
+
+        from neony.application.elements import Toast
+
+        toast = Toast()
+        fired: list[str] = []
+        toast.show("x", on_click=lambda: fired.append("clicked"))
+        card = toast._cards[0].el
+        asyncio.run(card._handlers["click"][0](DomEvent(key=card.key, type="click")))
+        assert fired == ["clicked"]
+
+    def test_inner_label_click_bubbles_to_card(self):
+        import asyncio
+
+        from neony.application.elements import Toast
+
+        toast = Toast()
+        fired: list[str] = []
+        toast.show("hello", on_click=lambda: fired.append("clicked"))
+        label = toast._cards[0].el.container[1]
+        assert isinstance(label, DOMElement)
+        # clicking the label routes through the card's bubbled handler
+        card_handler = toast._cards[0].el._handlers["click"][0]
+        asyncio.run(card_handler(DomEvent(key=label.key, type="click")))
+        assert fired == ["clicked"]
+
+    def test_close_never_fires_card_click(self):
+        import asyncio
+
+        from neony.application.elements import Toast
+
+        toast = Toast()
+        fired: list[str] = []
+        toast.show("x", on_click=lambda: fired.append("clicked"))
+        record = toast._cards[0]
+        asyncio.run(record.close._handlers["click"][0](DomEvent(key=record.close.key, type="click")))
+        assert fired == []
+
+    def test_async_on_click_is_awaited(self):
+        import asyncio
+
+        from neony.application.elements import Toast
+
+        toast = Toast()
+        fired: list[str] = []
+
+        async def cb() -> None:
+            await asyncio.sleep(0)
+            fired.append("ok")
+
+        toast.show("x", on_click=cb)
+        card = toast._cards[0].el
+        asyncio.run(card._handlers["click"][0](DomEvent(key=card.key, type="click")))
+        assert fired == ["ok"]
+
+    def test_clickable_card_shows_pointer_cursor(self):
+        from neony.application.elements import Toast
+
+        clickable = Toast()
+        clickable.show("x", on_click=lambda: None)
+        assert clickable._cards[0].el.styles.cursor == "pointer"
+
+        plain = Toast()
+        plain.show("x")
+        assert plain._cards[0].el.styles.cursor is None
+
+
+class TestToastParentChain:
+    """Cards must keep _parent links so dirty changes propagate."""
+
+    def test_card_parent_is_root(self):
+        from neony.application.elements import Toast
+
+        toast = Toast()
+        toast.show("x")
+        assert toast._cards[0].el._parent is toast._root
+
+
+class TestMessageBubbleBuild:
+    """MessageBubble layout, styling, optional pieces."""
+
+    def test_renders_text(self):
+        b = MessageBubble("hello")
+        assert _contains_text(b.build().to_node(), "hello")
+
+    def test_from_me_style(self):
+        from neony.application.theme import stub
+
+        me = MessageBubble("hi", from_me=True)
+        assert me._root.styles.justify_content == "flex-end"
+        assert me._col.styles.align_items == "flex-end"
+        assert me._bubble.styles.background_color == stub.accent
+        assert me._bubble.styles.color == Color(name="white")
+        assert me._bubble.styles.border_radius == "16px 16px 4px 16px"
+
+    def test_from_other_style(self):
+        from neony.application.theme import stub
+
+        other = MessageBubble("hi")
+        assert other._root.styles.justify_content == "flex-start"
+        assert other._col.styles.align_items == "flex-start"
+        assert other._bubble.styles.background_color == stub.surface_raised
+        assert other._bubble.styles.color == stub.text_primary
+        assert other._bubble.styles.border_radius == "16px 16px 16px 4px"
+
+    def test_avatar_side(self):
+        av = Avatar(name="A")
+        other = MessageBubble("hi", avatar=av)
+        assert other._root.container[0] is other._avatar_el  # avatar leads
+        assert other._root.container[1] is other._col
+
+        me = MessageBubble("hi", from_me=True, avatar=Avatar(name="A"))
+        assert me._root.container[0] is me._col  # avatar trails
+        assert me._root.container[1] is me._avatar_el
+
+    def test_no_avatar_single_column(self):
+        b = MessageBubble("hi")
+        assert b._avatar_el is None
+        assert b._root.container[0] is b._col
+
+    def test_name_label_optional(self):
+        b = MessageBubble("hi", name="Ada")
+        assert b._name_span.styles.display != "none"
+        assert b._name_span.container[0] == "Ada"
+
+        anonymous = MessageBubble("hi")
+        assert anonymous._name_span.styles.display == "none"
+
+    def test_actions_hidden_by_default(self):
+        b = MessageBubble("hi", actions=[("reply", "Reply")])
+        assert b._actions.styles.display == "none"
+        assert len(b._actions.container) == 1
+
+    def test_actions_are_out_of_flow(self):
+        """Quick actions must not change the bubble's footprint when they
+        appear — they anchor absolutely to the column below the bubble."""
+        b = MessageBubble("hi", actions=[("reply", "Reply")])
+        assert b._col.styles.position == "relative"
+        assert b._actions.styles.position == "absolute"
+        assert b._actions.styles.top == "calc(100% + 2px)"
+        # right-aligned (from_me) anchors to the right edge; others to left
+        me = MessageBubble("hi", from_me=True, actions=[("a", "A")])
+        assert me._actions.styles.right == "0"
+        assert me._actions.styles.left is None
+        other = MessageBubble("hi", actions=[("a", "A")])
+        assert other._actions.styles.left == "0"
+        assert other._actions.styles.right is None
+
+    def test_icon_action_value_is_glyph(self):
+        b = MessageBubble("hi", actions=[Icon.glyph("😊")])
+        btn = b._actions.container[0]
+        assert isinstance(btn, DOMElement)
+        assert b._action_by_key[btn.key] == "😊"
+
+
+class TestMessageBubbleEvents:
+    """Context menu, hover reveal, action clicks."""
+
+    def test_contextmenu_opens_menu_at_cursor(self):
+        import asyncio
+
+        b = MessageBubble("hi")
+        asyncio.run(b._root._handlers["contextmenu"][0](DomEvent(key=b._root.key, type="contextmenu", x=100, y=50)))
+        assert b._menu is not None
+        assert b._menu._open is True
+        assert b._menu._root.styles.left == "100px"
+
+    def test_menu_selection_forwards_change(self):
+        import asyncio
+
+        b = MessageBubble("hi")
+        assert b._menu is not None
+        fired: list[str] = []
+        b.on_change(lambda e: fired.append(e.value))
+        copy_row = b._menu._rows[0][1]  # ("copy", button)
+
+        async def run() -> None:
+            await copy_row._handlers["click"][0](DomEvent(key=copy_row.key, type="click"))
+            assert not b._menu._open  # selection closes the menu
+            assert fired == ["copy"]
+
+        asyncio.run(run())
+
+    def test_hover_shows_and_hides_actions(self):
+        import asyncio
+
+        b = MessageBubble("hi", actions=[("reply", "Reply")])
+
+        async def run() -> None:
+            # real enter (related key outside) reveals the actions
+            await b._root._handlers["mouseover"][0](DomEvent(key=b._root.key, type="mouseover", related_key=None))
+            assert b._actions.styles.display == "flex"
+            # moving onto the actions row is an inner hop — stays visible
+            await b._root._handlers["mouseover"][0](
+                DomEvent(key=b._actions.key, type="mouseover", related_key=b._actions.key)
+            )
+            assert b._actions.styles.display == "flex"
+            # real leave hides them
+            await b._root._handlers["mouseout"][0](DomEvent(key=b._root.key, type="mouseout", related_key=None))
+            assert b._actions.styles.display == "none"
+
+        asyncio.run(run())
+
+    def test_action_click_dispatches(self):
+        import asyncio
+
+        b = MessageBubble("hi", actions=[("reply", "Reply")])
+        fired: list[str] = []
+        b.on_action(lambda v: fired.append(v))
+        btn = b._actions.container[0]
+        assert isinstance(btn, DOMElement)
+
+        async def run() -> None:
+            await btn._handlers["click"][0](DomEvent(key=btn.key, type="click"))
+            assert fired == ["reply"]
+
+        asyncio.run(run())
+
+    def test_menu_disabled_still_fires_contextmenu(self):
+        import asyncio
+
+        b = MessageBubble("hi", menu_items=[])
+        assert b._menu is None
+        fired: list[float] = []
+        b.on_contextmenu(lambda e: fired.append(e.x))
+        asyncio.run(b._root._handlers["contextmenu"][0](DomEvent(key=b._root.key, type="contextmenu", x=5, y=6)))
+        assert fired == [5.0]
+
+    def test_bubble_does_not_double_wire_click(self):
+        """on_click must not wire the root a second time (declared bound)."""
+        b = MessageBubble("hi", actions=[("a", "A")])
+        btn = b._actions.container[0]
+        assert isinstance(btn, DOMElement)
+        b.on_click(lambda _e: None)
+        # the action button keeps exactly its own dispatcher
+        assert len(btn._handlers.get("click", [])) == 1
+
+
+class TestMessageBubbleParentChain:
+    """Row children keep _parent links so dirty changes propagate."""
+
+    def test_action_parent_is_actions_row(self):
+        b = MessageBubble("hi", actions=[("reply", "Reply")])
+        btn = b._actions.container[0]
+        assert isinstance(btn, DOMElement)
+        assert btn._parent is b._actions
+
+    def test_col_children_parent(self):
+        b = MessageBubble("hi", name="Ada")
+        assert b._bubble._parent is b._col
+        assert b._actions._parent is b._col
+        assert b._col._parent is b._root
+
+    def test_menu_root_mounted_in_row(self):
+        b = MessageBubble("hi")
+        assert b._menu is not None
+        assert b._menu._root._parent is b._root
+
+
+class TestNoticeBubbleBuild:
+    """NoticeBubble — the centered system message."""
+
+    def test_centered_and_text(self):
+        n = NoticeBubble("You joined the group")
+        assert n._root.styles.align_self == "center"
+        assert n._root.styles.display == "inline-flex"
+        assert n._root.container[0] == "You joined the group"
+
+    def test_text_setter(self):
+        n = NoticeBubble("old")
+        n.text = "new"
+        assert n._root.container[0] == "new"
+
+    def test_content_passthrough(self):
+        n = NoticeBubble(content=Div(key="custom", container=["x"]))
+        el = n._root.container[0]
+        assert isinstance(el, DOMElement)
+        assert el.key == "custom"
