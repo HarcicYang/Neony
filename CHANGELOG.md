@@ -24,16 +24,15 @@
   key — enough for drop-zone highlighting, and the drop itself still
   carries everything a handler needs (`drag_payload`, coordinates).  The
   map resets on drop/dragend.
-- **Native file dialogs** — `app.open_file()` / `open_files()` /
-  `save_file()` / `select_folder()` show a self-drawn, dark-themed file
-  picker in a one-shot tkinter subprocess. The request dict rides the
-  `Process` args (pickled) and the result returns on a one-way
-  `multiprocessing` pipe as a typed `("ok", result)` / `("error", msg)`
-  tuple — no stdout/JSON parsing. Cancelling returns `None` (`[]` for
-  multi-select); a dialog that can't be shown also returns `None`. The
-  parent awaits with `asyncio.to_thread`, so the event loop stays
-  responsive. Linux/macOS use `fork`, Windows `spawn`; the subprocess
-  entry lives in a stdlib-only module.
+- **System-native file dialogs** — `app.open_file()` / `open_files()` /
+  `save_file()` / `select_folder()` now shell out to the platform's own
+  picker (zenity on Linux, `osascript` on macOS, PowerShell on Windows,
+  tkinter fallback) in an executor thread, so the app's event loop keeps
+  running while the dialog is up.  Nothing is drawn by Neony — the
+  look, navigation and filters are exactly what the OS provides; the
+  in-app HTML `FileDialog` component and its dedicated window are gone.
+  Cancelling returns `None` (`[]` for multi-select); a dialog that
+  can't be shown also returns `None` — never an exception.
 - **In-app drag reorder primitives** — the full drag lifecycle is
   delegated (`dragstart` / `dragenter` / `dragover` / `dragleave` /
   `drop` / `dragend`); a new `DOMElement.drag_payload` field makes an

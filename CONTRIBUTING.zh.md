@@ -2,7 +2,7 @@
 
 > [Contributing (English)](CONTRIBUTING.md)
 
-感谢你考虑为 Neony 做贡献。这是一个 alpha 项目——反馈、bug 报告与
+感谢你考虑为 Neony 做贡献。这是一个 pre-beta 项目——反馈、bug 报告与
 Pull Request 都非常欢迎。本文档说明项目约定与贡献方式。
 
 ---

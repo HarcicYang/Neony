@@ -608,9 +608,10 @@ page.on_blur(lambda: print("blurred"))""",
 
 # ── tab: dialogs ─────────────────────────────────────────────────
 
-# Native file dialogs run in a one-shot tkinter subprocess — the event
-# loop stays responsive because the reply returns over a typed
-# multiprocessing pipe and is awaited with asyncio.to_thread.
+# File dialogs are the platform's own — zenity on Linux, osascript on
+# macOS, PowerShell on Windows, tkinter fallback — shown as a child
+# process so the app's event loop keeps running.  Each call suspends
+# until the user picks or cancels.
 dialog_open_btn = Button(tr.system.dialog_open, variant="ghost")
 dialog_many_btn = Button(tr.system.dialog_open_many, variant="ghost")
 dialog_save_btn = Button(tr.system.dialog_save, variant="ghost")
@@ -665,7 +666,7 @@ dialogs_panel = Section(
 paths = await app.open_files(...)              # [] on cancel
 await app.save_file(default_name="out.txt")    # str | None
 await app.select_folder()                      # str | None
-# One-shot tkinter subprocess; reply over a typed multiprocessing pipe.""",
+# The platform's own dialog — zenity / osascript / PowerShell.""",
     HStack(dialog_open_btn, dialog_many_btn, dialog_save_btn, dialog_folder_btn, gap="8px"),
     dialog_echo,
 )

@@ -65,12 +65,11 @@ counterpart to [`SharedSignal`](#sharedsignal) for cross-window data.
 **Theme / rendering:**
 `set_theme(theme)`, `sync_theme()`, `set_background(url)`, `render()`
 
-**File dialogs** (all async — via a one-shot tkinter subprocess):
+**File dialogs** (all async — system-native):
 `open_file(...) -> str | None`, `open_files(...) -> list[str]`,
 `save_file(...) -> str | None`, `select_folder(...) -> str | None`.
 Cancelling returns `None` (or `[]` for the multi-select); a dialog that
-can't be shown (no display, tkinter missing) also returns `None` —
-never an exception.
+can't be shown also returns `None` — never an exception.
 
 ```python
 path = await app.open_file(
@@ -83,14 +82,15 @@ dest = await app.save_file(default_name="out.txt")  # str | None
 folder = await app.select_folder()  # str | None
 ```
 
-Each call spawns a short-lived subprocess that shows a self-drawn,
-dark-themed file picker (the platform `tkinter.filedialog` is dated and
-can't be restyled); the request dict is delivered by `multiprocessing`
-pickling and the result returns on a one-way `Pipe` as a typed
-`("ok", result)` / `("error", msg)` tuple — no stdout/JSON parsing. The
-parent awaits the reply with `asyncio.to_thread`, so the event loop stays
-responsive while the modal is up. Linux/macOS use `fork` (fast, no
-`__main__` re-import), Windows `spawn`.
+The dialogs are the platform's own — zenity on Linux (most desktops
+ship it), `osascript` on macOS, PowerShell on Windows, with a tkinter
+fallback — shown as a child process so the app's event loop keeps
+running while they're up.  Nothing is drawn by Neony itself: the
+look, navigation and filters are exactly what the OS provides.
+`filetypes` maps onto the native filter UI (`[("PNG images", "*.png"),
+("All files", "*.*")]`); `default_dir` / `default_name` preselect the
+starting location.  No WebView, no tkinter window in-process, no
+bundled dialog component.
 
 ### `launch()`
 

@@ -65,11 +65,11 @@ app.state.user_name = "Ada"
 **主题与渲染:**
 `set_theme(theme)`， `sync_theme()`， `set_background(url)`， `render()`
 
-**文件对话框**（均为 async — 通过一次性 tkinter 子进程）：
+**文件对话框**（均为 async — 系统原生）：
 `open_file(...) -> str | None`，`open_files(...) -> list[str]`，
 `save_file(...) -> str | None`，`select_folder(...) -> str | None`。
-取消时返回 `None`（多选返回 `[]`）；对话框无法显示（无显示环境、
-缺少 tkinter）同样返回 `None` — 绝不抛异常。
+取消时返回 `None`（多选返回 `[]`）；对话框无法显示同样返回 `None`
+— 绝不抛异常。
 
 ```python
 path = await app.open_file(
@@ -82,13 +82,13 @@ dest = await app.save_file(default_name="out.txt")  # str | None
 folder = await app.select_folder()  # str | None
 ```
 
-每次调用都会派生一个短暂的子进程来显示自绘的深色主题文件选择器
-（平台自带的 `tkinter.filedialog` 样式老旧且无法定制）；请求字典由
-`multiprocessing` 的 pickle 机制交付，结果通过单向 `Pipe` 以类型化
-`("ok", result)` / `("error", msg)` 元组返回 — 全程没有 stdout/JSON
-文本解析。父进程用 `asyncio.to_thread` 等待回复，因此模态框打开期间
-事件循环保持响应。Linux/macOS 用 `fork`（快，不重导入 `__main__`），
-Windows 用 `spawn`。
+对话框就是平台自己的 — Linux 用 zenity（大多数桌面发行版自带）、
+macOS 用 `osascript`、Windows 用 PowerShell，另有 tkinter 回退 —
+以子进程方式弹出，对话框开启期间应用事件循环照常运转。Neony
+不绘制任何东西：外观、导航与过滤完全由操作系统提供。
+`filetypes` 映射到原生过滤器界面（`[("PNG images", "*.png"),
+("All files", "*.*")]`）；`default_dir` / `default_name` 预选起始
+位置。无 WebView、无进程内 tkinter 窗口、无内置对话框组件。
 
 ### `launch()`
 

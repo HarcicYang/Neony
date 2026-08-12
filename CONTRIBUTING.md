@@ -2,7 +2,7 @@
 
 > [贡献指南 (中文)](CONTRIBUTING.zh.md)
 
-Thank you for considering a contribution. Neony is an alpha project —
+Thank you for considering a contribution. Neony is a pre-beta project —
 feedback, bug reports and pull requests are all welcome. This document
 explains the project's conventions and how to contribute effectively.
 

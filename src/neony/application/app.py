@@ -31,7 +31,7 @@ from neony.application.tray import Tray
 from neony.dom import DOMElement, DomEvent, KeyFrame
 from neony.dom.bridge import Neony
 
-from . import dialogs, i18n
+from . import i18n
 
 # User state type: inferred from the ``state=`` constructor argument
 # (dataclass, pydantic model, ...).  Falls back to SimpleNamespace.
@@ -98,39 +98,7 @@ class NeonApplication(Generic[_S]):
         kwargs = self.config.to_window_kwargs()
         title = kwargs.pop("title", "Neony")
         for i, entry in enumerate(self._entries):
-            # Frameless windows get the WindowControls scope
-            # (``lumiview.window.*`` bridge commands).
-            includes: list = [entry.neony]
-            if not self.config.window.decorations:
-                from lumiview.plugins.window_controls import WindowControls
-
-                includes.append(WindowControls())
-            entry.window = await Window.create(
-                title=title if i == 0 else f"{title} {i + 1}",
-                html=_INITIAL_HTML,
-                bridge=Bridge(includes=includes),
-                # The native drag-drop channel: WebKitGTK cannot deliver
-                # file data to the page when a handler is installed, so
-                # Neony takes over drops (WindowEvent.DragEvent) and
-                # re-dispatches them from Python.
-                drag_drop=True,
-                **kwargs,
-            )
-            entry.window.on(WindowEvent.DragEvent)(self._make_drag_drop_handler(entry))
-            # Wait for the page (Bridge JS included) before mounting —
-            # a fixed sleep would race slow machines.  5s guards against
-            # the event never arriving.
-            page_loaded = asyncio.Event()
-            entry.window.on(WindowEvent.PageLoadFinishedEvent)(lambda _event, _loaded=page_loaded: _loaded.set())
-            with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
-            await self._inject_theme(entry)
-            await self._inject_keyframes(entry)
-            await self._apply_transparent_effect(entry.window)
-            await self._wire_close_hook(entry, entry.window)
-            await self._wire_focus_hook(entry, entry.window)
-            await self._wire_navigation_policy(entry, entry.window)
-            await self.render(window_index=i)
+            await self._create_window(entry, i, title if i == 0 else f"{title} {i + 1}", kwargs)
         if self.ready_handler is not None:
             await self.ready_handler()
         if self.tray is not None:
@@ -138,6 +106,47 @@ class NeonApplication(Generic[_S]):
         # App-level teardown: fires once after all windows close, before
         # lumiview stops the asyncio loop (completion awaited, 5s guard).
         await self._wire_close_handler()
+
+    async def _create_window(self, entry: _Entry, index: int, title: str, kwargs: dict[str, Any]) -> None:
+        """Create the native window for *entry* and prepare its page.
+
+        Shared by the startup windows (``_main``) and dynamically-opened
+        dialog windows (file pickers): window + bridge, theme/keyframe
+        injection, drag-drop channel, and the first render.
+        """
+        # Frameless windows get the WindowControls scope
+        # (``lumiview.window.*`` bridge commands).
+        includes: list = [entry.neony]
+        if not self.config.window.decorations:
+            from lumiview.plugins.window_controls import WindowControls
+
+            includes.append(WindowControls())
+        entry.window = await Window.create(
+            title=title,
+            html=_INITIAL_HTML,
+            bridge=Bridge(includes=includes),
+            # The native drag-drop channel: WebKitGTK cannot deliver
+            # file data to the page when a handler is installed, so
+            # Neony takes over drops (WindowEvent.DragEvent) and
+            # re-dispatches them from Python.
+            drag_drop=True,
+            **kwargs,
+        )
+        entry.window.on(WindowEvent.DragEvent)(self._make_drag_drop_handler(entry))
+        # Wait for the page (Bridge JS included) before mounting —
+        # a fixed sleep would race slow machines.  5s guards against
+        # the event never arriving.
+        page_loaded = asyncio.Event()
+        entry.window.on(WindowEvent.PageLoadFinishedEvent)(lambda _event, _loaded=page_loaded: _loaded.set())
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
+        await self._inject_theme(entry)
+        await self._inject_keyframes(entry)
+        await self._apply_transparent_effect(entry.window)
+        await self._wire_close_hook(entry, entry.window)
+        await self._wire_focus_hook(entry, entry.window)
+        await self._wire_navigation_policy(entry, entry.window)
+        await self.render(window_index=index)
 
     async def _wire_close_hook(self, entry: _Entry, window: Window) -> None:
         """Wire a Page's close handlers to the window's native close event.
@@ -817,61 +826,74 @@ class NeonApplication(Generic[_S]):
     async def open_file(
         self,
         *,
-        title: str | None = None,
+        title: str = "Open",
         default_dir: str | None = None,
         filetypes: list[tuple[str, str]] | None = None,
     ) -> str | None:
-        """Native open-file dialog (one-shot tkinter subprocess).
+        """System-native open-file dialog (zenity on Linux, osascript on
+        macOS, PowerShell on Windows, tkinter fallback).
 
-        Returns the chosen path, or ``None`` when the user cancels or the
-        dialog can't be shown (no display, tkinter missing).  *filetypes*
-        filters the picker: ``[("PNG images", "*.png"), ("All files",
-        "*.*")]``.
+        Returns the chosen path, or ``None`` when the user cancels.
+        *filetypes* filters the picker: ``[("PNG images", "*.png"),
+        ("All files", "*.*")]``.
         """
-        result = await dialogs.show_dialog("open", title=title, default_dir=default_dir, filetypes=filetypes)
-        return cast(str | None, result)
+        from neony.application import dialogs
+
+        return cast(
+            str | None,
+            await dialogs.show_dialog("open", title=title, default_dir=default_dir, filetypes=filetypes),
+        )
 
     async def open_files(
         self,
         *,
-        title: str | None = None,
+        title: str = "Open",
         default_dir: str | None = None,
         filetypes: list[tuple[str, str]] | None = None,
     ) -> list[str]:
-        """Native multi-select open dialog; returns the chosen paths
-        (``[]`` when cancelled)."""
-        result = await dialogs.show_dialog("open-many", title=title, default_dir=default_dir, filetypes=filetypes)
-        return cast(list[str], result)
+        """System-native multi-select open dialog; returns the chosen
+        paths (``[]`` when cancelled)."""
+        from neony.application import dialogs
+
+        return cast(
+            list[str],
+            await dialogs.show_dialog("open-many", title=title, default_dir=default_dir, filetypes=filetypes),
+        )
 
     async def save_file(
         self,
         *,
-        title: str | None = None,
+        title: str = "Save As",
         default_dir: str | None = None,
         default_name: str | None = None,
         filetypes: list[tuple[str, str]] | None = None,
     ) -> str | None:
-        """Native save dialog; returns the destination path, or ``None``
-        when the user cancels."""
-        result = await dialogs.show_dialog(
-            "save",
-            title=title,
-            default_dir=default_dir,
-            default_name=default_name,
-            filetypes=filetypes,
+        """System-native save-as dialog; returns the destination path,
+        or ``None`` when the user cancels."""
+        from neony.application import dialogs
+
+        return cast(
+            str | None,
+            await dialogs.show_dialog(
+                "save",
+                title=title,
+                default_dir=default_dir,
+                default_name=default_name,
+                filetypes=filetypes,
+            ),
         )
-        return cast(str | None, result)
 
     async def select_folder(
         self,
         *,
-        title: str | None = None,
+        title: str = "Select Folder",
         default_dir: str | None = None,
     ) -> str | None:
-        """Native folder picker; returns the chosen directory, or ``None``
-        when the user cancels."""
-        result = await dialogs.show_dialog("folder", title=title, default_dir=default_dir)
-        return cast(str | None, result)
+        """System-native folder picker; returns the chosen directory, or
+        ``None`` when the user cancels."""
+        from neony.application import dialogs
+
+        return cast(str | None, await dialogs.show_dialog("folder", title=title, default_dir=default_dir))
 
 
 def launch(

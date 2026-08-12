@@ -4,7 +4,7 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
-[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#)
+[![Status: pre-beta](https://img.shields.io/badge/status-pre--beta-yellow.svg)](#)
 
 > [English README](readme.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md) · [贡献指南](CONTRIBUTING.zh.md)
 
@@ -12,7 +12,7 @@
 
 ## 概览
 
-> **状态:alpha** — API 仍在演进中。欢迎反馈与贡献。
+> **状态:pre-beta** — API 仍在演进中。欢迎反馈与贡献。
 
 Neony 在原生窗口中渲染响应式 DOM。你完全用 Python 对象——组件、布局、样式——
 拼装界面，Neony 自动对浏览器 DOM 做增量更新。不需要写 HTML、JavaScript。
@@ -143,10 +143,10 @@ launch(page, title="My App", width=480, height=360, devtools=True)
   Linux 需要 `libayatana-appindicator`。见
   [`demo_tray.py`](demo_tray.py)。
 - **原生文件对话框** — `app.open_file()`、`app.open_files()`、
-  `app.save_file()`、`app.select_folder()` 在一次性 tkinter 子进程中
-  显示自绘的深色主题文件选择器；结果通过类型化的 `multiprocessing`
-  管道返回（取消返回 `None`，多选取消返回 `[]`）。没有 stdout/JSON
-  文本解析，事件循环保持响应。
+  `app.save_file()`、`app.select_folder()` 调用平台自己的选择器 —
+  Linux 用 zenity、macOS 用 `osascript`、Windows 用 PowerShell，
+  另有 tkinter 回退 — 在 executor 线程中弹出，对话框开启期间应用
+  照常运行（取消返回 `None`，多选取消返回 `[]`）。
 
 ---
 

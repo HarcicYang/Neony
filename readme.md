@@ -4,7 +4,7 @@ Reactive desktop UI framework for Python, built on [LumiView](https://github.com
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
-[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#)
+[![Status: pre-beta](https://img.shields.io/badge/status-pre--beta-yellow.svg)](#)
 
 > [中文文档](readme.zh.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md) · [Contributing](CONTRIBUTING.md)
 
@@ -12,7 +12,7 @@ Reactive desktop UI framework for Python, built on [LumiView](https://github.com
 
 ## Overview
 
-> **Status: alpha** — the API is still settling. Feedback and
+> **Status: pre-beta** — the API is still settling. Feedback and
 > contributions are welcome.
 
 Neony renders a reactive DOM in a native window. You compose your UI from
@@ -149,10 +149,11 @@ All components share a fluent, chainable API — see the
   `libayatana-appindicator`. See
   [`demo_tray.py`](demo_tray.py).
 - **Native file dialogs** — `app.open_file()`, `app.open_files()`,
-  `app.save_file()`, `app.select_folder()` show a self-drawn, dark-themed
-  file picker in a one-shot tkinter subprocess; the reply returns over a
-  typed `multiprocessing` pipe (`None` on cancel, `[]` for a cancelled
-  multi-select). No stdout/JSON parsing, event loop stays responsive.
+  `app.save_file()`, `app.select_folder()` shell out to the platform's
+  own picker — zenity on Linux, `osascript` on macOS, PowerShell on
+  Windows, tkinter fallback — shown in an executor thread so the app
+  keeps running while they're up (`None` on cancel, `[]` for a
+  cancelled multi-select).
 
 ---
 
