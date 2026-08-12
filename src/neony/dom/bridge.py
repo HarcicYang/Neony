@@ -54,7 +54,9 @@ class ReorderPatch(BaseModel):
 class MovePatch(BaseModel):
     """Move element *key* to a new parent / index.
 
-    v1 emits REMOVE + CREATE instead; protocol-ready only."""
+    Cross-parent moves (e.g. a card dragged between two Reorder boards)
+    re-parent the SAME element — remove+create would build a fresh node
+    that a trailing remove then deletes (blank slot / double render)."""
 
     op: Literal["move"] = "move"
     key: str
@@ -134,10 +136,58 @@ class DiffEngine:
         if old is None:
             return [CreatePatch(key=new.key, node=new)]
 
-        return DiffEngine._diff_node(old, new)
+        moved = DiffEngine._moved_keys(old, new)
+        patches = DiffEngine._diff_node(old, new, moved)
+        for key in sorted(moved):
+            where = DiffEngine._find_in_new(new, key)
+            if where is not None:
+                patches.append(MovePatch(key=key, to_parent=where[0], to_index=where[1]))
+        # A card moving between boards would otherwise emit CreatePatch
+        # (target board, earlier in the tree walk) before RemovePatch
+        # (source board); the engine's _create re-registers the key only
+        # for the FOLLOWING _remove to delete that fresh element — the
+        # card vanishes (direction-dependent).  Removes lead, then moves
+        # (which re-parent the SAME element — no flash, no blank slot),
+        # then everything else.
+        removes = [p for p in patches if isinstance(p, RemovePatch)]
+        moves = [p for p in patches if isinstance(p, MovePatch)]
+        if removes or moves:
+            others = [p for p in patches if not isinstance(p, (RemovePatch, MovePatch))]
+            return removes + moves + others
+        return patches
 
     @staticmethod
-    def _diff_node(old: NodeDescriptor, new: NodeDescriptor) -> list[Patch]:
+    def _moved_keys(old: NodeDescriptor, new: NodeDescriptor) -> frozenset[str]:
+        """Keys present in BOTH trees under DIFFERENT parents — these are
+        cross-container moves (re-parent the same element, never
+        remove+create)."""
+        old_parents = DiffEngine._parent_map(old, {})
+        new_parents = DiffEngine._parent_map(new, {})
+        return frozenset(k for k in old_parents if k in new_parents and old_parents[k] != new_parents[k])
+
+    @staticmethod
+    def _parent_map(node: NodeDescriptor, acc: dict[str, str]) -> dict[str, str]:
+        for c in node.children:
+            acc[c.key] = node.key
+            DiffEngine._parent_map(c, acc)
+        return acc
+
+    @staticmethod
+    def _find_in_new(node: NodeDescriptor, key: str) -> tuple[str, int] | None:
+        for i, c in enumerate(node.children):
+            if c.key == key:
+                return node.key, i
+            found = DiffEngine._find_in_new(c, key)
+            if found is not None:
+                return found
+        return None
+
+    @staticmethod
+    def _diff_node(
+        old: NodeDescriptor,
+        new: NodeDescriptor,
+        moved: frozenset[str] = frozenset(),
+    ) -> list[Patch]:
         patches: list[Patch] = []
 
         if old.tag != new.tag:
@@ -155,7 +205,7 @@ class DiffEngine:
         if style_patch:
             patches.append(UpdateStylesPatch(key=new.key, set=style_patch["set"], remove=style_patch["remove"]))
 
-        child_patches = DiffEngine._diff_children(old.children, new.children, parent_key=new.key)
+        child_patches = DiffEngine._diff_children(old.children, new.children, parent_key=new.key, moved=moved)
         patches.extend(child_patches)
 
         return patches
@@ -185,6 +235,7 @@ class DiffEngine:
         old_children: list[NodeDescriptor],
         new_children: list[NodeDescriptor],
         parent_key: str,
+        moved: frozenset[str] = frozenset(),
     ) -> list[Patch]:
         patches: list[Patch] = []
 
@@ -194,23 +245,38 @@ class DiffEngine:
         old_keys = [c.key for c in old_children]
         new_keys = [c.key for c in new_children]
 
+        # Common keys keep their identity across the diff — the relative
+        # order check decides whether a ReorderPatch must follow.
+        old_common = [k for k in old_keys if k in new_map]
+        new_common = [k for k in new_keys if k in old_map]
+
         for k in old_keys:
-            if k not in new_map:
+            if k not in new_map and k not in moved:
                 patches.append(RemovePatch(key=k))
 
         for c in new_children:
-            if c.key not in old_map:
-                # index=None: append to end temporarily; ReorderPatch will fix
-                # the final order. Avoids index misalignment when DOM still
-                # contains elements that will be removed.
-                patches.append(CreatePatch(key=c.key, node=c, parent=parent_key, index=None))
-            else:
-                patches.extend(DiffEngine._diff_node(old_map[c.key], c))
+            if c.key not in old_map and c.key not in moved:
+                # Insert at the final position when the common order
+                # already matches (pure insert — no ReorderPatch follows);
+                # index=None otherwise, letting the trailing ReorderPatch
+                # fix the order (avoids index misalignment when the DOM
+                # still contains elements that will be removed).
+                if old_common == new_common:
+                    patches.append(
+                        CreatePatch(
+                            key=c.key,
+                            node=c,
+                            parent=parent_key,
+                            index=new_keys.index(c.key),
+                        )
+                    )
+                else:
+                    patches.append(CreatePatch(key=c.key, node=c, parent=parent_key, index=None))
+            elif c.key not in moved:
+                patches.extend(DiffEngine._diff_node(old_map[c.key], c, moved))
 
         # Reorder only when the relative order of common elements changes.
         # Pure append/remove (no reorder) skips this for efficiency.
-        old_common = [k for k in old_keys if k in new_map]
-        new_common = [k for k in new_keys if k in old_map]
         if old_common != new_common:
             patches.append(ReorderPatch(parent=parent_key, ordered_keys=new_keys))
 
@@ -354,8 +420,14 @@ class Neony(Plugin):
         delta_x: Any = None,
         delta_y: Any = None,
         delta_mode: Any = None,
+        # Scroll position (scroll event only).
+        scroll_top: Any = None,
+        scroll_left: Any = None,
         clipboard_text: str | None = None,
         clipboard_html: str | None = None,
+        # In-app drag payload (dragstart / drop only) — the string the
+        # source element declared via ``drag_payload``.
+        drag_payload: str | None = None,
         # Dropped files: list of {name, path, size, type} dicts from the
         # drop event.  ``Any`` for the same strict-conversion reasons as
         # the numeric fields; DomEvent.drop_files is the typed surface.
@@ -395,8 +467,11 @@ class Neony(Plugin):
             "delta_x": delta_x,
             "delta_y": delta_y,
             "delta_mode": delta_mode,
+            "scroll_top": scroll_top,
+            "scroll_left": scroll_left,
             "clipboard_text": clipboard_text,
             "clipboard_html": clipboard_html,
+            "drag_payload": drag_payload,
             "drop_files": drop_files,
         }
         # Snapshot: a handler may render, and the render registers

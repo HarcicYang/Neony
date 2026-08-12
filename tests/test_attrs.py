@@ -248,3 +248,33 @@ class TestScrollIndicatorDerivation:
     def test_preset_false_suppresses(self):
         node = Div(styles=Styles(overflow_y="auto"), scroll_indicator=False).to_node()
         assert "data-neony-scroll" not in node.attrs
+
+
+class TestDragPayload:
+    """``drag_payload`` makes an element draggable and serializes the
+    payload the JS engine hands to ``dataTransfer.setData``."""
+
+    def test_payload_serializes_draggable_and_marker(self):
+        node = Div(key="item", drag_payload="row-1").to_node()
+        # draggable is an *enumerated* attribute — the literal "true"
+        # (a bare/empty value resolves to "auto" and stays un-draggable).
+        assert node.attrs["draggable"] == "true"
+        assert node.attrs["data-neony-drag"] == "row-1"
+
+    def test_unset_payload_serializes_nothing(self):
+        node = Div().to_node()
+        assert "draggable" not in node.attrs
+        assert "data-neony-drag" not in node.attrs
+
+    def test_build_renders_draggable(self):
+        html = Div(drag_payload="row-1").build()
+        assert "draggable" in html
+        assert 'data-neony-drag="row-1"' in html
+
+    def test_clear_payload_removes_marker(self):
+        el = Div(drag_payload="row-1")
+        assert el.drag_payload == "row-1"
+        el.drag_payload = None
+        node = el.to_node()
+        assert "draggable" not in node.attrs
+        assert "data-neony-drag" not in node.attrs

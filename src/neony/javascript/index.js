@@ -40,10 +40,10 @@
         "click", "dblclick", "input", "change", "submit",
         "keydown", "keyup", "focus", "blur", "contextmenu",
         "mouseover", "mouseout", "mousedown", "mouseup",
-        "pointermove",
+        "pointermove", "scroll",
         "transitionend", "animationstart", "animationend",
         "wheel", "paste", "copy", "cut",
-        "dragover", "dragleave", "drop",
+        "dragstart", "dragenter", "dragover", "dragleave", "drop", "dragend",
     ];
 
     function captureValue(el, event) {
@@ -58,6 +58,547 @@
         if (el.value !== undefined && el.tagName !== "BUTTON") return el.value;
         return null;
     }
+
+    // ---- pointer-driven in-app drags ----
+    //
+    // HTML5 drag-and-drop is unreliable on WebKitGTK/Wayland: the native
+    // drag image positions randomly (sometimes grab-relative, sometimes
+    // absolute) and dragstart-time DOM mutations / canvas setDragImage
+    // abort the drag entirely.  The drop hit-test uses the REAL pointer
+    // while the user aims at the (wrongly-placed) image — so reorder
+    // fires only sometimes.
+    //
+    // Elements with data-neony-drag therefore skip HTML5 DnD entirely:
+    // a mousedown arms the drag, and once the pointer moves ~4px the
+    // element gets a synthetic dragstart (synchronous setData via a
+    // synthetic DataTransfer, exactly like the native flow), a self-drawn
+    // ghost tracks the pointer locally (one rAF per frame, zero IPC),
+    // dragover is dispatched to the element under the cursor via
+    // elementFromPoint, and drop/dragend fire at release.  The synthetic
+    // events flow through the SAME eventHandler pipeline, so the Python
+    // API (drag_payload / on_dragstart / on_dragover / on_drop) is
+    // unchanged.  Draggable attributes are stripped from the DOM so the
+    // browser never starts its own (misbehaving) drag.
+    var dndState = null; // active pointer-drag, or null
+    var lastDragover = {};
+
+    function dndActive() {
+        return dndState !== null;
+    }
+
+    // Restore the ghost-targeted styles on the source and clear any
+    // FLIP transforms/transitions the drag left on its siblings.  The
+    // source itself keeps its restored transition (it may be the target
+    // of a settle FLIP right after).
+    function dndRestoreSource() {
+        if (!dndState) return;
+        var src = dndState.source;
+        var container = dndState.srcParent;
+        if (container) {
+            var kids = container.children;
+            for (var j = 0; j < kids.length; j++) {
+                var el = kids[j];
+                if (el === src) continue;
+                el.style.transform = "";
+                el.style.transition = "";
+            }
+        }
+        if (src) {
+            var ghostProps = dndState.ghostProps;
+            for (var p in ghostProps) src.style[p] = ghostProps[p];
+        }
+    }
+
+    function dndClear() {
+        if (!dndState) return;
+        // The placeholder is a raw JS div — the Python diff knows nothing
+        // about it.  Every abort path (blur mid-drag, cancelled mouseup)
+        // must remove it, or the dashed slot sticks in the DOM as a blank
+        // box.
+        var ph = dndState.placeholder;
+        if (ph && ph.parentNode) ph.parentNode.removeChild(ph);
+        dndRestoreSource();
+        dndState = null;
+    }
+
+    // Synthetic DataTransfer carrying the payload across the synthetic
+    // drag lifecycle (setData in dragstart, getData on drop).
+    function makeDndTransfer(payload) {
+        var store = payload ? { "application/x-neony": payload } : {};
+        return {
+            setData: function (type, value) {
+                store[type] = value;
+            },
+            getData: function (type) {
+                return store[type] || "";
+            },
+            files: [],
+            effectAllowed: "none",
+        };
+    }
+
+    function dndDispatch(target, type, transfer, x, y) {
+        var evt = new Event(type, { bubbles: true, cancelable: true });
+        // Native offsetX/offsetY are relative to the TARGET element (the
+        // reorder demo splits a 40px card at its own 0..40 range); page
+        // coordinates here made every drop look like the card's lower
+        // half, so upward reorders always inserted AFTER the target.
+        var rect = target.getBoundingClientRect();
+        Object.defineProperty(evt, "dataTransfer", { value: transfer });
+        Object.defineProperty(evt, "clientX", { value: x });
+        Object.defineProperty(evt, "clientY", { value: y });
+        Object.defineProperty(evt, "offsetX", { value: x - rect.left });
+        Object.defineProperty(evt, "offsetY", { value: y - rect.top });
+        target.dispatchEvent(evt);
+    }
+
+    // Real HTML5 drag events for data-neony-drag elements are swallowed
+    // (preventDefault on dragstart cancels the browser's own drag; the
+    // pointer-driven path owns the lifecycle).
+    function dndOnDragStart(event) {
+        var src = event.target.closest ? event.target.closest("[data-neony-drag]") : null;
+        if (!src) return;
+        event.preventDefault();
+    }
+
+    function dndOnMouseDown(event) {
+        if (event.button !== 0) return;
+        var src = event.target.closest ? event.target.closest("[data-neony-drag]") : null;
+        if (!src) return;
+        // Neutralize the element's draggable attribute so the browser can
+        // never start its own (misbehaving) HTML5 drag — the pointer path
+        // owns the lifecycle from here.  Keep the payload marker.
+        src.removeAttribute("draggable");
+        dndState = {
+            source: src,
+            payload: src.getAttribute("data-neony-drag"),
+            transfer: makeDndTransfer(src.getAttribute("data-neony-drag")),
+            x: event.clientX,
+            y: event.clientY,
+            offsetX: event.clientX,
+            offsetY: event.clientY,
+            ghost: null,
+            rafId: 0,
+            started: false,
+            insertion: null,
+            srcParent: null,
+            sourceParent: null,
+            ghostProps: {},
+        };
+        document.addEventListener("mousemove", dndOnMouseMove, true);
+        document.addEventListener("mouseup", dndOnMouseUp, true);
+        // Dragging OUT of the window and releasing there loses the mouseup
+        // (Wayland/GTK: the pointer leaves, the release never reaches us)
+        // — only a blur arrives.  Abort the drag so the ghost and the
+        // dashed landing slot don't stick in the DOM as a blank box.
+        window.addEventListener("blur", dndOnBlur, true);
+    }
+
+    function dndOnBlur() {
+        if (!dndState) return;
+        document.removeEventListener("mousemove", dndOnMouseMove, true);
+        document.removeEventListener("mouseup", dndOnMouseUp, true);
+        window.removeEventListener("blur", dndOnBlur, true);
+        dndClear();
+    }
+
+    function dndOnMouseMove(event) {
+        if (!dndState || !dndState.source) return;
+        if (!dndState.started) {
+            var dx = event.clientX - dndState.offsetX;
+            var dy = event.clientY - dndState.offsetY;
+            if (dx * dx + dy * dy < 16) return; // 4px threshold
+            dndBegin(event);
+        }
+        dndMove(event);
+    }
+
+    function dndBegin(event) {
+        dndState.started = true;
+        // Synthetic dragstart on the source (sync setData, like native).
+        var src = dndState.source;
+        var transfer = dndState.transfer;
+        var de = new Event("dragstart", { bubbles: true, cancelable: true });
+        Object.defineProperty(de, "dataTransfer", { value: transfer });
+        src.dispatchEvent(de);
+
+        // Save the ghost-targeted props so dndClear can restore them —
+        // the source's OTHER inline styles (background, border, padding
+        // injected by Neony) must survive.
+        var ghostProps = dndState.ghostProps;
+        var rect = src.getBoundingClientRect();
+        ghostProps.position = src.style.position;
+        ghostProps.left = src.style.left;
+        ghostProps.top = src.style.top;
+        ghostProps.width = src.style.width;
+        ghostProps.height = src.style.height;
+        ghostProps.margin = src.style.margin;
+        ghostProps.zIndex = src.style.zIndex;
+        ghostProps.pointerEvents = src.style.pointerEvents;
+        ghostProps.transition = src.style.transition;
+        ghostProps.boxShadow = src.style.boxShadow;
+        ghostProps.opacity = src.style.opacity;
+
+        // The source card leaves the flow and becomes the ghost itself.
+        // Anchored at 0,0 — the translate transform (from dndGhostFollow)
+        // does ALL the positioning, so the ghost sits exactly under the
+        // cursor's grab offset.  (Fixing it at rect.left/rect.top would
+        // double-offset it by the card's own position, so the ghost floats
+        // away from the cursor — aim and drop then disagree.)
+        src.style.position = "fixed";
+        src.style.left = "0px";
+        src.style.top = "0px";
+        src.style.width = rect.width + "px";
+        src.style.height = rect.height + "px";
+        src.style.margin = "0";
+        src.style.zIndex = "2147483647";
+        src.style.pointerEvents = "none";
+        src.style.transition = "none";
+        src.style.boxShadow = "0 10px 28px rgba(0,0,0,0.35)";
+        src.style.opacity = "0.9";
+        dndState.srcParent = src.parentNode;
+        dndState.sourceParent = src.parentNode;
+        dndState.axis = dndAxisOf(src.parentNode);
+        var ph = document.createElement("div");
+        // A visible "landing slot": the card's footprint as a dashed
+        // outline, shown only while the cursor is over an insertion point
+        // (hidden at the source slot).  Makes the drop target obvious
+        // instead of an invisible gap.  Sized along the container's main
+        // axis (height for a column, width for a row).
+        ph.setAttribute("data-neony-dnd-placeholder", "");
+        ph.style.cssText =
+            "pointer-events:none;flex-shrink:0;box-sizing:border-box;align-self:stretch;" +
+            (dndState.axis === "horizontal"
+                ? "width:" + rect.width + "px;"
+                : "height:" + rect.height + "px;") +
+            "border:2px dashed rgba(108,140,255,0.9);border-radius:8px;" +
+            "background:rgba(108,140,255,0.08);visibility:hidden;";
+        src.parentNode.insertBefore(ph, src.nextSibling);
+        dndState.placeholder = ph;
+        dndState.ghost = src;
+        dndState.offsetX = event.clientX - rect.left;
+        dndState.offsetY = event.clientY - rect.top;
+        // Park the ghost at its layout slot synchronously — the translate
+        // (rect.left, rect.top) matches the grab point, and it can't paint
+        // a stray frame at the page origin before the first rAF.
+        src.style.transform =
+            "translate3d(" + (event.clientX - dndState.offsetX) + "px," +
+            (event.clientY - dndState.offsetY) + "px,0)";
+    }
+
+    // Which axis the drag's container lays out along — decides the
+    // before/after cursor test (clientY for a column, clientX for a row)
+    // and the placeholder's size.  Defaults to vertical.
+    function dndAxisOf(container) {
+        if (!container) return "vertical";
+        var dir = "";
+        try {
+            var cs = window.getComputedStyle(container);
+            if (cs) dir = cs.flexDirection || "";
+        } catch (e) {}
+        if (!dir) dir = container.style.flexDirection || "";
+        return dir.indexOf("row") === 0 ? "horizontal" : "vertical";
+    }
+
+    // Resize the placeholder along the CURRENT container's axis (the
+    // re-home path can move the drag into a differently-oriented board).
+    // The footprint matches the passed *rect* (the hovered card of the
+    // re-homed board), defaulting to the source's own size.
+    function dndResizePlaceholder(rect) {
+        if (!dndState || !dndState.placeholder) return;
+        var ph = dndState.placeholder;
+        if (!rect) rect = dndState.source.getBoundingClientRect();
+        if (dndState.axis === "horizontal") {
+            ph.style.width = rect.width + "px";
+            ph.style.height = "";
+        } else {
+            ph.style.height = rect.height + "px";
+            ph.style.width = "";
+        }
+    }
+
+    function dndMove(event) {
+        if (!dndState || !dndState.started) return;
+        dndState.x = event.clientX;
+        dndState.y = event.clientY;
+        dndGhostFollow();
+        var over = document.elementFromPoint(event.clientX, event.clientY);
+        var overKeyed = over && over.closest ? over.closest("[data-neony-key]") : null;
+        if (overKeyed && overKeyed !== dndState.source) {
+            dndDispatch(overKeyed, "dragover", dndState.transfer, event.clientX, event.clientY);
+            dndPreviewInsertion(overKeyed, event.clientX, event.clientY);
+        } else {
+            dndPreviewInsertion(null, 0, 0);
+        }
+    }
+
+    // Position-only drop preview: the invisible placeholder (which keeps
+    // the source slot open) travels to the insertion point, so the list
+    // shows a single gap where the card will land.  No element is ever
+    // resized — siblings only shift position, FLIP-animated.
+    function dndPreviewInsertion(target, clientX, clientY) {
+        if (!dndState || !dndState.srcParent || !dndState.placeholder) return;
+        var ph = dndState.placeholder;
+        var container = dndState.srcParent;
+        var horizontal = dndState.axis === "horizontal";
+        // Cross-container: hovering a card in ANOTHER board re-homes the
+        // placeholder there, so the landing slot shows in the target board
+        // (the source board closes up).  Gated on data-neony-drag so plain
+        // keyed ancestors never trigger a re-home.
+        if (
+            target &&
+            target.hasAttribute &&
+            target.hasAttribute("data-neony-drag") &&
+            target !== dndState.source &&
+            target.parentNode &&
+            target.parentNode !== container
+        ) {
+            container = target.parentNode;
+            dndState.srcParent = container;
+            dndState.axis = dndAxisOf(container);
+            horizontal = dndState.axis === "horizontal";
+            dndResizePlaceholder(target.getBoundingClientRect());
+        }
+        if (target && target.parentNode === container) {
+            // Judge the cursor against the hovered card along the
+            // container's axis: the first half inserts before it, the
+            // second half after it.
+            var rect = target.getBoundingClientRect();
+            var mid = horizontal ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
+            var cursor = horizontal ? clientX : clientY;
+            var before = cursor < mid;
+            var key = (target.getAttribute("data-neony-key") || "") + (before ? ":before" : ":after");
+            if (dndState.insertion === key) return;
+            // Tiny hysteresis (~2px): flip crisply at the midline without
+            // oscillating exactly on it (each flip re-runs the FLIP).
+            if (dndState.insertion && dndState.insertion.indexOf((target.getAttribute("data-neony-key") || "") + ":") === 0) {
+                var dead = Math.min(2, (horizontal ? rect.width : rect.height) / 2);
+                if (Math.abs(cursor - mid) < dead) return;
+            }
+            dndState.insertion = key;
+            ph.style.visibility = "visible";
+            var where = before ? target : target.nextSibling;
+            if (where === ph) return;
+            dndFlipMove(container, function () {
+                container.insertBefore(ph, where);
+            });
+            return;
+        }
+        // Not a card: keep the committed insertion while the cursor stays
+        // inside this container (the visible slot must not vanish when the
+        // cursor reaches for it); clear it only when the cursor leaves the
+        // container entirely.
+        if (target && container.contains(target)) return;
+        if (dndState.insertion === "none") return;
+        dndState.insertion = "none";
+        ph.style.visibility = "hidden";
+        // The placeholder's home is the SOURCE's original container — after
+        // a re-home the drag may live in another board.
+        dndState.srcParent = dndState.sourceParent;
+        dndState.axis = dndAxisOf(dndState.sourceParent);
+        dndResizePlaceholder();
+        container = dndState.srcParent;
+        var revert = dndState.source.nextSibling;
+        if (revert === ph) return;
+        dndFlipMove(container, function () {
+            container.insertBefore(ph, revert);
+        });
+    }
+
+    // FLIP: record every sibling's position FIRST, apply the caller's DOM
+    // move, then offset each moved sibling back to its old spot and animate
+    // it to the new one on the next frame.  The source ghost is excluded —
+    // its transform belongs to dndGhostFollow.
+    function dndFlipMove(container, doMove) {
+        var kids = [];
+        for (var i = 0; i < container.children.length; i++) kids.push(container.children[i]);
+        var firsts = [];
+        for (var j = 0; j < kids.length; j++) {
+            var r = kids[j].getBoundingClientRect();
+            firsts.push({ top: r.top, left: r.left });
+        }
+        doMove();
+        void container.offsetHeight; // flush, so deltas are vs the NEW layout
+        var moved = [];
+        for (var k = 0; k < kids.length; k++) {
+            var el = kids[k];
+            if (el === dndState.source) continue;
+            var f = firsts[k];
+            var r2 = el.getBoundingClientRect();
+            var dx = f.left - r2.left;
+            var dy = f.top - r2.top;
+            if (dx || dy) {
+                // Snap to the hold position — a leftover transform
+                // transition from a previous flip would otherwise animate
+                // this first step and double-move the element.
+                el.style.transition = "none";
+                el.style.transform = "translate(" + dx + "px," + dy + "px)";
+                moved.push(el);
+            }
+        }
+        if (!moved.length) return;
+        requestAnimationFrame(function () {
+            for (var m = 0; m < moved.length; m++) {
+                var e2 = moved[m];
+                e2.style.transition = "transform 120ms ease";
+                e2.style.transform = "";
+            }
+        });
+    }
+
+    function dndGhostFollow() {
+        if (!dndState || !dndState.ghost) return;
+        if (dndState.rafId) return;
+        var s = dndState;
+        s.rafId = 1;
+        requestAnimationFrame(function () {
+            s.rafId = 0;
+            if (!dndState || !s.ghost) return;
+            s.ghost.style.transform =
+                "translate3d(" + (s.x - s.offsetX) + "px," + (s.y - s.offsetY) + "px,0)";
+        });
+    }
+
+    function dndOnMouseUp(event) {
+        document.removeEventListener("mousemove", dndOnMouseMove, true);
+        document.removeEventListener("mouseup", dndOnMouseUp, true);
+        window.removeEventListener("blur", dndOnBlur, true);
+        if (!dndState || !dndState.started) {
+            dndClear();
+            return;
+        }
+        var transfer = dndState.transfer;
+        var target = dndState.source;
+        var before = false;
+        var x = event.clientX;
+        var y = event.clientY;
+        // Honor the committed insertion: the drop lands EXACTLY where the
+        // placeholder showed it.  Using the raw cursor offset here would
+        // drift from the preview near a card's midline (hysteresis dead
+        // zone) or on a fast release — the preview and the result then
+        // disagree.
+        var ins = dndState.insertion;
+        if (ins && ins !== "none") {
+            var colon = ins.lastIndexOf(":");
+            var targetKey = ins.slice(0, colon);
+            before = ins.slice(colon + 1) === "before";
+            var kids = dndState.srcParent ? dndState.srcParent.children : null;
+            if (kids) {
+                for (var i = 0; i < kids.length; i++) {
+                    if (kids[i].getAttribute("data-neony-key") === targetKey) {
+                        target = kids[i];
+                        var tr = target.getBoundingClientRect();
+                        // Encode the side on the container's axis so the
+                        // handler's "< mid" test yields the committed
+                        // insertion (offset_y for a column, offset_x for a
+                        // row).
+                        if (dndState.axis === "horizontal") {
+                            x = before ? tr.left : tr.left + tr.width;
+                        } else {
+                            y = before ? tr.top : tr.top + tr.height;
+                        }
+                        break;
+                    }
+                }
+            }
+        } else {
+            var over = document.elementFromPoint(event.clientX, event.clientY);
+            var overKeyed = over && over.closest ? over.closest("[data-neony-key]") : null;
+            if (overKeyed) target = overKeyed;
+        }
+        dndDispatch(target, "drop", transfer, x, y);
+        dndDispatch(dndState.source, "dragend", transfer, event.clientX, event.clientY);
+        // Animate the reorder into its final layout: the source glides
+        // from the cursor into the committed slot and the rest shift into
+        // place — the "end" animation to match the "start" pickup.
+        dndSettle(target, before);
+    }
+
+    // Drop settle: FLIP everything (including the source ghost) from its
+    // current spot into the final layout.  The source is reinserted into
+    // the flow at the committed insertion, so the Python patch that
+    // follows the drop is a no-op for it — no double animation.
+    function dndSettle(target, before) {
+        if (!dndState || !dndState.srcParent) return;
+        var src = dndState.source;
+        var container = dndState.srcParent;
+        var ph = dndState.placeholder;
+        var kids = [];
+        for (var i = 0; i < container.children.length; i++) kids.push(container.children[i]);
+        var firsts = [];
+        for (var j = 0; j < kids.length; j++) {
+            var r = kids[j].getBoundingClientRect();
+            firsts.push({ top: r.top, left: r.left });
+        }
+        // The source's ghost position BEFORE restore — after restore it is
+        // static again (back at its original slot), and the FLIP must glide
+        // it from the CURSOR into the committed slot.
+        var srcFirst = src.getBoundingClientRect();
+        if (ph && ph.parentNode) ph.parentNode.removeChild(ph);
+        dndRestoreSource();
+        // The source glides into the committed slot — WITHIN this board,
+        // or across boards: the Python handler moves the card model and
+        // the diff emits a MovePatch (cross-parent move), which re-parents
+        // THIS SAME element — no flash, no blank slot.
+        if (target && target.parentNode === container) {
+            container.insertBefore(src, before ? target : target.nextSibling);
+        }
+        var moved = [];
+        var origTrans = {};
+        for (var k = 0; k < kids.length; k++) {
+            var el = kids[k];
+            if (el === ph || el === src) continue;
+            var f = firsts[k];
+            var r2 = el.getBoundingClientRect();
+            var dx = f.left - r2.left;
+            var dy = f.top - r2.top;
+            if (dx || dy) {
+                origTrans[el] = el.style.transition;
+                el.style.transition = "none";
+                el.style.transform = "translate(" + dx + "px," + dy + "px)";
+                moved.push(el);
+            }
+        }
+        // The source leaves the flow as a ghost (its transform follows the
+        // cursor), so it is NOT in `kids`' recorded flow position — the FLIP
+        // loop above skips it.  FLIP it from the CURSOR into the committed
+        // slot, or its ghost transform survives and the card hangs offset
+        // at the slot (looks like it vanished — worse across a wrap row,
+        // where the offset is a full row).
+        if (src.parentNode === container) {
+            var r3 = src.getBoundingClientRect();
+            var sdx = srcFirst.left - r3.left;
+            var sdy = srcFirst.top - r3.top;
+            if (sdx || sdy) {
+                origTrans[src] = src.style.transition;
+                src.style.transition = "none";
+                src.style.transform = "translate(" + sdx + "px," + sdy + "px)";
+                moved.push(src);
+            } else {
+                src.style.transform = "";
+            }
+        }
+        if (!moved.length) {
+            dndState = null;
+            return;
+        }
+        requestAnimationFrame(function () {
+            for (var m = 0; m < moved.length; m++) {
+                var e2 = moved[m];
+                e2.style.transition = "transform 220ms cubic-bezier(.2,.8,.2,1)";
+                e2.style.transform = "";
+            }
+            setTimeout(function () {
+                for (var n = 0; n < moved.length; n++) {
+                    moved[n].style.transition = origTrans[moved[n]];
+                }
+            }, 260);
+        });
+        dndState = null;
+    }
+
+    // Test-only reset hook: clears any in-flight pointer drag.
+    window.__neonyDndReset = dndClear;
 
     // Smooth horizontal scroll for data-neony-wheel-x zones.  Wheel deltas
     // accumulate into a target position; one rAF loop per element eases
@@ -93,8 +634,11 @@
         // Keys typed while no element is focused land on <body> — no
         // data-neony-key ancestor to trace to.  Window-level key
         // listeners (Page.on_keydown / on_keyup, shortcuts) must still
-        // fire, so route keyboard events through the engine root.
-        if (!el && (event.type === "keydown" || event.type === "keyup")) {
+        // fire, so route keyboard events through the engine root.  The
+        // document's own scroll (a plain <body>/<html> scroll, target is
+        // `document` — which has no closest) routes the same way so a
+        // window-level scroll listener sees it.
+        if (!el && (event.type === "keydown" || event.type === "keyup" || event.type === "scroll")) {
             el = engine.root;
         }
         if (!el) return;
@@ -127,6 +671,39 @@
             event.preventDefault();
         }
 
+        // In-app drags: an element with data-neony-drag (from
+        // DOMElement.drag_payload) is draggable.  setData MUST run
+        // synchronously inside the dragstart event, so the payload is
+        // read from the element's attribute — a Python round-trip would
+        // be far too late.  effectAllowed "move" signals a reorder.
+        if (event.type === "dragstart" && event.dataTransfer) {
+            var dragPayload = el.getAttribute("data-neony-drag");
+            if (dragPayload !== null) {
+                event.dataTransfer.setData("application/x-neony", dragPayload);
+                event.dataTransfer.effectAllowed = "move";
+            }
+        }
+
+        // Dragover throttle: dragover fires for EVERY pointer motion
+        // during a drag.  Forwarding each one is a full Python round-trip
+        // and the events queue up BEHIND the drop, delaying it — the
+        // "reorder animation lags, drag feels broken" symptom.  The drop
+        // itself carries everything a handler needs (drag_payload,
+        // coordinates), so per-dragover traffic only matters for drop-zone
+        // highlighting — throttled to ~8/s keeps that alive without the
+        // flood.  The map is cleared on drop/dragend so keys don't pile up.
+        var elKey = el.getAttribute("data-neony-key");
+        if (event.type === "dragover") {
+            event.preventDefault();
+            var now = Date.now();
+            if (lastDragover[elKey] !== undefined && now - lastDragover[elKey] < 120) {
+                return;
+            }
+            lastDragover[elKey] = now;
+        } else if (event.type === "drop" || event.type === "dragend") {
+            lastDragover = {};
+        }
+
         // Window-control buttons: on *click* only, run the native
         // `lumiview.window.*` action (a plain hover must never close a
         // window), then still forward the normal Neony event.
@@ -136,11 +713,10 @@
             if (action) action();
         }
 
-        var key = el.getAttribute("data-neony-key");
         var value = captureValue(el, event);
 
         var payload = {
-            key: key,
+            key: elKey,
             event_type: event.type,
             value: value,
         };
@@ -211,6 +787,17 @@
             payload.delta_mode = event.deltaMode;
         }
 
+        // Scroll position (scroll event only).  Read from the ACTUAL
+        // scroller (event.target) rather than the keyed ancestor `el` —
+        // the scroller may be an unkeyed wrapper inside a keyed element.
+        // A document-level scroll's target is `document` (no scrollTop of
+        // its own; the viewport is the documentElement).
+        if (event.type === "scroll") {
+            var scroller = event.target === document ? document.documentElement : event.target;
+            payload.scroll_top = (scroller && scroller.scrollTop) || 0;
+            payload.scroll_left = (scroller && scroller.scrollLeft) || 0;
+        }
+
         // Clipboard data — paste only.  getData() works only during the
         // synchronous dispatch, which this capture-phase handler is.
         // copy / cut have already written the selection by now, so they
@@ -269,6 +856,18 @@
             if (files.length > 0) payload.drop_files = files;
         }
 
+        // In-app drag payload: forwarded on dragstart (from the element's
+        // data-neony-drag) and read back on drop (getData works during
+        // drop, unlike dragover) so the drop handler can identify what
+        // was dragged.
+        if (event.type === "dragstart") {
+            var dp0 = el.getAttribute("data-neony-drag");
+            if (dp0 !== null) payload.drag_payload = dp0;
+        } else if (event.type === "drop" && event.dataTransfer) {
+            var dp1 = event.dataTransfer.getData("application/x-neony");
+            if (dp1) payload.drag_payload = dp1;
+        }
+
         window.lumiview.invoke("neony.event", payload).catch(function () {
             // Fire-and-forget — ignore delivery failures
         });
@@ -277,6 +876,13 @@
     for (var i = 0; i < DELEGATED_EVENTS.length; i++) {
         document.addEventListener(DELEGATED_EVENTS[i], eventHandler, true);
     }
+
+    // Pointer-driven in-app drags: mousedown arms the drag; the
+    // synthetic lifecycle is owned by the pointer handlers above.  The
+    // delegated dragstart listener stops the browser from starting its
+    // own (misbehaving) HTML5 drag on data-neony-drag elements.
+    document.addEventListener("dragstart", dndOnDragStart, true);
+    document.addEventListener("mousedown", dndOnMouseDown, true);
 
     // Synthetic `outsideclick`: every element marked with
     // data-neony-outside="true" (an open overlay wrapper — trigger +

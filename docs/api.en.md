@@ -65,6 +65,33 @@ counterpart to [`SharedSignal`](#sharedsignal) for cross-window data.
 **Theme / rendering:**
 `set_theme(theme)`, `sync_theme()`, `set_background(url)`, `render()`
 
+**File dialogs** (all async — via a one-shot tkinter subprocess):
+`open_file(...) -> str | None`, `open_files(...) -> list[str]`,
+`save_file(...) -> str | None`, `select_folder(...) -> str | None`.
+Cancelling returns `None` (or `[]` for the multi-select); a dialog that
+can't be shown (no display, tkinter missing) also returns `None` —
+never an exception.
+
+```python
+path = await app.open_file(
+    title="Open image", default_dir="~/Pictures", filetypes=[("PNG images", "*.png"), ("All files", "*.*")]
+)
+if path is None:
+    return  # cancelled
+paths = await app.open_files(...)  # [] on cancel
+dest = await app.save_file(default_name="out.txt")  # str | None
+folder = await app.select_folder()  # str | None
+```
+
+Each call spawns a short-lived subprocess that shows a self-drawn,
+dark-themed file picker (the platform `tkinter.filedialog` is dated and
+can't be restyled); the request dict is delivered by `multiprocessing`
+pickling and the result returns on a one-way `Pipe` as a typed
+`("ok", result)` / `("error", msg)` tuple — no stdout/JSON parsing. The
+parent awaits the reply with `asyncio.to_thread`, so the event loop stays
+responsive while the modal is up. Linux/macOS use `fork` (fast, no
+`__main__` re-import), Windows `spawn`.
+
 ### `launch()`
 
 One-liner entry point — builds a `Config` from keyword arguments.
@@ -1149,10 +1176,21 @@ Event payload forwarded from JavaScript:
 ```python
 async def handler(event: DomEvent) -> None:
     event.key  # element identity
-    event.type  # "click" | "input" | ...
+    event.type  # "click" | "input" | "scroll" | ...
     event.value  # element-specific data
     event.source  # "user" | "program"
 ```
+
+Rich fields ride along on the events that carry them: modifier keys
+(`ctrl_key` / `shift_key` / `alt_key` / `meta_key`), mouse coordinates
+(`x` / `y` / `offset_x` / `offset_y`), pointer deltas
+(`movement_x` / `movement_y` / `pointer_type`), wheel deltas
+(`delta_x` / `delta_y` / `delta_mode`), scroll position
+(`scroll_top` / `scroll_left` — the scrolled element's position,
+dispatched to the nearest keyed ancestor, high-frequency so renders
+are deferred), clipboard data (`clipboard_text` / `clipboard_html`),
+in-app drag payloads (`drag_payload`), and dropped files
+(`drop_files`).
 
 ### Raw elements
 
@@ -1168,6 +1206,90 @@ card = Div(
     container=["Hello"],
 )
 ```
+
+### In-app drag & reorder
+
+#### `Reorder` component
+
+The ready-made way to reorder a collection is the `Reorder` board — a
+flex container of draggable cards that owns the reorder internally:
+
+```python
+from neony.application.elements import Reorder, ReorderItem
+
+board = Reorder(
+    ReorderItem("First", key="a"),
+    ReorderItem("Second", key="b"),
+    "Third",  # plain strings become cards (key = label)
+    direction="row",  # "row" or "column"
+    wrap=True,  # row + wrap = a grid (both axes)
+    size="76px",  # card size along the main axis
+    max_width="336px",  # optional — pin 4 cards/row to force the wrap
+)
+board.on_drop(lambda e: e.value)  # ordered keys after a drag
+board.order  # current keys in render order
+```
+
+- Cards are pre-marked draggable (the payload is declared up front — a
+  Python round-trip in `dragstart` would be too late) and `drop` reorders
+  the board itself; the diff engine emits a `ReorderPatch` for free.
+- Both axes work: the engine detects the container's `flex-direction` and
+  judges the insertion side by the cursor's half — `offset_x` for a `row`
+  (first half inserts before, second after), `offset_y` for a `column`.
+  A wrapping `row` board forms a grid, so a card can be dragged both
+  horizontally (within a row) and vertically (into another row).  The
+  grid wraps at the board's width — pin `max_width` to force the wrap.
+- Cards are not limited to text: `add()` / the constructor accept any
+  content — a plain or reactive string, a whole `Component` (it mounts
+  inside the card), or a raw `DOMElement`.  **Bare content needs no
+  wrapper and no explicit key**: plain strings use the label as the key,
+  keyed DOM elements keep their own key, and everything else (a stack of
+  `Card`s, …) gets an auto-generated `reorder-card-N` key.
+- **Generic over card content** — `Reorder[T]` and `ReorderItem[T]` are
+  typed by what the cards contain, so any component (or any other
+  content type) can stand in exactly where `ReorderItem` used to, and
+  `items` yields `ReorderItem[T]`:
+
+  ```python
+  from neony.application.elements import Card, Text
+
+  board: Reorder[Card] = Reorder(Card(title="One"), Card(title="Two"))
+  cards = board.items  # list[ReorderItem[Card]] — content typed as Card
+  ```
+- Boards exchange cards: dragging a card onto a card of another `Reorder`
+  re-homes the landing slot into that board and the drop moves the card
+  (it is removed from the source board's `order` and inserted into the
+  target's).  Card keys must be globally unique across the boards you
+  let exchange cards.
+- `on_drop` fires with `event.value` = the ordered card keys of the
+  board that received the drop.
+
+#### Low-level primitive
+
+Underneath the component, the engine delegates the full drag lifecycle —
+`dragstart` / `dragenter` / `dragover` / `dragleave` / `drop` /
+`dragend` — and a drop payload rides through `dataTransfer`.  Set
+`drag_payload` on an element to make it draggable and declare the payload
+the engine hands to `dataTransfer.setData` on dragstart:
+
+```python
+item = Div(key="row-1", drag_payload="row-1")  # draggable + declared payload
+item.on_dragstart(lambda e: print("dragging", e.drag_payload))
+item.on_dragend(lambda e: print("drag finished"))
+
+drop_zone.on_drop(lambda e: reorder(e.drag_payload, e.key, e.offset_y))  # payload back
+```
+
+- `drag_payload` serializes to `draggable="true"` + `data-neony-drag`; the
+  engine calls `setData("application/x-neony", payload)` in the dragstart
+  handler and reads it back into `DomEvent.drag_payload` on `drop`.
+- `dragover`/`drop` are already `preventDefault()`ed by the engine, so
+  every keyed element is a valid drop target (and the webview never
+  navigates to a dropped file).
+- While dragging, the engine shows a dashed landing slot at the insertion
+  point (cards shift position-only, FLIP-animated), and on drop everything
+  settles into the final order with a matching animation.  Purely local in
+  the engine — no IPC, no resizing.
 
 ## Reactivity
 

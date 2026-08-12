@@ -2,8 +2,22 @@
 
 from __future__ import annotations
 
-from neony.application.elements import Button, Column, DataTable, Icon, List, ListItem, Separator, Text
-from neony.dom import Div, DomEvent, Signal, Styles
+from typing import Any
+
+from neony.application.elements import (
+    Button,
+    Card,
+    Column,
+    DataTable,
+    Icon,
+    List,
+    ListItem,
+    Reorder,
+    ReorderItem,
+    Separator,
+    Text,
+)
+from neony.dom import Computed, Div, DomEvent, Signal, Styles
 
 from ..core import Section
 from ..i18n import tr, tr_now
@@ -142,4 +156,95 @@ multi.on_change(...)  # e.value = toggled key; read multi.selected_keys""",
     multi_echo,
 )
 
-PANELS = {"list": list_panel, "datatable": datatable_panel}
+# ── tab: drag reorder ────────────────────────────────────────────
+
+# The in-app drag primitive, wrapped as the :class:`Reorder` component:
+# cards are pre-marked draggable (the payload is declared up front, since
+# a Python round-trip in dragstart would be too late), and a drop
+# reorders the board internally — the diff engine emits a ReorderPatch
+# for free.  A ``row`` board with ``wrap=True`` forms a grid; pinning
+# ``max_width`` to 4 cards per row forces the wrap, so a card can be
+# dragged both horizontally (within a row) and vertically (into another
+# row).
+reorder_board = Reorder(
+    ReorderItem(tr.data.reorder_first, key="reorder-1"),
+    ReorderItem(tr.data.reorder_second, key="reorder-2"),
+    ReorderItem(tr.data.reorder_third, key="reorder-3"),
+    ReorderItem(tr.data.reorder_fourth, key="reorder-4"),
+    ReorderItem(tr.data.reorder_fifth, key="reorder-5"),
+    ReorderItem(tr.data.reorder_sixth, key="reorder-6"),
+    ReorderItem(tr.data.reorder_seventh, key="reorder-7"),
+    ReorderItem(tr.data.reorder_eighth, key="reorder-8"),
+    direction="row",
+    wrap=True,
+    size="76px",
+    max_width="336px",  # 4 cards per row → the grid wraps into two rows
+)
+
+# A second board: cards can be dragged between boards (cross-Reorder) —
+# the landing slot travels into the hovered board, and the drop moves
+# the card.  Card keys must stay unique across the two boards.
+reorder_tray = Reorder(
+    ReorderItem(tr.data.reorder_tray_a, key="tray-a"),
+    ReorderItem(tr.data.reorder_tray_b, key="tray-b"),
+    ReorderItem(tr.data.reorder_tray_c, key="tray-c"),
+    direction="row",
+    wrap=False,
+    size="76px",
+)
+reorder_readout = Text("", role="secondary")
+
+
+def _reorder_label(item: ReorderItem[Any]) -> str:
+    content = item.content
+    if isinstance(content, (Signal, Computed)):
+        return content.get()
+    if isinstance(content, str):
+        return content
+    return "<component>"  # component/DOM cards aren't rendered in the readout
+
+
+def _render_reorder(order: list[str]) -> None:
+    labels = {
+        item.key: _reorder_label(item) for item in reorder_board.items + reorder_tray.items if item.key is not None
+    }
+    parts = [f"{labels[k]}[{k.split('-')[-1]}]" for k in order if k in labels]
+    reorder_readout.text = "order: " + " → ".join(parts)
+
+
+reorder_board.on_drop(lambda e: _render_reorder(e.value))
+reorder_tray.on_drop(lambda e: _render_reorder(e.value))
+_render_reorder(reorder_board.order)
+
+# Bare components go straight into a Reorder — no ReorderItem wrapper, no
+# explicit key: each Card gets an auto-generated key and is draggable like
+# any other card (and can cross boards too).
+reorder_cards = Reorder(
+    Card(Text(tr.data.reorder_card_one), title=tr.data.reorder_card_one),
+    Card(Text(tr.data.reorder_card_two), title=tr.data.reorder_card_two),
+    Card(Text(tr.data.reorder_card_three), title=tr.data.reorder_card_three),
+    direction="row",
+    wrap=False,
+    size="120px",
+)
+
+
+def _render_cards(order: list[str]) -> None:
+    reorder_readout.text = "cards: " + " → ".join(order)
+
+
+reorder_cards.on_drop(lambda e: _render_cards(e.value))
+
+reorder_panel = Section(
+    tr.data.reorder_title,
+    tr.data.reorder_blurb,
+    """board = Reorder(ReorderItem("First", key="a"), "Second", ...)  # draggable cards
+board.on_drop(lambda e: e.value)   # ordered keys after a drag
+# any component / DOM element can be a card; two boards can exchange cards""",
+    reorder_board,
+    reorder_tray,
+    reorder_cards,
+    reorder_readout,
+)
+
+PANELS = {"list": list_panel, "datatable": datatable_panel, "reorder": reorder_panel}

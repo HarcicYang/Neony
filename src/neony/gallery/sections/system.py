@@ -606,12 +606,77 @@ page.on_blur(lambda: print("blurred"))""",
     win_note,
 )
 
+# ── tab: dialogs ─────────────────────────────────────────────────
+
+# Native file dialogs run in a one-shot tkinter subprocess — the event
+# loop stays responsive because the reply returns over a typed
+# multiprocessing pipe and is awaited with asyncio.to_thread.
+dialog_open_btn = Button(tr.system.dialog_open, variant="ghost")
+dialog_many_btn = Button(tr.system.dialog_open_many, variant="ghost")
+dialog_save_btn = Button(tr.system.dialog_save, variant="ghost")
+dialog_folder_btn = Button(tr.system.dialog_folder, variant="ghost")
+dialog_state = Signal(tr_now(tr.system.dialog_idle))
+dialog_echo = Text("", role="secondary")
+dialog_echo.bind_text(dialog_state)
+
+
+async def on_dialog_open(_event: DomEvent) -> None:
+    path = await app.open_file(title=tr_now(tr.system.dialog_open_title), filetypes=[("All files", "*.*")])
+    dialog_state.set(
+        tr_now(tr.system.dialog_picked_fmt).format(path=path) if path else tr_now(tr.system.dialog_cancelled)
+    )
+
+
+async def on_dialog_many(_event: DomEvent) -> None:
+    paths = await app.open_files(title=tr_now(tr.system.dialog_open_title))
+    dialog_state.set(
+        tr_now(tr.system.dialog_many_fmt).format(n=len(paths), names=", ".join(paths))
+        if paths
+        else tr_now(tr.system.dialog_cancelled)
+    )
+
+
+async def on_dialog_save(_event: DomEvent) -> None:
+    path = await app.save_file(
+        title=tr_now(tr.system.dialog_save_title), default_name="untitled.txt", filetypes=[("Text", "*.txt")]
+    )
+    dialog_state.set(
+        tr_now(tr.system.dialog_saved_fmt).format(path=path) if path else tr_now(tr.system.dialog_cancelled)
+    )
+
+
+async def on_dialog_folder(_event: DomEvent) -> None:
+    path = await app.select_folder(title=tr_now(tr.system.dialog_open_title))
+    dialog_state.set(
+        tr_now(tr.system.dialog_folder_fmt).format(path=path) if path else tr_now(tr.system.dialog_cancelled)
+    )
+
+
+dialog_open_btn.on_click(on_dialog_open)
+dialog_many_btn.on_click(on_dialog_many)
+dialog_save_btn.on_click(on_dialog_save)
+dialog_folder_btn.on_click(on_dialog_folder)
+
+dialogs_panel = Section(
+    tr.system.dialogs_title,
+    tr.system.dialogs_blurb,
+    """path = await app.open_file(title="Open",
+        filetypes=[("PNG images", "*.png")])   # None on cancel
+paths = await app.open_files(...)              # [] on cancel
+await app.save_file(default_name="out.txt")    # str | None
+await app.select_folder()                      # str | None
+# One-shot tkinter subprocess; reply over a typed multiprocessing pipe.""",
+    HStack(dialog_open_btn, dialog_many_btn, dialog_save_btn, dialog_folder_btn, gap="8px"),
+    dialog_echo,
+)
+
 PANELS = {
     "animations": animations_panel,
     "reactive": reactive_panel,
     "sidebar": sidebar_panel,
     "tabs": tabs_panel,
     "window": window_panel,
+    "dialogs": dialogs_panel,
 }
 
 # ── page wiring ──────────────────────────────────────────────────

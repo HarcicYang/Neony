@@ -31,7 +31,7 @@ from neony.application.tray import Tray
 from neony.dom import DOMElement, DomEvent, KeyFrame
 from neony.dom.bridge import Neony
 
-from . import i18n
+from . import dialogs, i18n
 
 # User state type: inferred from the ``state=`` constructor argument
 # (dataclass, pydantic model, ...).  Falls back to SimpleNamespace.
@@ -289,7 +289,7 @@ class NeonApplication(Generic[_S]):
             self._tray_icon = None
             return
         if self.tray.on_left_click is not None and not self.tray.menu_on_left_click:
-            from lumiview._core import ElementState, MouseButton
+            from lumiview import ElementState, MouseButton
 
             self._lumiview_app.on(AppEvent.TrayIconClickEvent)(self._make_tray_click_handler(ElementState, MouseButton))
         if self.tray.close_to_tray:
@@ -811,6 +811,67 @@ class NeonApplication(Generic[_S]):
             self._load_pyclip()
 
         return await asyncio.to_thread(self._clip.paste)  # type: ignore
+
+    # ---- file dialogs ----
+
+    async def open_file(
+        self,
+        *,
+        title: str | None = None,
+        default_dir: str | None = None,
+        filetypes: list[tuple[str, str]] | None = None,
+    ) -> str | None:
+        """Native open-file dialog (one-shot tkinter subprocess).
+
+        Returns the chosen path, or ``None`` when the user cancels or the
+        dialog can't be shown (no display, tkinter missing).  *filetypes*
+        filters the picker: ``[("PNG images", "*.png"), ("All files",
+        "*.*")]``.
+        """
+        result = await dialogs.show_dialog("open", title=title, default_dir=default_dir, filetypes=filetypes)
+        return cast(str | None, result)
+
+    async def open_files(
+        self,
+        *,
+        title: str | None = None,
+        default_dir: str | None = None,
+        filetypes: list[tuple[str, str]] | None = None,
+    ) -> list[str]:
+        """Native multi-select open dialog; returns the chosen paths
+        (``[]`` when cancelled)."""
+        result = await dialogs.show_dialog("open-many", title=title, default_dir=default_dir, filetypes=filetypes)
+        return cast(list[str], result)
+
+    async def save_file(
+        self,
+        *,
+        title: str | None = None,
+        default_dir: str | None = None,
+        default_name: str | None = None,
+        filetypes: list[tuple[str, str]] | None = None,
+    ) -> str | None:
+        """Native save dialog; returns the destination path, or ``None``
+        when the user cancels."""
+        result = await dialogs.show_dialog(
+            "save",
+            title=title,
+            default_dir=default_dir,
+            default_name=default_name,
+            filetypes=filetypes,
+        )
+        return cast(str | None, result)
+
+    async def select_folder(
+        self,
+        *,
+        title: str | None = None,
+        default_dir: str | None = None,
+    ) -> str | None:
+        """Native folder picker; returns the chosen directory, or ``None``
+        when the user cancels."""
+        result = await dialogs.show_dialog("folder", title=title, default_dir=default_dir)
+        return cast(str | None, result)
 
 
 def launch(

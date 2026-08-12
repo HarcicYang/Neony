@@ -168,6 +168,13 @@ class DOMElement(BaseModel):
     #   True      — equivalent to "normal"
     scroll_indicator: bool | Literal["silent", "lighten", "normal", "active"] = Field(default=True)
 
+    # In-app drag payload: when set, the element becomes draggable and the
+    # engine hands this string to ``dataTransfer.setData`` on dragstart
+    # (``application/x-neony``) — the synchronous hook the drag delegate
+    # needs, since Python can't call setData in the dragstart event.  A
+    # ``drop`` handler reads it back via ``DomEvent.drag_payload``.
+    drag_payload: str | None = Field(default=None)
+
     # Fluent .on_xxx() handlers — PrivateAttr so callables never serialize.
     _handlers: dict[str, list[Callable[..., Any]]] = PrivateAttr(default_factory=dict)
 
@@ -434,6 +441,11 @@ class DOMElement(BaseModel):
         """Wheel — ``event.delta_x`` / ``event.delta_y`` carry the deltas."""
         return self.on("wheel", fn)
 
+    def on_scroll(self, fn: Callable[..., Any]) -> DOMElement:
+        """Scroll — ``event.scroll_top`` / ``event.scroll_left`` carry the
+        scrolled element's position (high-frequency; renders are deferred)."""
+        return self.on("scroll", fn)
+
     def on_dragover(self, fn: Callable[..., Any]) -> DOMElement:
         """Dragover — fires continuously while a drag hovers this
         element; ``preventDefault`` (allowing the drop) is handled by
@@ -442,6 +454,20 @@ class DOMElement(BaseModel):
 
     def on_dragleave(self, fn: Callable[..., Any]) -> DOMElement:
         return self.on("dragleave", fn)
+
+    def on_dragstart(self, fn: Callable[..., Any]) -> DOMElement:
+        """Dragstart — fires when a drag begins on a ``drag_payload``
+        element (the payload rides in ``event.drag_payload``)."""
+        return self.on("dragstart", fn)
+
+    def on_dragend(self, fn: Callable[..., Any]) -> DOMElement:
+        """Dragend — fires on the source element when the drag finishes
+        (dropped or cancelled); the hook to clear drag state."""
+        return self.on("dragend", fn)
+
+    def on_dragenter(self, fn: Callable[..., Any]) -> DOMElement:
+        """Dragenter — fires when a drag enters this element."""
+        return self.on("dragenter", fn)
 
     def on_paste(self, fn: Callable[..., Any]) -> DOMElement:
         """Paste — ``event.clipboard_text`` / ``event.clipboard_html``
@@ -540,6 +566,16 @@ class DOMElement(BaseModel):
                 items.append(("data-neony-scroll", f"y{suffix}"))
             elif scrolls_x:
                 items.append(("data-neony-scroll", f"x{suffix}"))
+        # In-app drag payload: ``drag_payload`` becomes ``draggable="true"``
+        # (HTML draggable — what actually starts a drag) plus a
+        # ``data-neony-drag`` marker carrying the payload the JS engine
+        # passes to ``dataTransfer.setData`` on dragstart.  ``draggable``
+        # is an *enumerated* attribute (not a presence boolean like
+        # ``checked``): a bare/empty value resolves to "auto" and a plain
+        # div stays un-draggable, so the literal "true" is required.
+        if self.drag_payload is not None and not any(k == "data-neony-drag" for k, _ in items):
+            items.append(("draggable", "true"))
+            items.append(("data-neony-drag", self.drag_payload))
         return items
 
     def _build_attrs(self) -> list[str]:

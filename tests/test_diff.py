@@ -4,6 +4,7 @@ from neony.dom import NodeDescriptor
 from neony.dom.bridge import (
     CreatePatch,
     DiffEngine,
+    MovePatch,
     RemovePatch,
     ReorderPatch,
     ReplacePatch,
@@ -330,3 +331,78 @@ class TestReorderWithAddRemove:
 
         assert has_patch(patches, RemovePatch)
         assert not has_patch(patches, ReorderPatch)
+
+
+class TestCrossBoard:
+    """Two boards exchanging a card — the diff must not lose the moved
+    element or drop it at the wrong index."""
+
+    def old_tree(self):
+        return nd(
+            "page",
+            "div",
+            children=[
+                nd("grid", "div", children=[nd("g1", "span"), nd("g2", "span"), nd("g3", "span")]),
+                nd("tray", "div", children=[nd("t1", "span")]),
+            ],
+        )
+
+    def test_cross_parent_move_emits_move_patch(self):
+        """Moving t1 from the tray into the grid is a CROSS-PARENT move:
+        the same element must be re-parented (MovePatch), never
+        remove+create — a create would build a fresh node that the
+        trailing remove then deletes (blank slot), or double-render."""
+        old = self.old_tree()
+        new = nd(
+            "page",
+            "div",
+            children=[
+                nd("grid", "div", children=[nd("g1", "span"), nd("g2", "span"), nd("t1", "span"), nd("g3", "span")]),
+                nd("tray", "div", children=[]),
+            ],
+        )
+        patches = DiffEngine.diff(old, new)
+        move = next(p for p in patches if isinstance(p, MovePatch))
+        assert move.key == "t1"
+        assert move.to_parent == "grid"
+        assert move.to_index == 2  # g1, g2, [t1], g3
+        assert not has_patch(patches, RemovePatch)
+        assert not has_patch(patches, CreatePatch)
+        assert not has_patch(patches, ReorderPatch)
+
+    def test_cross_parent_move_same_parent_is_reorder(self):
+        """A same-parent key stays a plain reorder — no MovePatch."""
+        old = self.old_tree()
+        new = nd(
+            "page",
+            "div",
+            children=[
+                nd("grid", "div", children=[nd("g2", "span"), nd("g1", "span"), nd("g3", "span")]),
+                nd("tray", "div", children=[nd("t1", "span")]),
+            ],
+        )
+        patches = DiffEngine.diff(old, new)
+        assert not has_patch(patches, MovePatch)
+        assert has_patch(patches, ReorderPatch)
+
+    def test_same_key_in_two_boards_does_not_move(self):
+        """A key that exists in BOTH boards (duplicate keys — not a move)
+        must not emit a MovePatch for either."""
+        old = nd(
+            "page",
+            "div",
+            children=[
+                nd("grid", "div", children=[nd("a", "span"), nd("x", "span")]),
+                nd("tray", "div", children=[nd("x", "span")]),
+            ],
+        )
+        new = nd(
+            "page",
+            "div",
+            children=[
+                nd("grid", "div", children=[nd("a", "span"), nd("x", "span")]),
+                nd("tray", "div", children=[nd("x", "span")]),
+            ],
+        )
+        patches = DiffEngine.diff(old, new)
+        assert not has_patch(patches, MovePatch)

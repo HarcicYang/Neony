@@ -102,6 +102,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Tree` / `TreeNode`       | 可折叠导航树 + 内容宿主 — 任意深度、流畅建造器写法、点叶子在右侧显示其面板 |
 | `List` / `ListItem`       | 可滚动单选数据列表 — listbox 模型、方向键移动选中、`selected_key` / `bind_selected` |
 | `DataTable` / `Column`    | 列配置 + 数据行 — 固定表头、点击排序、单选 / 多选行 |
+| `Reorder` / `ReorderItem` | 拖拽重排面板 — 任意组件/DOM 元素都可作为卡片；`direction` + `wrap` 可作网格纵横双向重排，多个面板可交换卡片 |
 | `Icon`                    | 统一图标 — `Icon.image(url)` 固定方形图片或 `Icon.glyph(text)` 字形，TitleBar / Sidebar / Tabs / Tree 共用 |
 | `Flex`                    | 通用弹性容器，完全控制                                         |
 | `VStack` / `HStack`       | 纵向 / 横向弹性堆叠                                            |
@@ -141,6 +142,11 @@ launch(page, title="My App", width=480, height=360, devtools=True)
   托盘图标与原生右键菜单；`close_to_tray=True` 关窗时隐藏应用而非退出。
   Linux 需要 `libayatana-appindicator`。见
   [`demo_tray.py`](demo_tray.py)。
+- **原生文件对话框** — `app.open_file()`、`app.open_files()`、
+  `app.save_file()`、`app.select_folder()` 在一次性 tkinter 子进程中
+  显示自绘的深色主题文件选择器；结果通过类型化的 `multiprocessing`
+  管道返回（取消返回 `None`，多选取消返回 `[]`）。没有 stdout/JSON
+  文本解析，事件循环保持响应。
 
 ---
 

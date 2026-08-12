@@ -151,6 +151,22 @@ describe("patch ops", () => {
     expect(() => engine.applyOps([{ op: "remove", key: "nope" }])).not.toThrow();
   });
 
+  it("move: re-parents the SAME element across containers", () => {
+    const engine = mountEngine(new rt.NeonyEngine(), 1, {
+      key: "root",
+      tag: "div",
+      children: [
+        { key: "grid", tag: "div", children: [{ key: "g1", tag: "span" }] },
+        { key: "tray", tag: "div", children: [{ key: "t1", tag: "span", text: "T" }] },
+      ],
+    });
+    const t1 = engine.registry.get("t1");
+    engine.applyOps([{ op: "move", key: "t1", to_parent: "grid", to_index: 0 }]);
+    expect(engine.registry.get("t1")).toBe(t1); // same node, still registered
+    expect(engine.registry.get("grid").children[0]).toBe(t1);
+    expect(engine.registry.get("tray").children.length).toBe(0);
+  });
+
   it("replace: swaps the node in place with the same key", () => {
     const engine = baseEngine();
     engine.applyOps([{ op: "replace", key: "a", node: { key: "a", tag: "strong", text: "bold" } }]);
@@ -273,5 +289,110 @@ describe("patch ops", () => {
         { op: "move", key: "nope", to_parent: "root", to_index: 0 },
       ]),
     ).not.toThrow();
+  });
+});
+
+describe("cross-board drop pipeline (settle + MovePatch)", () => {
+  it("re-parents the settle-moved element without a blank slot", () => {
+    const engine = mountEngine(new rt.NeonyEngine(), 1, {
+      key: "page",
+      tag: "div",
+      children: [
+        { key: "grid", tag: "div", children: [{ key: "g1", tag: "span" }, { key: "g2", tag: "span" }] },
+        { key: "tray", tag: "div", children: [{ key: "t1", tag: "span", text: "T" }] },
+      ],
+    });
+    const t1 = engine.registry.get("t1");
+
+    // Step 1: the settle glides the source into the target board's slot
+    // (JS dndSettle moves the DOM node directly).
+    const grid = engine.registry.get("grid");
+    grid.insertBefore(t1, grid.children[0]);
+
+    // Step 2: the Python handler moves the model; the diff emits a
+    // MovePatch that re-parents the SAME element at the SAME place —
+    // must be a no-op (no flash, no blank slot).
+    engine.applyOps([{ op: "move", key: "t1", to_parent: "grid", to_index: 0 }]);
+    expect(engine.registry.get("t1")).toBe(t1);
+    expect(grid.children[0]).toBe(t1);
+    expect(engine.registry.get("tray").children.length).toBe(0);
+  });
+});
+
+describe("cross-board drop end-to-end (index.js dnd + MovePatch)", () => {
+  it("settle glides the source into the target board; MovePatch re-parents the same element", async () => {
+    // window.lumiview MUST be set before the runtime eval — the IIFE
+    // early-returns (never registering its document listeners) otherwise.
+    const invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { listen: vi.fn(), invoke, window: { minimize: vi.fn(), toggleMaximize: vi.fn(), close: vi.fn() } };
+    const rt = loadRuntime(["builder.js", "engine.js", "index.js"]);
+    if (globalThis.__neonyDndReset) globalThis.__neonyDndReset();
+
+    // Mount: page > (grid: g1, g2) + (tray: t1)
+    rt.neony.mount({ rev: 1, ops: [{ op: "create", key: "page", node: { key: "page", tag: "div", children: [
+      { key: "grid", tag: "div", styles: { "flex-direction": "row" }, attrs: { "data-neony-drag": "grid" }, children: [
+        { key: "g1", tag: "span", attrs: { "data-neony-drag": "g1" } },
+        { key: "g2", tag: "span", attrs: { "data-neony-drag": "g2" } },
+      ]},
+      { key: "tray", tag: "div", styles: { "flex-direction": "row" }, attrs: { "data-neony-drag": "tray" }, children: [
+        { key: "t1", tag: "span", attrs: { "data-neony-drag": "t1" } },
+      ]},
+    ]}}] });
+
+    const g1 = document.querySelector("[data-neony-key='g1']");
+    const g2 = document.querySelector("[data-neony-key='g2']");
+    const tray = document.querySelector("[data-neony-key='tray']");
+    const t1 = document.querySelector("[data-neony-key='t1']");
+    const grid = document.querySelector("[data-neony-key='grid']");
+
+    // Drag t1 onto g2's upper half, release — settle moves t1 into the grid.
+    let over = t1;
+    const realFromPoint = document.elementFromPoint;
+    document.elementFromPoint = () => over;
+    const rects = new Map();
+    for (const [el, r] of [[g1,{left:0,top:100,width:60,height:40}],[g2,{left:68,top:100,width:60,height:40}],[t1,{left:0,top:160,width:60,height:40}],[grid,{left:0,top:100,width:300,height:40}],[tray,{left:0,top:160,width:300,height:40}]]) {
+      const orig = el.getBoundingClientRect;
+      el.getBoundingClientRect = () => r;
+      rects.set(el, orig);
+    }
+    try {
+      const e = new window.MouseEvent("mousedown", { bubbles: true, cancelable: true });
+      Object.defineProperty(e, "clientX", { value: 5 });
+      Object.defineProperty(e, "clientY", { value: 170 });
+      Object.defineProperty(e, "button", { value: 0 });
+      t1.dispatchEvent(e);
+      const m = new window.MouseEvent("mousemove", { bubbles: true, cancelable: true });
+      Object.defineProperty(m, "clientX", { value: 5 });
+      Object.defineProperty(m, "clientY", { value: 170 });
+      t1.dispatchEvent(m);
+      over = g2;
+      const m2 = new window.MouseEvent("mousemove", { bubbles: true, cancelable: true });
+      Object.defineProperty(m2, "clientX", { value: 9 });
+      Object.defineProperty(m2, "clientY", { value: 135 });
+      t1.dispatchEvent(m2);
+      expect(t1.style.position).toBe("fixed"); // drag began
+      const ph = document.querySelector("[data-neony-dnd-placeholder]");
+      expect(ph.parentNode).toBe(grid); // slot re-homed into the grid
+      over = g2;
+      const u = new window.MouseEvent("mouseup", { bubbles: true, cancelable: true });
+      Object.defineProperty(u, "clientX", { value: 9 });
+      Object.defineProperty(u, "clientY", { value: 135 });
+      t1.dispatchEvent(u);
+
+      // Settle moved t1 INTO the grid, before g2 (same DOM node), and
+      // cleared the ghost transform (no leftover translate offset).
+      expect(t1.parentNode).toBe(grid);
+      expect(t1.parentNode.children[1]).toBe(t1);
+      expect(t1.parentNode.children[0]).toBe(g1);
+      expect(t1.style.transform).toBe("");
+
+      // The Python-side MovePatch re-parents the SAME element — no-op.
+      rt.neony.applyMessage({ rev: 2, ops: [{ op: "move", key: "t1", to_parent: "grid", to_index: 1 }] });
+      expect(t1.parentNode).toBe(grid);
+      expect(rt.neony.engine.registry.get("t1")).toBe(t1);
+    } finally {
+      document.elementFromPoint = realFromPoint;
+      for (const [el, orig] of rects) el.getBoundingClientRect = orig;
+    }
   });
 });

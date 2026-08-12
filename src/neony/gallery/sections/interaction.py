@@ -165,13 +165,47 @@ async def on_pointer_move(event: DomEvent) -> None:
 
 pointer_zone.on_pointermove(on_pointer_move)
 
+# Scroll position: a scrollable box reports its scrollTop/scrollLeft live.
+# Scroll is high-frequency, so it rides the deferred render path — the
+# readout coalesces to one render per frame.
+scroll_info = Signal("top: 0px   left: 0px")
+scroll_readout = Mono()
+scroll_readout.bind_text(scroll_info)
+scroll_zone = Div(
+    styles=Styles(
+        border="1px solid var(--color-border)",
+        border_radius="8px",
+        padding="16px",
+        height="120px",
+        overflow="auto",
+    ),
+    container=[
+        Div(
+            styles=Styles(height="300px", padding_top="4px"),
+            container=[
+                Text(tr.interaction.scroll_tall, role="secondary").build(),
+                Text(tr.interaction.scroll_keep, role="secondary").build(),
+            ],
+        )
+    ],
+)
+scroll_zone.bubble_events = True
+
+
+async def on_scroll(event: DomEvent) -> None:
+    scroll_info.set(f"top: {event.scroll_top}px   left: {event.scroll_left}px")
+
+
+scroll_zone.on_scroll(on_scroll)
+
 events_panel = Section(
     tr.interaction.events_title,
     tr.interaction.events_blurb,
     """div.on_mousedown(lambda e: f"{e.x}, {e.y} — {e.offset_x}, {e.offset_y}")
 div.on_keydown(lambda e: e.ctrl_key or e.meta_key)
 div.on_wheel(lambda e: f"dx: {e.delta_x}  dy: {e.delta_y}")
-div.on_pointermove(lambda e: f"{e.movement_x}, {e.movement_y} — {e.pointer_type}")""",
+div.on_pointermove(lambda e: f"{e.movement_x}, {e.movement_y} — {e.pointer_type}")
+div.on_scroll(lambda e: f"top: {e.scroll_top}  left: {e.scroll_left}")""",
     tracker,
     HStack(mod_input, gap="8px"),
     HStack(ctrl_chip, shift_chip, alt_chip, meta_chip, gap="16px"),
@@ -179,6 +213,8 @@ div.on_pointermove(lambda e: f"{e.movement_x}, {e.movement_y} — {e.pointer_typ
     wheel_zone,
     wheel_delta,
     pointer_zone,
+    scroll_zone,
+    scroll_readout,
 )
 
 # ── tab: drop ────────────────────────────────────────────────────

@@ -164,6 +164,27 @@ class TestDeferredRender:
         revs = asyncio.run(run())
         assert revs == [2]
 
+    def test_scroll_defers_render(self):
+        """Scroll is high-frequency — it rides the deferred render path,
+        coalescing a scroll burst into one render per frame."""
+        from neony.dom import Div
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        scroller = Div(key="scroller", container=["0"])
+        scroller.on_scroll(lambda e: setattr(scroller, "container", [str(e.scroll_top)]))
+        _setup_entry(app, scroller, fake)
+
+        async def run():
+            await app.render()  # mount rev 1
+            await _fire(app, scroller.key, "scroll", None, scroll_top=5)
+            assert fake.patches == [], "scroll is deferred — must not render synchronously"
+            await asyncio.sleep(0.05)  # > debounce window (16ms)
+            return [p["rev"] for p in fake.patches]
+
+        revs = asyncio.run(run())
+        assert revs == [2]
+
     def test_rapid_hover_burst_coalesces(self):
         """A burst of deferred events within the debounce window produces
         exactly one render, not one per event."""
@@ -273,6 +294,35 @@ class TestRichPayload:
         assert received[0].offset_x == 10
         assert received[0].offset_y == 5
 
+    def test_scroll_position_reaches_handler(self):
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        scroller = Div(key="scroller")
+        received: list[DomEvent] = []
+        scroller.on_scroll(lambda e: received.append(e))
+        _setup_entry(app, scroller, fake)
+
+        asyncio.run(_fire(app, scroller.key, "scroll", None, scroll_top=120, scroll_left=40))
+
+        assert len(received) == 1
+        assert received[0].scroll_top == 120
+        assert received[0].scroll_left == 40
+        assert received[0].type == "scroll"
+
+    def test_drag_payload_reaches_handler(self):
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        item = Div(key="item")
+        received: list[DomEvent] = []
+        item.on_dragstart(lambda e: received.append(e))
+        _setup_entry(app, item, fake)
+
+        asyncio.run(_fire(app, item.key, "dragstart", None, drag_payload="row-1"))
+
+        assert len(received) == 1
+        assert received[0].drag_payload == "row-1"
+        assert received[0].type == "dragstart"
+
     def test_missing_rich_fields_default(self):
         """Events without rich payload fields keep the defaults — backward
         compatible with the old 4-field payload."""
@@ -284,6 +334,8 @@ class TestRichPayload:
         assert evt.ctrl_key is False
         assert evt.x is None
         assert evt.delta_x is None
+        assert evt.scroll_top is None
+        assert evt.scroll_left is None
         assert evt.clipboard_text is None
 
     def test_numeric_coords_pass_lumiview_strict_conversion(self):
@@ -1199,3 +1251,51 @@ class TestTooltipHoverFlow:
             assert tip._bubble.styles.display == "block"  # untouched
 
         asyncio.run(run())
+
+
+class TestReorderIntegration:
+    """Full reactive pipeline for a cross-board drag: render → drop event
+    → the diff must emit a MovePatch (same-element re-parent), never a
+    remove+create."""
+
+    def _reorder_app(self):
+        from neony.application.elements import Reorder, ReorderItem
+        from neony.dom import Styles
+
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        grid = Reorder(
+            ReorderItem("G1", key="g1"),
+            ReorderItem("G2", key="g2"),
+            ReorderItem("G3", key="g3"),
+            direction="row",
+            size="76px",
+            max_width="336px",
+        )
+        tray = Reorder(ReorderItem("T1", key="t1"), direction="row", size="76px")
+        tree = Div(
+            key="page", styles=Styles(display="flex", flex_direction="column"), container=[grid.build(), tray.build()]
+        )
+        _setup_entry(app, tree, fake)
+        return app, fake, grid, tray
+
+    async def _scenario(self):
+        app, fake, grid, tray = self._reorder_app()
+        await app.render()
+        assert fake.mount_calls == 1  # first render mounts via eval_js
+        assert not fake.patches
+
+        # T1 dragged from the tray onto G2's LEFT half (before G2).
+        await _fire(app, key="g2", event_type="drop", drag_payload="t1", offset_x=0)
+
+        assert grid.order == ["g1", "t1", "g2", "g3"]
+        assert tray.order == []
+        assert fake.patches, "the drop must trigger a patch message"
+        ops = fake.patches[-1]["ops"]
+        move_ops = [op for op in ops if op["op"] == "move"]
+        assert move_ops, f"expected a MovePatch, got {[op['op'] for op in ops]}"
+        assert move_ops[0]["key"] == "t1"
+        assert not any(op["op"] in ("remove", "create") for op in ops)
+
+    def test_cross_board_drop_emits_move_patch(self):
+        asyncio.run(self._scenario())

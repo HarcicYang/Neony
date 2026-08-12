@@ -65,6 +65,31 @@ app.state.user_name = "Ada"
 **主题与渲染:**
 `set_theme(theme)`， `sync_theme()`， `set_background(url)`， `render()`
 
+**文件对话框**（均为 async — 通过一次性 tkinter 子进程）：
+`open_file(...) -> str | None`，`open_files(...) -> list[str]`，
+`save_file(...) -> str | None`，`select_folder(...) -> str | None`。
+取消时返回 `None`（多选返回 `[]`）；对话框无法显示（无显示环境、
+缺少 tkinter）同样返回 `None` — 绝不抛异常。
+
+```python
+path = await app.open_file(
+    title="打开图片", default_dir="~/Pictures", filetypes=[("PNG images", "*.png"), ("All files", "*.*")]
+)
+if path is None:
+    return  # 取消
+paths = await app.open_files(...)  # 取消返回 []
+dest = await app.save_file(default_name="out.txt")  # str | None
+folder = await app.select_folder()  # str | None
+```
+
+每次调用都会派生一个短暂的子进程来显示自绘的深色主题文件选择器
+（平台自带的 `tkinter.filedialog` 样式老旧且无法定制）；请求字典由
+`multiprocessing` 的 pickle 机制交付，结果通过单向 `Pipe` 以类型化
+`("ok", result)` / `("error", msg)` 元组返回 — 全程没有 stdout/JSON
+文本解析。父进程用 `asyncio.to_thread` 等待回复，因此模态框打开期间
+事件循环保持响应。Linux/macOS 用 `fork`（快，不重导入 `__main__`），
+Windows 用 `spawn`。
+
 ### `launch()`
 
 一行式入口 — 从关键字参数构建 `Config`。
@@ -986,10 +1011,18 @@ JS 转发的事件负载:
 ```python
 async def handler(event: DomEvent) -> None:
     event.key  # 元素标识
-    event.type  # "click" | "input" | ...
+    event.type  # "click" | "input" | "scroll" | ...
     event.value  # 元素相关值
     event.source  # "user" | "program"
 ```
+
+携带这些字段的事件会带上相应富字段:修饰键（`ctrl_key` / `shift_key` /
+`alt_key` / `meta_key`）、鼠标坐标（`x` / `y` / `offset_x` / `offset_y`）、
+指针增量（`movement_x` / `movement_y` / `pointer_type`）、滚轮增量
+（`delta_x` / `delta_y` / `delta_mode`）、滚动位置（`scroll_top` /
+`scroll_left` —— 实际滚动元素的位置，派发到最近的带 key 祖先，
+高频所以渲染走延迟路径）、剪贴板数据（`clipboard_text` / `clipboard_html`）、
+应用内拖拽载荷（`drag_payload`）、以及拖放文件（`drop_files`）。
 
 ### 原始元素
 
@@ -1005,6 +1038,79 @@ card = Div(
     container=["Hello"],
 )
 ```
+
+### 应用内拖拽与重排
+
+#### `Reorder` 组件
+
+重排集合的现成方式是 `Reorder` 面板——一个由可拖拽卡片组成的 flex
+容器，重排逻辑内聚在组件内部：
+
+```python
+from neony.application.elements import Reorder, ReorderItem
+
+board = Reorder(
+    ReorderItem("First", key="a"),
+    ReorderItem("Second", key="b"),
+    "Third",  # 纯字符串也会变成卡片（key = 标签）
+    direction="row",  # "row" 或 "column"
+    wrap=True,  # row + wrap = 网格（横纵都行）
+    size="76px",  # 沿主轴方向的卡片尺寸
+    max_width="336px",  # 可选——固定每行 4 张卡片以强制换行
+)
+board.on_drop(lambda e: e.value)  # 拖拽后的有序 key
+board.order  # 当前按渲染顺序的 key
+```
+
+- 卡片预置为可拖拽（载荷提前声明——dragstart 里 Python 往返来不及），
+  `drop` 由组件自身重排；diff 引擎自动发出 `ReorderPatch`。
+- **纵横双向都支持**：引擎自动检测容器的 `flex-direction`，按光标所在
+  半区判定插入侧——`row` 用 `offset_x`（前半插其前、后半插其后）、
+  `column` 用 `offset_y`。`row` + wrap 会形成网格，卡片既能横向拖（行内）
+  也能纵向拖（跨行）。网格在面板宽度处换行——用 `max_width` 固定宽度即可
+  强制换行。
+- **卡片不限于文本**：`add()` / 构造器接受任意内容——纯文本或响应式字符串、
+  整个 `Component`（挂载在卡片内部），或裸 `DOMElement`。**裸内容不需要
+  包装也不需要显式 key**：纯字符串用标签当 key、带 key 的 DOM 元素保留
+  自己的 key，其余一切（一摞 `Card` 等）自动获得 `reorder-card-N` key。
+- **按卡片内容泛型化**——`Reorder[T]` 与 `ReorderItem[T]` 以卡片内容为类型
+  参数，因此任意组件（或任何内容类型）可以直接站在原本 `ReorderItem` 的
+  位置上，`items` 产出 `ReorderItem[T]`：
+
+  ```python
+  from neony.application.elements import Card, Text
+
+  board: Reorder[Card] = Reorder(Card(title="One"), Card(title="Two"))
+  cards = board.items  # list[ReorderItem[Card]]——content 类型为 Card
+  ```
+- **面板之间可以交换卡片**：把卡片拖到另一个 `Reorder` 的卡片上，落点槽
+  会移动到那个面板，drop 会把卡片移过去（从源面板的 `order` 移除并插入
+  目标面板）。允许交换的面板之间，卡片 key 必须全局唯一。
+- `on_drop` 触发时 `event.value` = 接收 drop 的面板重排后的卡片 key 列表。
+
+#### 底层原语
+
+组件之下，引擎委托完整的拖拽生命周期——`dragstart` / `dragenter` /
+`dragover` / `dragleave` / `drop` / `dragend`——drop 载荷经
+`dataTransfer` 传递。设置 `drag_payload` 让元素可拖拽，并声明引擎在
+dragstart 时交给 `dataTransfer.setData` 的载荷（必须同步——Python 往返
+来不及）：
+
+```python
+item = Div(key="row-1", drag_payload="row-1")  # 可拖拽 + 声明载荷
+item.on_dragstart(lambda e: print("dragging", e.drag_payload))
+item.on_dragend(lambda e: print("drag finished"))
+
+drop_zone.on_drop(lambda e: reorder(e.drag_payload, e.key, e.offset_y))  # 读回载荷
+```
+
+- `drag_payload` 序列化为 `draggable="true"` + `data-neony-drag`；引擎在
+  dragstart 处理器里调用 `setData("application/x-neony", payload)`，并在
+  `drop` 时读回进 `DomEvent.drag_payload`。
+- `dragover`/`drop` 已被引擎 `preventDefault()`，所以任意带 key 元素都是
+  合法 drop 目标（且 webview 不会导航到拖入的文件）。
+- 拖拽过程中引擎在插入点显示虚线落点槽（卡片纯位置位移、FLIP 动画），
+  drop 时以匹配动画沉降到最终顺序。纯引擎本地实现——零 IPC、不缩放元素。
 
 ## 响应式
 

@@ -60,6 +60,11 @@ class DomEvent(BaseModel):
     delta_y: float | None = None
     delta_mode: int | None = None
 
+    # Scroll position (scroll event only, pixels) — the scrolled
+    # element's scrollTop / scrollLeft at dispatch time.
+    scroll_top: int | None = None
+    scroll_left: int | None = None
+
     # CSS transition end (TransitionEvent) — which property finished
     # and how long it took.
     transition_property: str | None = None
@@ -71,6 +76,12 @@ class DomEvent(BaseModel):
     # Clipboard data (paste events only).
     clipboard_text: str | None = None
     clipboard_html: str | None = None
+
+    # In-app drag payload (dragstart / drop only): the string declared on
+    # the source element via ``DOMElement.drag_payload`` and carried
+    # through ``dataTransfer`` — lets a drop handler identify what was
+    # dragged without a Python-side registry.
+    drag_payload: str | None = None
 
     # Dropped files (drop events only): one dict per file with keys
     # ``name``, ``path`` (empty string on WKWebView), ``size``, ``type``.

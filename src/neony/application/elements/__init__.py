@@ -26,6 +26,7 @@ from neony.application.elements.menu import Menu
 from neony.application.elements.progress import Progress
 from neony.application.elements.prompt_dialog import PromptDialog
 from neony.application.elements.radio import Radio, RadioGroup
+from neony.application.elements.reorder import Reorder, ReorderContent, ReorderItem
 from neony.application.elements.select import Select
 from neony.application.elements.sidebar import Pane, Sidebar, SidebarGroup, SidebarItem
 from neony.application.elements.slider import Slider
@@ -69,6 +70,9 @@ __all__ = [
     "PromptDialog",
     "Radio",
     "RadioGroup",
+    "Reorder",
+    "ReorderContent",
+    "ReorderItem",
     "Select",
     "Separator",
     "Sidebar",

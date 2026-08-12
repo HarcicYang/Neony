@@ -200,3 +200,21 @@ class TestLeafWalk:
                     tr_now(ref)  # type: ignore[arg-type]
 
         walk(GalleryCatalog(), ())
+
+
+class TestSectionsBuild:
+    """Import every gallery section and build the full page tree.
+
+    The default suite never spawns a window, so nothing exercises the
+    section modules except this — a pydantic validation error in a demo
+    (wrong style token, bad child type) would otherwise only surface in
+    the xvfb-gated smoke test.
+    """
+
+    def test_all_sections_import_and_page_builds(self):
+        from neony.gallery.assemble import page
+        from neony.gallery.sections import PANELS
+
+        assert "reorder" in PANELS
+        assert "dialogs" in PANELS
+        page.build()

@@ -44,11 +44,15 @@ _DOM_EVENTS = frozenset(
         "animationstart",
         "animationend",
         "wheel",
+        "scroll",
         "paste",
         "copy",
         "cut",
         "dragover",
         "dragleave",
+        "dragstart",
+        "dragend",
+        "dragenter",
         "drop",
     }
 )
@@ -396,6 +400,11 @@ class Component:
     def on_wheel(self, fn: Callable[..., Any]) -> Self:
         return self.on("wheel", fn)
 
+    def on_scroll(self, fn: Callable[..., Any]) -> Self:
+        """Scroll — ``event.scroll_top`` / ``event.scroll_left`` carry the
+        scrolled element's position (high-frequency; renders are deferred)."""
+        return self.on("scroll", fn)
+
     def on_paste(self, fn: Callable[..., Any]) -> Self:
         return self.on("paste", fn)
 
@@ -413,6 +422,20 @@ class Component:
 
     def on_dragleave(self, fn: Callable[..., Any]) -> Self:
         return self.on("dragleave", fn)
+
+    def on_dragstart(self, fn: Callable[..., Any]) -> Self:
+        """Dragstart — fires when a drag begins on a ``drag_payload``
+        element (the payload rides in ``event.drag_payload``)."""
+        return self.on("dragstart", fn)
+
+    def on_dragend(self, fn: Callable[..., Any]) -> Self:
+        """Dragend — fires on the source element when the drag finishes
+        (dropped or cancelled); the hook to clear drag state."""
+        return self.on("dragend", fn)
+
+    def on_dragenter(self, fn: Callable[..., Any]) -> Self:
+        """Dragenter — fires when a drag enters this element."""
+        return self.on("dragenter", fn)
 
     # ---- internals ----
 

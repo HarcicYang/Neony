@@ -4,6 +4,104 @@
 
 ### Added
 
+- **Pointer-driven in-app drags** — elements with `drag_payload` no
+  longer use HTML5 drag-and-drop: WebKitGTK's native drag image
+  positions randomly on Wayland (sometimes grab-relative, sometimes
+  absolute), so the user aims at a wrongly-placed image and the drop
+  (hit-tested at the REAL pointer) reorders only sometimes.  A mousedown
+  arms the drag; past a 4px threshold the engine dispatches a synthetic
+  dragstart (sync setData, exactly like the native flow), a self-drawn
+  ghost tracks the pointer locally (one rAF per frame, zero IPC), and
+  dragover/drop/dragend are hit-tested with `elementFromPoint` — the
+  ghost and the drop target are ALWAYS consistent.  Synthetic events
+  flow through the same pipeline, so the Python API is unchanged.  The
+  element's `draggable` attribute is stripped on mousedown so the
+  browser never starts its own misbehaving drag.
+- **Dragover throttle** — `dragover` fires on every pointer motion
+  during a drag; each forward was a full Python round-trip and the
+  events queued up BEHIND the drop, delaying it (drag felt broken even
+  though the events worked).  Forwarding is now throttled to ~8/s per
+  key — enough for drop-zone highlighting, and the drop itself still
+  carries everything a handler needs (`drag_payload`, coordinates).  The
+  map resets on drop/dragend.
+- **Native file dialogs** — `app.open_file()` / `open_files()` /
+  `save_file()` / `select_folder()` show a self-drawn, dark-themed file
+  picker in a one-shot tkinter subprocess. The request dict rides the
+  `Process` args (pickled) and the result returns on a one-way
+  `multiprocessing` pipe as a typed `("ok", result)` / `("error", msg)`
+  tuple — no stdout/JSON parsing. Cancelling returns `None` (`[]` for
+  multi-select); a dialog that can't be shown also returns `None`. The
+  parent awaits with `asyncio.to_thread`, so the event loop stays
+  responsive. Linux/macOS use `fork`, Windows `spawn`; the subprocess
+  entry lives in a stdlib-only module.
+- **In-app drag reorder primitives** — the full drag lifecycle is
+  delegated (`dragstart` / `dragenter` / `dragover` / `dragleave` /
+  `drop` / `dragend`); a new `DOMElement.drag_payload` field makes an
+  element draggable and declares the payload the engine hands to
+  `dataTransfer.setData` on dragstart (synchronously). `drop` reads it
+  back via `DomEvent.drag_payload`; `on_dragstart` / `on_dragend` /
+  `on_dragenter` on elements and components. Reordering a container is
+  a plain `container[:] = new_order` — the diff engine emits a
+  `ReorderPatch` on its own.
+- **Drag position-shift preview** — during an in-app drag the dragged
+  card becomes its own ghost (leaves the flow; a card-sized dashed
+  "landing slot" travels to the insertion point as the cursor crosses
+  cards, showing exactly where the card will land; all Neony-injected
+  inline styles preserved).  No element is ever resized: siblings only
+  shift position, FLIP-animated.  On drop the list settles into its
+  final order with a matching FLIP (the ghost glides from the cursor
+  into the slot), and the drop targets the committed insertion so the
+  preview and the result always agree.  Purely local in the engine (no
+  IPC); everything clears on drop/cancel.
+- **Bidirectional drag reorder** — the engine detects the container's
+  `flex-direction` and reorders along either axis: the cursor half is
+  judged by `offset_y` for a `column` (top/bottom) and `offset_x` for a
+  `row` (left/right), the landing slot is sized along the main axis, and
+  the drop encodes the side on the matching field.
+- **`Reorder` component** — the drag-reorder primitive wrapped as a
+  proper component: a flex board of draggable cards that owns the reorder
+  internally (`on_drop` reports the new order via `event.value`).  A
+  `direction="row"` board with `wrap=True` forms a grid, so a card can be
+  dragged both horizontally (within a row) and vertically (into another
+  row).
+- **Cross-board drag reorder** — a card dragged onto a card of ANOTHER
+  `Reorder` re-homes the dashed landing slot into that board (the engine
+  re-homes the placeholder across containers, gated on `data-neony-drag`,
+  and sizes it to the target board's cards), and the drop moves the card
+  between boards (removed from the source's `order`, inserted into the
+  target's at the previewed side; the drop settles in the source board
+  and the Python handler moves the model + re-renders).  Card keys must
+  be globally unique across boards that exchange cards.
+- **`MovePatch` — cross-parent moves re-parent the SAME element** —
+  the diff engine now emits `op: "move"` (key → new parent + index)
+  when a key exists under different parents in both trees, instead of
+  remove+create: a card dragged between Reorder boards keeps its DOM
+  node (no flash, no blank slot), the settle glide lands it in the
+  target board's slot, and the follow-up move is a no-op.
+- **Any content as a card** — `Reorder` / `ReorderItem` accept plain or
+  reactive strings, whole components (they mount inside the card) or raw
+  DOM elements; the key resolves from the item, a keyed DOM element's own
+  key, or a plain-string label.  `max_width` pins the board's width so a
+  wrapping grid wraps predictably; boards auto-key their root so the
+  engine's "cursor inside this container" check works without user keys.
+  The gallery demo now shows a `max_width`-pinned 4×2 grid plus a second
+  tray board that exchanges cards with it (cross-board).
+- **Generic `Reorder`** — `Reorder[T]` and `ReorderItem[T]` are typed by
+  the card content, so any content type (a `Component`, a `DOMElement`,
+  reactive text) can stand exactly where `ReorderItem` used to; `items`
+  yields `ReorderItem[T]` for typed access.
+- **Bare content in `Reorder`** — `Reorder(Card(...), Card(...))` works:
+  cards no longer need a `ReorderItem` wrapper or an explicit key.  A
+  plain-string label is the key, a keyed DOM element keeps its own key,
+  and everything else (components, unkeyed DOM) gets an auto-generated
+  `reorder-card-N` key, so any component can be dropped into a board.
+  The gallery adds a third board of three bare `Card`s.
+- **Delegated `scroll` events** — `on_scroll()` on elements and
+  components; `DomEvent.scroll_top` / `scroll_left` carry the scrolled
+  element's position (read from the actual scroller, dispatched to the
+  nearest keyed ancestor). High-frequency — scroll rides the deferred
+  render path, coalescing a scroll burst into one render per frame; a
+  document-level scroll routes through the engine root.
 - **Sidebar owns its content panes** — `Sidebar` accepts `Pane`
   models (or `(label, panel)` tuples) and swaps the visible pane
   internally, exactly like `Tabs`; pane roots are cached and reused

@@ -59,6 +59,7 @@ class Nav(BaseModel):
     data_views: TrRef[None] = TrRef("Data views")
     list: TrRef[None] = TrRef("List")
     datatable: TrRef[None] = TrRef("DataTable")
+    reorder: TrRef[None] = TrRef("Drag Reorder")
     notify_chat: TrRef[None] = TrRef("Notifications & Chat")
     notifications: TrRef[None] = TrRef("Notifications")
     chat: TrRef[None] = TrRef("Chat")
@@ -68,6 +69,7 @@ class Nav(BaseModel):
     sidebar: TrRef[None] = TrRef("Sidebar")
     tabs: TrRef[None] = TrRef("Tabs")
     window: TrRef[None] = TrRef("Window")
+    dialogs: TrRef[None] = TrRef("File Dialogs")
 
 
 class Home(BaseModel):
@@ -266,6 +268,8 @@ class Interaction(BaseModel):
     )
     wheel_tall: TrRef[None] = TrRef("Tall content so the zone scrolls…")
     wheel_keep: TrRef[None] = TrRef("Keep scrolling to see live deltas.")
+    scroll_tall: TrRef[None] = TrRef("Tall content so the zone scrolls…")
+    scroll_keep: TrRef[None] = TrRef("Scroll — the readout tracks the position live.")
     drop_title: TrRef[None] = TrRef("File Drop")
     drop_blurb: TrRef[None] = TrRef(
         "Drag files from the file manager into the dashed zone. The drop "
@@ -379,6 +383,31 @@ class Data(BaseModel):
     elderberry: TrRef[None] = TrRef("Elderberry")
     select_durian: TrRef[None] = TrRef("Select 'Durian'")
     selected_fmt: TrRef[dict[str, object]] = TrRef("selected: {key}")
+    reorder_title: TrRef[None] = TrRef("Drag Reorder")
+    reorder_blurb: TrRef[None] = TrRef(
+        "The Reorder board makes any card draggable and reorders it "
+        "internally on drop (event.value = ordered keys). A wrapping row "
+        "grid reorders on both axes — drag a card sideways within its row "
+        "or down into another row. The tray below is a second board: "
+        "drag a card onto it to move it across boards (the landing slot "
+        "travels with the cursor). Cards may be plain text, reactive "
+        "labels, or whole components — bare components like the Cards in "
+        "the bottom row need no wrapper; they get an auto-generated key."
+    )
+    reorder_first: TrRef[None] = TrRef("First")
+    reorder_second: TrRef[None] = TrRef("Second")
+    reorder_third: TrRef[None] = TrRef("Third")
+    reorder_fourth: TrRef[None] = TrRef("Fourth")
+    reorder_fifth: TrRef[None] = TrRef("Fifth")
+    reorder_sixth: TrRef[None] = TrRef("Sixth")
+    reorder_seventh: TrRef[None] = TrRef("Seventh")
+    reorder_eighth: TrRef[None] = TrRef("Eighth")
+    reorder_tray_a: TrRef[None] = TrRef("Tray A")
+    reorder_tray_b: TrRef[None] = TrRef("Tray B")
+    reorder_tray_c: TrRef[None] = TrRef("Tray C")
+    reorder_card_one: TrRef[None] = TrRef("Card One")
+    reorder_card_two: TrRef[None] = TrRef("Card Two")
+    reorder_card_three: TrRef[None] = TrRef("Card Three")
     table_title: TrRef[None] = TrRef("DataTable")
     table_blurb: TrRef[None] = TrRef(
         "Column config + data rows with a sticky header, click-to-sort "
@@ -573,6 +602,27 @@ class System(BaseModel):
     window_focused: TrRef[None] = TrRef("Window focused")
     set_bounds_fmt: TrRef[dict[str, object]] = TrRef("set_bounds({x}, {y}, {w}, {h}) applied")
     window_lost_focus: TrRef[None] = TrRef("Window lost focus (or hidden)")
+    dialogs_title: TrRef[None] = TrRef("File Dialogs")
+    dialogs_blurb: TrRef[None] = TrRef(
+        "Self-drawn dark file picker (open / save / folder) running in a "
+        "one-shot tkinter subprocess, so the app's UI toolkit never runs a "
+        "second main loop. The reply travels back over a typed "
+        "multiprocessing pipe and is awaited with asyncio.to_thread — the "
+        "event loop stays responsive while the modal is up. Cancelling "
+        "returns None ([] for multi-select), never an exception."
+    )
+    dialog_idle: TrRef[None] = TrRef("No dialog shown yet")
+    dialog_cancelled: TrRef[None] = TrRef("Cancelled")
+    dialog_picked_fmt: TrRef[dict[str, object]] = TrRef("picked: {path}")
+    dialog_many_fmt: TrRef[dict[str, object]] = TrRef("picked {n} files: {names}")
+    dialog_saved_fmt: TrRef[dict[str, object]] = TrRef("saved to: {path}")
+    dialog_folder_fmt: TrRef[dict[str, object]] = TrRef("folder: {path}")
+    dialog_open: TrRef[None] = TrRef("Open file…")
+    dialog_open_many: TrRef[None] = TrRef("Open files…")
+    dialog_save: TrRef[None] = TrRef("Save as…")
+    dialog_folder: TrRef[None] = TrRef("Choose folder…")
+    dialog_open_title: TrRef[None] = TrRef("Open file")
+    dialog_save_title: TrRef[None] = TrRef("Save as")
 
 
 class GalleryCatalog(Catalog):
@@ -636,6 +686,7 @@ register_catalog(
             data_views="数据视图",
             list="列表",
             datatable="数据表",
+            reorder="拖拽重排",
             notify_chat="通知与聊天",
             notifications="通知",
             chat="聊天",
@@ -645,6 +696,7 @@ register_catalog(
             sidebar="侧边栏",
             tabs="标签页",
             window="窗口",
+            dialogs="文件对话框",
         ),
         home=Home(
             heading="欢迎",
@@ -813,6 +865,8 @@ register_catalog(
             ),
             wheel_tall="高内容让区域可以滚动…",
             wheel_keep="继续滚动查看实时增量。",
+            scroll_tall="高内容让区域可以滚动…",
+            scroll_keep="滚动——读数实时跟踪位置。",
             drop_title="文件拖放",
             drop_blurb=(
                 "从文件管理器把文件拖进虚线区域。drop 事件携带每个文件的名称、本地路径、"
@@ -913,6 +967,28 @@ register_catalog(
             elderberry="接骨木果",
             select_durian="选择「榴莲」",
             selected_fmt="已选：{key}",
+            reorder_title="拖拽重排",
+            reorder_blurb=(
+                "Reorder 面板让任意卡片可拖拽，并在 drop 时在内部重排（event.value = 有序的 "
+                "key）。一个换行的行网格可以在两个轴上重排——把卡片在行内横向拖动，或拖到"
+                "其他行纵向移动。下方的托盘是第二个面板：把卡片拖到它上面即可跨面板移动"
+                "（落点槽跟随光标移动）。卡片可以是纯文本、响应式标签或整个组件——最下面"
+                "一行里的 Card 就是裸组件，无需任何包装，会自动获得一个 key。"
+            ),
+            reorder_first="第一",
+            reorder_second="第二",
+            reorder_third="第三",
+            reorder_fourth="第四",
+            reorder_fifth="第五",
+            reorder_sixth="第六",
+            reorder_seventh="第七",
+            reorder_eighth="第八",
+            reorder_tray_a="托盘 A",
+            reorder_tray_b="托盘 B",
+            reorder_tray_c="托盘 C",
+            reorder_card_one="卡片一",
+            reorder_card_two="卡片二",
+            reorder_card_three="卡片三",
             table_title="数据表",
             table_blurb=(
                 "列配置 + 数据行，带吸顶表头、点击排序的列和行选择。列用 CSS grid 布局"
@@ -1083,6 +1159,25 @@ register_catalog(
             window_focused="窗口已聚焦",
             set_bounds_fmt="已应用 set_bounds({x}, {y}, {w}, {h})",
             window_lost_focus="窗口失去焦点（或已隐藏）",
+            dialogs_title="文件对话框",
+            dialogs_blurb=(
+                "自绘深色主题文件选择器（打开 / 保存 / 选择文件夹），运行在一次性 tkinter "
+                "子进程中，因此应用的 UI 工具包从不会跑第二个主循环。结果通过类型化的 "
+                "multiprocessing 管道返回，并用 asyncio.to_thread 等待——模态框打开期间"
+                "事件循环保持响应。取消时返回 None（多选返回 []），绝不抛异常。"
+            ),
+            dialog_idle="尚未打开过对话框",
+            dialog_cancelled="已取消",
+            dialog_picked_fmt="已选择：{path}",
+            dialog_many_fmt="已选择 {n} 个文件：{names}",
+            dialog_saved_fmt="已保存到：{path}",
+            dialog_folder_fmt="文件夹：{path}",
+            dialog_open="打开文件…",
+            dialog_open_many="打开多个文件…",
+            dialog_save="另存为…",
+            dialog_folder="选择文件夹…",
+            dialog_open_title="打开文件",
+            dialog_save_title="另存为",
         ),
     ),
 )

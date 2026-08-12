@@ -34,6 +34,7 @@ gallery_tree = Tree(width="220px").children(
     TreeNode(tr.nav.data_views, key="data-views").children(
         TreeNode(tr.nav.list, key="list").panel(PANELS["list"]),
         TreeNode(tr.nav.datatable, key="datatable").panel(PANELS["datatable"]),
+        TreeNode(tr.nav.reorder, key="reorder").panel(PANELS["reorder"]),
     ),
     TreeNode(tr.nav.notify_chat, key="notify-chat").children(
         TreeNode(tr.nav.notifications, key="notifications").panel(PANELS["notifications"]),
@@ -45,6 +46,7 @@ gallery_tree = Tree(width="220px").children(
         TreeNode(tr.nav.sidebar, key="sidebar").panel(PANELS["sidebar"]),
         TreeNode(tr.nav.tabs, key="tabs").panel(PANELS["tabs"]),
         TreeNode(tr.nav.window, key="window").panel(PANELS["window"]),
+        TreeNode(tr.nav.dialogs, key="dialogs").panel(PANELS["dialogs"]),
     ),
 )
 gallery_tree.selected_key = "home"

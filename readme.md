@@ -105,6 +105,7 @@ Import from `neony.application.elements`.
 | `Tree` / `TreeNode`       | Collapsible navigation tree + content host — arbitrary depth, fluent builders, leaf selection shows its panel on the right |
 | `List` / `ListItem`       | Scrollable single-select data list — listbox model, arrow keys move selection, `selected_key` / `bind_selected` |
 | `DataTable` / `Column`    | Column config + data rows — sticky header, click-to-sort, single / multi row selection |
+| `Reorder` / `ReorderItem` | Drag-reorder board — any component/DOM element can be a card; `direction` + `wrap` makes a grid reorderable on both axes, multiple boards exchange cards |
 | `Icon`                    | One icon — `Icon.image(url)` fixed-size square or `Icon.glyph(text)`, shared by TitleBar / Sidebar / Tabs / Tree |
 | `Flex`                    | Generic flex container with full control                                       |
 | `VStack` / `HStack`       | Vertical / horizontal flex stacks                                              |
@@ -147,6 +148,11 @@ All components share a fluent, chainable API — see the
   the app instead of quitting on close. Linux needs
   `libayatana-appindicator`. See
   [`demo_tray.py`](demo_tray.py).
+- **Native file dialogs** — `app.open_file()`, `app.open_files()`,
+  `app.save_file()`, `app.select_folder()` show a self-drawn, dark-themed
+  file picker in a one-shot tkinter subprocess; the reply returns over a
+  typed `multiprocessing` pipe (`None` on cancel, `[]` for a cancelled
+  multi-select). No stdout/JSON parsing, event loop stays responsive.
 
 ---
 

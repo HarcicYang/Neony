@@ -262,6 +262,40 @@ describe("rich event payload", () => {
     expect(lastPayload()).toEqual(expect.objectContaining({ delta_y: 3, delta_mode: 1 }));
   });
 
+  it("carries the scroll position from the scrolled element", () => {
+    mountTree({ key: "scroller", tag: "div", styles: { overflow: "auto" } });
+    const el = document.querySelector("[data-neony-key='scroller']");
+    Object.defineProperty(el, "scrollTop", { value: 120, configurable: true });
+    Object.defineProperty(el, "scrollLeft", { value: 40, configurable: true });
+    el.dispatchEvent(new window.Event("scroll"));
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({ key: "scroller", event_type: "scroll", scroll_top: 120, scroll_left: 40 })
+    );
+  });
+
+  it("reads scroll position from the actual scroller when it is unkeyed", () => {
+    // A component's inner scroll container may carry no data-neony-key:
+    // the payload key traces to the keyed ancestor, but the position
+    // must come from event.target (the real scroller), not the ancestor.
+    mountTree({ key: "wrap", tag: "div" });
+    const wrap = document.querySelector("[data-neony-key='wrap']");
+    const scroller = document.createElement("div");
+    wrap.appendChild(scroller);
+    Object.defineProperty(scroller, "scrollTop", { value: 77, configurable: true });
+    scroller.dispatchEvent(new window.Event("scroll"));
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({ key: "wrap", event_type: "scroll", scroll_top: 77, scroll_left: 0 })
+    );
+  });
+
+  it("routes document-level scroll through the engine root", () => {
+    mountTree({ key: "root", tag: "div" });
+    document.dispatchEvent(new window.Event("scroll"));
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({ key: "root", event_type: "scroll", scroll_top: 0, scroll_left: 0 })
+    );
+  });
+
   it("forwards paste clipboard data as plain text and HTML", () => {
     mountTree({ key: "inp", tag: "input" });
     const el = document.querySelector("[data-neony-key='inp']");
@@ -353,6 +387,597 @@ describe("rich event payload", () => {
     expect(payload.shift_key).toBeUndefined();
     expect(payload.alt_key).toBeUndefined();
     expect(payload.meta_key).toBeUndefined();
+  });
+});
+
+describe("in-app drag (dragstart / dragend / drop payload)", () => {
+  let invoke;
+  let win;
+
+  beforeEach(() => {
+    win = { minimize: vi.fn(), toggleMaximize: vi.fn(), close: vi.fn() };
+    invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { listen, invoke, window: win };
+  });
+
+  function lastPayload() {
+    return invoke.mock.calls.find(([name]) => name === "neony.event")[1];
+  }
+
+  // jsdom has no DragEvent/DataTransfer globals — dispatch a plain
+  // Event and attach a mock dataTransfer via defineProperty (the same
+  // pattern as the paste/drop tests).  A plain store mimics the surface
+  // the engine touches (setData / getData / effectAllowed / files).
+  function makeDataTransfer(initial = {}) {
+    const store = new Map(Object.entries(initial));
+    const dt = {
+      setData: vi.fn((type, value) => store.set(type, value)),
+      getData: vi.fn((type) => store.get(type) || ""),
+      effectAllowed: "none",
+      files: [],
+    };
+    Object.defineProperty(dt, "setDragImage", {
+      value: vi.fn(),
+      writable: true,
+    });
+    return dt;
+  }
+
+  function dragEvent(type, dataTransfer, coords = {}) {
+    const event = new window.Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+    Object.defineProperty(event, "clientX", { value: coords.clientX ?? 0 });
+    Object.defineProperty(event, "clientY", { value: coords.clientY ?? 0 });
+    return event;
+  }
+
+  it("seeds dataTransfer on dragstart from the drag_payload attribute", () => {
+    // The payload must reach setData synchronously inside dragstart —
+    // a Python round-trip would be too late, so the engine reads the
+    // element's data-neony-drag attribute (set from DOMElement.drag_payload).
+    mountTree({ key: "item", tag: "div", attrs: { "data-neony-drag": "row-1" } });
+    const el = document.querySelector("[data-neony-key='item']");
+    const dt = makeDataTransfer();
+    el.dispatchEvent(dragEvent("dragstart", dt));
+    expect(dt.setData).toHaveBeenCalledWith("application/x-neony", "row-1");
+    expect(dt.effectAllowed).toBe("move");
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({ key: "item", event_type: "dragstart", drag_payload: "row-1" })
+    );
+  });
+
+  it("throttles dragover to ~8/s per key", () => {
+    mountTree({ key: "zone", tag: "div" });
+    const el = document.querySelector("[data-neony-key='zone']");
+    const dt = makeDataTransfer();
+    // Mock Date.now so the 120ms throttle window is deterministic.
+    let now = 1000;
+    const realNow = Date.now;
+    globalThis.Date.now = () => now;
+    try {
+      el.dispatchEvent(dragEvent("dragover", dt)); // first — forwarded
+      el.dispatchEvent(dragEvent("dragover", dt)); // +0ms — throttled
+      now += 130;
+      el.dispatchEvent(dragEvent("dragover", dt)); // +130ms — forwarded
+      now += 130;
+      el.dispatchEvent(dragEvent("dragover", dt)); // +260ms — forwarded
+    } finally {
+      globalThis.Date.now = realNow;
+    }
+    const dragoverCount = invoke.mock.calls.filter(([name, p]) => name === "neony.event" && p.event_type === "dragover").length;
+    expect(dragoverCount).toBe(3);
+  });
+
+  it("resets the dragover throttle map on drop and dragend", () => {
+    mountTree({ key: "zone", tag: "div" });
+    const el = document.querySelector("[data-neony-key='zone']");
+    const dt = makeDataTransfer();
+    el.dispatchEvent(dragEvent("dragover", dt)); // forwarded (t=0)
+    el.dispatchEvent(dragEvent("drop", dt)); // clears the map
+    el.dispatchEvent(dragEvent("dragover", dt)); // forwarded again (fresh map)
+    const dragoverCount = invoke.mock.calls.filter(([name, p]) => name === "neony.event" && p.event_type === "dragover").length;
+    expect(dragoverCount).toBe(2);
+  });
+
+  it("does not seed dataTransfer on dragstart without a drag payload", () => {
+    mountTree({ key: "item", tag: "div" });
+    const el = document.querySelector("[data-neony-key='item']");
+    const dt = makeDataTransfer();
+    el.dispatchEvent(dragEvent("dragstart", dt));
+    expect(dt.setData).not.toHaveBeenCalled();
+    expect(lastPayload().drag_payload).toBeUndefined();
+  });
+
+  it("forwards dragend and dragenter", () => {
+    mountTree({ key: "item", tag: "div", attrs: { "data-neony-drag": "row-1" } });
+    const el = document.querySelector("[data-neony-key='item']");
+    // Two dispatches — grab the LAST invocation (lastPayload() above
+    // uses .find, which returns the first).
+    const last = () => invoke.mock.calls.filter(([name]) => name === "neony.event").at(-1)[1];
+    el.dispatchEvent(dragEvent("dragend"));
+    expect(last()).toEqual(expect.objectContaining({ key: "item", event_type: "dragend" }));
+    el.dispatchEvent(dragEvent("dragenter"));
+    expect(last()).toEqual(expect.objectContaining({ key: "item", event_type: "dragenter" }));
+  });
+
+  it("reads the in-app drag payload back on drop", () => {
+    mountTree({ key: "zone", tag: "div" });
+    const el = document.querySelector("[data-neony-key='zone']");
+    const dt = makeDataTransfer({ "application/x-neony": "row-1" });
+    el.dispatchEvent(dragEvent("drop", dt));
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({ key: "zone", event_type: "drop", drag_payload: "row-1" })
+    );
+  });
+});
+
+describe("pointer-driven in-app drag (synthetic drag lifecycle)", () => {
+  let invoke;
+  let win;
+
+  beforeEach(() => {
+    win = { minimize: vi.fn(), toggleMaximize: vi.fn(), close: vi.fn() };
+    invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { listen, invoke, window: win };
+    // Reset module-level dnd state between tests (dndState survives the
+    // eval'd IIFE scope, like lastDragover).
+    if (globalThis.__neonyDndReset) globalThis.__neonyDndReset();
+  });
+
+  function mouse(type, x, y, target = document) {
+    const e = new window.MouseEvent(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(e, "clientX", { value: x });
+    Object.defineProperty(e, "clientY", { value: y });
+    Object.defineProperty(e, "button", { value: 0 });
+    target.dispatchEvent(e);
+  }
+
+  function fireDragFrom(el, x0, y0, x1, y1) {
+    mouse("mousedown", x0, y0, el); // arms the drag
+    mouse("mousemove", x0, y0, el); // below threshold
+    mouse("mousemove", x1, y1, el); // past threshold — drag begins
+    mouse("mouseup", x1, y1, el);
+  }
+
+  it("synthesizes dragstart/drop/dragend for a data-neony-drag element", () => {
+    mountTree({
+      key: "item",
+      tag: "div",
+      attrs: { "data-neony-drag": "row-1" },
+      children: [],
+    });
+    const el = document.querySelector("[data-neony-key='item']");
+    // elementFromPoint needs a real element at the drop point — jsdom
+    // returns null for empty coordinates; point into the item itself.
+    const realFromPoint = document.elementFromPoint;
+    document.elementFromPoint = () => el;
+    try {
+      fireDragFrom(el, 50, 50, 120, 90);
+    } finally {
+      document.elementFromPoint = realFromPoint;
+    }
+    const calls = invoke.mock.calls.filter(([name]) => name === "neony.event").map(([, p]) => p);
+    const types = calls.map((p) => p.event_type);
+    expect(types).toContain("dragstart");
+    expect(types).toContain("drop");
+    expect(types).toContain("dragend");
+    const drop = calls.find((p) => p.event_type === "drop");
+    expect(drop.drag_payload).toBe("row-1");
+    // Ghost created on drag begin, removed on release.
+    expect(document.querySelector("[data-neony-ghost]")).toBeNull();
+  });
+
+  it("does not start a drag below the 4px threshold", () => {
+    mountTree({ key: "item", tag: "div", attrs: { "data-neony-drag": "row-1" } });
+    const el = document.querySelector("[data-neony-key='item']");
+    const realFromPoint = document.elementFromPoint;
+    document.elementFromPoint = () => el;
+    try {
+      mouse("mousedown", 50, 50);
+      mouse("mousemove", 52, 51); // < 4px
+      mouse("mouseup", 52, 51);
+    } finally {
+      document.elementFromPoint = realFromPoint;
+    }
+    const types = invoke.mock.calls
+      .filter(([name]) => name === "neony.event")
+      .map(([, p]) => p.event_type);
+    expect(types).not.toContain("dragstart");
+    expect(types).not.toContain("drop");
+    expect(document.querySelector("[data-neony-ghost]")).toBeNull();
+  });
+
+  it("reports offsetY relative to the drop target (not page coords)", () => {
+    // Regression: offsetX/offsetY in the synthetic drop must be relative
+    // to the TARGET element — the reorder demo splits a card at its own
+    // top/bottom half.  Page coordinates made every drop look like the
+    // card's lower half, so upward reorders always inserted AFTER the
+    // target ("3 dragged to 1 lands at 2").
+    mountTree({ key: "item", tag: "div", attrs: { "data-neony-drag": "row-1" } });
+    const el = document.querySelector("[data-neony-key='item']");
+    const realFromPoint = document.elementFromPoint;
+    document.elementFromPoint = () => el;
+    // jsdom rects are 0,0,0,0 — force a rect so the offset math is real.
+    const realRect = el.getBoundingClientRect;
+    el.getBoundingClientRect = () => ({ left: 40, top: 100, width: 150, height: 40 });
+    try {
+      fireDragFrom(el, 50, 50, 60, 110); // inside target: (60-40, 110-100) = (20, 10)
+      const calls = invoke.mock.calls.filter(([name]) => name === "neony.event").map(([, p]) => p);
+      const drop = calls.find((p) => p.event_type === "drop");
+      expect(drop.offset_x).toBe(20);
+      expect(drop.offset_y).toBe(10);
+    } finally {
+      el.getBoundingClientRect = realRect;
+      document.elementFromPoint = realFromPoint;
+    }
+  });
+
+  it("shifts cards position-only to preview the insertion point", () => {
+    mountTree({
+      key: "row",
+      tag: "div",
+      styles: { display: "flex", "flex-direction": "column", gap: "8px" },
+      children: [],
+    });
+    const row = document.querySelector("[data-neony-key='row']");
+    const realFromPoint = document.elementFromPoint;
+    document.elementFromPoint = () => row;
+    const realRect = row.getBoundingClientRect;
+    row.getBoundingClientRect = () => ({ left: 0, top: 100, width: 200, height: 240 });
+    try {
+      // Source and target cards, both inside the row.
+      const src = document.createElement("div");
+      src.setAttribute("data-neony-drag", "row-1");
+      src.style.height = "40px";
+      src.style.background = "rgb(1, 2, 3)"; // Neony-injected style — must survive the ghost
+      src.getBoundingClientRect = () => ({ left: 0, top: 100, width: 200, height: 40 });
+      row.appendChild(src);
+      const target = document.createElement("div");
+      target.setAttribute("data-neony-key", "target-card");
+      target.style.height = "40px";
+      target.getBoundingClientRect = () => ({ left: 0, top: 148, width: 200, height: 40 });
+      row.appendChild(target);
+      let over = src;
+      document.elementFromPoint = () => over;
+      try {
+        mouse("mousedown", 10, 10, src);
+        mouse("mousemove", 10, 10, src); // below threshold
+        over = target;
+        mouse("mousemove", 10, 20, src); // past threshold — drag begins
+        // The source leaves the flow as its own ghost; a placeholder
+        // keeps its slot open.  No element resizes.
+        expect(src.style.position).toBe("fixed");
+        expect(src.style.pointerEvents).toBe("none");
+        expect(src.style.background).toBe("rgb(1, 2, 3)"); // background survives
+        expect(src.style.transform).toContain("translate3d"); // ghost is positioned
+        const ph = row.querySelector("[data-neony-dnd-placeholder]");
+        expect(ph).not.toBeNull();
+        expect(target.style.height).toBe("40px"); // never resized
+        // Upper half of the target → placeholder before it.
+        expect(ph.nextSibling).toBe(target);
+        // Lower half (y=175 → past the 168 midline + 6px hysteresis) →
+        // placeholder after it.
+        mouse("mousemove", 10, 175, src);
+        expect(ph.previousSibling).toBe(target);
+        expect(target.style.height).toBe("40px"); // still never resized
+        // Hovering the source slot (a gap, not a card) KEEPS the committed
+        // insertion — the visible slot must not vanish when reached for.
+        over = src;
+        mouse("mousemove", 10, 10, src);
+        expect(ph.previousSibling).toBe(target); // still after the target
+        mouse("mouseup", 10, 10, src);
+        // Cleanup: placeholder removed, source restored to the flow.
+        expect(row.querySelector("[data-neony-dnd-placeholder]")).toBeNull();
+        expect(src.style.position).not.toBe("fixed");
+        expect(src.style.background).toBe("rgb(1, 2, 3)"); // still intact after cleanup
+      } finally {
+        over = src;
+      }
+    } finally {
+      row.getBoundingClientRect = realRect;
+      document.elementFromPoint = realFromPoint;
+    }
+  });
+
+  it("clears the preview when the cursor leaves the container", () => {
+    mountTree({
+      key: "row",
+      tag: "div",
+      styles: { display: "flex", "flex-direction": "column", gap: "8px" },
+      children: [],
+    });
+    const row = document.querySelector("[data-neony-key='row']");
+    const realFromPoint = document.elementFromPoint;
+    document.elementFromPoint = () => row;
+    const realRect = row.getBoundingClientRect;
+    row.getBoundingClientRect = () => ({ left: 0, top: 100, width: 200, height: 240 });
+    try {
+      const src = document.createElement("div");
+      src.setAttribute("data-neony-drag", "row-1");
+      src.style.height = "40px";
+      src.getBoundingClientRect = () => ({ left: 0, top: 100, width: 200, height: 40 });
+      row.appendChild(src);
+      const target = document.createElement("div");
+      target.setAttribute("data-neony-key", "target-card");
+      target.style.height = "40px";
+      target.getBoundingClientRect = () => ({ left: 0, top: 148, width: 200, height: 40 });
+      row.appendChild(target);
+      // A keyed element OUTSIDE the container (a sibling in body).
+      const outside = document.createElement("div");
+      outside.setAttribute("data-neony-key", "outside");
+      document.body.appendChild(outside);
+      let over = src;
+      document.elementFromPoint = () => over;
+      try {
+        mouse("mousedown", 10, 10, src);
+        mouse("mousemove", 10, 10, src); // below threshold
+        over = target;
+        mouse("mousemove", 10, 20, src); // begin — over target upper half
+        const ph = row.querySelector("[data-neony-dnd-placeholder]");
+        expect(ph.style.visibility).toBe("visible");
+        expect(ph.nextSibling).toBe(target);
+        // Leaving the container clears the preview: slot hidden, back to
+        // the source slot.
+        over = outside;
+        mouse("mousemove", 10, 10, src);
+        expect(ph.style.visibility).toBe("hidden");
+        expect(ph.nextSibling).toBe(target); // reverted before target
+        over = src;
+        mouse("mouseup", 10, 10, src);
+      } finally {
+        over = src;
+      }
+    } finally {
+      row.getBoundingClientRect = realRect;
+      document.elementFromPoint = realFromPoint;
+    }
+  });
+
+  it("reorders horizontally (row container) by the left/right half", () => {
+    mountTree({
+      key: "row",
+      tag: "div",
+      styles: { display: "flex", "flex-direction": "row", gap: "8px" },
+      children: [],
+    });
+    const row = document.querySelector("[data-neony-key='row']");
+    const realFromPoint = document.elementFromPoint;
+    document.elementFromPoint = () => row;
+    const realRect = row.getBoundingClientRect;
+    row.getBoundingClientRect = () => ({ left: 0, top: 100, width: 300, height: 40 });
+    try {
+      const src = document.createElement("div");
+      src.setAttribute("data-neony-drag", "row-1");
+      src.style.width = "60px";
+      src.getBoundingClientRect = () => ({ left: 0, top: 100, width: 60, height: 40 });
+      row.appendChild(src);
+      const target = document.createElement("div");
+      target.setAttribute("data-neony-key", "target-card");
+      target.style.width = "60px";
+      target.getBoundingClientRect = () => ({ left: 68, top: 100, width: 60, height: 40 });
+      row.appendChild(target);
+      let over = src;
+      document.elementFromPoint = () => over;
+      try {
+        mouse("mousedown", 5, 110, src);
+        mouse("mousemove", 5, 110, src); // below threshold
+        over = target;
+        mouse("mousemove", 78, 110, src); // begin — target LEFT half (mid 98)
+        const ph = row.querySelector("[data-neony-dnd-placeholder]");
+        expect(ph).not.toBeNull();
+        expect(ph.style.visibility).toBe("visible");
+        expect(ph.style.width).toBe("60px"); // sized along the row axis
+        expect(ph.nextSibling).toBe(target); // before target
+        mouse("mousemove", 118, 110, src); // right half → after target
+        expect(ph.previousSibling).toBe(target);
+        // Drop encodes the side via offset_x.
+        over = src;
+        mouse("mouseup", 5, 110, src);
+        const calls = invoke.mock.calls
+          .filter(([name]) => name === "neony.event")
+          .map(([, p]) => p);
+        const drop = calls.find((p) => p.event_type === "drop");
+        expect(drop).toBeTruthy();
+        expect(drop.key).toBe("target-card");
+        expect(drop.offset_x).toBe(60); // encoded "after" (>= 30px mid)
+        expect(drop.drag_payload).toBe("row-1");
+      } finally {
+        over = src;
+      }
+    } finally {
+      row.getBoundingClientRect = realRect;
+      document.elementFromPoint = realFromPoint;
+    }
+  });
+
+  it("drops at the committed insertion, not the raw cursor point", () => {
+    // Regression: the preview's placeholder shows where the card will
+    // land, so the drop MUST target that same card+side — even if the
+    // release point's cursor hits something else (a gap, the source slot).
+    mountTree({
+      key: "row",
+      tag: "div",
+      styles: { display: "flex", "flex-direction": "column", gap: "8px" },
+      children: [],
+    });
+    const row = document.querySelector("[data-neony-key='row']");
+    const realFromPoint = document.elementFromPoint;
+    document.elementFromPoint = () => row;
+    const realRect = row.getBoundingClientRect;
+    row.getBoundingClientRect = () => ({ left: 0, top: 100, width: 200, height: 240 });
+    try {
+      const src = document.createElement("div");
+      src.setAttribute("data-neony-drag", "row-1");
+      src.style.height = "40px";
+      src.getBoundingClientRect = () => ({ left: 0, top: 100, width: 200, height: 40 });
+      row.appendChild(src);
+      const target = document.createElement("div");
+      target.setAttribute("data-neony-key", "target-card");
+      target.style.height = "40px";
+      target.getBoundingClientRect = () => ({ left: 0, top: 148, width: 200, height: 40 });
+      row.appendChild(target);
+      let over = src;
+      document.elementFromPoint = () => over;
+      try {
+        mouse("mousedown", 10, 10, src);
+        mouse("mousemove", 10, 10, src); // below threshold
+        over = target;
+        mouse("mousemove", 10, 20, src); // past threshold — over target upper half
+        mouse("mousemove", 10, 175, src); // lower half → committed "target:after"
+        // Release while the cursor still points at the SOURCE slot — the
+        // raw cursor would drop on the row (no reorder), but the committed
+        // insertion must win so the result matches the preview.
+        over = src;
+        mouse("mouseup", 10, 10, src);
+        const calls = invoke.mock.calls
+          .filter(([name]) => name === "neony.event")
+          .map(([, p]) => p);
+        const drop = calls.find((p) => p.event_type === "drop");
+        expect(drop).toBeTruthy();
+        expect(drop.key).toBe("target-card");
+        expect(drop.offset_y).toBe(40); // encoded "after" (>= 20px mid)
+        expect(drop.drag_payload).toBe("row-1");
+        // Settle: the source re-enters the flow at the committed slot
+        // (right after the target), so it glides into place and the Python
+        // reorder patch that follows is a no-op for it.
+        const kids = Array.from(row.children);
+        expect(row.querySelector("[data-neony-dnd-placeholder]")).toBeNull();
+        expect(kids.indexOf(target)).toBe(0);
+        expect(kids.indexOf(src)).toBe(1);
+        expect(src.style.position).not.toBe("fixed");
+      } finally {
+        over = src;
+      }
+    } finally {
+      row.getBoundingClientRect = realRect;
+      document.elementFromPoint = realFromPoint;
+    }
+  });
+
+  it("re-homes the landing slot into another board (cross-board)", () => {
+    // Two keyed flex boards; dragging from board A onto a card of board B
+    // moves the placeholder across containers — the slot shows up in B.
+    const a = document.createElement("div");
+    a.setAttribute("data-neony-key", "board-a");
+    a.style.display = "flex";
+    a.style.flexDirection = "row";
+    a.style.gap = "8px";
+    document.body.appendChild(a);
+    const b = document.createElement("div");
+    b.setAttribute("data-neony-key", "board-b");
+    b.style.display = "flex";
+    b.style.flexDirection = "row";
+    b.style.gap = "8px";
+    document.body.appendChild(b);
+    const realFromPoint = document.elementFromPoint;
+    const realRectA = a.getBoundingClientRect;
+    const realRectB = b.getBoundingClientRect;
+    a.getBoundingClientRect = () => ({ left: 0, top: 100, width: 300, height: 40 });
+    b.getBoundingClientRect = () => ({ left: 0, top: 160, width: 300, height: 40 });
+    const src = document.createElement("div");
+    src.setAttribute("data-neony-drag", "a-1");
+    src.style.width = "60px";
+    src.getBoundingClientRect = () => ({ left: 0, top: 100, width: 60, height: 40 });
+    a.appendChild(src);
+    const targetB = document.createElement("div");
+    targetB.setAttribute("data-neony-key", "b-1");
+    targetB.setAttribute("data-neony-drag", "b-1");
+    targetB.style.width = "80px";
+    targetB.getBoundingClientRect = () => ({ left: 68, top: 160, width: 80, height: 40 });
+    b.appendChild(targetB);
+    let over = src;
+    document.elementFromPoint = () => over;
+    try {
+      mouse("mousedown", 5, 110, src);
+      mouse("mousemove", 5, 110, src); // below threshold
+      over = targetB;
+      mouse("mousemove", 9, 135, src); // begin + over B's target LEFT half
+      const ph = document.querySelector("[data-neony-dnd-placeholder]");
+      expect(ph).not.toBeNull();
+      expect(ph.parentNode).toBe(b); // placeholder moved into board B
+      expect(ph.style.visibility).toBe("visible");
+      expect(ph.style.width).toBe("80px"); // resized to B's card footprint
+      expect(ph.nextSibling).toBe(targetB); // before target
+      // Moving back onto a card in board A re-homes the slot back.
+      over = src;
+      mouse("mousemove", 5, 110, src);
+      expect(ph.parentNode).toBe(a);
+      // Hover B again, then drop: the drop targets B's card with the
+      // source's payload, and the settle glides the source into B's
+      // committed slot (the Python handler moves the card model; the diff
+      // emits a MovePatch that re-parents THIS SAME element).
+      over = targetB;
+      mouse("mousemove", 5, 110, src);
+      mouse("mouseup", 5, 110, src);
+      const calls = invoke.mock.calls
+        .filter(([name]) => name === "neony.event")
+        .map(([, p]) => p);
+      const drop = calls.find((p) => p.event_type === "drop");
+      expect(drop).toBeTruthy();
+      expect(drop.key).toBe("b-1");
+      expect(drop.drag_payload).toBe("a-1");
+      expect(drop.offset_x).toBe(0); // encoded "before"
+      expect(b.querySelector("[data-neony-dnd-placeholder]")).toBeNull();
+      expect(src.parentNode).toBe(b); // glided into board B's slot
+      expect(src.style.position).not.toBe("fixed");
+    } finally {
+      over = src;
+    }
+  });
+
+  it("clears a re-homed slot when the cursor leaves every board", () => {
+    const a = document.createElement("div");
+    a.setAttribute("data-neony-key", "board-a");
+    a.style.display = "flex";
+    a.style.flexDirection = "row";
+    a.style.gap = "8px";
+    document.body.appendChild(a);
+    const b = document.createElement("div");
+    b.setAttribute("data-neony-key", "board-b");
+    b.style.display = "flex";
+    b.style.flexDirection = "row";
+    b.style.gap = "8px";
+    document.body.appendChild(b);
+    const realFromPoint = document.elementFromPoint;
+    const realRectA = a.getBoundingClientRect;
+    const realRectB = b.getBoundingClientRect;
+    a.getBoundingClientRect = () => ({ left: 0, top: 100, width: 300, height: 40 });
+    b.getBoundingClientRect = () => ({ left: 0, top: 160, width: 300, height: 40 });
+    const src = document.createElement("div");
+    src.setAttribute("data-neony-drag", "a-1");
+    src.style.width = "60px";
+    src.getBoundingClientRect = () => ({ left: 0, top: 100, width: 60, height: 40 });
+    a.appendChild(src);
+    const targetB = document.createElement("div");
+    targetB.setAttribute("data-neony-key", "b-1");
+    targetB.setAttribute("data-neony-drag", "b-1");
+    targetB.style.width = "80px";
+    targetB.getBoundingClientRect = () => ({ left: 68, top: 160, width: 80, height: 40 });
+    b.appendChild(targetB);
+    // A keyed element OUTSIDE both boards (a sibling in body).
+    const outside = document.createElement("div");
+    outside.setAttribute("data-neony-key", "outside");
+    document.body.appendChild(outside);
+    let over = src;
+    document.elementFromPoint = () => over;
+    try {
+      mouse("mousedown", 5, 110, src);
+      mouse("mousemove", 5, 110, src); // below threshold
+      over = targetB;
+      mouse("mousemove", 9, 135, src); // begin — re-home into board B
+      const ph = document.querySelector("[data-neony-dnd-placeholder]");
+      expect(ph.parentNode).toBe(b);
+      expect(ph.style.visibility).toBe("visible");
+      // Leaving both boards reverts the slot to the source's board.
+      over = outside;
+      mouse("mousemove", 5, 110, src);
+      expect(ph.parentNode).toBe(a); // back in the source board
+      expect(ph.style.visibility).toBe("hidden");
+      over = src;
+      mouse("mouseup", 5, 110, src);
+    } finally {
+      over = src;
+    }
   });
 });
 

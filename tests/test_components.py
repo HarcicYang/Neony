@@ -30,6 +30,8 @@ from neony.application.elements import (
     PromptDialog,
     Radio,
     RadioGroup,
+    Reorder,
+    ReorderItem,
     Select,
     Sidebar,
     SidebarGroup,
@@ -311,6 +313,202 @@ class TestComponentEvents:
 
         result = btn.reset_styles(Styles(width="1px"))
         assert result is btn
+
+
+class TestReorder:
+    """The drag-reorder board component: build, order state, drop events."""
+
+    def test_build_row_wrap(self):
+        board = Reorder(
+            ReorderItem("A", key="a"),
+            ReorderItem("B", key="b"),
+            ReorderItem("C", key="c"),
+            direction="row",
+            wrap=True,
+            size="76px",
+        )
+        node = board.build().to_node()
+        assert node.styles["flex-direction"] == "row"
+        assert node.styles["flex-wrap"] == "wrap"
+        assert len(node.children) == 3
+        for card in node.children:
+            # each card is pre-marked draggable with its declared payload
+            assert card.attrs.get("draggable") == "true"
+            assert "data-neony-drag" in card.attrs
+            assert card.attrs["data-neony-drag"] == card.key
+        assert _contains_text(node.children[0], "A")
+
+    def test_build_column_nowrap(self):
+        board = Reorder("a", "b", direction="column", wrap=False)
+        node = board.build().to_node()
+        assert node.styles["flex-direction"] == "column"
+        assert node.styles["flex-wrap"] == "nowrap"
+
+    def test_order_and_items_properties(self):
+        board = Reorder("a", ReorderItem("B", key="b"), "c")
+        assert board.order == ["a", "b", "c"]
+        assert [i.content for i in board.items] == ["a", "B", "c"]
+
+    def test_string_label_becomes_key(self):
+        board = Reorder("hello")
+        assert board.order == ["hello"]
+
+    def test_bare_component_gets_auto_key(self):
+        from neony.dom import Signal
+
+        board = Reorder(Signal("x"), Text("hi"))
+        assert len(board.order) == 2
+        assert board.order[0].startswith("reorder-card-")
+        assert board.order[1].startswith("reorder-card-")
+        assert board.order[0] != board.order[1]
+
+    def test_duplicate_key_rejected(self):
+        with pytest.raises(ValueError):
+            Reorder(ReorderItem("A", key="a"), ReorderItem("B", key="a"))
+
+    def test_drop_reorders_row_and_fires(self):
+        import asyncio
+
+        board = Reorder(
+            ReorderItem("A", key="a"),
+            ReorderItem("B", key="b"),
+            ReorderItem("C", key="c"),
+            direction="row",
+            size="76px",
+        )
+        fired: list[tuple] = []
+
+        async def handler(event: DomEvent):
+            fired.append((list(event.value), event.source))
+
+        board.on_drop(handler)
+        board.build()
+        cards = {card.key: card for card in board._cards}
+        # drop B after C: offset_x = full width → second half
+        asyncio.run(cards["c"]._handlers["drop"][0](DomEvent(key="c", type="drop", drag_payload="b", offset_x=76)))
+        assert board.order == ["a", "c", "b"]
+        assert fired == [(["a", "c", "b"], "user")]
+
+    def test_drop_before_uses_first_half(self):
+        import asyncio
+
+        board = Reorder(
+            ReorderItem("A", key="a"),
+            ReorderItem("B", key="b"),
+            ReorderItem("C", key="c"),
+            direction="row",
+            size="76px",
+        )
+        board.build()
+        cards = {card.key: card for card in board._cards}
+        # drop C before B: offset_x = 0 → first half
+        asyncio.run(cards["b"]._handlers["drop"][0](DomEvent(key="b", type="drop", drag_payload="c", offset_x=0)))
+        assert board.order == ["a", "c", "b"]
+
+    def test_drop_on_itself_is_noop(self):
+        import asyncio
+
+        board = Reorder("a", "b", "c")
+        board.build()
+        cards = {card.key: card for card in board._cards}
+        asyncio.run(cards["b"]._handlers["drop"][0](DomEvent(key="b", type="drop", drag_payload="b", offset_x=0)))
+        assert board.order == ["a", "b", "c"]
+
+    # ---- flexible content ----
+
+    def test_accepts_any_component_as_card(self):
+        inner = Text("Hello")
+        board: Reorder = Reorder(ReorderItem(inner, key="x"), ReorderItem("plain"))
+        node = board.build().to_node()
+        assert _contains_text(node.children[0], "Hello")
+        assert node.children[0].attrs["data-neony-drag"] == "x"
+
+    def test_bare_components_enter_without_wrapper(self):
+        """Bare components go straight into the board — no ReorderItem
+        wrapper; auto keys are generated for them."""
+        board: Reorder[Text] = Reorder(Text("Hi"), Text("Yo"))
+        items = board.items
+        assert isinstance(items[0].content, Text)
+        assert isinstance(items[1].content, Text)
+        assert items[0].content._text == "Hi"
+        assert board.order[0].startswith("reorder-card-")
+        assert board.order[1].startswith("reorder-card-")
+        assert board.order[0] != board.order[1]
+
+    def test_bare_components_render_as_cards(self):
+        """Bare components render: the auto-keyed card is draggable and
+        carries the component's content."""
+        from neony.application.elements import Card
+
+        board = Reorder(Card("Alpha", title="A"), Card("Beta", title="B"))
+        node = board.build().to_node()
+        assert len(node.children) == 2
+        for card in node.children:
+            assert card.attrs["draggable"] == "true"
+            assert card.attrs["data-neony-drag"].startswith("reorder-card-")
+        assert _contains_text(node.children[0], "Alpha")
+
+    def test_keyed_dom_element_keeps_its_key(self):
+        from neony.dom import Div
+
+        el = Div(key="custom")
+        board = Reorder(ReorderItem(el))
+        assert board.order == ["custom"]
+        board2 = Reorder(ReorderItem(el, key="el-key"))  # explicit key wins
+        assert board2.order == ["el-key"]
+
+    def test_max_width_constrains_the_board(self):
+        board = Reorder("a", "b", max_width="340px")
+        node = board.build().to_node()
+        assert node.styles["max-width"] == "340px"
+
+    def test_root_gets_a_key(self):
+        board = Reorder("a")
+        assert board.build().key.startswith("reorder-")
+
+    # ---- cross-board moves ----
+
+    def test_cross_board_drop_moves_the_card(self):
+        import asyncio
+
+        board_a = Reorder(ReorderItem("A1", key="a1"), ReorderItem("A2", key="a2"))
+        board_b = Reorder(ReorderItem("B1", key="b1"))
+        board_a.build()
+        board_b.build()
+        # drop A2 before B1 on board B (offset_x = 0 → left half)
+        asyncio.run(
+            board_b._cards[0]._handlers["drop"][0](DomEvent(key="b1", type="drop", drag_payload="a2", offset_x=0))
+        )
+        assert board_a.order == ["a1"]
+        assert board_b.order == ["a2", "b1"]
+        assert Reorder._board_by_key["a2"] is board_b
+
+    def test_cross_board_drop_unknown_key_is_noop(self):
+        import asyncio
+
+        board = Reorder("a")
+        board.build()
+        asyncio.run(
+            board._cards[0]._handlers["drop"][0](DomEvent(key="a", type="drop", drag_payload="ghost", offset_x=0))
+        )
+        assert board.order == ["a"]
+
+    def test_cross_board_moves_reuse_dom_content(self):
+        import asyncio
+
+        el = Text("shared")
+        board_a = Reorder(ReorderItem(el, key="s"))
+        board_b = Reorder("b")
+        board_a.build()
+        board_b.build()
+        moved_el = board_a._cards[0].container[0]  # the built root element
+        asyncio.run(
+            board_b._cards[0]._handlers["drop"][0](DomEvent(key="b", type="drop", drag_payload="s", offset_x=0))
+        )
+        # the SAME element object moves over (components mount once)
+        assert board_b._cards[0].container[0] is moved_el
+        assert board_a.order == []
+        assert board_b.order == ["s", "b"]
 
 
 class TestButtonFeedback:

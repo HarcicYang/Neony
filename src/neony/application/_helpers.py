@@ -59,9 +59,9 @@ class _Entry:
 
 
 # Style-only events: deferred one frame of coalescing so a mouse sweep
-# doesn't trigger a full-tree render per event.
+# or a scroll burst doesn't trigger a full-tree render per event.
 _DEFERRED_EVENTS = frozenset(
-    {"mouseover", "mouseout", "focus", "blur", "input", "dragover", "dragleave", "pointermove"}
+    {"mouseover", "mouseout", "focus", "blur", "input", "dragover", "dragleave", "pointermove", "scroll"}
 )
 
 # Built-in @keyframes injected into every window (like theme variables),
