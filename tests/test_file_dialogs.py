@@ -129,6 +129,14 @@ class TestWorkerHelpers:
 
 
 class TestZenity:
+    @pytest.fixture(autouse=True)
+    def _force_zenity_branch(self, monkeypatch: pytest.MonkeyPatch):
+        # CI has no zenity installed; without this, _open_sync falls into
+        # the tkinter branch (absent there too — uv's Python has no Tk).
+        # Pin the branch to zenity so these tests exercise zenity itself.
+        monkeypatch.setattr(worker.sys, "platform", "linux")
+        monkeypatch.setattr(worker.shutil, "which", lambda cmd: f"/usr/bin/{cmd}")
+
     def test_open_picks_path(self, monkeypatch: pytest.MonkeyPatch):
         fake = FakeRun(0, "/home/user/a.png\n")
         monkeypatch.setattr(worker.subprocess, "run", fake)
@@ -227,6 +235,26 @@ class TestDispatch:
         monkeypatch.setattr(worker, "_tk_open", fake_tk)
         assert worker._open_sync("open", title="Open") == "/x"
         assert calls == [("tk", "Open")]
+
+    def test_tk_missing_import_reads_as_cancel(self, monkeypatch: pytest.MonkeyPatch):
+        """uv's standalone Python has no Tk — the tkinter fallback must
+        read as a cancelled dialog, never raise."""
+        monkeypatch.setattr(worker.sys, "platform", "linux")
+        monkeypatch.setattr(worker.shutil, "which", lambda _cmd: None)
+        import builtins
+
+        real_import = builtins.__import__
+
+        def no_tk(name: str, *args: Any, **kwargs: Any) -> Any:
+            if name == "tkinter":
+                raise ImportError("no tkinter")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", no_tk)
+        assert worker._open_sync("open", title="Open") == ""
+        assert worker._open_sync("open-many", title="Open") == ()
+        assert worker._save_sync(title="S", default_dir=None, default_name=None, filetypes=None) == ""
+        assert worker._folder_sync(title="F", default_dir=None) == ""
 
 
 # ── show_dialog (executor + normalize) ────────────────────────────

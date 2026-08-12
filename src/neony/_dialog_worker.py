@@ -308,9 +308,16 @@ def _run_powershell(script: str, *, many: bool = False) -> str | tuple[str, ...]
 def _tk_open(
     title: str, default_dir: str | None, filetypes: list[tuple[str, str]] | None, *, many: bool
 ) -> str | tuple[str, ...]:
-    """tkinter fallback for open / open-many (runs on an executor thread)."""
-    import tkinter as tk
-    from tkinter import filedialog
+    """tkinter fallback for open / open-many (runs on an executor thread).
+
+    The import is guarded: uv's standalone Python has no Tk, and a
+    missing module must read as a cancelled dialog (``""`` / ``()``),
+    never an exception."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except ImportError:
+        return () if many else ""
 
     root = tk.Tk()
     root.withdraw()
@@ -334,8 +341,11 @@ def _tk_save(
     title: str, default_dir: str | None, default_name: str | None, filetypes: list[tuple[str, str]] | None
 ) -> str:
     """tkinter fallback for save-as (runs on an executor thread)."""
-    import tkinter as tk
-    from tkinter import filedialog
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except ImportError:
+        return ""
 
     root = tk.Tk()
     root.withdraw()
@@ -354,8 +364,11 @@ def _tk_save(
 
 def _tk_folder(title: str, default_dir: str | None) -> str:
     """tkinter fallback for the folder picker (runs on an executor thread)."""
-    import tkinter as tk
-    from tkinter import filedialog
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+    except ImportError:
+        return ""
 
     root = tk.Tk()
     root.withdraw()
