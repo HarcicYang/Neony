@@ -16,7 +16,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 
 from neony.application import Catalog, Language, register_catalog
-from neony.application.i18n import TrRef, tr_now
+from neony.application.i18n import Common, TrRef, tr_now
 
 __all__ = ["GalleryCatalog", "Language", "register_catalog", "tr", "tr_now"]
 
@@ -397,10 +397,11 @@ class Data(BaseModel):
     elysia: TrRef[None] = TrRef("Elysia")
     eden: TrRef[None] = TrRef("Eden")
     sort_by_age: TrRef[None] = TrRef("Sort by age ↓")
-    engineer: TrRef[None] = TrRef("Engineer")
-    designer: TrRef[None] = TrRef("Designer")
-    manager: TrRef[None] = TrRef("Manager")
-    pm: TrRef[None] = TrRef("PM")
+    kiana_role: TrRef[None] = TrRef("Herrscher of Flamescion")
+    mei_role: TrRef[None] = TrRef("Herrscher of Thunder")
+    bronya_role: TrRef[None] = TrRef("Herrscher of Reason")
+    elysia_role: TrRef[None] = TrRef("Miss Pink Elf♪")
+    eden_role: TrRef[None] = TrRef("Golden Diva")
     service: TrRef[None] = TrRef("Service")
     status: TrRef[None] = TrRef("Status")
     ok: TrRef[None] = TrRef("ok")
@@ -595,6 +596,13 @@ register_catalog(Language.EN, GalleryCatalog())
 register_catalog(
     Language.ZH,
     GalleryCatalog(
+        common=Common(
+            copy_text="复制",
+            delete="删除",
+            ok="确定",
+            cancel="取消",
+            close="关闭",
+        ),
         shell=Shell(
             window_title="Neony — 组件画廊",
             titlebar="Neony — 组件画廊",
@@ -921,10 +929,11 @@ register_catalog(
             elysia="爱莉希雅",
             eden="伊甸",
             sort_by_age="按年龄排序 ↓",
-            engineer="工程师",
-            designer="设计师",
-            manager="经理",
-            pm="项目经理",
+            kiana_role="薪炎之律者",
+            mei_role="雷之律者",
+            bronya_role="理之律者",
+            elysia_role="粉色妖精小姐♪",
+            eden_role="黄金·璀耀之歌",
             service="服务",
             status="状态",
             ok="正常",

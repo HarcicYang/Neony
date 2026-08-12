@@ -176,11 +176,13 @@ class Badge(Component):
 
     def _hidden(self) -> bool:
         # A zero integer count hides the badge unless show_zero is set.
-        # Reactive sources are treated as non-numeric labels (never hidden).
+        # Reactive sources are treated as non-numeric labels (never hidden):
+        # a string label (even the empty string) is always shown — only a
+        # reactive source that actually resolves to an int 0 is hidden.
         content = self._content
         if isinstance(content, (Signal, Computed)):
             resolved = content()
-            content = resolved if isinstance(resolved, int) else 0
+            return isinstance(resolved, int) and resolved == 0 and not self._show_zero
         return isinstance(content, int) and content == 0 and not self._show_zero
 
     def _build_styles(self) -> Styles:

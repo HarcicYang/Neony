@@ -208,7 +208,15 @@ def level_sync() -> None:
 
 
 effect_slot["eff"] = effect(level_sync)
-effect_btn = Button(tr.system.dispose_effect, variant="ghost")
+# Label follows both the running state and the active language: the
+# displayed action is "Dispose effect" while running, "Restart effect"
+# after disposal.  A Computed reading ``running()`` and the tr refs
+# subscribes to both — no imperative ``.label =`` overwrite (that would
+# freeze the span and break the language binding).
+effect_btn = Button(
+    Computed(lambda: tr.system.dispose_effect.get() if running() else tr.system.restart_effect.get()),
+    variant="ghost",
+)
 
 
 async def on_effect_toggle(_event: DomEvent) -> None:
@@ -218,11 +226,9 @@ async def on_effect_toggle(_event: DomEvent) -> None:
             current.dispose()
         effect_slot["eff"] = None
         running.set(False)
-        effect_btn.label = tr_now(tr.system.restart_effect)
     else:
         effect_slot["eff"] = effect(level_sync)
         running.set(True)
-        effect_btn.label = tr_now(tr.system.dispose_effect)
 
 
 effect_btn.on_click(on_effect_toggle)
@@ -504,8 +510,9 @@ tab_state.bind_text(active_tab, fmt=lambda key: tr.system.tab_selected_fmt.forma
 scroll_tabs = Tabs(
     *[
         (
-            tr_now(tr.system.section_fmt).format(c=chr(65 + i)),
-            VStack(Text(tr_now(tr.system.panel_fmt).format(c=chr(65 + i)), role="secondary"), gap="12px"),
+            tr.system.section_fmt.format(c=chr(65 + i)),
+            VStack(Text(tr.system.panel_fmt.format(c=chr(65 + i)), role="secondary"), gap="12px"),
+            chr(65 + i),  # explicit key — a reactive title can't derive one
         )
         for i in range(10)
     ]

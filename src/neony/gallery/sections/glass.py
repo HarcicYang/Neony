@@ -142,10 +142,10 @@ av_badge = Avatar(_IMAGE_SRC, name="Inbox", size="56px", badge=Badge(3, position
 
 # Badge: inline pill or corner count. Counts clamp at 99+, zero hides.
 badge_inline = HStack(
-    Badge(tr_now(tr.glass.badge_new), variant="accent"),
+    Badge(tr.glass.badge_new, variant="accent"),
     Badge("12", variant="danger"),
-    Badge(tr_now(tr.glass.badge_verified), variant="success"),
-    Badge(tr_now(tr.glass.badge_plain)),
+    Badge(tr.glass.badge_verified, variant="success"),
+    Badge(tr.glass.badge_plain),
     Badge(dot=True),
     gap="8px",
     align="center",

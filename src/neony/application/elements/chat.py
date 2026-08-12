@@ -35,7 +35,7 @@ from neony.dom import (
 from neony.dom import Button as _ButtonElem
 from neony.dom.reactive import Computed, Signal
 
-from ..i18n import tr, tr_now
+from ..i18n import tr
 from .avatar import Avatar
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
@@ -104,9 +104,12 @@ _ACTION = Styles(
 )
 
 
-def _default_menu() -> tuple[tuple[str, str], ...]:
-    """The built-in right-click menu labels, resolved in the active language."""
-    return (("copy", tr_now(tr.common.copy_text)), ("delete", tr_now(tr.common.delete)))
+def _default_menu() -> tuple[tuple[str, ReactiveText], ...]:
+    """The built-in right-click menu items — live ``tr`` labels so the
+    menu follows the active language.  ``Menu`` mounts each label on a
+    child span (via :func:`_mount_text`), so a ``TrRef`` re-renders on
+    :func:`set_language` without rebuilding the menu."""
+    return (("copy", tr.common.copy_text), ("delete", tr.common.delete))
 
 
 _NOTICE = Styles(
@@ -160,8 +163,8 @@ class MessageBubble(Component):
         name: str | None = None,
         avatar: Avatar | None = None,
         content: Component | DOMElement | None = None,
-        actions: Sequence[str | tuple[str, str] | Icon] = (),
-        menu_items: Sequence[str | tuple[str, str]] | None = None,
+        actions: Sequence[ReactiveText | tuple[str, ReactiveText] | Icon] = (),
+        menu_items: Sequence[ReactiveText | tuple[str, ReactiveText]] | None = None,
     ) -> None:
         super().__init__()
         self._text = text
@@ -286,17 +289,30 @@ class MessageBubble(Component):
             }
         )
 
-    def _add_action(self, entry: str | tuple[str, str] | Icon) -> None:
+    def _add_action(self, entry: ReactiveText | tuple[str, ReactiveText] | Icon) -> None:
         if isinstance(entry, Icon):
-            value = entry.src
-            btn_content: DOMElement | str = entry.render("14px")
+            value: str = entry.src
+            btn_content: DOMElement | ReactiveText = entry.render("14px")
         elif isinstance(entry, tuple):
             value, label = entry
             btn_content = label
-        else:
+        elif isinstance(entry, str):
+            # A plain-string entry doubles as its own value — a static key,
+            # so a reactive label must come as a (value, label) tuple.
             value = label = entry
             btn_content = label
-        btn = _ButtonElem(type="button", container=[btn_content], styles=_ACTION)
+        else:
+            raise ValueError("MessageBubble.actions: a reactive label needs a (value, label) tuple")
+        # A reactive label (a ``tr`` ref) rides a child span so it can
+        # re-render on language switch; an Icon or a plain str mounts
+        # directly into the button.
+        if isinstance(btn_content, (Signal, Computed)):
+            label_span = Span(container=[])
+            _mount_text(label_span, btn_content)
+            btn = _ButtonElem(type="button", container=[label_span], styles=_ACTION)
+            label_span.bubble_events = True  # label-span clicks reach the row
+        else:
+            btn = _ButtonElem(type="button", container=[btn_content], styles=_ACTION)
         self._action_by_key[btn.key] = value
         self._bind(btn, "click")
         self._actions.container.append(btn)
@@ -349,20 +365,29 @@ class NoticeBubble(Component):
     Renders as a muted pill that centers itself in a flex message
     column (``align-self: center``); ``text`` is the message, or pass
     ``content`` for a custom element.
+
+    ``text`` accepts a reactive source (Signal/Computed, e.g. a ``tr``
+    ref wrapped in a ``Computed``) so language switches update it live;
+    plain strings are set directly (see :func:`_mount_text`).
     """
 
-    def __init__(self, text: str = "", *, content: Component | DOMElement | None = None) -> None:
+    def __init__(
+        self, text: ReactiveText = "", *, content: Component | DOMElement | None = None
+    ) -> None:
         super().__init__()
         self._text = text
         self._content = content
         if content is not None:
             children: list[DOMElement | str] = [content.build() if isinstance(content, Component) else content]
+            self._root = Div(styles=_NOTICE, container=children)
         else:
-            children = [text]
-        self._root = Div(styles=_NOTICE, container=children)
+            self._root = Div(styles=_NOTICE, container=[])
+            _mount_text(self._root, text)
 
     @property
     def text(self) -> str:
+        if isinstance(self._text, (Signal, Computed)):
+            return self._text()
         return self._text
 
     @text.setter

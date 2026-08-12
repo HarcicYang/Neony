@@ -6,7 +6,7 @@ from neony.application.elements import Button, Flex, Heading, HStack, Spacer, Te
 from neony.dom import Div, Styles
 
 from ..core import Section
-from ..i18n import tr, tr_now
+from ..i18n import tr
 
 # ── tab: layout ──────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ row_example = HStack(
 
 # Flex: full control (wrap demo)
 wrap_example = Flex(
-    *[Button(tr_now(tr.layout.item_fmt).format(i=i), variant="ghost") for i in range(6)],
+    *[Button(tr.layout.item_fmt.format(i=i), variant="ghost") for i in range(6)],
     direction="row",
     wrap="wrap",
     gap="8px",
@@ -55,7 +55,7 @@ Text("Muted copy", role="secondary")
 Text("Danger", role="danger")
 Text("OK", role="success")
 Div(styles=Styles(user_select="none"), ...)""",
-    *[Heading(tr_now(tr.layout.heading_n).format(n=n), level=n) for n in range(1, 7)],  # type: ignore[arg-type]
+    *[Heading(tr.layout.heading_n.format(n=n), level=n) for n in range(1, 7)],  # type: ignore[arg-type]
     Text(tr.layout.primary_text),
     Text(tr.layout.secondary_text, role="secondary"),
     Text(tr.layout.danger_text, role="danger"),

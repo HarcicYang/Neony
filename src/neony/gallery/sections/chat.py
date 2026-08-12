@@ -98,7 +98,7 @@ other_msg = MessageBubble(
     tr.chat.other_msg,
     avatar=Avatar(name="Sherry"),
     name="Sherry",
-    actions=[("copy", tr_now(tr.chat.copy_text)), Icon.glyph("😊")],
+    actions=[("copy", tr.chat.copy_text), Icon.glyph("😊")],
 )
 other_msg.on_change(on_chat_menu)
 other_msg.on_action(on_chat_action)
@@ -106,7 +106,7 @@ other_msg.on_action(on_chat_action)
 me_msg = MessageBubble(
     tr.chat.me_msg,
     from_me=True,
-    actions=[("copy", tr_now(tr.chat.copy_text))],
+    actions=[("copy", tr.chat.copy_text)],
 )
 me_msg.on_change(on_chat_menu)
 me_msg.on_action(on_chat_action)
@@ -124,7 +124,7 @@ other.on_action(lambda v: ...)   # quick action click (v)""",
         Text(tr.chat.right_click_hint, role="secondary"),
         other_msg,
         me_msg,
-        NoticeBubble(tr_now(tr.chat.you_joined)),
+        NoticeBubble(tr.chat.you_joined),
         chat_echo,
         gap="8px",
         align="stretch",
