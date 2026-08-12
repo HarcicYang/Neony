@@ -8,6 +8,8 @@ __pycache__/
 build/
 __main__.build/
 __main__.dist/
+__main__.onefile-build/
+neony-gallery_*_nuitka*
 dist/
 wheels/
 

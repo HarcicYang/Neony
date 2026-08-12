@@ -371,9 +371,7 @@ class NoticeBubble(Component):
     plain strings are set directly (see :func:`_mount_text`).
     """
 
-    def __init__(
-        self, text: ReactiveText = "", *, content: Component | DOMElement | None = None
-    ) -> None:
+    def __init__(self, text: ReactiveText = "", *, content: Component | DOMElement | None = None) -> None:
         super().__init__()
         self._text = text
         self._content = content

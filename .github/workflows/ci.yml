@@ -24,21 +24,19 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - run: uv sync --group dev
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run pyrefly check
-      - run: uv run pytest -v --tb=short
-
-  test-js:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm ci
-      - run: npm test
+
+      - run: uv sync --group dev
+      # Everything ruff / pyrefly / pytest / vitest in one pass.
+      # scripts/check_all.py exits non-zero on any failure (including a
+      # missing executable — see run_check's FileNotFoundError handling),
+      # so a broken check fails the job.  The JS install (npm ci) is
+      # bootstrapped inside the script when node_modules is absent, which
+      # is the case on a clean checkout.
+      - name: Run full check suite
+        run: uv run python scripts/check_all.py
 
   smoke-demos:
     runs-on: ubuntu-latest
