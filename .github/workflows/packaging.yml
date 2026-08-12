@@ -67,7 +67,7 @@ jobs:
             --include-module=lumiview.task \
             --include-module=lumiview.plugins.window_controls \
             --output-filename=neony-gallery \
-            neony.gallery.__main__
+            src/neony/gallery/__main__.py
 
       - name: Rename artifact
         shell: bash
