@@ -197,14 +197,9 @@ manager and runner.
 
 ```bash
 uv sync --group dev   # install dependencies (incl. dev tools)
-npm ci                # install JS dev dependencies (vitest, jsdom)
 
-uv run gallery                  # run the component gallery
-uv run pytest -q                  # run the Python test suite
-uv run ruff check .               # lint
-uv run ruff format --check .      # format check
-uv run pyrefly check              # type check
-npm test                          # run the JS test suite (vitest)
+uv run gallery                       # run the component gallery
+uv run python scripts/check_all.py   # run the full check suite (ruff / pyrefly / pytest / vitest)
 ```
 
 ---

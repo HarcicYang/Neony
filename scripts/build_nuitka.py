@@ -29,6 +29,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+
+def _utf8_stdio() -> None:
+    """Force UTF-8 on stdout/stderr.
+
+    Windows consoles default to a narrow charset (cp1252) that cannot encode
+    the box-drawing / ✓ decoration these scripts print — a print() would
+    raise UnicodeEncodeError and fail the whole run.  GitHub Actions reads
+    runner logs as UTF-8, so reconfiguring is safe on every platform.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
+_utf8_stdio()
+
 # Shared with packaging.yml — keep the two in sync when flags change.
 NUITKA_FLAGS = [
     "--onefile",

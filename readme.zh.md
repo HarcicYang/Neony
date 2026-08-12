@@ -189,14 +189,9 @@ uv run gallery
 
 ```bash
 uv sync --group dev   # 安装依赖(含开发工具)
-npm ci                # 安装 JS 开发依赖(vitest、jsdom)
 
-uv run gallery                  # 运行组件画廊
-uv run pytest -q                  # 运行 Python 测试
-uv run ruff check .               # 代码检查
-uv run ruff format --check .      # 格式检查
-uv run pyrefly check              # 类型检查
-npm test                          # 运行 JS 测试(vitest)
+uv run gallery                       # 运行组件画廊
+uv run python scripts/check_all.py   # 运行完整检查(ruff / pyrefly / pytest / vitest)
 ```
 
 ---
