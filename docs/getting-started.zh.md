@@ -3,11 +3,13 @@
 > [English version](getting-started.en.md) · [文档首页](README.zh.md)
 
 本教程会带你从一个空的 Python 文件开始，构建一个小型响应式桌面窗口。
+
 示例使用的公开导入路径和模式与 [`demo_hello.py`](../demo_hello.py) 一致。
 
 ## 1. 安装前置
 
 Neony 需要 Python 3.11 或更高版本，以及对应平台的原生 WebView 运行时。
+
 普通应用可以安装发布包：
 
 ```bash
@@ -64,6 +66,7 @@ python hello.py
 ## 3. 理解界面树
 
 `Page` 是顶层容器，`.add()` 支持链式调用，可以接收组件或原始 DOM 元素。
+
 `VStack` 和 `HStack` 是常用的 flex 容器；需要完整 flex 参数时可以使用
 `Flex`。
 

@@ -97,6 +97,7 @@ button.on_click(save)
 ```
 
 Programmatic state changes update the UI but do not pretend to be user events.
+
 Component callbacks for actual DOM interaction receive an event whose
 `source` is `"user"`. See the events and shortcuts guide when that chapter is available, and the
 current [API reference](api.en.md) for the complete event surface.
@@ -121,6 +122,7 @@ element.bind_visible(signal)
 
 Use `Computed` for derived values and `effect()` for side effects. Use an
 ordinary `on_*` handler when you need event context or multi-step behavior.
+
 [`demo_reactive.py`](../demo_reactive.py) demonstrates Signal, Computed, Effect,
 `bind_value`, `bind_style`, and `bind_visible` together.
 

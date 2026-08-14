@@ -78,6 +78,7 @@ sidebar = Sidebar(
 **Options:** `Sidebar(*children, width, glass, corner_radius, edge_fade=True)`,
 `SidebarItem(label, key, icon, active)` — `*children` are
 `SidebarItem` / `SidebarGroup` / `Pane` / `(label, panel)` tuples.
+
 `edge_fade` toggles the scroll indicator on the rail — set `False` to
 suppress. On a glass sidebar the thumb still shows but the edge fade is
 skipped (mask-image conflicts with backdrop blur in WebKitGTK).
@@ -86,6 +87,7 @@ skipped (mask-image conflicts with backdrop blur in WebKitGTK).
 duplicated or non-ASCII; pass an explicit `key` when you want a
 readable identifier. `shortcut` accepts the same combo forms as
 `Page.on_shortcut`; a shortcut switch fires `change` like a click.
+
 `selected_key` raises `ValueError` for unknown keys; setting `None`
 clears the selection. Clicks anywhere on an item — including the icon
 or label — count: item-level events bubble up from its children.
@@ -125,6 +127,7 @@ as one group; the same section reappearing later starts a new group.
 ## `Tree` & `TreeNode`
 
 A collapsible navigation tree (left rail) owning a content host (right).
+
 Arbitrary depth: a branch (a node with `children`) only expands /
 collapses; a leaf (a node with a `panel`) selects into the host. The
 tree is single-select, so `selected_key` / `bind_selected` behave like
@@ -148,6 +151,7 @@ for combo, fn in tree.shortcuts():
 `width` is the rail width (the host adapts to the rest);
 `expanded_branches=True` starts top-level branches open. `edge_fade`
 toggles the scroll indicator on the rail — set `False` to suppress.
+
 Rows mirror the `Accordion` header styling — rounded, transparent, no
 chrome around them — and the rail is bounded by the stage, scrolling
 internally instead of growing the page.
@@ -236,6 +240,7 @@ extracts a custom sort value from a row.
 unique. Header cells with `sortable=True` sort on click (asc → desc,
 switching columns starts asc); sorting is numeric-aware (or via
 `sort_key`), keeps the selection, and is observable through `sort_by`.
+
 The header is `position: sticky` inside the scroll container, so header
 and rows stay aligned under horizontal scroll.
 

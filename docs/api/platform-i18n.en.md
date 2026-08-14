@@ -151,6 +151,7 @@ troubleshooting table.
 ### System tray
 
 The native tray is configured before `run()` via `app.tray = Tray(...)`.
+
 See `Tray` & `TrayItem` in the [Core chapter](core.en.md) for the full
 API. Platform note: Linux needs `libayatana-appindicator`, the tooltip
 is unsupported there, and the menu cannot be replaced after creation.

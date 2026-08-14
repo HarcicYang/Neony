@@ -142,6 +142,7 @@ Windows → PowerShell
 ```
 
 调用在 executor 线程中运行，对话框打开时 asyncio 事件循环仍可处理其他任务。
+
 单选取消返回 `None`，多选取消返回 `[]`。文件过滤器使用 `(label, pattern)`
 列表，例如：
 

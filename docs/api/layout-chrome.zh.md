@@ -70,6 +70,7 @@ sidebar = Sidebar(
 **参数:** `Sidebar(*children, width, glass, corner_radius, edge_fade=True)`，
 `SidebarItem(label, key, icon, active)` — `*children` 为
 `SidebarItem` / `SidebarGroup` / `Pane` / `(label, panel)` 元组。
+
 `edge_fade` 切换轨道上的滚动指示器——设 `False` 关闭。玻璃侧边栏仍显示滑块，但跳过边缘渐变（WebKitGTK 中 mask-image 与背景模糊冲突）。
 
 `Pane.key` 默认为随机 id——标签永不冲突，即使重复或非 ASCII；想要可读标识符时显式传 `key`。`shortcut` 与 `Page.on_shortcut` 同格式；快捷键切换如同点击一样触发 `change`。`selected_key` 对未知 key 抛 `ValueError`；设为 `None` 清空选择。点击条目任意位置（包括图标与文字）都生效——条目级事件会从其子元素冒泡上来。

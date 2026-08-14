@@ -3,6 +3,7 @@
 > [English version](platform-i18n.en.md) · [API 索引](README.zh.md) · [文档首页](../README.zh.md)
 
 国际化、主题，以及平台原生能力——窗口控制、原生文件对话框与系统托盘。
+
 拥有这些能力的应用对象是 [`NeonApplication`](core.zh.md#neonapplication)。
 
 ## 国际化（i18n）
@@ -54,6 +55,7 @@ app.set_language(Language.ZH) / app.language  # app 级便捷方法
 - **`tr`** —— 链式代理。`tr.<key>` 与 `tr.<group>.<key>` 各返回一个
   响应式 `Computed[str]`；传给任何接受响应式文本的组件（`Text`、
   `Button`——共享的 `_mount_text` helper 让任意组件都能接入）。
+
   `tr.<key>.get()` 读当前值。
 - **`tr_now(tr.xx.xxx)`** —— 不订阅地读当前值；用于组件默认文案与
   菜单的展示时解析。在 effect 内安全（不漏建依赖）。
@@ -125,6 +127,7 @@ Windows → PowerShell
 ```
 
 调用在 executor 线程中运行，对话框打开时 asyncio 事件循环仍可处理其他任务。
+
 单选取消返回 `None`，多选取消返回 `[]`。文件过滤器使用 `(label, pattern)`
 列表，例如 `[("PNG images", "*.png"), ("All files", "*.*")]`。平台命令或
 fallback 无法启动时，公开 API 会把常见失败/取消结果归一为同样的空返回形状

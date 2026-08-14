@@ -52,10 +52,12 @@ counterpart to [`SharedSignal`](reactive.en.md#sharedsignal) for cross-window da
 **Attributes:** `config`, `state`, `theme`, `ready_handler`, `close_handler`
 
 **Window methods** (all async):
+
 `set_title(title)`, `set_size(w, h)`, `minimize()`, `toggle_maximize()`,
 `is_maximized()`, `set_fullscreen(f)`, `start_dragging()`, `close()`,
 `apply_blur(color?)`, `apply_acrylic(color?)`, `apply_mica()`,
 `clear_effect(effect)`, `eval_js(script)`, `set_icon(icon)`.
+
 `transparent=True` already applies the platform material automatically
 (Wayland blur on Linux where supported, Acrylic on Windows, Blur on
 macOS). The `apply_*` methods are manual overrides and platform-limited:
@@ -66,11 +68,13 @@ macOS). The `apply_*` methods are manual overrides and platform-limited:
 `exit()` is the way out — e.g. a tray "Quit" menu item.
 
 **Theme / rendering:**
+
 `set_theme(theme)`, `sync_theme()`, `set_background(url)`, `render()`
 
 **File dialogs** (all async — system-native):
 `open_file(...) -> str | None`, `open_files(...) -> list[str]`,
 `save_file(...) -> str | None`, `select_folder(...) -> str | None`.
+
 Cancelling returns `None` (or `[]` for the multi-select); a dialog that
 can't be shown also returns `None` — never an exception.
 
@@ -90,6 +94,7 @@ ship it), `osascript` on macOS, PowerShell on Windows, with a tkinter
 fallback — shown as a child process so the app's event loop keeps
 running while they're up. Nothing is drawn by Neony itself: the
 look, navigation and filters are exactly what the OS provides.
+
 `filetypes` maps onto the native filter UI (`[("PNG images", "*.png"),
 ("All files", "*.*")]`); `default_dir` / `default_name` preselect the
 starting location. No WebView, no tkinter window in-process, no
@@ -209,6 +214,7 @@ app.ready_handler = on_ready
 ```
 
 Every window-control method takes `window_index` (default 0).
+
 `launch([page_one, page_two], ...)` accepts a list too.
 
 ## Navigation policies
@@ -275,4 +281,5 @@ app.tray = Tray(
   `menu_on_left_click=False` (typical use: toggle the window).
 - Platform notes: **Linux needs libayatana-appindicator**; the tooltip
   is unsupported there and the menu cannot be replaced after creation.
+
   See [`demo_tray.py`](../../demo_tray.py).

@@ -169,6 +169,7 @@ switch.on_change(on_sync_change)
 ## Dirty-subtree tracking
 
 Every mutation marks the element dirty and propagates up to the root.
+
 Rendering re-serializes only dirty elements; unchanged subtrees reuse
 their cached snapshots (which the diff engine sees as identical, so zero
 patches are emitted). This is automatic — `container.append()` and

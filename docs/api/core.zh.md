@@ -51,10 +51,12 @@ app.state.user_name = "Ada"
 **属性:** `config`， `state`， `theme`， `ready_handler`， `close_handler`
 
 **窗口方法**(全部异步):
+
 `set_title(title)`， `set_size(w, h)`， `minimize()`， `toggle_maximize()`，
 `is_maximized()`， `set_fullscreen(f)`， `start_dragging()`， `close()`，
 `apply_blur(color?)`， `apply_acrylic(color?)`， `apply_mica()`，
 `clear_effect(effect)`， `eval_js(script)`， `set_icon(icon)`。
+
 `transparent=True` 会自动套上平台材质（Linux 在合成器支持时走 Wayland
 blur，Windows 为 Acrylic，macOS 为 Blur）。`apply_*` 是手动覆盖，且受
 平台限制：`apply_blur` 仅 macOS/Windows；acrylic / mica 仅 Windows 11。
@@ -64,11 +66,13 @@ blur，Windows 为 Acrylic，macOS 为 Blur）。`apply_*` 是手动覆盖，且
 "退出"项。
 
 **主题与渲染:**
+
 `set_theme(theme)`， `sync_theme()`， `set_background(url)`， `render()`
 
 **文件对话框**（均为 async — 系统原生）：
 `open_file(...) -> str | None`，`open_files(...) -> list[str]`，
 `save_file(...) -> str | None`，`select_folder(...) -> str | None`。
+
 取消时返回 `None`（多选返回 `[]`）；对话框无法显示同样返回 `None`
 — 绝不抛异常。
 
@@ -87,6 +91,7 @@ folder = await app.select_folder()  # str | None
 macOS 用 `osascript`、Windows 用 PowerShell，另有 tkinter 回退 —
 以子进程方式弹出，对话框开启期间应用事件循环照常运转。Neony
 不绘制任何东西：外观、导航与过滤完全由操作系统提供。
+
 `filetypes` 映射到原生过滤器界面（`[("PNG images", "*.png"),
 ("All files", "*.*")]`）；`default_dir` / `default_name` 预选起始
 位置。无 WebView、无进程内 tkinter 窗口、无内置对话框组件。
@@ -114,6 +119,7 @@ Pydantic 配置模型。`WindowConfig` 负责几何与外观
 
 **`WindowConfig.icon`** — 文件路径(PNG、ICO …)或原始 RGBA 数据
 `(bytes, width, height)`，显示在*带系统装饰*窗口的 OS 窗口栏中。
+
 无边框窗口没有 OS 装饰——内联图标见 [`TitleBar`](layout-chrome.zh.md#titlebar) 的 `icon`
 参数，运行时更换见 [`NeonApplication.set_icon()`](#neonapplication)。
 
@@ -159,6 +165,7 @@ app.close_handler = on_shutdown
 异步清理的最后机会。
 
 **按窗口关闭** — `Page.on_close(fn)`(同步或异步，链式，可注册多个)。
+
 该页面窗口关闭时触发，在真正关闭之前执行;异常只记录日志，绝不阻止
 关闭。若要"关闭前确认"对话框，请接管标题栏关闭按钮 —— 见
 [`TitleBar.override_close`](layout-chrome.zh.md#titlebar)。
@@ -197,6 +204,7 @@ app.ready_handler = on_ready
 ```
 
 每个窗口控制方法都接受 `window_index`(默认 0)。
+
 `launch([page_one, page_two], ...)` 也接受列表。
 
 ## 导航策略
@@ -228,6 +236,7 @@ page.on_download_completed(lambda url, path, ok: print(f"下载完成 {path}"))
 ## `Tray` & `TrayItem` — 系统托盘（原生菜单）
 
 托盘图标 + 原生右键菜单，基于 lumiview .dev4（muda 菜单 + TrayIcon）。
+
 `run()` 前赋值 `app.tray`，应用启动后图标自动创建。
 
 ```python
@@ -253,6 +262,7 @@ app.tray = Tray(
   `TrayItem.separator()` 为分隔线。
 - `close_to_tray=True` — 拦截所有窗口的关闭请求并隐藏整个应用
   （从菜单 / 托盘点击恢复；macOS 上 Dock 点击经 `ReopenEvent`）。
+
   `Page.on_close` 处理器仍会执行。
 - `on_left_click` — `menu_on_left_click=False` 时左键松开触发
   （典型用途：切换窗口）。

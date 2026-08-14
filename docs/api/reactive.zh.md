@@ -161,4 +161,5 @@ switch.on_change(on_sync_change)
 
 每次变更都会把元素标记为 dirty 并向上传播到根。渲染时只重新序列化
 dirty 元素；未变化的子树复用缓存快照(diff 引擎视其为相同，因此零补丁)。
+
 这是自动的 — `container.append()` 和属性赋值都会参与。

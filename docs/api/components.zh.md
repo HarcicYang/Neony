@@ -3,6 +3,7 @@
 > [English version](components.en.md) · [API 索引](README.zh.md) · [文档首页](../README.zh.md)
 
 所有组件继承 `Component` — 链式 `on_*` 方法、状态属性、源感知事件。
+
 从 `neony.application.elements` 导入。
 
 ## 表单控件
@@ -103,6 +104,7 @@ box.on_change(on_tag_change)  # event.value 是提交后的文本
 ```
 
 可编辑文本框 + 主题化建议面板（原生 `<datalist>` 弹出层无法主题化）。
+
 聚焦即弹出全部选项（单击即可见）；建议按输入前缀实时过滤；方向键
 高亮、**Tab 或 Enter 自动补全**高亮建议、**PageUp/PageDown 一键选中
 首/尾建议**、Escape / 点击外部关闭。值语义与 `Input` 一致：
@@ -134,6 +136,7 @@ Progress("扫描中…", indeterminate=True)  # 滑动扫掠动画
 
 圆角轨道 + accent 填充，值变化时宽度过渡
 （`indeterminate=True` 播放内置 `neony-indeterminate` 扫掠动画）。
+
 条上携带 ARIA `role="progressbar"` + `aria-valuenow/min/max`。
 
 ## 文本与标签页
@@ -160,6 +163,7 @@ tabs.on_change(lambda e: print(e.value))  # value = 标签标题
 ```
 
 **参数:** `Tabs(*panes, glass, edge_fade=True)` — `*panes` 为 `(标题, 面板)` 对，等价于链式 `add()`。
+
 `edge_fade` 切换标签条上的滚动指示器（浮动滑块 + 动态边缘渐变）——设 `False` 关闭。
 
 `selected_panel` 按身份绑定可见面板（组件或其已构建的根元素，绝不重复构建）；`selected_title` 按标题字符串选择，未知标题抛 `ValueError`。`active`（下标）与 `active_key` 为已弃用别名 —— `active_key` 现在返回标签标题（此前返回不透明的元素 id）。
@@ -203,6 +207,7 @@ dlg.on_close(lambda d: print("closed"))  # 回调接收对话框自身
 ```
 
 固定全屏 scrim 层（`--color-bg-overlay`，跟随主题）+ 居中面板。
+
 关闭途径：scrim 点击、Escape（焦点在对话框内时）、点击外部
 （`outsideclick`）。`closable=False` 仅禁用 scrim。`actions` 渲染为
 底部一排主题按钮 —— `DialogAction` 接受标签（位置参数）、
@@ -229,6 +234,7 @@ ask.on_close(lambda d: print("closed"))  # 继承自 Dialog
 消息、一个 `Input` 输入框与确认 / 取消按钮行。确认（主按钮，或输入框
 聚焦时按 `Enter`）触发 `on_submit` 并携带输入框当前值，然后关闭；
 取消（ghost 按钮、`Escape`、scrim 点击或点击外部）只关闭、不触发。
+
 `value` 是输入框文字 —— 打开前设置可预填，提交后读取。`prompt`、
 `confirm_label`、`cancel_label`、`placeholder` 均可配置。与 `Dialog`
 相同的 `position: fixed` 注意点 —— 挂页面根。
@@ -266,6 +272,7 @@ dd.on_change(on_theme_change)
 ```
 
 trigger + 主题化玻璃弹出面板（原生 button 行，与 `Select` 同模式）。
+
 完整键盘导航（Enter/Space 打开、方向键两端钳制、PageUp/PageDown
 首尾、Enter 选中、Escape/Tab 与点击外部关闭）。`items` 可设置。
 
@@ -323,6 +330,7 @@ img.src = data_url("other.svg")  # 任意 URL 字符串
 `file_url(path)`，嵌入字节传 `data_url(path)`，或任意 `https://` URL；
 组件自身不做任何路径转换（这个边界交给调用方）。圆角、overflow-hidden
 的框架包裹图片，让 `object-fit` 能裁切到圆角，字节到达前显示占位色。
+
 `width`/`height` 接受 `str`（`"40%"`）或 `int`（→ `"40px"`）。`fit` 即
 `object-fit`（`cover`/`contain`/`fill`/`none`/`scale-down`）；传
 `radius="50%"` 得到圆形。`src` 与 `alt` 构造后可改。
@@ -379,6 +387,7 @@ card.title = "已重命名"
 ```
 
 带标题的内容卡片。`*body` 是卡片正文（组件、DOM 元素或字符串）。
+
 `title` / `subtitle` 自动生成 header（一个 `Heading` + 可选的次要 `Text`）；
 自定义的 `header=` 会完全替换标题行（且优先级高于 `title`/`subtitle`/
 `actions`）。`actions` 是 header 行右侧右对齐的按钮；`footer` 是按钮列表
@@ -386,6 +395,7 @@ card.title = "已重命名"
 `role` 着色的毛玻璃面板（默认 `neutral`，可选 `accent`、`danger`、
 `success`——辉光跟随主题）。`clickable=True` 让整张卡片可点击
 （`cursor: pointer` + `on_click`）。`title` 与 `subtitle` 构造后可改。
+
 Card 保留自己紧凑的样式常量（不包裹 `GlassPanel`），默认就很轻。
 
 ### `MessageBubble`
@@ -406,6 +416,7 @@ other.on_action(lambda v: print(v))  # 快捷操作点击
 他人 → 左侧）与气泡填充色（自己 → accent 白字，他人 → 抬升面）；
 朝向头像一侧的圆角做方角处理。`avatar` 是可选的 `Avatar`，放在消息
 自身一侧（构造时 build 一次）；`name` 是气泡上方的可选发送者名。
+
 `actions` 在气泡下方渲染 hover 时出现的快捷按钮——`(value, label)`
 或 `str` 变成文本按钮，`Icon` 变成图标按钮；点击触发
 `on_action(value)`。快捷操作行**绝对定位**在气泡正下方，出现时覆盖

@@ -107,6 +107,7 @@ box.on_change(on_tag_change)  # event.value is the committed text
 Editable text with a themed suggestion popup (the native `<datalist>`
 popup cannot be themed). The popup opens on focus — a single click
 shows every option; suggestions filter by prefix as you type.
+
 ArrowDown/Up highlights, **Tab or Enter auto-completes** the
 highlighted suggestion, **PageUp/PageDown pick the first/last
 suggestion in one keypress**, Escape / click-away closes. Value
@@ -125,8 +126,10 @@ sl.on_change(lambda e: print(e.value))  # float, on release
 
 The visible track, accent fill and knob are drawn by the component
 (the native range input on top is invisible and owns drag / keyboard).
+
 The fill follows the thumb instantly while dragging and glides over
 0.2s on programmatic sets. `step="any"` reaches every float.
+
 PageUp/PageDown move by a page step (10× step, or 10% of the range
 when stepless) — the component corrects the native range input's
 reversed page direction (WebKit spec quirk).
@@ -141,6 +144,7 @@ Progress("Scanning…", indeterminate=True)  # sliding sweep animation
 
 A rounded track with an accent fill that transitions on value changes
 (`indeterminate=True` plays the built-in `neony-indeterminate` sweep).
+
 ARIA `role="progressbar"` + `aria-valuenow/min/max` are carried on the
 bar.
 
@@ -169,6 +173,7 @@ tabs.on_change(lambda e: print(e.value))  # value = tab title
 
 **Options:** `Tabs(*panes, glass, edge_fade=True)` — `*panes` are
 `(title, panel)` pairs, equivalent to chained `add()` calls.
+
 `edge_fade` toggles the scroll indicator (floating thumb + dynamic edge
 fade) on the tab strip — set `False` to suppress it.
 
@@ -193,6 +198,7 @@ accordion.expanded_keys  # list[str], the open sections
 
 A `Collapsible` is one titled row that toggles a content panel between
 hidden and visible; an `Accordion` stacks them in a single scroll flow.
+
 With `multiple=True` (the default) several sections can stay open; with
 `multiple=False` opening one closes the others. Only the `display`
 property switches — expanding replays the built-in `neony-rise-in`
@@ -201,11 +207,13 @@ entrance animation, so no JS layer is involved.
 `Collapsible(title, *content, expanded=False, key=None)` builds a single
 section (also accepted positionally by `Accordion`); `key` defaults to
 the lowercased title and identifies the section in `change` payloads.
+
 `.section(title, *content, ...)` is the fluent shorthand that builds a
 `Collapsible` and appends it in one call.
 
 Listen with `on_change` (`event.value` is the key of the section the
 user just toggled) and read the full open set with `expanded_keys`.
+
 `Accordion` does **not** implement `selected_key` / `bind_selected` —
 its selection is multi-valued, which does not fit the single-value
 selection protocol.
@@ -256,6 +264,7 @@ ask.on_close(lambda d: print("closed"))  # inherited from Dialog
 
 A `Dialog` specialised for a single text value: a themed scrim + centered
 panel with a message, one `Input` field, and a confirm / cancel row.
+
 Confirming (the primary button, or pressing `Enter` while the field has
 focus) fires `on_submit` with the field's current value, then closes;
 cancelling (the ghost button, `Escape`, scrim click, or click-away)
@@ -338,6 +347,7 @@ card — `success` / `info` / `error` pick the accent dot colour;
 the ✕ is clicked. `on_click` (sync or async) fires when the card is
 clicked — the ✕ never fires it — and the card shows a pointer cursor
 when it's clickable. `max_toasts` evicts the oldest card beyond the cap.
+
 `top_offset` drops the top placements below window chrome (a `TitleBar`
 height); bottom placements always hug the window edge. Each card enters
 with a placement-specific directional animation (top placements drop
@@ -398,6 +408,7 @@ Badge(3, position="top-right")  # corner count — needs a position:relative par
 ```
 
 A small status label or corner count — one class, two shapes.
+
 `position="inline"` (default) is a pill that flows with text, tinted by
 `variant` (`neutral` default, `accent`, `danger`, `success`). Any other
 `position` (`top-right`, `top-left`, `bottom-right`, `bottom-left`)
@@ -407,6 +418,7 @@ a `position: relative` parent** (an `Avatar` with `badge=`, or a wrapper
 parent's edge. Integer content gets two conveniences: counts above `max`
 (default 99) collapse to `"99+"`, and a zero count hides the badge unless
 `show_zero=True` (the node stays mounted so it can toggle back).
+
 `dot=True` drops the text for a bare status dot. `content`, `variant`, and
 `dot` are settable after construction.
 
@@ -429,8 +441,10 @@ A titled content panel. `*body` is the panel body (Components, DOMElements,
 or strings). `title` / `subtitle` auto-build a header (a `Heading` + an
 optional secondary `Text`); a custom `header=` slot replaces the title row
 entirely (and takes precedence over `title`/`subtitle`/`actions`).
+
 `actions` are buttons shown right-aligned in the header row; `footer` is a
 button list (right-aligned, above a separator) or any content node.
+
 `glass=True` swaps the solid surface for a frosted-glass panel tinted by
 `role` (`neutral` default, `accent`, `danger`, `success` — the glow follows
 the theme). `clickable=True` turns the card into a clickable surface
@@ -465,6 +479,7 @@ bubble, so showing it overlays the message beneath instead of shifting
 the row's height. `menu_items` configures the built-in right-click
 `Menu` (default Copy / Delete; `[]` disables it — `on_contextmenu`
 still fires) and selections dispatch to `on_change` with the value.
+
 NOTE: the menu is a `position: fixed` element inside the bubble; keep
 chat panes away from `backdrop-filter` / `transform` ancestors.
 
@@ -508,6 +523,7 @@ board.order  # current keys in render order
 - Both axes work: the engine detects the container's `flex-direction` and
   judges the insertion side by the cursor's half — `offset_x` for a `row`
   (first half inserts before, second after), `offset_y` for a `column`.
+
   A wrapping `row` board forms a grid, so a card can be dragged both
   horizontally (within a row) and vertically (into another row). The
   grid wraps at the board's width — pin `max_width` to force the wrap.
