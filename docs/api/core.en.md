@@ -55,7 +55,11 @@ counterpart to [`SharedSignal`](reactive.en.md#sharedsignal) for cross-window da
 `set_title(title)`, `set_size(w, h)`, `minimize()`, `toggle_maximize()`,
 `is_maximized()`, `set_fullscreen(f)`, `start_dragging()`, `close()`,
 `apply_blur(color?)`, `apply_acrylic(color?)`, `apply_mica()`,
-`clear_effect(effect)`, `eval_js(script)`, `set_icon(icon)`
+`clear_effect(effect)`, `eval_js(script)`, `set_icon(icon)`.
+`transparent=True` already applies the platform material automatically
+(Wayland blur on Linux where supported, Acrylic on Windows, Blur on
+macOS). The `apply_*` methods are manual overrides and platform-limited:
+`apply_blur` is macOS/Windows; acrylic / mica are Windows 11.
 
 **App methods:** `exit(code=0)` — graceful app shutdown (sync). With
 `close_to_tray=True` window closes hide the app instead of quitting, so

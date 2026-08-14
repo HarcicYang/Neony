@@ -92,8 +92,9 @@ Token families: `--color-bg`, `--color-surface`,
 danger fill), `--color-danger`, `--color-success`, `--color-border`,
 `--color-shadow`, `--color-*-glass*` (frosted variants).
 
-Components reference tokens via `Color(var="--color-*")` so theme
-switches redraw with zero DOM diff.
+Components reference tokens via `Color(var="--color-*")` so a theme
+switch only replaces the `:root` variable block — no DOM diff; the
+browser recolors every `var(--color-*)`.
 
 Custom themes:
 
@@ -114,8 +115,12 @@ All async on [`NeonApplication`](core.en.md#neonapplication):
 `set_title`, `set_size`, `minimize`, `toggle_maximize`, `is_maximized`,
 `set_fullscreen`, `start_dragging`, `close`, `set_icon`, plus the native
 blur / acrylic / mica effects (`apply_blur`, `apply_acrylic`,
-`apply_mica`, `clear_effect`). Every window-control method takes an
-optional `window_index` (default 0) for multi-window apps.
+`apply_mica`, `clear_effect`). `transparent=True` already applies the
+platform material automatically (Wayland blur on Linux where supported,
+Acrylic on Windows, Blur on macOS). The `apply_*` methods are manual
+overrides and platform-limited: `apply_blur` is macOS/Windows; acrylic /
+mica are Windows 11. Every window-control method takes an optional
+`window_index` (default 0) for multi-window apps.
 
 ### Native file dialogs
 

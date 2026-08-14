@@ -12,15 +12,15 @@
 
 ## 概览
 
-> **状态:pre-beta** — API 仍在演进中。欢迎反馈与贡献。
+> **状态: pre-beta** — API 仍在演进中。欢迎反馈与贡献。
 
 Neony 在原生窗口中渲染响应式 DOM。你完全用 Python 对象——组件、布局、样式——
-拼装界面，Neony 自动对浏览器 DOM 做增量更新。不需要写 HTML、JavaScript。
+拼装界面，Neony 自动对浏览器 DOM 做增量更新。应用代码不必写 HTML 或 JavaScript。
 
 它基于 [LumiView](https://lumiview.dev)，与 [Tauri](https://tauri.app)
 使用相同的 Rust `tao`/`wry` WebView 技术栈。
 
-- **纯 Python API** — 组件、布局、事件，全程不接触 Web 技术
+- **纯 Python API** — 组件、布局、事件；应用代码不必写 HTML 或 JavaScript
 - **细粒度响应式** — `Signal` / `Computed` / `Effect` 原语 + 声明式绑定
 - **脏子树 diff** — 只有变化的元素重新序列化，未变子树复用缓存快照
 - **样式直通补丁** — 纯样式/属性变化(hover、focus、press)直接从快照缓存打补丁，跳过序列化与 diff
@@ -28,7 +28,7 @@ Neony 在原生窗口中渲染响应式 DOM。你完全用 Python 对象——�
 - **三套主题预设** — dark / light / deep-blue，基于 CSS 自定义属性
 - **(可选)毛玻璃** — 半透明表面 + 背景模糊
 - **语义色光晕** — 焦点环与悬停辉光跟随元素语义颜色
-- **滚动指示器** — 原生滚动条被隐藏；滚动表面获得随主题的浮动拇指(静止时淡显、滚动/悬停时增强、可拖拽、点击轨道翻页)，以及只在内容真正溢出方向显示的动态边缘渐变
+- **滚动指示器** — 原生滚动条被隐藏；滚动表面获得随主题的浮动滑块（静止时淡显、滚动/悬停时增强、可拖拽、点击轨道翻页），以及只在内容真正溢出方向显示的动态边缘渐变
 - **自定义窗口装饰** — 无边框、透明窗口、自定义标题栏
 - **(仅支持平台)原生窗口效果** — blur / acrylic / mica 材质
 
@@ -53,15 +53,12 @@ Windows 为 WebView2，macOS 为 WKWebView）。Linux 目前主要在 Wayland �
 ```python
 from neony.application import Page, launch
 from neony.application.elements import Button, Heading, Text, VStack
+from neony.dom import Signal
 
+clicks = Signal(0)
 counter = Button("Click me")
-
-
-async def on_click(event) -> None:
-    counter.label = "Clicked!"
-
-
-counter.on_click(on_click)
+counter.bind_text(clicks, fmt=lambda count: f"Clicked {count} times!" if count else "Click me")
+counter.on_click(lambda _event: clicks.update(lambda count: count + 1))
 
 page = Page(gap="16px").add(
     VStack(
@@ -92,6 +89,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Slider`                  | 动画填充滑块 — 有级或无级（`step="any"`）                     |
 | `Progress`                | 动画填充进度条 — 确定值或滑动 `indeterminate`                  |
 | `Dialog`                  | 固定 scrim + 居中玻璃面板 — scrim / Escape / ✕ / 点击外部关闭   |
+| `PromptDialog`            | 基于 `Dialog` 的单行文本提示 — 确认 / 取消，Enter / Escape       |
 | `Tooltip`                 | 包裹 anchor 的悬停气泡，placement 偏移 + 悬停延迟               |
 | `Dropdown`                | trigger 下的主题化弹出面板 — 完整键盘导航 + 点击外部关闭        |
 | `Menu`                    | 光标定位的固定弹出菜单（`open_at(x, y)` 来自 contextmenu）      |
@@ -100,16 +98,16 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Heading`                 | 主题标题(h1–h6)，自动字号                                      |
 | `Text`                    | 内联文本，支持语义角色(primary / secondary / danger / success) |
 | `Tabs`                    | 选项卡栏 + 面板，同时只显示一个 — 构造器子项、`selected_panel` / `selected_title` / `selected_key` |
-| `Accordion` / `Collapsible` | 单列滚动流中的可展开分组 — 流畅 `.section()`、多组同时展开、`expanded_keys`、`on_change` |
+| `Accordion` / `Collapsible` | 单列滚动流中的可展开分组 — 流畅 `.section()`、默认可多组同时展开（`multiple=False` 为互斥）、`expanded_keys`、`on_change` |
 | `Tree` / `TreeNode`       | 可折叠导航树 + 内容宿主 — 任意深度、流畅建造器写法、点叶子在右侧显示其面板 |
 | `List` / `ListItem`       | 可滚动单选数据列表 — listbox 模型、方向键移动选中、`selected_key` / `bind_selected` |
 | `DataTable` / `Column`    | 列配置 + 数据行 — 固定表头、点击排序、单选 / 多选行 |
 | `Reorder` / `ReorderItem` | 拖拽重排面板 — 任意组件/DOM 元素都可作为卡片；`direction` + `wrap` 可作网格纵横双向重排，多个面板可交换卡片 |
-| `Icon`                    | 统一图标 — `Icon.image(url)` 固定方形图片或 `Icon.glyph(text)` 字形，TitleBar / Sidebar / Tabs / Tree 共用 |
+| `Icon`                    | 统一图标 — `Icon.image(url_or_path)` 固定方形图片或 `Icon.glyph(text)` 字形，TitleBar / Sidebar / Tabs / Tree 共用 |
 | `Flex`                    | 通用弹性容器，完全控制                                         |
 | `VStack` / `HStack`       | 纵向 / 横向弹性堆叠                                            |
 | `Spacer`                  | 弹性空白，吸收剩余空间                                         |
-| `Separator`               | 细水平分隔线                                                   |
+| `Separator`               | 细分隔线 — 水平（默认）或垂直                                  |
 | `GlassPanel`              | 毛玻璃容器，可选背景图                                         |
 | `TitleBar`                | 无边框窗口的自定义标题栏 — 拖动、最小化 / 最大化 / 关闭        |
 | `Sidebar` / `SidebarItem` | 拥有内容面板的垂直导航 — `Pane`、`SidebarGroup` 分组小节、每面板快捷键;与 TitleBar 同款玻璃风格 |
@@ -131,12 +129,19 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 - **无边框自定义标题栏** — 设置 `decorations=False`，添加 `TitleBar`，
   拖动 / 最小化 / 最大化 / 关闭全部自动生效。见 [API 参考](docs/api.zh.md)
   与 [`demo_custom_window.py`](demo_custom_window.py) 示例。
-- **透明窗口与原生效果** — `transparent=True` 配合 `apply_blur()`、
-  `apply_acrylic()`、`apply_mica()`。见
-  [`demo_transparent_panel.py`](demo_transparent_panel.py)。
+- **透明窗口与原生效果** — `transparent=True` 会自动套上平台材质
+  （Linux 在合成器支持时走 Wayland blur，Windows 为 Acrylic，macOS 为
+  Blur）。`apply_blur()`、`apply_acrylic()`、`apply_mica()` 是手动覆盖，
+  且受平台限制（`apply_blur` 仅 macOS/Windows；acrylic / mica 仅
+  Windows 11）。见 [`demo_transparent_panel.py`](demo_transparent_panel.py)。
 - **编程式窗口控制** — `set_title()`、`set_size()`、`minimize()`、
   `toggle_maximize()`、`close()` … 均位于 `NeonApplication`，
   多窗口时接受 `window_index=0` 参数。
+- **剪贴板** — `app.clipboard_write(text)` / `app.clipboard_read()`。
+- **本地资源 URL** — `file_url()` / `data_url()`，处理 Windows 路径、
+  空格与非 ASCII 文件名。
+- **国际化** — 类型化目录 + `tr` / `set_language()`；绑定文案在切换
+  语言时即时更新。
 - **多窗口** — `run(*pages)` 每个页面一个窗口，共享同一事件循环与
   `app.state`。`launch([...])` 也接受列表。
   见 [`demo_multi_window.py`](demo_multi_window.py)。
@@ -154,10 +159,10 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 
 ## 主题
 
-三套内置预设 — `DARK`(默认)、`LIGHT`、`DEEP_BLUE` — 以 CSS 自定义属性
-暴露在 `:root`，切换主题零 DOM diff 全量重绘。滚动条与交互光晕(焦点环、
-悬停辉光)引用同一套 `--color-*` token，因此也随主题自动切换。切换与
-自定义主题见 [API 参考](docs/api.zh.md)。
+三套内置预设 — `DARK`（默认）、`LIGHT`、`DEEP_BLUE` — 以 CSS 自定义属性
+暴露在 `:root`。切换主题只替换这块变量，不走 DOM diff；浏览器按新的
+`var(--color-*)` 重上色。滚动条与交互光晕（焦点环、悬停辉光）引用同一套
+token，因此也随主题自动切换。切换与自定义主题见 [API 参考](docs/api.zh.md)。
 
 ---
 
@@ -167,16 +172,16 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 
 | 文件                            | 演示内容                               |
 | ------------------------------- | -------------------------------------- |
-| `demo_hello.py`                 | 最小示例(与快速入门一致)               |
-| `gallery` 包(`uv run gallery`) | 带文档与代码示例的组件画廊，玻璃标题栏 |
-| `demo_custom_window.py`         | 无边框窗口:TitleBar + Sidebar 一体装饰 |
+| `demo_hello.py`                 | 最小示例（与快速入门一致）             |
+| `gallery` 包（`uv run gallery`） | 带文档与代码示例的组件画廊，玻璃标题栏 |
+| `demo_custom_window.py`         | 无边框窗口：TitleBar + Sidebar 一体装饰 |
 | `demo_transparent_panel.py`     | 带原生模糊的透明悬浮面板               |
 | `demo_multi_window.py`          | 共享同一 app 状态的双窗口              |
-| `demo_reactive.py`              | Signal API:声明式绑定替代手动刷新      |
-| `demo_accordion.py`             | Accordion:单列滚动流中的可展开分组     |
-| `demo_tree.py`                  | Tree:可折叠导航树 + 内容宿主           |
-| `demo_tray.py`                  | 系统托盘:原生菜单 + 关闭到托盘模式     |
-| `demo_builder.py`               | 使用 `Page` + 组件 + `launch()` 的最小应用 |
+| `demo_reactive.py`              | Signal API：声明式绑定替代手动刷新     |
+| `demo_accordion.py`             | Accordion：单列滚动流中的可展开分组    |
+| `demo_tree.py`                  | Tree：可折叠导航树 + 内容宿主          |
+| `demo_tray.py`                  | 系统托盘：原生菜单 + 关闭到托盘模式    |
+| `demo_builder.py`               | 居中 `Page`，组件与原始样式 `Div` 混用 |
 
 ```bash
 uv run gallery
@@ -201,6 +206,9 @@ uv sync --group dev   # 安装依赖(含开发工具)
 uv run gallery                       # 运行组件画廊
 uv run python scripts/check_all.py   # 运行完整检查(ruff / pyrefly / pytest / vitest)
 ```
+
+`scripts/check_all.py` 也会跑 JavaScript 测试（`vitest` + `jsdom`）。
+缺少 `node_modules/` 时会自动执行 `npm ci`。
 
 ---
 

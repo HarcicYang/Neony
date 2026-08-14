@@ -49,8 +49,8 @@ Exceptions and follow-on conventions:
 ### 3. Theming through tokens
 
 Components reference theme colours via `Color(var="--color-*")` so a
-theme switch redraws everything with zero DOM diff. Never hard-code
-colours that should follow the theme.
+theme switch only replaces the `:root` variable block — no DOM diff.
+Never hard-code colours that should follow the theme.
 
 ### 4. Bilingual documentation
 

@@ -3,8 +3,8 @@
 > [English version](layout-chrome.en.md) · [API 索引](README.zh.md) · [文档首页](../README.zh.md)
 
 弹性容器、毛玻璃面板，以及导航 / 装饰组件——`TitleBar`、`Sidebar`、
-`Tree`、`List`、`DataTable`。布局原语从 `neony.application.layout`（或
-`neony.application`）导入，装饰组件从 `neony.application.elements` 导入。
+`Tree`、`List`、`DataTable`。布局原语和装饰组件都从
+`neony.application.elements` 导入。
 
 ## 弹性容器
 
@@ -12,7 +12,7 @@
 VStack(a, b, gap="12px", align="stretch")  # 纵向
 HStack(a, Spacer(), b, gap="8px")  # 横向,Spacer 推挤
 Flex(*items, direction="row", wrap="wrap", gap="8px")  # 完全控制
-Separator()  # 分隔线
+Separator()  # 分隔线（默认 type="horizontal"，也可 "vertical"）
 GlassPanel(Heading("磨砂"), background=url, grow=True)  # 磨砂舞台
 ```
 
@@ -70,7 +70,7 @@ sidebar = Sidebar(
 **参数:** `Sidebar(*children, width, glass, corner_radius, edge_fade=True)`，
 `SidebarItem(label, key, icon, active)` — `*children` 为
 `SidebarItem` / `SidebarGroup` / `Pane` / `(label, panel)` 元组。
-`edge_fade` 切换轨道上的滚动指示器——设 `False` 关闭。玻璃侧边栏仍显示拇指，但跳过边缘渐变（WebKitGTK 中 mask-image 与背景模糊冲突）。
+`edge_fade` 切换轨道上的滚动指示器——设 `False` 关闭。玻璃侧边栏仍显示滑块，但跳过边缘渐变（WebKitGTK 中 mask-image 与背景模糊冲突）。
 
 `Pane.key` 默认为随机 id——标签永不冲突，即使重复或非 ASCII；想要可读标识符时显式传 `key`。`shortcut` 与 `Page.on_shortcut` 同格式；快捷键切换如同点击一样触发 `change`。`selected_key` 对未知 key 抛 `ValueError`；设为 `None` 清空选择。点击条目任意位置（包括图标与文字）都生效——条目级事件会从其子元素冒泡上来。
 

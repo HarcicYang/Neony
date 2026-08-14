@@ -143,8 +143,9 @@ surface = Div(
 )
 ```
 
-The built-in presets are `DARK`, `LIGHT`, and `DEEP_BLUE`. Read the theming
-指南 when you need custom tokens, transitions, or keyframes.
+The built-in presets are `DARK`, `LIGHT`, and `DEEP_BLUE`. See
+[Theming](api/platform-i18n.en.md) for custom tokens, transitions, or
+keyframes.
 
 ## 7. Choose the next guide
 

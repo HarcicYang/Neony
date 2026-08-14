@@ -54,7 +54,10 @@ app.state.user_name = "Ada"
 `set_title(title)`， `set_size(w, h)`， `minimize()`， `toggle_maximize()`，
 `is_maximized()`， `set_fullscreen(f)`， `start_dragging()`， `close()`，
 `apply_blur(color?)`， `apply_acrylic(color?)`， `apply_mica()`，
-`clear_effect(effect)`， `eval_js(script)`， `set_icon(icon)`
+`clear_effect(effect)`， `eval_js(script)`， `set_icon(icon)`。
+`transparent=True` 会自动套上平台材质（Linux 在合成器支持时走 Wayland
+blur，Windows 为 Acrylic，macOS 为 Blur）。`apply_*` 是手动覆盖，且受
+平台限制：`apply_blur` 仅 macOS/Windows；acrylic / mica 仅 Windows 11。
 
 **应用方法:** `exit(code=0)` — 优雅退出整个应用(同步)。`close_to_tray=True`
 时关窗只会隐藏应用，`exit()` 才是真正的退出途径——例如托盘菜单的

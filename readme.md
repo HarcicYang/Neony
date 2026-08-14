@@ -17,12 +17,13 @@ Reactive desktop UI framework for Python, built on [LumiView](https://github.com
 
 Neony renders a reactive DOM in a native window. You compose your UI from
 Python objects — components, layouts, styles — and Neony diff-updates the
-browser DOM automatically. No HTML, no JavaScript.
+browser DOM automatically. Application code does not need to write HTML or
+JavaScript.
 
 It builds on [LumiView](https://lumiview.dev), which uses the same Rust
 `tao`/`wry` webview stack as [Tauri](https://tauri.app).
 
-- **Pure Python API** — components, layouts and events, no need for non-python codes
+- **Pure Python API** — components, layouts and events; no HTML or JavaScript in application code
 - **Fine-grained reactivity** — `Signal` / `Computed` / `Effect` primitives with declarative bindings
 - **Dirty-subtree diffing** — only changed elements re-serialize; unchanged subtrees reuse cached snapshots
 - **Style direct-patch** — pure style/attr changes (hover, focus, press) patch straight from the snapshot cache, skipping serialization and diff
@@ -56,15 +57,12 @@ for system packages and troubleshooting. The system tray needs
 ```python
 from neony.application import Page, launch
 from neony.application.elements import Button, Heading, Text, VStack
+from neony.dom import Signal
 
+clicks = Signal(0)
 counter = Button("Click me")
-
-
-async def on_click(event) -> None:
-    counter.label = "Clicked!"
-
-
-counter.on_click(on_click)
+counter.bind_text(clicks, fmt=lambda count: f"Clicked {count} times!" if count else "Click me")
+counter.on_click(lambda _event: clicks.update(lambda count: count + 1))
 
 page = Page(gap="16px").add(
     VStack(
@@ -95,6 +93,7 @@ Import from `neony.application.elements`.
 | `Slider`                  | Slider with animated accent fill — stepped or stepless (`step="any"`)          |
 | `Progress`                | Progress bar with animated fill — determinate or sliding `indeterminate`      |
 | `Dialog`                  | Fixed scrim + centered glass panel — scrim / Escape / ✕ / click-away close    |
+| `PromptDialog`            | Single-field text prompt on top of `Dialog` — confirm / cancel, Enter / Escape |
 | `Tooltip`                 | Hover bubble wrapped around an anchor, placement offsets, hover delay        |
 | `Dropdown`                | Themed popup under a trigger — full keyboard nav + click-away close          |
 | `Menu`                    | Fixed popup positioned at the cursor (`open_at(x, y)` from contextmenu)      |
@@ -103,16 +102,16 @@ Import from `neony.application.elements`.
 | `Heading`                 | Themed heading (h1–h6) with automatic sizing                                   |
 | `Text`                    | Inline body copy with semantic roles (primary / secondary / danger / success)  |
 | `Tabs`                    | Tab bar + panels, exactly one visible at a time — constructor children, `selected_panel` / `selected_title` / `selected_key` |
-| `Accordion` / `Collapsible` | Expandable sections in one scroll flow — fluent `.section()`, `multiple` open mode, `expanded_keys`, `on_change` |
+| `Accordion` / `Collapsible` | Expandable sections in one scroll flow — fluent `.section()`, `multiple` (default; `multiple=False` is exclusive), `expanded_keys`, `on_change` |
 | `Tree` / `TreeNode`       | Collapsible navigation tree + content host — arbitrary depth, fluent builders, leaf selection shows its panel on the right |
 | `List` / `ListItem`       | Scrollable single-select data list — listbox model, arrow keys move selection, `selected_key` / `bind_selected` |
 | `DataTable` / `Column`    | Column config + data rows — sticky header, click-to-sort, single / multi row selection |
 | `Reorder` / `ReorderItem` | Drag-reorder board — any component/DOM element can be a card; `direction` + `wrap` makes a grid reorderable on both axes, multiple boards exchange cards |
-| `Icon`                    | One icon — `Icon.image(url)` fixed-size square or `Icon.glyph(text)`, shared by TitleBar / Sidebar / Tabs / Tree |
+| `Icon`                    | One icon — `Icon.image(url_or_path)` fixed-size square or `Icon.glyph(text)`, shared by TitleBar / Sidebar / Tabs / Tree |
 | `Flex`                    | Generic flex container with full control                                       |
 | `VStack` / `HStack`       | Vertical / horizontal flex stacks                                              |
 | `Spacer`                  | Flexible empty space that absorbs leftover room                                |
-| `Separator`               | Subtle horizontal divider                                                      |
+| `Separator`               | Subtle divider — horizontal (default) or vertical                              |
 | `GlassPanel`              | Frosted-glass container with optional background image                         |
 | `TitleBar`                | Custom window chrome for frameless windows — drag, minimize / maximize / close |
 | `Sidebar` / `SidebarItem` | Vertical navigation owning its content panes — `Pane`, `SidebarGroup` sections, per-pane shortcuts; glass-matched to the TitleBar |
@@ -136,12 +135,21 @@ All components share a fluent, chainable API — see the
   `TitleBar`, and drag / minimize / maximize / close all work
   automatically. See [`docs/api.en.md`](docs/api.en.md) and the
   [`demo_custom_window.py`](demo_custom_window.py) demo.
-- **Transparent windows & native effects** — `transparent=True` plus
-  `apply_blur()`, `apply_acrylic()`, `apply_mica()`. See
+- **Transparent windows & native effects** — `transparent=True`
+  automatically applies the platform material (Wayland blur on Linux
+  where the compositor supports it, Acrylic on Windows, Blur on macOS).
+  `apply_blur()`, `apply_acrylic()`, and `apply_mica()` are manual
+  overrides and are platform-limited (`apply_blur` is macOS/Windows;
+  acrylic / mica are Windows 11). See
   [`demo_transparent_panel.py`](demo_transparent_panel.py).
 - **Programmatic window control** — `set_title()`, `set_size()`,
   `minimize()`, `toggle_maximize()`, `close()`, … all on
   `NeonApplication`, with `window_index=0` for multi-window apps.
+- **Clipboard** — `app.clipboard_write(text)` / `app.clipboard_read()`.
+- **Local resource URLs** — `file_url()` / `data_url()` for Windows
+  paths, spaces, and non-ASCII filenames.
+- **Internationalization** — typed catalogs plus `tr` / `set_language()`;
+  bound labels update live on a language switch.
 - **Multi-window** — `run(*pages)` opens one window per page, all
   sharing one event loop and `app.state`. `launch([...])` accepts a list.
   See [`demo_multi_window.py`](demo_multi_window.py).
@@ -162,10 +170,11 @@ All components share a fluent, chainable API — see the
 ## Theming
 
 Three built-in presets — `DARK` (default), `LIGHT`, `DEEP_BLUE` — exposed as
-CSS custom properties on `:root`, so a theme switch redraws the whole UI with
-zero DOM diff. Scrollbars and interaction glows (focus rings, hover halos)
-reference the same `--color-*` tokens, so they follow theme switches too.
-See the [API reference](docs/api.en.md) for switching and custom themes.
+CSS custom properties on `:root`. Switching themes replaces that variable
+block only — no DOM diff; the browser recolors every `var(--color-*)`.
+Scrollbars and interaction glows (focus rings, hover halos) reference the
+same tokens, so they follow theme switches too. See the
+[API reference](docs/api.en.md) for switching and custom themes.
 
 ---
 
@@ -184,7 +193,7 @@ Run from the repository root:
 | `demo_accordion.py`           | Accordion: expandable grouped sections in one scroll flow        |
 | `demo_tree.py`                | Tree: collapsible navigation tree + content host                 |
 | `demo_tray.py`                | System tray: native menu + close-to-tray pattern                 |
-| `demo_builder.py`             | Minimal app built with `Page` + components + `launch()`    |
+| `demo_builder.py`             | Centered `Page` mixing components with a raw styled `Div`        |
 
 ```bash
 uv run gallery
@@ -210,6 +219,9 @@ uv sync --group dev   # install dependencies (incl. dev tools)
 uv run gallery                       # run the component gallery
 uv run python scripts/check_all.py   # run the full check suite (ruff / pyrefly / pytest / vitest)
 ```
+
+`scripts/check_all.py` also runs the JavaScript tests (`vitest` + `jsdom`).
+It runs `npm ci` automatically when `node_modules/` is missing.
 
 ---
 

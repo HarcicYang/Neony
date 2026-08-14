@@ -85,7 +85,8 @@ await app.set_theme(LIGHT)  # 切换当前预设并重新注入变量
 `--color-danger`， `--color-success`， `--color-border`， `--color-shadow`，
 `--color-*-glass*`(磨砂变体)。
 
-组件通过 `Color(var="--color-*")` 引用令牌，切换主题零 DOM diff 重绘。
+组件通过 `Color(var="--color-*")` 引用令牌。切换主题只替换 `:root`
+变量块，不走 DOM diff；浏览器按新的 `var(--color-*)` 重上色。
 
 自定义主题:
 
@@ -106,7 +107,10 @@ Theme.get("sepia") is my_theme  # True
 `set_title`、`set_size`、`minimize`、`toggle_maximize`、`is_maximized`、
 `set_fullscreen`、`start_dragging`、`close`、`set_icon`，以及原生
 blur/acrylic/mica 效果（`apply_blur`、`apply_acrylic`、`apply_mica`、
-`clear_effect`）。每个窗口控制方法都接受可选的 `window_index`（默认 0），用于多窗口应用。
+`clear_effect`）。`transparent=True` 会自动套上平台材质（Linux 在合成器
+支持时走 Wayland blur，Windows 为 Acrylic，macOS 为 Blur）。`apply_*`
+是手动覆盖，且受平台限制：`apply_blur` 仅 macOS/Windows；acrylic / mica
+仅 Windows 11。每个窗口控制方法都接受可选的 `window_index`（默认 0），用于多窗口应用。
 
 ### 原生文件对话框
 

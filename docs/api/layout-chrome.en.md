@@ -3,9 +3,8 @@
 > [中文版本](layout-chrome.zh.md) · [API index](README.en.md) · [Documentation home](../README.en.md)
 
 Flex containers, frosted panels, and the navigation / chrome components —
-`TitleBar`, `Sidebar`, `Tree`, `List`, `DataTable`. Import layout primitives
-from `neony.application.layout` (or `neony.application`), chrome components
-from `neony.application.elements`.
+`TitleBar`, `Sidebar`, `Tree`, `List`, `DataTable`. Import both layout
+primitives and chrome components from `neony.application.elements`.
 
 ## Flex containers
 
@@ -13,7 +12,7 @@ from `neony.application.elements`.
 VStack(a, b, gap="12px", align="stretch")  # column
 HStack(a, Spacer(), b, gap="8px")  # row, spacer fills
 Flex(*items, direction="row", wrap="wrap", gap="8px")  # full control
-Separator()  # divider
+Separator()  # divider (type="horizontal" default, or "vertical")
 GlassPanel(Heading("Frosted"), background=url, grow=True)  # frosted stage
 ```
 

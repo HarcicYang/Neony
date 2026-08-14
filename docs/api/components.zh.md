@@ -160,7 +160,7 @@ tabs.on_change(lambda e: print(e.value))  # value = 标签标题
 ```
 
 **参数:** `Tabs(*panes, glass, edge_fade=True)` — `*panes` 为 `(标题, 面板)` 对，等价于链式 `add()`。
-`edge_fade` 切换标签条上的滚动指示器（浮动拇指 + 动态边缘渐变）——设 `False` 关闭。
+`edge_fade` 切换标签条上的滚动指示器（浮动滑块 + 动态边缘渐变）——设 `False` 关闭。
 
 `selected_panel` 按身份绑定可见面板（组件或其已构建的根元素，绝不重复构建）；`selected_title` 按标题字符串选择，未知标题抛 `ValueError`。`active`（下标）与 `active_key` 为已弃用别名 —— `active_key` 现在返回标签标题（此前返回不透明的元素 id）。
 
