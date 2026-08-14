@@ -243,7 +243,7 @@ app.tray = Tray(
   `menu_on_left_click=False` (typical use: toggle the window).
 - Platform notes: **Linux needs libayatana-appindicator**; the tooltip
   is unsupported there and the menu cannot be replaced after creation.
-  See [`demo_tray.py`](../../demo_tray.py).
+  See [`demo_tray.py`](../demo_tray.py).
 
 ---
 
@@ -1109,7 +1109,7 @@ await app.set_theme(LIGHT)  # swap the active preset and re-inject variables
 ```
 
 `Theme.set_mode` / `Theme.toggle` were removed — switching swaps the active
-reference via `App.set_theme` rather than mutating an instance in place.
+reference via `NeonApplication.set_theme` rather than mutating an instance in place.
 
 Token families: `--color-bg`, `--color-surface`,
 `--color-text-primary` / `--color-text-secondary`, `--color-accent`,

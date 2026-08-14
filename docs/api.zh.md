@@ -256,7 +256,7 @@ app.tray = Tray(
 - `on_left_click` — `menu_on_left_click=False` 时左键松开触发
   （典型用途：切换窗口）。
 - 平台注意：**Linux 需要 libayatana-appindicator**；tooltip 不支持、
-  菜单创建后不可替换。参见 [`demo_tray.py`](../../demo_tray.py)。
+  菜单创建后不可替换。参见 [`demo_tray.py`](../demo_tray.py)。
 
 ---
 
@@ -946,7 +946,8 @@ Theme.mode_label("dark")  # "Light mode" — 下一个 mode 的标签
 await app.set_theme(LIGHT)  # 切换当前预设并重新注入变量
 ```
 
-`Theme.set_mode` / `Theme.toggle` 已移除 —— 切换改为经 `App.set_theme` 换引用，而非就地改实例。
+`Theme.set_mode` / `Theme.toggle` 已移除 —— 切换改为经
+`NeonApplication.set_theme` 换引用，而非就地改实例。
 
 令牌族: `--color-bg`， `--color-surface`，
 `--color-text-primary` / `--color-text-secondary`， `--color-accent`，

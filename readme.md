@@ -6,7 +6,7 @@ Reactive desktop UI framework for Python, built on [LumiView](https://github.com
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
 [![Status: pre-beta](https://img.shields.io/badge/status-pre--beta-yellow.svg)](#)
 
-> [中文文档](readme.zh.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md) · [Contributing](CONTRIBUTING.md)
+> [中文文档](readme.zh.md) · [Documentation portal](docs/README.en.md) · [Getting started](docs/getting-started.en.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md) · [Contributing](CONTRIBUTING.md)
 
 ---
 
@@ -43,8 +43,10 @@ pip install neony
 ```
 
 Requires Python 3.11+ and the platform WebView stack (WebKitGTK on Linux,
-WebView2 on Windows, WKWebView on macOS). X11 is not supported — see the
-[Roadmap](ROADMAP.md). The system tray needs
+WebView2 on Windows, WKWebView on macOS). Linux development and verification
+primarily target Wayland; X11 is not a complete support target at this stage.
+See the [installation and platform guide](docs/guides/installation-platforms.en.md)
+for system packages and troubleshooting. The system tray needs
 `libayatana-appindicator` on Linux.
 
 ---

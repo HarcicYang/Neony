@@ -102,9 +102,10 @@ uv run python scripts/check_all.py  # full check suite — ruff / pyrefly / pyte
 
 The JS runtime (event delegation, the patch engine, the synthetic
 `outsideclick`) has its own test suite under `tests/js/`, run by
-`scripts/check_all.py` (vitest in jsdom; `node_modules/` is vendored, so
-no `npm install` is needed). New **Python** components usually don't need
-JS tests — reach for them only when you change `src/neony/javascript/*`.
+`scripts/check_all.py` (vitest in jsdom). A clean checkout has no tracked
+`node_modules/`; the check script runs `npm ci` automatically when the
+ directory is absent. New **Python** components usually don't need JS tests —
+reach for them only when you change `src/neony/javascript/*`.
 
 ---
 
@@ -144,9 +145,11 @@ documentation improvements, test coverage, UX polish.
 changes (bridge, diff engine, theming), license changes, new runtime
 dependencies.
 
-**Note on platforms:** the project is currently developed and verified
-on Linux. Windows/macOS support is untested — platform-specific fixes are
-welcome, but be explicit about what you verified.
+**Note on platforms:** the roadmap currently marks Windows/WebView2 and Linux
+Wayland as verified targets. macOS/WKWebView and HiDPI/mixed-DPI behavior still
+need dedicated verification. X11 is used by CI's headless Xvfb startup checks,
+but is not a complete desktop support commitment. When submitting a
+platform-specific change, state exactly what you verified.
 
 ---
 

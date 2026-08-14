@@ -89,9 +89,9 @@ uv run python scripts/check_all.py  # 完整检查 — ruff / pyrefly / pytest /
 
 JS 运行时（事件委托、diff 引擎、合成的 `outsideclick`）有自己的测试套件，
 位于 `tests/js/`，由 `scripts/check_all.py` 一并运行（jsdom 环境下的
-vitest；`node_modules/` 已随仓库提供，无需 `npm install`）。新增
-**Python** 组件通常不需要写 JS 测试——只有改了
-`src/neony/javascript/*` 才需要补充用例。
+vitest）。干净 checkout 不包含被 Git 跟踪的 `node_modules/`；目录不存在时，
+检查脚本会自动执行 `npm ci`。新增 **Python** 组件通常不需要写 JS 测试——
+只有改了 `src/neony/javascript/*` 才需要补充用例。
 
 ---
 
@@ -128,8 +128,10 @@ vitest；`node_modules/` 已随仓库提供，无需 `npm install`）。新增
 **先讨论(开 issue):** 大规模 API 变更、架构变更(桥接、diff 引擎、
 主题)、许可证变更、新增运行时依赖。
 
-**平台说明:** 项目目前在 Linux 上开发与验证。Windows/macOS 支持尚未
-测试——欢迎平台相关的修复，但请明确说明你的验证范围。
+**平台说明:** 路线图目前将 Windows/WebView2 和 Linux Wayland 标记为已验证目标。
+macOS/WKWebView 与 HiDPI/mixed-DPI 行为仍需要单独验证。CI 会通过 Xvfb 使用
+X11 做无头启动检查，但这不等同于完整的 X11 桌面支持承诺。提交平台相关修改
+时，请明确写出实际验证过的环境。
 
 ---
 

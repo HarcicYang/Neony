@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
 [![Status: pre-beta](https://img.shields.io/badge/status-pre--beta-yellow.svg)](#)
 
-> [English README](readme.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md) · [贡献指南](CONTRIBUTING.zh.md)
+> [English README](readme.md) · [文档门户](docs/README.zh.md) · [入门教程](docs/getting-started.zh.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md) · [贡献指南](CONTRIBUTING.zh.md)
 
 ---
 
@@ -40,9 +40,11 @@ Neony 在原生窗口中渲染响应式 DOM。你完全用 Python 对象——�
 pip install neony
 ```
 
-需要 Python 3.11+，以及对应平台的 WebView 运行时(Linux 为 WebKitGTK，
-Windows 为 WebView2，macOS 为 WKWebView)。不支持 X11 — 见
-[路线图](ROADMAP.md)。系统托盘在 Linux 需要 `libayatana-appindicator`。
+需要 Python 3.11+，以及对应平台的 WebView 运行时（Linux 为 WebKitGTK，
+Windows 为 WebView2，macOS 为 WKWebView）。Linux 目前主要在 Wayland 上开发和
+验证；X11 还不是完整支持目标。系统依赖与故障排查见
+[安装与平台指南](docs/guides/installation-platforms.zh.md)。系统托盘在 Linux
+需要 `libayatana-appindicator`。
 
 ---
 

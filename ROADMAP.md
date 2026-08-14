@@ -53,7 +53,7 @@ Planned work, roughly in priority order.
 
 ## Platform integration
 
-- [x] **File dialogs** — `app.open_file` / `open_files` / `save_file` / `select_folder` show a self-drawn dark-themed file picker in a one-shot tkinter subprocess; the reply returns over a typed `multiprocessing.Pipe` (`("ok", result)` / `("error", msg)`), awaited with `asyncio.to_thread` — no stdout/JSON parsing; cancel → `None` / `[]`
+- [x] **File dialogs** — `app.open_file` / `open_files` / `save_file` / `select_folder` delegate to platform-native pickers (zenity on Linux, osascript on macOS, PowerShell on Windows, tkinter fallback) in an executor thread; cancel or failure → `None` / `[]`
 - [x] **Window icon** — `WindowConfig.icon` at startup; `app.set_icon()` at runtime; `TitleBar(icon=...)` inline for frameless windows
 - [ ] **Window state query** — `show()` / `hide()` / `focus()` / `set_bounds()` (screen position via tao `set_outer_position`) are exposed; only the query half (`get_size()` / `get_bounds()`) remains, needs lumiview upstream
 - [x] **Clipboard API** — `clipboard_write(text)` / `clipboard_read()` wrap `navigator.clipboard` (text; read needs a user gesture)
