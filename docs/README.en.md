@@ -17,25 +17,34 @@ features, and use the API reference when you need an exact signature.
 
 ## Guides
 
-The first guides are added incrementally. The tutorial is the recommended path
-for a new user; the existing API reference remains the complete reference while
-it is being split into smaller chapters.
+The tutorial is the recommended path for a new user; the guides cover
+common application features.
 
 - [Installation and platforms](guides/installation-platforms.en.md)
-- [Current API reference](api.en.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Roadmap](../ROADMAP.md)
 - [Changelog](../CHANGELOG.md)
 
 ## API reference
 
-- [API reference (current monolithic entry)](api.en.md)
-- [中文 API 参考](api.zh.md)
+The reference is split into paired chapters — each covers one area with
+short signatures, parameters, return values, edge cases, and a small
+example.
 
-The `api.en.md` and `api.zh.md` files are retained as stable entry points while
-the reference is gradually split into paired chapters. API symbols, import
-paths, commands, and example filenames remain in English in both language
-versions so code can be copied directly.
+- [API index](api/README.en.md) — the full chapter list.
+- [Core](api/core.en.md) — application, entry points, lifecycle, tray.
+- [Components](api/components.en.md) — form controls, overlays, content.
+- [Layout & chrome](api/layout-chrome.en.md) — flex panels, sidebar, tree,
+  list, table.
+- [DOM & CSS](api/dom-css.en.md) — `Color`, `Styles`, `DomEvent`, drag.
+- [Reactivity](api/reactive.en.md) — `Signal`, `Computed`, bindings.
+- [Platform & i18n](api/platform-i18n.en.md) — theming, i18n, native
+  surfaces.
+
+The previous monolithic [`api.en.md`](api.en.md) is retained as a
+stable link target and redirects to the chapters above. API symbols,
+import paths, commands, and example filenames remain in English in both
+language versions so code can be copied directly.
 
 ## Language and scope
 

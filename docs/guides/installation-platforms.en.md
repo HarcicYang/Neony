@@ -33,25 +33,71 @@ when the directory is absent.
 
 ## Linux
 
-The project develops and verifies primarily on Linux Wayland. Debian/Ubuntu CI
-uses these development packages:
+The project develops and verifies primarily on Linux Wayland. The native WebView
+binding links against the **WebKitGTK 4.1** API (GTK 3, libsoup 3), so every
+distribution needs the package that provides `libwebkit2gtk-4.1.so.0`. Package
+names differ across distributions; the commands below cover the common ones.
+
+### Development dependencies
+
+Debian and Ubuntu:
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 ```
 
-A packaged application needs the matching WebKitGTK runtime rather than the
-compiler headers alone. The exact package name depends on the distribution;
-install the WebKitGTK 4.1 runtime corresponding to the development package.
+Fedora:
 
-The native tray integration additionally needs:
-
-```text
-libayatana-appindicator
+```bash
+sudo dnf install -y webkit2gtk4.1-devel gtk3-devel libxdo-devel
 ```
 
-If it is unavailable, the windowed application can still run; tray creation is
+Arch Linux:
+
+```bash
+sudo pacman -S --needed webkit2gtk-4.1 gtk3 xdotool
+```
+
+openSUSE:
+
+```bash
+sudo zypper install libwebkit2gtk-4_1-0-devel gtk3-devel libxdo-devel
+```
+
+> Each `-dev`/`-devel`/plain package above pulls in the matching WebKitGTK 4.1
+> runtime, GTK 3, and libsoup 3 automatically through the dependency graph.
+
+### Runtime dependencies for a packaged application
+
+A packaged application needs the matching WebKitGTK **runtime** rather than the
+compiler headers alone. Install only the runtime package on the target machine:
+
+```text
+Debian/Ubuntu : sudo apt-get install libwebkit2gtk-4.1-0
+Fedora        : sudo dnf install webkit2gtk4.1
+Arch Linux    : sudo pacman -S webkit2gtk-4.1
+openSUSE      : sudo zypper install libwebkit2gtk-4_1-0
+```
+
+> Note for Arch users: the upstream packaging workflow previously documented
+> `webkit2gtk-6.0`, but that provides the GTK 4 / newer API and is **not** the
+> one this framework links. The framework targets the WebKitGTK 4.1 API, so
+> install `webkit2gtk-4.1`.
+
+### Optional system tray dependency
+
+The native tray integration dynamically loads this library at runtime, so it is
+optional rather than a hard link:
+
+```text
+Debian/Ubuntu : libayatana-appindicator3-1  (+ libayatana-appindicator3-dev for building)
+Fedora        : libayatana-appindicator-gtk3
+Arch Linux    : libayatana-appindicator
+openSUSE      : libayatana-appindicator3-1
+```
+
+If it is unavailable, the windowed application still runs; tray creation is
 logged and skipped by the application layer.
 
 ### Wayland, X11, and CI

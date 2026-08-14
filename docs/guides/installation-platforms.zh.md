@@ -32,20 +32,66 @@ uv run python scripts/check_all.py
 
 ## Linux
 
-项目主要在 Linux Wayland 上开发和验证。Debian/Ubuntu CI 使用以下开发包：
+项目主要在 Linux Wayland 上开发和验证。原生 WebView 绑定链接的是
+**WebKitGTK 4.1** API（GTK 3、libsoup 3），因此每个发行版都需要安装能提供
+`libwebkit2gtk-4.1.so.0` 的包。不同发行版的包名不同，下面给出常见发行版
+的安装命令。
+
+### 开发依赖
+
+Debian 和 Ubuntu：
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 ```
 
-已安装的应用还需要对应的 WebKitGTK runtime；只有开发头文件并不足够。不同
-发行版的包名可能不同，请安装与 WebKitGTK 4.1 开发包匹配的运行时包。
+Fedora：
 
-系统托盘还需要：
+```bash
+sudo dnf install -y webkit2gtk4.1-devel gtk3-devel libxdo-devel
+```
+
+Arch Linux：
+
+```bash
+sudo pacman -S --needed webkit2gtk-4.1 gtk3 xdotool
+```
+
+openSUSE：
+
+```bash
+sudo zypper install libwebkit2gtk-4_1-0-devel gtk3-devel libxdo-devel
+```
+
+> 上面的每个 `-dev`/`-devel`/普通包都会通过依赖关系自动带入与之匹配的
+> WebKitGTK 4.1 运行时、GTK 3 和 libsoup 3。
+
+### 打包应用所需的运行时依赖
+
+打包后的应用需要对应的 WebKitGTK **运行时**，而不是编译头文件。在目标机器上
+只需安装运行时包：
 
 ```text
-libayatana-appindicator
+Debian/Ubuntu : sudo apt-get install libwebkit2gtk-4.1-0
+Fedora        : sudo dnf install webkit2gtk4.1
+Arch Linux    : sudo pacman -S webkit2gtk-4.1
+openSUSE      : sudo zypper install libwebkit2gtk-4_1-0
+```
+
+> Arch 用户注意：上游打包流程曾记录 `webkit2gtk-6.0`，但该包提供的是 GTK 4 /
+> 更新的 API，并非本框架所链接的版本。本框架面向 WebKitGTK 4.1 API，因此请
+> 安装 `webkit2gtk-4.1`。
+
+### 可选的系统托盘依赖
+
+原生托盘集成在运行时动态加载该库，因此它是可选依赖而非硬链接：
+
+```text
+Debian/Ubuntu : libayatana-appindicator3-1  （构建时还需 libayatana-appindicator3-dev）
+Fedora        : libayatana-appindicator-gtk3
+Arch Linux    : libayatana-appindicator
+openSUSE      : libayatana-appindicator3-1
 ```
 
 如果它不存在，普通窗口应用仍可运行；应用层会记录日志并跳过托盘创建。

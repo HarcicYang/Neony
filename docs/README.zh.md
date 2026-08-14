@@ -16,22 +16,29 @@ API 参考。
 
 ## 指南
 
-指南会按功能逐步补齐。新用户应优先沿着入门教程阅读；在 API 参考拆分为
-更小章节期间，现有 API 单文件仍然是完整参考入口。
+新用户应优先沿着入门教程阅读；指南覆盖常见应用功能。
 
 - [安装与平台](guides/installation-platforms.zh.md)
-- [当前 API 参考](api.zh.md)
 - [贡献指南](../CONTRIBUTING.zh.md)
 - [路线图](../ROADMAP.md)
 - [变更记录](../CHANGELOG.md)
 
 ## API 参考
 
-- [API 参考（当前单文件入口）](api.zh.md)
-- [English API reference](api.en.md)
+参考文档已拆分为成对章节——每个章节覆盖一个领域，提供短签名、参数、
+返回值、边界说明与简短示例。
 
-`api.en.md` 和 `api.zh.md` 会作为稳定入口保留，并逐步迁移为成对的章节
-文件。API 符号、导入路径、命令和示例文件名在两种语言中保持原样，方便
+- [API 索引](api/README.zh.md) —— 完整章节列表。
+- [核心](api/core.zh.md) —— 应用、入口、生命周期、托盘。
+- [组件](api/components.zh.md) —— 表单控件、浮层、内容。
+- [布局与窗口装饰](api/layout-chrome.zh.md) —— 弹性面板、侧边栏、树、
+  列表、表格。
+- [DOM 与 CSS](api/dom-css.zh.md) —— `Color`、`Styles`、`DomEvent`、拖拽。
+- [响应式](api/reactive.zh.md) —— `Signal`、`Computed`、绑定。
+- [平台与国际化](api/platform-i18n.zh.md) —— 主题、i18n、原生能力。
+
+旧的合并入口 [`api.zh.md`](api.zh.md) 作为稳定链接目标保留，并重定向到
+上述章节。API 符号、导入路径、命令和示例文件名在两种语言中保持原样，方便
 直接复制代码。
 
 ## 语言与职责
