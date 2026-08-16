@@ -12,6 +12,8 @@ class NeonyEngine {
         this.container = null;
         /** @type {number} monotonic revision of the last applied patch message */
         this.lastRev = 0;
+        /** @type {object|null} buffered multi-chunk patch batch */
+        this.pendingBatch = null;
     }
 
     /**
@@ -22,6 +24,7 @@ class NeonyEngine {
      */
     mount(msg) {
         this.registry.clear();
+        this.pendingBatch = null;
 
         // The browser's 8px body margin would leave a white ring around the root.
         document.body.style.margin = "0";
@@ -80,22 +83,79 @@ class NeonyEngine {
 
     /**
      * Apply a PatchMessage: drop stale messages, resync on rev gaps.
-     * @param {object} msg - {rev: number, ops: Array}
+     * Multi-chunk batches are buffered and applied atomically once the
+     * final chunk arrives.
+     * @param {object} msg - {rev: number, ops: Array, chunks?: number}
      */
     applyMessage(msg) {
         if (msg.rev <= this.lastRev) return;
 
-        if (msg.rev > this.lastRev + 1) {
-            // Gap detected — ask Python for a full resync
-            if (window.lumiview && window.lumiview.invoke) {
-                window.lumiview.invoke("neony.resync", { rev: this.lastRev })
-                    .catch(function () {});
-            }
+        const chunkCount = msg.chunks || 1;
+        if (chunkCount > 1) {
+            this._applyBatchChunk(msg, chunkCount);
             return;
         }
 
+        if (this._hasRevGap(msg.rev)) return;
+
         this.applyOps(msg.ops);
         this.lastRev = msg.rev;
+    }
+
+    /**
+     * Buffer one chunk of a split render.  The batch is applied only when
+     * every chunk has arrived, so a partially delivered render can never
+     * leave the DOM in a mixed state.
+     */
+    _applyBatchChunk(msg, chunkCount) {
+        const batch = msg.batch || "";
+        const chunk = msg.chunk || 0;
+
+        if (!this.pendingBatch || this.pendingBatch.batch !== batch) {
+            if (this._hasRevGap(msg.rev)) return;
+            this.pendingBatch = {
+                batch: batch,
+                rev: msg.rev,
+                chunks: chunkCount,
+                ops: new Array(chunkCount),
+                received: 0,
+            };
+        }
+
+        const pending = this.pendingBatch;
+        if (pending.rev !== msg.rev || pending.chunks !== chunkCount || chunk < 0 || chunk >= pending.chunks) {
+            this.pendingBatch = null;
+            this._requestResync();
+            return;
+        }
+        if (pending.ops[chunk]) return; // duplicate chunk — ignore
+
+        pending.ops[chunk] = msg.ops;
+        pending.received += 1;
+        if (pending.received < pending.chunks) return;
+
+        this.pendingBatch = null;
+        if (this._hasRevGap(pending.rev)) return;
+
+        const ops = [];
+        for (const part of pending.ops) {
+            for (const op of part) ops.push(op);
+        }
+        this.applyOps(ops);
+        this.lastRev = pending.rev;
+    }
+
+    _hasRevGap(rev) {
+        if (rev <= this.lastRev + 1) return false;
+        this._requestResync();
+        return true;
+    }
+
+    _requestResync() {
+        if (window.lumiview && window.lumiview.invoke) {
+            window.lumiview.invoke("neony.resync", { rev: this.lastRev })
+                .catch(function () {});
+        }
     }
 
     _create(op) {

@@ -549,6 +549,7 @@ class NeonApplication(Generic[_S]):
             # any new keys and handlers so their events aren't dropped.
             while len(self._registered) <= i:
                 self._registered.append(set())
+            self._registered[i].difference_update(entry.neony.take_discarded_registrations())
             self._collect_handlers(entry.neony, entry.tree, i, self._registered[i])
 
     # ---- handler collection ----

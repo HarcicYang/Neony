@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable, Iterable
-from typing import Any, ClassVar, Literal, Self, SupportsIndex
+from typing import Any, ClassVar, Literal, Self, SupportsIndex, cast
 
 from pydantic import BaseModel, PrivateAttr
 from pydantic.fields import Field
@@ -66,6 +66,7 @@ class _Children(list):
     def _mark_owner_structural(self) -> None:
         """Container mutations are structural — they force the full diff path."""
         self._owner._dirty_type |= DOMElement._DIRTY_STRUCTURAL
+        self._owner._invalidate_attrs_cache()
         self._owner._mark_dirty()
 
     def append(self, item: DOMElement | str) -> None:
@@ -141,6 +142,11 @@ class DOMElement(BaseModel):
 
     model_config = {"populate_by_name": True}
 
+    # Per-class cache of ``(field_name, html_name)`` pairs for typed HTML
+    # attributes.  ``_collect_attr_items`` walks this short list instead of
+    # re-scanning every pydantic field + json_schema_extra per serialization.
+    _HTML_ATTR_FIELDS_CACHE: ClassVar[dict[type, tuple[tuple[str, str], ...]]] = {}
+
     _tag: str = ""
     _void: bool = False
 
@@ -176,7 +182,10 @@ class DOMElement(BaseModel):
     drag_payload: str | None = Field(default=None)
 
     # Fluent .on_xxx() handlers — PrivateAttr so callables never serialize.
-    _handlers: dict[str, list[Callable[..., Any]]] = PrivateAttr(default_factory=dict)
+    # Defaults are materialised in model_post_init: PrivateAttr(default_factory=...)
+    # makes pydantic re-introspect the factory signature for EVERY element
+    # construction, which dominates large-tree build time.
+    _handlers: dict[str, list[Callable[..., Any]]] = PrivateAttr(default=cast(Any, None))
 
     # Dirty-subtree tracking: mutated elements re-serialize; the flag
     # propagates up via _parent so no ancestor reuses a stale snapshot.
@@ -212,7 +221,10 @@ class DOMElement(BaseModel):
     _dirty_type: int = PrivateAttr(default=0)
 
     # Signal bindings, kept alive for unbind() (Signal → Effect → element).
-    _bindings: list[Effect] = PrivateAttr(default_factory=list)
+    _bindings: list[Effect] = PrivateAttr(default=cast(Any, None))
+    # Cached kebab-case attribute serialization; invalidated on public field
+    # writes, raw args writes and Styles mutations.
+    _serialized_attrs: dict[str, str] | None = PrivateAttr(default=None)
     # Armed by the app on each tree root so a bound-signal write schedules a render.
     _render_request: Callable[[], None] | None = PrivateAttr(default=None)
     # The display value bind_visible restores when the signal turns true.
@@ -223,7 +235,11 @@ class DOMElement(BaseModel):
     # ---- dirty tracking ----
 
     def model_post_init(self, __context: Any) -> None:
-        """Replace the plain container list with the parent-aware proxy."""
+        """Materialise private collections and replace the plain container list."""
+        # Defaults are set here rather than via PrivateAttr(default_factory=...)
+        # to avoid pydantic's per-instance default-factory introspection.
+        self._handlers = {}
+        self._bindings = []
         # object.__setattr__: the swap itself is not a mutation.
         object.__setattr__(self, "container", _Children(self, self.container))
         # Field-level styles mutations must reach the dirty tracker.
@@ -233,6 +249,8 @@ class DOMElement(BaseModel):
     def __setattr__(self, name: str, value: Any) -> None:
         super().__setattr__(name, value)
         if not name.startswith("_"):
+            # Any public field write may change the rendered attributes.
+            object.__setattr__(self, "_serialized_attrs", None)
             # Classify the mutation: styles/attrs patch in place; anything
             # else (container, key, ...) is structural and needs the full
             # serialization + diff path.
@@ -245,6 +263,11 @@ class DOMElement(BaseModel):
             else:
                 self._dirty_type |= self._DIRTY_STRUCTURAL
             self._mark_dirty()
+
+    def _invalidate_attrs_cache(self) -> None:
+        """Drop the cached attribute dict (Styles mutations can change the
+        derived ``data-neony-scroll`` marker)."""
+        object.__setattr__(self, "_serialized_attrs", None)
 
     def _mark_dirty(self) -> None:
         """Mark this element and every ancestor dirty — an ancestor must
@@ -259,6 +282,7 @@ class DOMElement(BaseModel):
         Conservative: counts as structural, so the next render takes the
         full serialization + diff path."""
         self._dirty_type |= self._DIRTY_STRUCTURAL
+        self._invalidate_attrs_cache()
         self._mark_dirty()
 
     # ---- signal bindings ----
@@ -346,6 +370,7 @@ class DOMElement(BaseModel):
             self.args.pop(name, None)  # None removes the attribute
         else:
             self.args[name] = value  # bools render bare via _build_attrs
+        self._invalidate_attrs_cache()
         self._dirty_type |= self._DIRTY_ATTRS
 
     def _set_visible(self, visible: bool) -> None:
@@ -494,26 +519,25 @@ class DOMElement(BaseModel):
 
     def _serialize_styles(self) -> dict[str, str]:
         """Serialize ``self.styles`` to a kebab-case dict, skipping None
-        values and mirroring the WebKit/moz-prefixed variants."""
-        styles: dict[str, str] = {}
-        for k, v in self.styles.model_dump().items():
-            if v is not None:
-                css_property = self._to_kebab(k)
-                styles[css_property] = str(v)
-                if css_property == "backdrop-filter":
-                    styles["-webkit-backdrop-filter"] = str(v)
-                if css_property == "mask-image":
-                    styles["-webkit-mask-image"] = str(v)
-                if css_property == "mask-size":
-                    styles["-webkit-mask-size"] = str(v)
-                if css_property == "user-select":
-                    styles["-webkit-user-select"] = str(v)
-                    styles["-moz-user-select"] = str(v)
-        return styles
+        values and mirroring the WebKit/moz-prefixed variants.
+
+        ``Styles`` caches its serialized form and invalidates it on field
+        writes, so repeated render cycles never re-run ``model_dump()``.
+        """
+        if self.styles is None:
+            return {}
+        return self.styles._serialize_css()
 
     def _serialize_attrs(self) -> dict[str, str]:
         """Serialize HTML attributes to a ``{name: value}`` dict
-        (booleans map to "" presence)."""
+        (booleans map to "" presence).
+
+        The result is cached and invalidated by public field writes,
+        ``_set_attr`` and ``Styles`` mutations.
+        """
+        cached = self._serialized_attrs
+        if cached is not None:
+            return cached
         attrs: dict[str, str] = {}
         for name, value in self._collect_attr_items():
             if isinstance(value, bool):
@@ -521,6 +545,7 @@ class DOMElement(BaseModel):
                     attrs[name] = ""
             else:
                 attrs[name] = str(value)
+        object.__setattr__(self, "_serialized_attrs", attrs)
         return attrs
 
     def _build_styles(self) -> str:
@@ -534,13 +559,21 @@ class DOMElement(BaseModel):
         """``(html_name, value)`` pairs: typed ``html_attr`` fields first
         (declaration order), then raw ``args`` (which can override them)."""
         items: list[tuple[str, Any]] = []
-        for name, field in type(self).model_fields.items():
-            extra = field.json_schema_extra
-            if isinstance(extra, dict) and extra.get("html_attr"):
-                value = getattr(self, name)
-                if value is not None:
+        cls = type(self)
+        typed_fields = cls._HTML_ATTR_FIELDS_CACHE.get(cls)
+        if typed_fields is None:
+            fields: list[tuple[str, str]] = []
+            for name, field in cls.model_fields.items():
+                extra = field.json_schema_extra
+                if isinstance(extra, dict) and extra.get("html_attr"):
                     html_name = field.alias or name
-                    items.append((html_name, value))
+                    fields.append((name, html_name))
+            typed_fields = tuple(fields)
+            cls._HTML_ATTR_FIELDS_CACHE[cls] = typed_fields
+        for name, html_name in typed_fields:
+            value = getattr(self, name)
+            if value is not None:
+                items.append((html_name, value))
         for k, v in self.args.items():
             items.append((k, v))
         # Scroll-indicator auto-derivation: when scroll_indicator is on,

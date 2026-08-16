@@ -29,18 +29,67 @@ class Styles(BaseModel):
     # mutations (`el.styles.foo = X`) must mark it dirty, or the change
     # never renders (the snapshot cache would be reused as-is).
     _owner: DOMElement | None = PrivateAttr(default=None)
+    # Cached ``model_dump()`` output (snake_case → kebab-case + browser
+    # prefixes).  Serialization is on the hot path for large trees, and
+    # pydantic model serializers are far too slow to run per node per render.
+    _serialized_css: dict[str, str] | None = PrivateAttr(default=None)
 
     def __setattr__(self, name: str, value: Any) -> None:
         super().__setattr__(name, value)
         if name.startswith("_"):
             return
+        object.__setattr__(self, "_serialized_css", None)
         try:
             owner = object.__getattribute__(self, "_owner")
         except AttributeError:
             return  # still under construction — the element hooks us later
         if owner is not None:
+            # Overflow changes can flip the derived data-neony-scroll
+            # attribute, so the element's cached attr dict is stale too.
+            owner._invalidate_attrs_cache()
             owner._dirty_type |= owner._DIRTY_STYLES
             owner._mark_dirty()
+
+    def model_copy(self, *, update: dict[str, Any] | None = None, deep: bool = False) -> Styles:
+        """Clear the serialization cache on copies.
+
+        pydantic copies private attrs alongside the fields, so a cached
+        ``_serialized_css`` from the source model would otherwise survive
+        an ``update={"box_shadow": ...}`` call.
+        """
+        copied = super().model_copy(update=update, deep=deep)
+        object.__setattr__(copied, "_serialized_css", None)
+        object.__setattr__(copied, "_owner", None)
+        return copied
+
+    @staticmethod
+    def _to_kebab(snake: str) -> str:
+        """Convert ``snake_case`` to ``kebab-case``."""
+        return snake.replace("_", "-")
+
+    def _serialize_css(self) -> dict[str, str]:
+        """Return the cached kebab-case CSS dict for this style model."""
+        cached = self._serialized_css
+        if cached is not None:
+            return cached
+
+        styles: dict[str, str] = {}
+        for k, v in self.model_dump().items():
+            if v is not None:
+                css_property = self._to_kebab(k)
+                styles[css_property] = str(v)
+                if css_property == "backdrop-filter":
+                    styles["-webkit-backdrop-filter"] = str(v)
+                if css_property == "mask-image":
+                    styles["-webkit-mask-image"] = str(v)
+                if css_property == "mask-size":
+                    styles["-webkit-mask-size"] = str(v)
+                if css_property == "user-select":
+                    styles["-webkit-user-select"] = str(v)
+                    styles["-moz-user-select"] = str(v)
+
+        object.__setattr__(self, "_serialized_css", styles)
+        return styles
 
     # --- Colors ---
     color: Color | None = Field(default=None)

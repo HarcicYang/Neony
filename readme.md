@@ -6,7 +6,15 @@ Reactive desktop UI framework for Python, built on [LumiView](https://github.com
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
 [![Status: pre-beta](https://img.shields.io/badge/status-pre--beta-yellow.svg)](#)
 
-> [中文文档](readme.zh.md) · [Documentation portal](docs/README.en.md) · [Getting started](docs/getting-started.en.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md) · [Contributing](CONTRIBUTING.md)
+> 📖 **Docs (latest release):** https://harcic.is-a.dev/neony · [中文](https://harcic.is-a.dev/neony/zh)
+>
+> These hosted docs track the **latest tag** (`v0.2.0`). For the **latest commit**
+> (in-repo `docs/`), see [`docs/`](../../tree/HEAD/docs/) —
+> [`docs/README.en.md`](../../blob/HEAD/docs/README.en.md),
+> [`getting-started`](../../blob/HEAD/docs/getting-started.en.md),
+> [`api/ chapters`](../../tree/HEAD/docs/api).
+
+> [中文文档](readme.zh.md) · [Contributing](CONTRIBUTING.md)
 
 ---
 

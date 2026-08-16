@@ -9,6 +9,12 @@ Planned work, roughly in priority order.
 - [x] **Dirty-subtree diffing** — only changed elements re-serialize; mutations mark their ancestors dirty
 - [x] **Snapshot reuse** — unchanged subtrees reuse cached snapshots, skipping `to_node()`
 - [x] **Style direct-patch** — pure style changes bypass the full diff
+- [x] **Fast DOM construction** — pydantic private-attr factories no longer dominate large-tree builds
+- [x] **Serialization caches** — `Styles` / attrs cache their rendered dicts; per-class html-attr metadata is precomputed
+- [x] **Linear diff paths** — moved-key positions and insert indices use maps instead of quadratic tree/list scans
+- [x] **Key lifecycle cleanup** — removed subtrees are pruned from snapshots, key map and handler registries
+- [x] **Chunked patch delivery** — large renders and first mounts stream in bounded message sizes
+- [ ] **List/table virtualization** — render only the visible window for very large collections
 
 ## Reactivity
 

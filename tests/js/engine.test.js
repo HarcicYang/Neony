@@ -95,6 +95,71 @@ describe("revision tracking (applyMessage)", () => {
     expect(engine.root.textContent).toBe("hi");
   });
 
+  it("streams children after a large shallow mount", () => {
+    const engine = new rt.NeonyEngine();
+    engine.mount(makeMsg(1, [
+      { op: "create", key: "root", node: { key: "root", tag: "div" } },
+    ]));
+    const a = makeMsg(2, [
+      { op: "create", key: "a", parent: "root", index: 0, node: { key: "a", tag: "span", text: "A" } },
+    ]);
+    const b = makeMsg(2, [
+      { op: "create", key: "b", parent: "root", index: 1, node: { key: "b", tag: "span", text: "B" } },
+    ]);
+    a.batch = "r2"; a.chunk = 0; a.chunks = 2;
+    b.batch = "r2"; b.chunk = 1; b.chunks = 2;
+
+    engine.applyMessage(a);
+    engine.applyMessage(b);
+
+    expect(engine.registry.get("root").children.length).toBe(2);
+    expect(engine.registry.get("a").textContent).toBe("A");
+    expect(engine.registry.get("b").textContent).toBe("B");
+    expect(engine.lastRev).toBe(2);
+  });
+
+  it("applies multi-chunk batches atomically once complete", () => {
+    const engine = mountEngine(new rt.NeonyEngine(), 1);
+    const a = makeMsg(2, [{ op: "set_text", key: "root", text: "part-a" }]);
+    const b = makeMsg(2, [{ op: "set_text", key: "root", text: "part-b" }]);
+    a.batch = "r2"; a.chunk = 0; a.chunks = 2;
+    b.batch = "r2"; b.chunk = 1; b.chunks = 2;
+
+    engine.applyMessage(a);
+    expect(engine.lastRev).toBe(1);
+    expect(engine.root.textContent).toBe(""); // buffered, not applied
+
+    engine.applyMessage(b);
+    expect(engine.lastRev).toBe(2);
+    expect(engine.root.textContent).toBe("part-b"); // chunks applied in order
+  });
+
+  it("ignores duplicate chunks inside a pending batch", () => {
+    const engine = mountEngine(new rt.NeonyEngine(), 1);
+    const a = makeMsg(2, [{ op: "set_text", key: "root", text: "a" }]);
+    const b = makeMsg(2, [{ op: "set_text", key: "root", text: "b" }]);
+    a.batch = "r2"; a.chunk = 0; a.chunks = 2;
+    b.batch = "r2"; b.chunk = 1; b.chunks = 2;
+
+    engine.applyMessage(a);
+    engine.applyMessage(a); // duplicate ignored
+    engine.applyMessage(b);
+    expect(engine.lastRev).toBe(2);
+    expect(engine.root.textContent).toBe("b");
+  });
+
+  it("requests a resync when a batch starts on a rev gap", () => {
+    const invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { invoke };
+    const engine = mountEngine(new rt.NeonyEngine(), 1);
+    const a = makeMsg(3, [{ op: "set_text", key: "root", text: "a" }]);
+    a.batch = "r3"; a.chunk = 0; a.chunks = 2;
+
+    engine.applyMessage(a);
+    expect(invoke).toHaveBeenCalledWith("neony.resync", { rev: 1 });
+    expect(engine.root.textContent).toBe("");
+    expect(engine.lastRev).toBe(1);
+  });
   it("requests a resync on a revision gap and skips the ops", () => {
     const invoke = vi.fn(() => Promise.resolve());
     window.lumiview = { invoke };

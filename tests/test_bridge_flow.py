@@ -17,7 +17,7 @@ from neony.application import Config, NeonApplication
 from neony.application._helpers import _Entry
 from neony.application.elements import Button, Input, Text, VStack
 from neony.dom import Div, DOMElement, DomEvent
-from neony.dom.bridge import Neony
+from neony.dom.bridge import Neony, Patch
 
 
 class FakeWindow:
@@ -1299,3 +1299,75 @@ class TestReorderIntegration:
 
     def test_cross_board_drop_emits_move_patch(self):
         asyncio.run(self._scenario())
+
+
+class TestKeyLifecycleCleanup:
+    """Removed subtrees must disappear from snapshots, key map, handler
+    registry and the application's idempotent registration set."""
+
+    def test_removed_subtree_is_fully_pruned(self):
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        child = Div(key="gone")
+        child.on_click(lambda _event: None)
+        grandchild = Div(key="gone-child")
+        child.container.append(grandchild)
+        root = Div(key="root", container=[child])
+        neony = _setup_entry(app, root, fake)
+
+        async def run() -> None:
+            await app.render()
+            assert "gone" in neony._snapshots
+            assert "gone-child" in neony._snapshots
+            assert ("gone", "click") in neony._handlers
+
+            root.container.clear()
+            await app.render()
+
+            assert "gone" not in neony._snapshots
+            assert "gone-child" not in neony._snapshots
+            assert "gone" not in neony._key_map
+            assert ("gone", "click") not in neony._handlers
+            assert ("gone", "click") not in app._registered[0]
+
+        asyncio.run(run())
+
+
+class TestPatchMessageChunking:
+    """Huge render cycles are split into buffered chunks sharing one rev."""
+
+    def test_large_first_mount_streams_children_after_root(self):
+        neony = Neony(name="neony", mount_selector="body")
+        fake = FakeWindow()
+        neony._win = cast(Any, fake)
+        neony._mount_chunk_size = 2
+        root = Div(key="root", container=[Div(key="a"), Div(key="b"), Div(key="c")])
+
+        asyncio.run(neony.render(root))
+
+        assert fake.mount_calls == 1
+        assert len(fake.patches) == 1
+        stream = fake.patches[0]
+        assert stream["rev"] == 2
+        assert [op["op"] for op in stream["ops"]] == ["create", "create", "create"]
+        assert [op["key"] for op in stream["ops"]] == ["a", "b", "c"]
+        assert all(op["parent"] == "root" for op in stream["ops"])
+
+    def test_large_ops_are_split_and_share_rev(self):
+        from neony.dom.bridge import SetTextPatch
+
+        neony = Neony(name="neony", mount_selector="body")
+        fake = FakeWindow()
+        neony._win = cast(Any, fake)
+        neony._patch_chunk_size = 2
+        ops: list[Patch] = [SetTextPatch(key=f"k{i}", text=f"t{i}") for i in range(5)]
+
+        last = asyncio.run(neony._emit_patch_ops(ops))
+
+        assert last is not None
+        assert len(fake.patches) == 3
+        assert [len(p["ops"]) for p in fake.patches] == [2, 2, 1]
+        assert all(p["rev"] == 1 for p in fake.patches)
+        assert all(p["chunks"] == 3 for p in fake.patches)
+        assert [p["chunk"] for p in fake.patches] == [0, 1, 2]
+        assert len({p["batch"] for p in fake.patches}) == 1

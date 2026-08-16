@@ -6,7 +6,15 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
 [![Status: pre-beta](https://img.shields.io/badge/status-pre--beta-yellow.svg)](#)
 
-> [English README](readme.md) · [文档门户](docs/README.zh.md) · [入门教程](docs/getting-started.zh.md) · [API Reference (EN)](docs/api.en.md) · [API 参考 (中文)](docs/api.zh.md) · [贡献指南](CONTRIBUTING.zh.md)
+> 📖 **文档（最新发布）：** https://harcic.is-a.dev/neony/zh · [English](https://harcic.is-a.dev/neony)
+>
+> 托管文档跟随**最新 tag**（`v0.2.0`）。需要**最新 commit** 的文档（仓库内
+> `docs/`），见 [`docs/`](../../tree/HEAD/docs/) —
+> [`docs/README.zh.md`](../../blob/HEAD/docs/README.zh.md)、
+> [`入门教程`](../../blob/HEAD/docs/getting-started.zh.md)、
+> [`api/ 章节`](../../tree/HEAD/docs/api)。
+
+> [English README](readme.md) · [贡献指南](CONTRIBUTING.zh.md)
 
 ---
 

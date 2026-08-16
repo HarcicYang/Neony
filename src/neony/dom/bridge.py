@@ -112,11 +112,16 @@ class PatchMessage(BaseModel):
     """One render cycle's worth of DOM changes.
 
     *rev* is a monotonic counter used by the JS engine to detect
-    gaps (missed messages) and request a full resync.
+    gaps (missed messages) and request a full resync.  A render with many
+    ops is split into *chunks* messages sharing one *rev* and *batch* id;
+    the JS engine buffers them and applies the whole batch atomically.
     """
 
     rev: int = 0
     ops: list[Patch] = Field(default_factory=list)
+    batch: str | None = None
+    chunk: int = 0
+    chunks: int = 1
 
 
 # ---- diff engine ----
@@ -138,8 +143,9 @@ class DiffEngine:
 
         moved = DiffEngine._moved_keys(old, new)
         patches = DiffEngine._diff_node(old, new, moved)
+        new_positions = DiffEngine._position_map(new, {}) if moved else {}
         for key in sorted(moved):
-            where = DiffEngine._find_in_new(new, key)
+            where = new_positions.get(key)
             if where is not None:
                 patches.append(MovePatch(key=key, to_parent=where[0], to_index=where[1]))
         # A card moving between boards would otherwise emit CreatePatch
@@ -173,14 +179,12 @@ class DiffEngine:
         return acc
 
     @staticmethod
-    def _find_in_new(node: NodeDescriptor, key: str) -> tuple[str, int] | None:
+    def _position_map(node: NodeDescriptor, acc: dict[str, tuple[str, int]]) -> dict[str, tuple[str, int]]:
+        """Map every key to its ``(parent_key, child_index)`` in one walk."""
         for i, c in enumerate(node.children):
-            if c.key == key:
-                return node.key, i
-            found = DiffEngine._find_in_new(c, key)
-            if found is not None:
-                return found
-        return None
+            acc[c.key] = (node.key, i)
+            DiffEngine._position_map(c, acc)
+        return acc
 
     @staticmethod
     def _diff_node(
@@ -244,6 +248,7 @@ class DiffEngine:
 
         old_keys = [c.key for c in old_children]
         new_keys = [c.key for c in new_children]
+        new_index = {k: i for i, k in enumerate(new_keys)}
 
         # Common keys keep their identity across the diff — the relative
         # order check decides whether a ReorderPatch must follow.
@@ -267,7 +272,7 @@ class DiffEngine:
                             key=c.key,
                             node=c,
                             parent=parent_key,
-                            index=new_keys.index(c.key),
+                            index=new_index[c.key],
                         )
                     )
                 else:
@@ -349,6 +354,17 @@ class Neony(Plugin):
         self._handlers: dict[tuple[str | None, str], list[Callable[..., Any]]] = {}
         # key → element, for opt-in bubbling to handler-less descendants.
         self._key_map: dict[str, DOMElement] = {}
+        # (key, event_type) pairs pruned from ``_handlers`` by the last
+        # structural render; NeonApplication drains this so its idempotent
+        # registration set does not keep stale entries either.
+        self._discarded_registrations: set[tuple[str, str]] = set()
+        # Large render cycles are split into several patch messages so one
+        # WebView eval never has to parse a multi-megabyte JSON blob.
+        self._patch_chunk_size: int = 1000
+        # First mounts bigger than this many nodes are streamed: the root
+        # skeleton mounts first, then child subtrees arrive as chunked
+        # create patches.
+        self._mount_chunk_size: int = 1000
         # Pending deferred render (``render(immediate=False)``), cancelled
         # and replaced on each new request.
         self._render_task: asyncio.Task | None = None
@@ -558,6 +574,85 @@ class Neony(Plugin):
             self._render_task = loop.create_task(self._deferred_render(element))
             return None
 
+    def take_discarded_registrations(self) -> set[tuple[str, str]]:
+        """Return and clear handler registrations pruned since the last call."""
+        discarded = self._discarded_registrations
+        self._discarded_registrations = set()
+        return discarded
+
+    @staticmethod
+    def _collect_keys(node: NodeDescriptor, acc: set[str]) -> set[str]:
+        acc.add(node.key)
+        for child in node.children:
+            Neony._collect_keys(child, acc)
+        return acc
+
+    @staticmethod
+    def _subtree_sizes(node: NodeDescriptor, acc: dict[str, int]) -> dict[str, int]:
+        """Map every key to its subtree node count in one post-order walk."""
+        size = 1
+        for child in node.children:
+            size += Neony._subtree_sizes(child, acc)[child.key]
+        acc[node.key] = size
+        return acc
+
+    @staticmethod
+    def _flatten_mount_creates(
+        node: NodeDescriptor,
+        parent_key: str,
+        index: int,
+        threshold: int,
+        sizes: dict[str, int],
+        acc: list[Patch],
+    ) -> None:
+        """Append create patches for *node*; subtrees larger than *threshold*
+        are shallow-created first and their children streamed afterwards.
+
+        Pre-order guarantees a parent exists in the registry before any of
+        its children arrive.
+        """
+        if sizes[node.key] <= threshold:
+            acc.append(CreatePatch(key=node.key, node=node, parent=parent_key, index=index))
+            return
+
+        shallow = NodeDescriptor(
+            key=node.key,
+            tag=node.tag,
+            attrs=node.attrs,
+            styles=node.styles,
+            text=node.text,
+            children=[],
+        )
+        acc.append(CreatePatch(key=node.key, node=shallow, parent=parent_key, index=index))
+        for child_index, child in enumerate(node.children):
+            Neony._flatten_mount_creates(child, node.key, child_index, threshold, sizes, acc)
+
+    def _discard_stale_state(self, live_node: NodeDescriptor) -> None:
+        """Drop caches and registrations for keys that are no longer in
+        the live tree.
+
+        Removed/replaced subtrees otherwise leave stale entries behind in
+        ``_snapshots``, ``_key_map`` and ``_handlers`` — memory grows and
+        event dispatch keeps scanning dead handlers on every event.
+        """
+        live_keys = Neony._collect_keys(live_node, set())
+        # Only the latest render's removals are relevant; app render drains
+        # this set immediately after the bridge returns.
+        self._discarded_registrations = set()
+
+        for key in [k for k in self._snapshots if k not in live_keys]:
+            del self._snapshots[key]
+
+        for key in [k for k in self._key_map if k not in live_keys]:
+            del self._key_map[key]
+
+        for handler_key in [k for k in self._handlers if k[0] is not None and k[0] not in live_keys]:
+            key, event_type = handler_key
+            if key is None:
+                continue
+            del self._handlers[handler_key]
+            self._discarded_registrations.add((key, event_type))
+
     async def _deferred_render(self, element: DOMElement) -> PatchMessage | None:
         """Sleep one frame, then render (cancelled by newer requests)."""
         await asyncio.sleep(self._render_debounce)
@@ -587,6 +682,34 @@ class Neony(Plugin):
             if isinstance(child, DOMElement) and not self._can_direct_patch(child):
                 return False
         return True
+
+    async def _emit_patch_ops(self, ops: list[Patch]) -> PatchMessage | None:
+        """Increment *rev* once and emit *ops*, splitting huge batches.
+
+        Chunked messages share one ``rev`` and ``batch``; the JS engine
+        buffers them until every chunk arrives, then applies them in order.
+        """
+        if not ops:
+            return None
+
+        self._rev += 1
+        rev = self._rev
+        chunk_size = max(1, self._patch_chunk_size)
+        if len(ops) <= chunk_size:
+            msg = PatchMessage(rev=rev, ops=ops)
+            assert self._win is not None
+            await self._win.emit("neony:patch", msg.model_dump(mode="json"))
+            return msg
+
+        chunks = [ops[i : i + chunk_size] for i in range(0, len(ops), chunk_size)]
+        batch = f"render:{rev}"
+        last: PatchMessage | None = None
+        assert self._win is not None
+        for index, chunk_ops in enumerate(chunks):
+            msg = PatchMessage(rev=rev, ops=chunk_ops, batch=batch, chunk=index, chunks=len(chunks))
+            last = msg
+            await self._win.emit("neony:patch", msg.model_dump(mode="json"))
+        return last
 
     def _collect_direct_patches(self, element: DOMElement) -> list[Patch]:
         """Generate style/attr patches for dirty elements, updating the
@@ -634,33 +757,57 @@ class Neony(Plugin):
         if self._snapshot is not None and self._can_direct_patch(element):
             # Fast path: style/attr-only changes bypass serialization + diff.
             ops = self._collect_direct_patches(element)
-            if ops:
-                self._rev += 1
-                msg = PatchMessage(rev=self._rev, ops=ops)
-                await self._win.emit("neony:patch", msg.model_dump(mode="json"))
-                self._last_tree = element
-                return msg
+            msg = await self._emit_patch_ops(ops)
             self._last_tree = element
-            return None  # empty diff — no rev bump, no message
+            return msg
 
         new_node = element.to_node(snapshot_cache=self._snapshots)
         msg: PatchMessage | None = None
 
         if self._snapshot is None:
-            # First render: full mount
+            # First render: mount the root, then stream child subtrees as
+            # chunked create patches when the tree is too large for one
+            # WebView eval.
             self._rev += 1
-            msg = PatchMessage(
-                rev=self._rev,
-                ops=[CreatePatch(key=new_node.key, node=new_node)],
-            )
-            await self._win.eval_js(f"window.neony.mount({msg.model_dump_json()})")
+            rev = self._rev
+            mount_sizes = Neony._subtree_sizes(new_node, {})
+            if mount_sizes[new_node.key] <= self._mount_chunk_size:
+                msg = PatchMessage(
+                    rev=rev,
+                    ops=[CreatePatch(key=new_node.key, node=new_node)],
+                )
+                await self._win.eval_js(f"window.neony.mount({msg.model_dump_json()})")
+            else:
+                mount_node = NodeDescriptor(
+                    key=new_node.key,
+                    tag=new_node.tag,
+                    attrs=new_node.attrs,
+                    styles=new_node.styles,
+                    text=new_node.text,
+                    children=[],
+                )
+                mount_msg = PatchMessage(
+                    rev=rev,
+                    ops=[CreatePatch(key=new_node.key, node=mount_node)],
+                )
+                await self._win.eval_js(f"window.neony.mount({mount_msg.model_dump_json()})")
+
+                creates: list[Patch] = []
+                for index, child in enumerate(new_node.children):
+                    Neony._flatten_mount_creates(
+                        child,
+                        new_node.key,
+                        index,
+                        self._mount_chunk_size,
+                        mount_sizes,
+                        creates,
+                    )
+                msg = await self._emit_patch_ops(creates)
         else:
             ops = DiffEngine.diff(self._snapshot, new_node)
-            if ops:
-                self._rev += 1
-                msg = PatchMessage(rev=self._rev, ops=ops)
-                await self._win.emit("neony:patch", msg.model_dump(mode="json"))
+            msg = await self._emit_patch_ops(ops)
 
+        self._discard_stale_state(new_node)
         self._snapshot = new_node
         self._last_tree = element
         return msg

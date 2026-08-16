@@ -187,6 +187,33 @@
   swaps the active preset. New `on_accent` token (text/icon colour on
   accent surfaces, e.g. accent buttons).
 
+### Performance
+
+- **Faster DOM element construction** — `DOMElement` private handler/
+  binding collections are now materialised in `model_post_init` instead
+  of through pydantic `PrivateAttr(default_factory=...)`, which
+  re-introspected factory signatures for every element.  Microbenchmarks
+  show roughly 8–10× faster bare `Div()` construction.
+- **Cached style and attribute serialization** — `Styles` caches its
+  kebab-case CSS dict and invalidates it on field writes / `model_copy`;
+  `DOMElement` caches its serialized attribute dict, invalidates it on
+  relevant mutations, and reuses a per-class typed-attribute field list.
+  Unchanged re-renders and direct-patch sweeps no longer re-run pydantic
+  model serializers for every node.
+- **Linear diff bookkeeping** — moved-key positions and insert indices
+  now use precomputed maps instead of repeated tree walks /
+  `list.index()` calls, removing quadratic paths from large child lists.
+- **Key lifecycle cleanup** — removed or replaced subtrees are pruned
+  from snapshot caches, the bubbling key map and the bridge handler
+  registry; `NeonApplication` drops the matching idempotent-registration
+  entries so long-running apps no longer accumulate dead keys.
+- **Chunked patch delivery** — render cycles with more than 1000 ops
+  are split into buffered `PatchMessage` chunks sharing one revision;
+  first mounts over 1000 nodes mount the root skeleton and stream child
+  subtrees as chunked create patches.  The JS engine applies a batch only
+  after all chunks arrive, and requests a resync on gaps or malformed
+  batches.
+
 ### Changed
 
 - **Progress constructor order** — `Progress(label, *, value=..., max=...)`
@@ -333,6 +360,33 @@
   `test_binding.py`, `test_cross_window.py`, `test_effect.py`,
   `test_keyframe.py`, and more.
 
+### Performance
+
+- **Faster DOM element construction** — `DOMElement` private handler/
+  binding collections are now materialised in `model_post_init` instead
+  of through pydantic `PrivateAttr(default_factory=...)`, which
+  re-introspected factory signatures for every element.  Microbenchmarks
+  show roughly 8–10× faster bare `Div()` construction.
+- **Cached style and attribute serialization** — `Styles` caches its
+  kebab-case CSS dict and invalidates it on field writes / `model_copy`;
+  `DOMElement` caches its serialized attribute dict, invalidates it on
+  relevant mutations, and reuses a per-class typed-attribute field list.
+  Unchanged re-renders and direct-patch sweeps no longer re-run pydantic
+  model serializers for every node.
+- **Linear diff bookkeeping** — moved-key positions and insert indices
+  now use precomputed maps instead of repeated tree walks /
+  `list.index()` calls, removing quadratic paths from large child lists.
+- **Key lifecycle cleanup** — removed or replaced subtrees are pruned
+  from snapshot caches, the bubbling key map and the bridge handler
+  registry; `NeonApplication` drops the matching idempotent-registration
+  entries so long-running apps no longer accumulate dead keys.
+- **Chunked patch delivery** — render cycles with more than 1000 ops
+  are split into buffered `PatchMessage` chunks sharing one revision;
+  first mounts over 1000 nodes mount the root skeleton and stream child
+  subtrees as chunked create patches.  The JS engine applies a batch only
+  after all chunks arrive, and requests a resync on gaps or malformed
+  batches.
+
 ### Changed
 
 - **LumiView 0.1.0.dev3** — migrated to the event-based API; `Neony`
@@ -430,6 +484,33 @@
   content panels, distinct from chrome glass (0.60 alpha).
 - **`box-sizing: border-box` global reset**: prevents `width:100% +
   padding` overflow.
+
+### Performance
+
+- **Faster DOM element construction** — `DOMElement` private handler/
+  binding collections are now materialised in `model_post_init` instead
+  of through pydantic `PrivateAttr(default_factory=...)`, which
+  re-introspected factory signatures for every element.  Microbenchmarks
+  show roughly 8–10× faster bare `Div()` construction.
+- **Cached style and attribute serialization** — `Styles` caches its
+  kebab-case CSS dict and invalidates it on field writes / `model_copy`;
+  `DOMElement` caches its serialized attribute dict, invalidates it on
+  relevant mutations, and reuses a per-class typed-attribute field list.
+  Unchanged re-renders and direct-patch sweeps no longer re-run pydantic
+  model serializers for every node.
+- **Linear diff bookkeeping** — moved-key positions and insert indices
+  now use precomputed maps instead of repeated tree walks /
+  `list.index()` calls, removing quadratic paths from large child lists.
+- **Key lifecycle cleanup** — removed or replaced subtrees are pruned
+  from snapshot caches, the bubbling key map and the bridge handler
+  registry; `NeonApplication` drops the matching idempotent-registration
+  entries so long-running apps no longer accumulate dead keys.
+- **Chunked patch delivery** — render cycles with more than 1000 ops
+  are split into buffered `PatchMessage` chunks sharing one revision;
+  first mounts over 1000 nodes mount the root skeleton and stream child
+  subtrees as chunked create patches.  The JS engine applies a batch only
+  after all chunks arrive, and requests a resync on gaps or malformed
+  batches.
 
 ### Changed
 
