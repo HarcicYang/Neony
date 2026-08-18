@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SRC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../src/neony/javascript");
-const FILES = ["builder.js", "engine.js", "index.js"];
+const FILES = ["builder.js", "engine.js", "index.js", "editor.js"];
 
 function sourceFor(names) {
   return names.map((n) => readFileSync(path.join(SRC_DIR, n), "utf-8")).join("\n");

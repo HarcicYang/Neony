@@ -435,6 +435,59 @@ NoticeBubble("You joined the group")
 半透明底的淡色药丸。`text` 是消息文本，或传 `content` 放自定义元素；
 `text` 构造后可改。
 
+## 富文本与滚动
+
+### `RichText`
+
+```python
+from neony.application.elements import ImageSegment, RichText, TextSegment
+
+editor = RichText(segments=["你好", ImageSegment(src="x.png"), "世界"])
+editor.insert_image("y.png", at_caret=True)  # 插入到光标处
+editor.on_change(lambda e: print(e.value))  # 有序分段
+editor.on_submit(lambda e: send())  # Enter（IME 安全）
+segments = editor.content()  # [TextSegment, ImageSegment, ...]
+```
+
+行内 `contenteditable` 编辑器。文字与图片分段共存于实时 DOM；Python
+diff 冻结这个受管子树的差异更新，因此输入、输入法组合与光标都能在
+Neony 渲染中保持稳定。扁平位置按一个文字字符记 1、一张行内图片记 1。
+
+- `content() -> list[TextSegment | ImageSegment]` — 有序内容。
+- `set_content(segments)` — 编程式替换。
+- `insert_text(text, *, at_caret=True)` / `insert_image(src, *, at_caret=True, alt="", width=None, height=None)`。
+- `caret_position()` / `selection_range()` / `set_caret(position)` / `focus()`。
+- 事件：`on_change`（`event.value` 为分段列表）、`on_submit`
+  （Enter；默认换行被拦截）、`on_input`、`on_click`、
+  `on_paste_files`（原始合成粘贴事件）、`on_paste_image`
+  （`event.value` 为临时文件路径列表）。
+
+### `ScrollArea`
+
+```python
+area = ScrollArea(message_list)
+await area.scroll_to_bottom()
+await area.scroll_to_top()
+await area.scroll_to(120, behavior="smooth")
+```
+
+可滚动的垂直区域。所有 DOM 滚动都通过内部 `window.neony` 命令完成——
+用户代码无需编写 JavaScript。挂载契约：必须挂在确定高度的 flex 父级
+（组件使用 `flex_grow + flex_basis:0 + min_height:0`）。
+
+### `StickToBottom`
+
+```python
+stick = StickToBottom(message_list)
+await stick.scroll_to_bottom(force=True)
+```
+
+聊天流滚动容器。用户接近底部时自动贴底；向上滚动暂停贴底，回到接近
+底部时恢复。该行为由内部 JS 引擎负责（`data-neony-autostick`）；
+`scroll_to_bottom(force=True)` 忽略当前贴底状态强制滚到底部。
+挂载契约与 `ScrollArea` 相同。
+
+
 ## 拖拽与重排
 
 ### `Reorder` 组件

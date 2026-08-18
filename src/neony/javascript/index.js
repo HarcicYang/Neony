@@ -12,6 +12,43 @@
         engine,
         mount: (msg) => engine.mount(msg),
         applyMessage: (msg) => engine.applyMessage(msg),
+        // Internal scroll commands.  Keyed lookup only; the smooth/auto
+        // behavior maps directly to the native Element.scrollTo options
+        // (jsdom falls back to a plain scrollTop assignment).
+        scrollTo: (key, top, behavior) => {
+            const el = engine.registry.get(key);
+            if (!el) return false;
+            const opts = { top: top, behavior: behavior || "auto" };
+            if (typeof el.scrollTo === "function") {
+                el.scrollTo(opts);
+            } else {
+                el.scrollTop = top;
+            }
+            return true;
+        },
+        scrollToBottom: (key, behavior) => {
+            const el = engine.registry.get(key);
+            if (!el) return false;
+            const top = el.scrollHeight - el.clientHeight;
+            const opts = { top: top > 0 ? top : 0, behavior: behavior || "auto" };
+            if (typeof el.scrollTo === "function") {
+                el.scrollTo(opts);
+            } else {
+                el.scrollTop = opts.top;
+            }
+            return true;
+        },
+        scrollToTop: (key, behavior) => {
+            const el = engine.registry.get(key);
+            if (!el) return false;
+            const opts = { top: 0, behavior: behavior || "auto" };
+            if (typeof el.scrollTo === "function") {
+                el.scrollTo(opts);
+            } else {
+                el.scrollTop = 0;
+            }
+            return true;
+        },
     };
 
     // Require the LumiView bridge for Python communication
@@ -27,6 +64,84 @@
     window.lumiview.listen("neony:patch", (msg) => {
         engine.applyMessage(msg);
     });
+
+    // ---- StickToBottom auto-stick (data-neony-autostick) ----
+    //
+    // Chat-stream scroll model: pinned while the user is near the bottom;
+    // new content is appended by the patch engine and the observer keeps
+    // the view pinned.  Scrolling up un-pins; scrolling back near the
+    // bottom re-pins.  This is internal JS — Python sees only the
+    // StickToBottom component and its scroll_to_bottom(force=True) API.
+    var autostickStates = new WeakMap();
+
+    function autostickAttach(el) {
+        if (autostickStates.has(el)) return;
+        var state = { el: el, pinned: true, mo: null, onScroll: null };
+
+        function update() {
+            var distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+            state.pinned = distance < 80;
+        }
+        function onScroll() { update(); }
+        el.addEventListener("scroll", onScroll, { passive: true });
+
+        var mo = new MutationObserver(function () {
+            update();
+            if (state.pinned) {
+                el.scrollTop = el.scrollHeight;
+            }
+        });
+        mo.observe(el, { childList: true, subtree: true, characterData: true });
+        state.mo = mo;
+        state.onScroll = onScroll;
+        autostickStates.set(el, state);
+        update();
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function autostickDetach(el) {
+        var state = autostickStates.get(el);
+        if (!state) return;
+        if (state.mo) state.mo.disconnect();
+        if (state.onScroll) el.removeEventListener("scroll", state.onScroll);
+        autostickStates.delete(el);
+    }
+
+    function autostickScanAll(root) {
+        var nodes = root.querySelectorAll("[data-neony-autostick]");
+        for (var i = 0; i < nodes.length; i++) autostickAttach(nodes[i]);
+    }
+    autostickScanAll(document);
+
+    var autostickObserver = new MutationObserver(function (records) {
+        for (var r = 0; r < records.length; r++) {
+            var rec = records[r];
+            for (var a = 0; a < rec.addedNodes.length; a++) {
+                var node = rec.addedNodes[a];
+                if (node.nodeType !== 1) continue;
+                if (node.matches && node.matches("[data-neony-autostick]")) autostickAttach(node);
+                if (node.querySelectorAll) autostickScanAll(node);
+            }
+            for (var d = 0; d < rec.removedNodes.length; d++) {
+                var gone = rec.removedNodes[d];
+                if (gone.nodeType !== 1) continue;
+                if (autostickStates.has(gone)) autostickDetach(gone);
+                if (gone.querySelectorAll) {
+                    var inner = gone.querySelectorAll("[data-neony-autostick]");
+                    for (var g = 0; g < inner.length; g++) autostickDetach(inner[g]);
+                }
+            }
+        }
+    });
+    function autostickStartObserver() {
+        if (document.body) {
+            autostickScanAll(document);
+            autostickObserver.observe(document.body, { childList: true, subtree: true });
+        } else {
+            document.addEventListener("DOMContentLoaded", autostickStartObserver, { once: true });
+        }
+    }
+    autostickStartObserver();
 
     // Event delegation: listen on `document` (capture phase —
     // `document.body` may not exist yet), trace each event to the
@@ -44,6 +159,7 @@
         "transitionend", "animationstart", "animationend",
         "wheel", "paste", "copy", "cut",
         "dragstart", "dragenter", "dragover", "dragleave", "drop", "dragend",
+        "compositionstart", "compositionupdate", "compositionend",
     ];
 
     function captureValue(el, event) {
@@ -56,6 +172,8 @@
         // A button's `value` IDL property defaults to "" — not user data,
         // so it must not shadow the null fallback below.
         if (el.value !== undefined && el.tagName !== "BUTTON") return el.value;
+        // contenteditable hosts have no `value`; their user data is text.
+        if (el.isContentEditable) return el.innerText;
         return null;
     }
 
@@ -629,6 +747,43 @@
         state.raf = requestAnimationFrame(step);
     }
 
+    function readClipboardFiles(key, fileList) {
+        // FileReader is async, so pasted file bytes cannot ride on the
+        // synchronous paste event.  Read each file as a data URL and
+        // deliver a synthetic ``neony.paste_files`` command when done.
+        var delivered = [];
+        var remaining = fileList.length;
+        if (remaining === 0) return;
+        for (var i = 0; i < fileList.length; i++) {
+            (function (file) {
+                var reader = new FileReader();
+                reader.onload = function () {
+                    delivered.push({
+                        name: file.name,
+                        size: file.size,
+                        type: file.type,
+                        data_url: reader.result,
+                    });
+                    remaining -= 1;
+                    if (remaining === 0) {
+                        window.lumiview
+                            .invoke("neony.paste_files", { key: key, files: delivered })
+                            .catch(function () {});
+                    }
+                };
+                reader.onerror = function () {
+                    remaining -= 1;
+                    if (remaining === 0 && delivered.length > 0) {
+                        window.lumiview
+                            .invoke("neony.paste_files", { key: key, files: delivered })
+                            .catch(function () {});
+                    }
+                };
+                reader.readAsDataURL(file);
+            })(fileList[i]);
+        }
+    }
+
     function eventHandler(event) {
         var el = event.target.closest ? event.target.closest("[data-neony-key]") : null;
         // Keys typed while no element is focused land on <body> — no
@@ -721,6 +876,41 @@
             value: value,
         };
 
+        // RichText internals: expose caret/image info for contenteditable
+        // editors and keep Enter from inserting newlines (chat send).
+        var richRoot = event.target && event.target.closest
+            ? event.target.closest("[data-neony-rich-text]")
+            : null;
+        if (richRoot) {
+            var richCaretEvents = {
+                input: true,
+                click: true,
+                keydown: true,
+                keyup: true,
+                compositionstart: true,
+                compositionupdate: true,
+                compositionend: true,
+                focus: true,
+                blur: true,
+            };
+            if (richCaretEvents[event.type] && window.neony && window.neony.richText) {
+                var richSelection = window.neony.richText.selectionFromEvent(event);
+                if (richSelection) {
+                    payload.caret_position = richSelection.start;
+                    payload.selection_end = richSelection.end;
+                }
+                var richImage = window.neony.richText.imageFromEvent(event);
+                if (richImage) {
+                    payload.image_src = richImage.src;
+                    payload.image_alt = richImage.alt;
+                    payload.image_index = richImage.index;
+                }
+            }
+            if (event.type === "keydown" && event.key === "Enter" && !event.isComposing) {
+                event.preventDefault();
+            }
+        }
+
         // Modifier keys — present on KeyboardEvent, MouseEvent, ...
         if (event.ctrlKey) payload.ctrl_key = true;
         if (event.shiftKey) payload.shift_key = true;
@@ -787,6 +977,20 @@
             payload.delta_mode = event.deltaMode;
         }
 
+        // IME composition (compositionstart / compositionupdate /
+        // compositionend).  ``data`` is the new text on update and the
+        // committed text on end; ``isComposing`` also rides on input
+        // events so Python can ignore intermediate composition edits.
+        if (event.type === "compositionstart" || event.type === "compositionupdate" || event.type === "compositionend") {
+            payload.composition_data = event.data || "";
+        }
+        // Only send truthy isComposing: KeyboardEvent.isComposing exists
+        // (false) in every browser, and a constant false would bloat every
+        // keydown payload while carrying no information.
+        if (event.isComposing) {
+            payload.is_composing = true;
+        }
+
         // Scroll position (scroll event only).  Read from the ACTUAL
         // scroller (event.target) rather than the keyed ancestor `el` —
         // the scroller may be an unkeyed wrapper inside a keyed element.
@@ -796,6 +1000,10 @@
             var scroller = event.target === document ? document.documentElement : event.target;
             payload.scroll_top = (scroller && scroller.scrollTop) || 0;
             payload.scroll_left = (scroller && scroller.scrollLeft) || 0;
+            payload.scroll_height = (scroller && scroller.scrollHeight) || 0;
+            payload.client_height = (scroller && scroller.clientHeight) || 0;
+            payload.scroll_width = (scroller && scroller.scrollWidth) || 0;
+            payload.client_width = (scroller && scroller.clientWidth) || 0;
         }
 
         // Clipboard data — paste only.  getData() works only during the
@@ -809,6 +1017,23 @@
             try {
                 payload.clipboard_html = event.clipboardData.getData("text/html");
             } catch (e) {}
+            // File contents are read asynchronously and delivered as a
+            // synthetic ``neony.paste_files`` command (see
+            // readClipboardFiles); the synchronous payload only carries
+            // metadata so handlers know a file paste happened.
+            var pasteFileList = event.clipboardData.files;
+            if (pasteFileList && pasteFileList.length > 0) {
+                var pasteFiles = [];
+                for (var pf = 0; pf < pasteFileList.length; pf++) {
+                    pasteFiles.push({
+                        name: pasteFileList[pf].name,
+                        size: pasteFileList[pf].size,
+                        type: pasteFileList[pf].type,
+                    });
+                }
+                payload.paste_files = pasteFiles;
+                readClipboardFiles(elKey, pasteFileList);
+            }
         }
 
         // Dropped files — one entry per file: name, local filesystem

@@ -131,6 +131,9 @@ Import from `neony.application.elements`.
 | `Card`                    | Titled content panel — actions, footer, optional frosted-glass `glass` surface |
 | `MessageBubble`           | QQ/Telegram-style chat message — from_me alignment/colors, optional avatar + name, built-in right-click menu, hover quick actions |
 | `NoticeBubble`            | Centered system message pill for chat notices                                   |
+| `RichText`                | Inline contenteditable editor — text + images, caret/selection API, insert at caret, `content()` segments, IME-safe, paste image files |
+| `ScrollArea`              | Scrollable vertical region with `scroll_to_bottom()` / `scroll_to_top()` / `scroll_to()` |
+| `StickToBottom`           | Chat-stream scroll container — auto-pins near the bottom; pauses on scroll-up, resumes near the bottom |
 
 All components share a fluent, chainable API — see the
 [API reference](docs/api.en.md) for usage.

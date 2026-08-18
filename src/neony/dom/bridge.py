@@ -379,6 +379,7 @@ class Neony(Plugin):
         self.command(self._on_event, name="event")
         self.command(self._on_resync, name="resync")
         self.command(self._on_ready_ack, name="ready")
+        self.command(self._on_paste_files, name="paste_files")
 
     # ---- Plugin lifecycle hooks ----
 
@@ -441,6 +442,28 @@ class Neony(Plugin):
         scroll_left: Any = None,
         clipboard_text: str | None = None,
         clipboard_html: str | None = None,
+        # IME composition (compositionstart / compositionupdate /
+        # compositionend) and ``is_composing`` on input events.
+        composition_data: str | None = None,
+        is_composing: bool = False,
+        # Scroll geometry (scroll event only) — full content size and
+        # visible size, so "near bottom" decisions stay in Python.
+        scroll_height: Any = None,
+        client_height: Any = None,
+        scroll_width: Any = None,
+        client_width: Any = None,
+        # Pasted files (paste event only): list of {name, size, type}.
+        # ``Any`` for the same strict-conversion reasons as the numeric
+        # fields; DomEvent.paste_files is the typed surface.
+        paste_files: Any = None,
+        # RichText editor fields (events targeting [data-neony-rich-text]):
+        # flat caret position, and image info when the target is an inline
+        # image (image_index is a flat position too).
+        caret_position: Any = None,
+        selection_end: Any = None,
+        image_index: Any = None,
+        image_src: str | None = None,
+        image_alt: str | None = None,
         # In-app drag payload (dragstart / drop only) — the string the
         # source element declared via ``drag_payload``.
         drag_payload: str | None = None,
@@ -455,11 +478,6 @@ class Neony(Plugin):
         the target handled it, so window-level listeners (page key
         handlers, shortcuts) see keys typed in any input.  Each handler
         runs independently — one raising must not break the chain."""
-        import logging
-
-        from lumiview.task import run_async as _run_async
-
-        log = logging.getLogger("neony.bridge")
         # ``File.path`` is empty on WebKitGTK ≥ 2.52 — backfill the
         # native handler's paths (matched by base name) before dispatch.
         if event_type == "drop" and drop_files:
@@ -487,12 +505,44 @@ class Neony(Plugin):
             "scroll_left": scroll_left,
             "clipboard_text": clipboard_text,
             "clipboard_html": clipboard_html,
+            "composition_data": composition_data,
+            "is_composing": is_composing,
+            "scroll_height": scroll_height,
+            "client_height": client_height,
+            "scroll_width": scroll_width,
+            "client_width": client_width,
+            "paste_files": paste_files,
+            "caret_position": caret_position,
+            "selection_end": selection_end,
+            "image_index": image_index,
+            "image_src": image_src,
+            "image_alt": image_alt,
             "drag_payload": drag_payload,
             "drop_files": drop_files,
         }
         # Snapshot: a handler may render, and the render registers
         # handlers for elements created since the last sweep — mutating
         # _handlers mid-iteration would raise.
+        await self._dispatch_event(key, event_type, value, extra)
+
+    async def _dispatch_event(
+        self,
+        key: str,
+        event_type: str,
+        value: Any,
+        extra: dict[str, Any],
+    ) -> None:
+        """Dispatch one event to exact-key handlers, then to the nearest
+        ``bubble_events`` ancestor with a matching handler.
+
+        Shared by ``_on_event`` (DOM events from JS) and synthetic events
+        such as ``paste_files`` (delivered asynchronously after a paste).
+        """
+        import logging
+
+        from lumiview.task import run_async as _run_async
+
+        log = logging.getLogger("neony.bridge")
         for (ekey, etype), fns in list(self._handlers.items()):
             if etype == event_type and (ekey is None or ekey == key):
                 for fn in fns:
@@ -518,6 +568,26 @@ class Neony(Plugin):
                         except Exception:
                             log.exception(f"Event handler for {event_type} on {key} failed")
                     return
+
+    async def _on_paste_files(
+        self,
+        ctx: BridgeContext,
+        key: str,
+        files: Any = None,
+    ) -> None:
+        """Deliver file contents read from a paste event.
+
+        JS reads ``clipboardData.files`` as data URLs after the paste
+        (``FileReader`` is async) and invokes this command; it dispatches
+        a synthetic ``paste_files`` event so components receive actual
+        bytes without going through the pyclip-based clipboard API.
+        """
+        await self._dispatch_event(
+            key=key,
+            event_type="paste_files",
+            value=None,
+            extra={"paste_files": files},
+        )
 
     async def _on_resync(self, ctx: BridgeContext, rev: int) -> None:
         """JS detected a revision gap — re-send the full mount."""

@@ -50,6 +50,71 @@ Planned work, roughly in priority order.
 - [x] **Content** — Card (titled content panel; actions/footer; optional glass), Avatar (image/initial/placeholder + optional corner badge), Badge (pill or corner count; dot; 99+ clamp; zero hides), Image (rounded overflow-hidden frame; `src` is any URL)
 - [x] **Notifications & Chat** — Toast (6 placements, success/info/error, placement-tied directional enter/exit animations), MessageBubble (QQ/Telegram style: from_me alignment/colors, optional avatar + name, built-in right-click menu, hover quick actions), NoticeBubble (centered system pill)
 
+## Flaza (QQ client) requirements
+
+> Driven by the Flaza QQ desktop client. Public APIs stay pure Python;
+> internals may use `contenteditable` / native selection semantics.
+
+### Already available
+
+- [x] **Paste text / HTML** — `paste` is delegated; `DomEvent.clipboard_text`
+  and `DomEvent.clipboard_html` are already populated from the clipboard.
+- [x] **Scroll position reads** — `scroll` is delegated; `DomEvent.scroll_top`
+  and `DomEvent.scroll_left` already carry the scrolled position.
+- [x] **Stable-key in-place patching** — diff and direct-patch update
+  existing DOM nodes via `update_attrs` / `update_styles` / `set_text`;
+  stable keys are never remove/create'd.  This is the foundation for
+  editor focus stability, but the editor itself still needs to be built.
+- [x] **Drop files** — `drop` already carries `DomEvent.drop_files`
+  (name / path / size / type).
+
+### Partially available
+
+- [x] **Mixed inline content** — the editor now uses a dedicated
+  contenteditable path (`RichText` managed subtree, frozen by the diff
+  engine).  General `to_node()` mixed string/element children remain
+  unsupported by design; display-side rendering keeps wrapping text runs
+  in keyed `Span` elements.
+- [x] **Image deletion & selection inputs** — `keydown` (Backspace /
+  Delete) and `click` are delegated; `RichText` interprets the caret /
+  selection and syncs image deletion and selection back to Python.
+- [x] **IME composition** — `compositionstart` / `compositionupdate` /
+  `compositionend` are delegated and carry `composition_data` /
+  `is_composing`; the managed editor subtree is not patched during
+  composition.
+
+### To implement
+
+- [x] **RichText editor component** — a Python-driven editable region
+  (`contenteditable` internally) that allows text and `img` inline
+  elements to coexist.
+- [x] **Caret / Selection API** — Python reads `caret_position()` /
+  `selection_range()` and writes `set_caret(position)` / `focus()`.
+- [x] **Insert at caret** — `insert_text(..., at_caret=True)` and
+  `insert_image(..., at_caret=True)` land at the current caret.
+- [x] **Ordered content export** — `editor.content()` returns an ordered
+  model of `[TextSegment, ImageSegment, ...]`; Flaza maps it to
+  `MessageElement` in order.
+- [x] **Editor render stability** — the bridge freezes diffing under the
+  editor's managed subtree; inserting an image keeps focus at the
+  original caret.
+- [x] **Inline image deletion & selection** — `Backspace` / `Delete` remove
+  inline images; clicking an image reports the correct caret / selection
+  to Python.
+- [x] **IME composition events** — `compositionstart` /
+  `compositionupdate` / `compositionend` are delegated; editor rendering
+  does not interrupt Chinese input.
+- [x] **Paste files / images** — `on_paste_image` / `on_paste_files`
+  deliver pasted bytes as temp file paths, removing the need for Flaza
+  to read the whole clipboard through pyclip.
+- [x] **Python scroll API** — `ScrollArea.scroll_to_bottom()` /
+  `scroll_to_top()` / `scroll_to({top, behavior})` replace `eval_js`
+  scroll hacks.  The API lives on the component (a region, not the whole
+  window); all JS is internal.
+- [x] **StickToBottom / AutoScroll container** — auto-sticks while new
+  content arrives; pauses when the user scrolls up; resumes near the
+  bottom. This is the chat-stream scroll model.
+
 ## Animation
 
 - [x] **CSS `transition` support** in `Styles` — typed `Transition` descriptor (`property`/`duration`/`timing`/`delay`) or raw shorthand string; also `transform` and `outline` fields.  Existing components' transitions now actually reach the DOM.

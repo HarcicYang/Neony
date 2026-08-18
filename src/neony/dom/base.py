@@ -9,7 +9,7 @@ in :mod:`neony.dom.events`, and the serialized snapshot shape in
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Coroutine, Iterable
 from typing import Any, ClassVar, Literal, Self, SupportsIndex, cast
 
 from pydantic import BaseModel, PrivateAttr
@@ -227,6 +227,15 @@ class DOMElement(BaseModel):
     _serialized_attrs: dict[str, str] | None = PrivateAttr(default=None)
     # Armed by the app on each tree root so a bound-signal write schedules a render.
     _render_request: Callable[[], None] | None = PrivateAttr(default=None)
+    # Armed by the app on each tree root so a component can run internal
+    # JS without holding a window reference (scroll commands, caret reads).
+    _eval_js_request: Callable[[str], Coroutine[Any, Any, Any]] | None = PrivateAttr(default=None)
+    # Managed content: the bridge freezes diffing under this subtree after
+    # the initial mount; live content (a contenteditable editor) is owned
+    # by the JS engine and updated through internal commands, never by the
+    # Python diff.  ``to_node`` always reuses the cached snapshot for a
+    # managed root, so its children never generate patches.
+    _managed_content: bool = PrivateAttr(default=False)
     # The display value bind_visible restores when the signal turns true.
     _visible_display: Literal["block", "flex", "grid", "inline", "inline-block", "inline-flex", "none"] | None = (
         PrivateAttr(default=None)
@@ -678,6 +687,15 @@ class DOMElement(BaseModel):
         if self.key in seen_keys:
             raise ValueError(f"Duplicate key {self.key!r} in DOM tree. Each element must have a unique key.")
         seen_keys.add(self.key)
+
+        # Managed subtrees freeze after their first snapshot: the live DOM
+        # under them is owned by the JS engine (contenteditable editors),
+        # so re-serializing Python-side changes would fight the user's
+        # caret / IME / insertion state.  Return the cached node instead.
+        if self._managed_content and snapshot_cache is not None:
+            cached = snapshot_cache.get(self.key)
+            if cached is not None:
+                return cached
 
         # Clean element → reuse the cached snapshot (dirty flags propagate
         # to ancestors, so a clean element implies a clean subtree).

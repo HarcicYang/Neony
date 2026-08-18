@@ -494,6 +494,63 @@ flex message column (`align-self: center`) with a translucent
 background. `text` is the message, or pass `content` for a custom
 element; `text` is settable.
 
+## Rich text & scrolling
+
+### `RichText`
+
+```python
+from neony.application.elements import ImageSegment, RichText, TextSegment
+
+editor = RichText(segments=["你好", ImageSegment(src="x.png"), "世界"])
+editor.insert_image("y.png", at_caret=True)  # lands at the caret
+editor.on_change(lambda e: print(e.value))  # ordered segments
+editor.on_submit(lambda e: send())  # Enter (IME-safe)
+segments = editor.content()  # [TextSegment, ImageSegment, ...]
+```
+
+An inline `contenteditable` editor. Text and image segments coexist in
+the live DOM; the Python diff freezes this managed subtree so typing,
+IME composition and the caret survive Neony renders. Flat positions
+count one per text character and one per inline image.
+
+- `content() -> list[TextSegment | ImageSegment]` — ordered content.
+- `set_content(segments)` — replace programmatically.
+- `insert_text(text, *, at_caret=True)` / `insert_image(src, *, at_caret=True, alt="", width=None, height=None)`.
+- `caret_position()` / `selection_range()` / `set_caret(position)` / `focus()`.
+- Events: `on_change` (`event.value` is the segment list), `on_submit`
+  (Enter; the default newline is suppressed), `on_input`, `on_click`,
+  `on_paste_files` (raw synthetic paste event), `on_paste_image`
+  (`event.value` is a list of temp file paths).
+
+### `ScrollArea`
+
+```python
+area = ScrollArea(message_list)
+await area.scroll_to_bottom()
+await area.scroll_to_top()
+await area.scroll_to(120, behavior="smooth")
+```
+
+A scrollable vertical region. All DOM scrolling goes through internal
+`window.neony` commands — user code never writes JavaScript. Mount
+contract: definite-height flex parent (`flex_grow + flex_basis:0 +
+min_height:0` on the component).
+
+### `StickToBottom`
+
+```python
+stick = StickToBottom(message_list)
+await stick.scroll_to_bottom(force=True)
+```
+
+The chat-stream scroll container. It auto-pins while the user is near
+the bottom; scrolling up pauses the pin, and scrolling back near the
+bottom resumes it. The internal JS engine owns the behavior
+(`data-neony-autostick`); `scroll_to_bottom(force=True)` scrolls
+regardless of the current pin state. Mount contract: same as
+`ScrollArea`.
+
+
 ## Drag & reorder
 
 ### `Reorder` component

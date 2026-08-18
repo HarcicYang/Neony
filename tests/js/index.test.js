@@ -1397,3 +1397,145 @@ describe("transition and animation events", () => {
     expect(payload.animation_name).toBeUndefined();
   });
 });
+
+describe("Flaza protocol additions (composition, scroll geometry, paste files, scrollTo)", () => {
+  let invoke;
+  let win;
+
+  beforeEach(() => {
+    win = { minimize: vi.fn(), toggleMaximize: vi.fn(), close: vi.fn() };
+    invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { listen, invoke, window: win };
+  });
+
+  function lastPayload() {
+    return invoke.mock.calls.filter(([name]) => name === "neony.event").at(-1)[1];
+  }
+
+  it("delegates composition events and carries composition_data", () => {
+    mountTree({ key: "editor", tag: "div" });
+    const el = document.querySelector("[data-neony-key='editor']");
+    const event = new window.Event("compositionupdate", { bubbles: true });
+    Object.defineProperty(event, "data", { value: "ni" });
+    el.dispatchEvent(event);
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({ key: "editor", event_type: "compositionupdate", composition_data: "ni" })
+    );
+  });
+
+  it("carries is_composing only while true", () => {
+    mountTree({ key: "editor", tag: "div" });
+    const el = document.querySelector("[data-neony-key='editor']");
+    const composing = new window.Event("input", { bubbles: true });
+    Object.defineProperty(composing, "isComposing", { value: true });
+    el.dispatchEvent(composing);
+    expect(lastPayload()).toEqual(expect.objectContaining({ event_type: "input", is_composing: true }));
+
+    invoke.mockClear();
+    const plain = new window.Event("input", { bubbles: true });
+    Object.defineProperty(plain, "isComposing", { value: false });
+    el.dispatchEvent(plain);
+    expect(lastPayload().is_composing).toBeUndefined();
+  });
+
+  it("captures contenteditable text as the input value", () => {
+    mountTree({ key: "editor", tag: "div" });
+    const el = document.querySelector("[data-neony-key='editor']");
+    Object.defineProperty(el, "isContentEditable", { value: true, configurable: true });
+    el.innerText = "你好";
+    el.dispatchEvent(new window.Event("input", { bubbles: true }));
+    expect(lastPayload()).toEqual(expect.objectContaining({ event_type: "input", value: "你好" }));
+  });
+
+  it("carries scroll geometry from the scrolled element", () => {
+    mountTree({ key: "list", tag: "div", styles: { overflow: "auto" } });
+    const el = document.querySelector("[data-neony-key='list']");
+    Object.defineProperty(el, "scrollTop", { value: 80, configurable: true });
+    Object.defineProperty(el, "scrollHeight", { value: 500, configurable: true });
+    Object.defineProperty(el, "clientHeight", { value: 200, configurable: true });
+    Object.defineProperty(el, "scrollWidth", { value: 300, configurable: true });
+    Object.defineProperty(el, "clientWidth", { value: 120, configurable: true });
+    el.dispatchEvent(new window.Event("scroll"));
+    expect(lastPayload()).toEqual(
+      expect.objectContaining({
+        key: "list",
+        event_type: "scroll",
+        scroll_top: 80,
+        scroll_height: 500,
+        client_height: 200,
+        scroll_width: 300,
+        client_width: 120,
+      })
+    );
+  });
+
+  it("forwards paste file metadata synchronously", () => {
+    mountTree({ key: "editor", tag: "div" });
+    const el = document.querySelector("[data-neony-key='editor']");
+    const RealFileReader = window.FileReader;
+    window.FileReader = class { readAsDataURL() {} };
+    try {
+      const clipboardData = {
+        getData: () => "",
+        files: [{ name: "shot.png", size: 99, type: "image/png" }],
+      };
+      const event = new window.Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", { value: clipboardData });
+      el.dispatchEvent(event);
+      expect(lastPayload()).toEqual(
+        expect.objectContaining({
+          event_type: "paste",
+          paste_files: [{ name: "shot.png", size: 99, type: "image/png" }],
+        })
+      );
+    } finally {
+      window.FileReader = RealFileReader;
+    }
+  });
+
+  it("delivers pasted file bytes as data URLs via neony.paste_files", async () => {
+    mountTree({ key: "editor", tag: "div" });
+    const el = document.querySelector("[data-neony-key='editor']");
+    const RealFileReader = window.FileReader;
+    window.FileReader = class {
+      readAsDataURL(file) {
+        this.result = "data:image/png;base64," + file.name;
+        if (this.onload) this.onload();
+      }
+    };
+    try {
+      const clipboardData = {
+        getData: () => "",
+        files: [{ name: "shot.png", size: 10, type: "image/png" }],
+      };
+      const event = new window.Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", { value: clipboardData });
+      el.dispatchEvent(event);
+      await Promise.resolve();
+      expect(invoke).toHaveBeenCalledWith("neony.paste_files", {
+        key: "editor",
+        files: [
+          { name: "shot.png", size: 10, type: "image/png", data_url: "data:image/png;base64,shot.png" },
+        ],
+      });
+    } finally {
+      window.FileReader = RealFileReader;
+    }
+  });
+
+  it("scrollTo command scrolls the keyed element with behavior", () => {
+    mountTree({ key: "list", tag: "div" });
+    const el = document.querySelector("[data-neony-key='list']");
+    el.scrollTo = vi.fn();
+    expect(neony.scrollTo("list", 120, "smooth")).toBe(true);
+    expect(el.scrollTo).toHaveBeenCalledWith({ top: 120, behavior: "smooth" });
+  });
+
+  it("scrollTo falls back to scrollTop when scrollTo is missing", () => {
+    mountTree({ key: "list", tag: "div" });
+    const el = document.querySelector("[data-neony-key='list']");
+    delete el.scrollTo;
+    expect(neony.scrollTo("list", 40)).toBe(true);
+    expect(el.scrollTop).toBe(40);
+  });
+});

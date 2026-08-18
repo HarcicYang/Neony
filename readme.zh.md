@@ -127,6 +127,9 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Card`                    | 带标题的内容卡片 — 操作区、页脚、可选毛玻璃 `glass` 表面       |
 | `MessageBubble`           | QQ/Telegram 风格聊天消息 — from_me 对齐/配色、可选头像 + 昵称、内置右键菜单、hover 快捷操作 |
 | `NoticeBubble`            | 聊天居中的系统提示药丸                                           |
+| `RichText`                | 行内 contenteditable 编辑器 — 文字 + 图片、光标/选区 API、光标处插入、`content()` 分段、IME 安全、粘贴图片文件 |
+| `ScrollArea`              | 可滚动垂直区域，带 `scroll_to_bottom()` / `scroll_to_top()` / `scroll_to()` |
+| `StickToBottom`           | 聊天流滚动容器 — 接近底部自动贴底；上滚暂停，回到底部附近恢复 |
 
 所有组件共享链式 API，用法见 [API 参考](docs/api.zh.md)。
 

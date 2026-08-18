@@ -1,12 +1,12 @@
 """Neony JavaScript runtime — loaded and injected into every LumiView page.
 
-The three JS source files are concatenated in dependency order
-(builder → engine → index) and exposed as :data:`ENGINE_SOURCE`.
+The JS source files are concatenated in dependency order
+(builder → engine → index → editor) and exposed as :data:`ENGINE_SOURCE`.
 """
 
 from pathlib import Path
 
-_JS_FILES = ("builder.js", "engine.js", "index.js")
+_JS_FILES = ("builder.js", "engine.js", "index.js", "editor.js")
 _DIR = Path(__file__).resolve().parent
 
 

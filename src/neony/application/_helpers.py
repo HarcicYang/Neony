@@ -58,10 +58,26 @@ class _Entry:
         self.page = page
 
 
-# Style-only events: deferred one frame of coalescing so a mouse sweep
-# or a scroll burst doesn't trigger a full-tree render per event.
+# Style-only / high-frequency events: deferred one frame of coalescing so
+# a mouse sweep, a scroll burst or an IME composition stream doesn't
+# trigger a full-tree render per event.  ``paste_files`` is a synthetic
+# follow-up event; rendering it immediately has no benefit.
 _DEFERRED_EVENTS = frozenset(
-    {"mouseover", "mouseout", "focus", "blur", "input", "dragover", "dragleave", "pointermove", "scroll"}
+    {
+        "mouseover",
+        "mouseout",
+        "focus",
+        "blur",
+        "input",
+        "dragover",
+        "dragleave",
+        "pointermove",
+        "scroll",
+        "compositionstart",
+        "compositionupdate",
+        "compositionend",
+        "paste_files",
+    }
 )
 
 # Built-in @keyframes injected into every window (like theme variables),

@@ -77,6 +77,38 @@ class DomEvent(BaseModel):
     clipboard_text: str | None = None
     clipboard_html: str | None = None
 
+    # Composition events (compositionstart / compositionupdate /
+    # compositionend).  ``composition_data`` carries ``event.data``
+    # (the composed text on end, the new text on update, empty on
+    # start); ``is_composing`` is True while an IME session is active
+    # (also carried on ``input`` during composition).
+    composition_data: str | None = None
+    is_composing: bool = False
+
+    # Scroll geometry (scroll events only): the scrolled element's
+    # full content size and visible size, so components can decide
+    # "near bottom" without eval_js hacks.
+    scroll_height: int | None = None
+    client_height: int | None = None
+    scroll_width: int | None = None
+    client_width: int | None = None
+
+    # Pasted files (paste events only): one dict per file with keys
+    # ``name``, ``size``, ``type``.  A follow-up synthetic ``paste_files``
+    # event delivers the same entries plus a ``data_url`` containing the
+    # file bytes.
+    paste_files: list[dict[str, Any]] | None = None
+
+    # RichText editor fields (events targeting a ``[data-neony-rich-text]``
+    # subtree): the flat caret position (text chars + 1 per inline image),
+    # and — when the target is an inline image — the image's flat index,
+    # src and alt.
+    caret_position: int | None = None
+    selection_end: int | None = None
+    image_index: int | None = None
+    image_src: str | None = None
+    image_alt: str | None = None
+
     # In-app drag payload (dragstart / drop only): the string declared on
     # the source element via ``DOMElement.drag_payload`` and carried
     # through ``dataTransfer`` — lets a drop handler identify what was

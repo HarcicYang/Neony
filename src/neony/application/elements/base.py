@@ -11,7 +11,7 @@ lifecycle pseudo-events (:meth:`_dispatch_pseudo`, e.g. Dialog's
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Coroutine, Iterator
 from typing import Any, Self
 
 from neony.dom import DOMElement, DomEvent, Signal, Styles
@@ -54,6 +54,13 @@ _DOM_EVENTS = frozenset(
         "dragend",
         "dragenter",
         "drop",
+        "compositionstart",
+        "compositionupdate",
+        "compositionend",
+        # Synthetic bridge event: async paste file contents (see
+        # Neony._on_paste_files).  Not a DOM event, but wired the same
+        # way so ``component.on_paste_files(...)`` works.
+        "paste_files",
     }
 )
 
@@ -114,6 +121,8 @@ class Component:
         self._component_children: list[Component] = []
         # Pseudo-event tasks kept alive so they aren't GC'd mid-run.
         self._pseudo_tasks: set[Any] = set()
+        # Internal JS command tasks kept alive for fire-and-forget calls.
+        self._js_tasks: set[Any] = set()
         # bind_value state — disposed/removed by unbind().
         self._value_effect: Effect | None = None
         self._value_writers: dict[str, Callable[[DomEvent], Any]] = {}
@@ -442,6 +451,34 @@ class Component:
     def _bind(self, element: DOMElement, event_type: str) -> None:
         """Attach the source-aware dispatcher to an internal element."""
         element.on(event_type, self._make_handler(event_type))
+
+    def _call_js(self, script: str) -> Coroutine[Any, Any, Any] | None:
+        """Return the tree root's internal JS eval coroutine, if armed.
+
+        Components use this to run private ``window.neony`` commands
+        (scroll, caret, editor content) without holding a window
+        reference or exposing JS to user code.
+        """
+        node: DOMElement | None = self._root
+        while node is not None and node._parent is not None:
+            node = node._parent
+        if node is None or node._eval_js_request is None:
+            return None
+        return node._eval_js_request(script)
+
+    def _schedule_js(self, script: str) -> None:
+        """Run an internal JS command fire-and-forget (no return value)."""
+        coro = self._call_js(script)
+        if coro is None:
+            return
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        task = asyncio.create_task(coro)
+        # Keep a reference so the task isn't GC'd mid-run.
+        self._js_tasks.add(task)
+        task.add_done_callback(self._js_tasks.discard)
 
     def _make_handler(self, event_type: str) -> Callable[..., Any]:
         """Create the raw DOMElement handler for *event_type*."""

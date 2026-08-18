@@ -11,17 +11,23 @@ from typing import TYPE_CHECKING
 from neony.application.elements import (
     Avatar,
     Button,
+    Component,
     Dropdown,
     HStack,
     Icon,
+    ImageSegment,
     MessageBubble,
     NoticeBubble,
+    RichText,
+    ScrollArea,
     Spacer,
+    StickToBottom,
     Text,
+    TextSegment,
     Toast,
     VStack,
 )
-from neony.dom import DomEvent
+from neony.dom import Div, DOMElement, DomEvent, Styles
 
 from ..core import Section
 from ..i18n import tr, tr_now
@@ -111,7 +117,7 @@ me_msg = MessageBubble(
 me_msg.on_change(on_chat_menu)
 me_msg.on_action(on_chat_action)
 
-chat_panel = Section(
+chat_section = Section(
     tr.chat.chat_title,
     tr.chat.chat_blurb,
     """other = MessageBubble("Hey!", avatar=Avatar(name="Sherry"), name="Sherry",
@@ -130,6 +136,76 @@ other.on_action(lambda v: ...)   # quick action click (v)""",
         align="stretch",
     ),
 )
+
+# ── RichText editor ─────────────────────────────────────────────
+
+rich_text = RichText(
+    segments=[
+        TextSegment(text="Try typing here, "),
+        ImageSegment(src="https://harcic.is-a.dev/resource/favicon.svg", alt="icon"),
+        TextSegment(text=" then keep going."),
+    ]
+)
+rich_text_echo = Text("", role="secondary")
+
+
+def on_rich_text_change(event: DomEvent) -> None:
+    rich_text_echo.text = f"segments: {len(event.value)}"
+
+
+rich_text.on_change(on_rich_text_change)
+
+rich_text_section = Section(
+    tr.chat.rich_text_title,
+    tr.chat.rich_text_blurb,
+    """editor = RichText(segments=["你好", ImageSegment(src="x.png"), "世界"])
+editor.insert_image("y.png", at_caret=True)   # lands at the caret
+editor.on_change(lambda e: print(e.value))     # ordered segments
+editor.on_submit(lambda e: send())             # Enter (IME-safe)
+segments = editor.content()                    # [TextSegment, ImageSegment, ...]""",
+    VStack(
+        Text(tr.chat.right_click_hint, role="secondary"),
+        rich_text,
+        rich_text_echo,
+        gap="8px",
+        align="stretch",
+    ),
+)
+
+# ── ScrollArea & StickToBottom ───────────────────────────────────
+
+
+def make_scroll_rows() -> VStack:
+    return VStack(
+        *[Text(f"message {i}", role="secondary") for i in range(1, 9)],
+        gap="8px",
+        align="stretch",
+    )
+
+
+def scroll_host(child: Component | DOMElement) -> Div:
+    return Div(
+        styles=Styles(height="200px", display="flex", flex_direction="column"),
+        container=[child],
+    )
+
+
+scroll_section = Section(
+    tr.chat.scroll_title,
+    tr.chat.scroll_blurb,
+    """area = ScrollArea(message_list)              # pure Python scroll API
+await area.scroll_to_bottom()                 # top / scroll_to(top)
+stick = StickToBottom(message_list)           # chat-stream auto-pin
+await stick.scroll_to_bottom(force=True)      # force regardless of pin""",
+    VStack(
+        scroll_host(ScrollArea(make_scroll_rows()).build()),
+        scroll_host(StickToBottom(make_scroll_rows()).build()),
+        gap="12px",
+        align="stretch",
+    ),
+)
+
+chat_panel = VStack(chat_section, rich_text_section, scroll_section, gap="24px", align="stretch")
 
 PANELS = {"notifications": notifications_panel, "chat": chat_panel}
 

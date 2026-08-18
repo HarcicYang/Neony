@@ -475,6 +475,18 @@ class Chat(BaseModel):
     menu_fmt: TrRef[dict[str, object]] = TrRef("menu: {value}")
     action_fmt: TrRef[dict[str, object]] = TrRef("action: {value}")
     right_click_hint: TrRef[None] = TrRef("Right-click a bubble for its menu; hover for quick actions.")
+    rich_text_title: TrRef[None] = TrRef("RichText editor")
+    rich_text_blurb: TrRef[None] = TrRef(
+        "Inline contenteditable editor: type text, insert images at the caret, "
+        "delete images with Backspace/Delete, and read ordered segments via "
+        "content(). Enter fires submit; IME composition is preserved."
+    )
+    scroll_title: TrRef[None] = TrRef("ScrollArea & StickToBottom")
+    scroll_blurb: TrRef[None] = TrRef(
+        "Scrollable regions with a pure Python scroll API. StickToBottom "
+        "auto-pins while the user is near the bottom; scrolling up pauses "
+        "the pin and scrolling back resumes it."
+    )
 
 
 class System(BaseModel):
@@ -1046,6 +1058,17 @@ register_catalog(
             menu_fmt="菜单：{value}",
             action_fmt="操作：{value}",
             right_click_hint="右键气泡打开菜单；悬停查看快捷操作。",
+            rich_text_title="富文本编辑器",
+            rich_text_blurb=(
+                "行内 contenteditable 编辑器：输入文字、在光标处插入图片、"
+                "用 Backspace/Delete 删除图片，并用 content() 读取有序分段。"
+                "Enter 触发 submit；中文输入法组合过程不会被 patch 打断。"
+            ),
+            scroll_title="滚动区与贴底容器",
+            scroll_blurb=(
+                "纯 Python 滚动 API 的可滚动区域。StickToBottom 在用户接近底部时自动贴底；"
+                "向上滚动暂停贴底，回到接近底部时恢复。"
+            ),
         ),
         system=System(
             animations_title="动画",

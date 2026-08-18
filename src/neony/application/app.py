@@ -89,6 +89,7 @@ class NeonApplication(Generic[_S]):
             self._registered.append(set())
             self._collect_handlers(neony, tree, idx, self._registered[idx])
             self._arm_render_request(tree, idx)
+            self._arm_eval_js_request(tree, idx)
         # Linux: taskbar/dock shows the app name, not ``python3``.
         _set_linux_app_name(self.config.window.title)
         self._lumiview_app = App(name=self.config.window.title.replace(" ", ""))
@@ -568,6 +569,23 @@ class NeonApplication(Generic[_S]):
             self._render_tasks.add(asyncio.create_task(self.render(window_index=idx)))
 
         tree._render_request = request
+
+    def _arm_eval_js_request(self, tree: DOMElement, idx: int) -> None:
+        """Wire the tree root so components can run internal JS commands
+        (scroll, caret, editor content) without holding a window reference.
+
+        The request callback returns the window's ``eval_js`` coroutine;
+        components either await it for a value or schedule it as a
+        fire-and-forget task for commands without a result.
+        """
+
+        async def request(script: str) -> Any:
+            entry = self._entries[idx]
+            if entry.window is None:
+                return None
+            return _js_result_value(await entry.window.eval_js(script))
+
+        tree._eval_js_request = request
 
     def _collect_handlers(
         self, neony: Neony, element: DOMElement, idx: int, registered: set[tuple[str, str]] | None = None

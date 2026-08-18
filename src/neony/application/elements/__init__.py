@@ -27,6 +27,8 @@ from neony.application.elements.progress import Progress
 from neony.application.elements.prompt_dialog import PromptDialog
 from neony.application.elements.radio import Radio, RadioGroup
 from neony.application.elements.reorder import Reorder, ReorderContent, ReorderItem
+from neony.application.elements.rich_text import ImageSegment, RichText, TextSegment
+from neony.application.elements.scroll import ScrollArea, StickToBottom
 from neony.application.elements.select import Select
 from neony.application.elements.sidebar import Pane, Sidebar, SidebarGroup, SidebarItem
 from neony.application.elements.slider import Slider
@@ -59,6 +61,7 @@ __all__ = [
     "Heading",
     "Icon",
     "Image",
+    "ImageSegment",
     "Input",
     "List",
     "ListItem",
@@ -73,6 +76,8 @@ __all__ = [
     "Reorder",
     "ReorderContent",
     "ReorderItem",
+    "RichText",
+    "ScrollArea",
     "Select",
     "Separator",
     "Sidebar",
@@ -80,9 +85,11 @@ __all__ = [
     "SidebarItem",
     "Slider",
     "Spacer",
+    "StickToBottom",
     "Switch",
     "Tabs",
     "Text",
+    "TextSegment",
     "TitleBar",
     "Toast",
     "Tooltip",
