@@ -3,13 +3,28 @@
 import pytest
 from pydantic import ValidationError
 
-from neony.application import DARK, DEEP_BLUE, LIGHT, Page, Theme
+from neony.application import (
+    AURORA_GLASS_DARK,
+    AURORA_GLASS_LIGHT,
+    DARK,
+    DEEP_BLUE,
+    LIGHT,
+    NEON_MICA_DARK,
+    NEON_MICA_LIGHT,
+    QUIET_GRAPHITE_DARK,
+    QUIET_GRAPHITE_LIGHT,
+    TERMINAL_EMBER_DARK,
+    TERMINAL_EMBER_LIGHT,
+    Page,
+    Theme,
+)
 from neony.application.elements import (
     Accordion,
     Avatar,
     Badge,
     Button,
     Card,
+    CascadingDropdown,
     Checkbox,
     Collapsible,
     Column,
@@ -23,6 +38,7 @@ from neony.application.elements import (
     List,
     ListItem,
     Menu,
+    MenuBranch,
     MessageBubble,
     NoticeBubble,
     Pane,
@@ -774,11 +790,22 @@ class TestPageAndTheme:
 
     def test_theme_modes_cycle_order(self):
         # next() is parameter-less and resolves the next preset via the registry.
-        assert DARK.next() is LIGHT
-        assert LIGHT.next() is DEEP_BLUE
-        assert DEEP_BLUE.next() is DARK
-        # Built-ins register in insertion order.
-        assert Theme.modes() == ("dark", "light", "deep-blue")
+        assert DARK.next() is QUIET_GRAPHITE_LIGHT
+        assert QUIET_GRAPHITE_LIGHT.next() is AURORA_GLASS_DARK
+        assert AURORA_GLASS_DARK.next() is AURORA_GLASS_LIGHT
+        assert AURORA_GLASS_LIGHT.next() is TERMINAL_EMBER_DARK
+        assert TERMINAL_EMBER_LIGHT.next() is NEON_MICA_DARK
+        assert NEON_MICA_LIGHT.next() is DARK
+        assert Theme.modes() == (
+            "quiet-graphite-dark",
+            "quiet-graphite-light",
+            "aurora-glass-dark",
+            "aurora-glass-light",
+            "terminal-ember-dark",
+            "terminal-ember-light",
+            "neon-mica-dark",
+            "neon-mica-light",
+        )
 
     def test_theme_modes_not_serialized(self):
         # modes() is a classmethod (not a model field) and must never leak
@@ -787,23 +814,42 @@ class TestPageAndTheme:
         assert "--color-registry" not in DARK.to_css()
 
     def test_theme_mode_label(self):
-        assert Theme.mode_label("dark") == "Light mode"
-        assert Theme.mode_label("light") == "Deep Blue mode"
-        assert Theme.mode_label("deep-blue") == "Dark mode"
+        assert Theme.mode_label("quiet-graphite-dark") == "Quiet Graphite Light mode"
+        assert Theme.mode_label("quiet-graphite-light") == "Aurora Glass Dark mode"
+        assert Theme.mode_label("neon-mica-light") == "Quiet Graphite Dark mode"
         with pytest.raises(ValueError):
             Theme.mode_label("sepia")
 
     def test_theme_registry_lookup(self):
-        assert Theme.get("dark") is DARK
-        assert Theme.get("light") is LIGHT
-        assert Theme.get("deep-blue") is DEEP_BLUE
+        assert Theme.get("quiet-graphite-dark") is DARK
+        assert Theme.get("quiet-graphite-light") is LIGHT
+        assert Theme.get("aurora-glass-dark") is DEEP_BLUE
+        assert Theme.get("terminal-ember-dark") is TERMINAL_EMBER_DARK
+        assert Theme.get("neon-mica-light") is NEON_MICA_LIGHT
+        with pytest.raises(KeyError):
+            Theme.get("paper-signal-dark")
         with pytest.raises(KeyError):
             Theme.get("nonexistent")
 
     def test_theme_on_tokens_radiate(self):
-        for preset in (DARK, LIGHT, DEEP_BLUE):
-            assert "--color-on-accent: #ffffff" in preset.to_css()
+        presets = (
+            QUIET_GRAPHITE_DARK,
+            QUIET_GRAPHITE_LIGHT,
+            AURORA_GLASS_DARK,
+            AURORA_GLASS_LIGHT,
+            TERMINAL_EMBER_DARK,
+            TERMINAL_EMBER_LIGHT,
+            NEON_MICA_DARK,
+            NEON_MICA_LIGHT,
+        )
+        for preset in presets:
             assert "--color-on-danger: #ffffff" in preset.to_css()
+            assert "--color-accent:" in preset.to_css()
+
+    def test_theme_families_have_light_and_dark_pairs(self):
+        for family in ("quiet-graphite", "aurora-glass", "terminal-ember", "neon-mica"):
+            assert Theme.get(f"{family}-dark").mode == f"{family}-dark"
+            assert Theme.get(f"{family}-light").mode == f"{family}-light"
 
     def test_theme_immutable(self):
         with pytest.raises(ValidationError):
@@ -2285,6 +2331,7 @@ class TestPromptDialogBuild:
         assert pd.value == "Ada"
         # Panel children: header + content (with field) + action bar.
         assert len(pd._panel.container) == 3
+        assert pd._panel.styles.overflow == "visible"
 
     def test_value_setter_writes_field(self):
         pd = PromptDialog("Name?")
@@ -2475,7 +2522,7 @@ class TestDropdownBuild:
         assert trigger.attrs["tabindex"] == "0"
         assert trigger.attrs["role"] == "combobox"
         assert popup.styles["display"] == "none"
-        assert popup.styles["z-index"] == "500"
+        assert popup.styles["z-index"] == "1100"
         assert [_subtree_text(row) for row in popup.children] == ["Small", "Medium"]
         assert [row.attrs["role"] for row in popup.children] == ["option", "option"]
 
@@ -2612,6 +2659,18 @@ class TestMenuBuild:
         assert [_subtree_text(row) for row in node.children] == ["Action A", "Action B"]
         assert node.children[0].attrs["role"] == "menuitem"
 
+    def test_branch_builds_nested_menu(self):
+        menu = Menu(MenuBranch("Themes", [("dark", "Dark"), ("light", "Light")]))
+        node = menu.build().to_node()
+        assert len(menu._branches) == 1
+        branch = next(iter(menu._branches.values()))
+        assert branch._parent is menu
+        assert branch._root.styles.position == "absolute"
+        assert branch._root.styles.z_index == 700
+        assert branch._root.styles.overflow == "visible"
+        assert node.children[0].attrs["data-neony-cascade-row"] == "true"
+        assert node.children[0].children[0].attrs["role"] == "menuitem"
+
 
 class TestMenuEvents:
     def test_open_at_positions_and_opens(self):
@@ -2658,6 +2717,16 @@ class TestMenuEvents:
         assert fired == ["b"]
         assert menu._open is False
 
+    def test_hover_applies_and_clears_row_style(self):
+        import asyncio
+
+        menu = Menu("a", "b")
+        row = menu._rows[1][1]
+        asyncio.run(row._handlers["mouseover"][0](DomEvent(key=row.key, type="mouseover")))
+        assert str(row.styles.background_color) == "var(--color-surface-glass-bg)"
+        asyncio.run(row._handlers["mouseout"][0](DomEvent(key=row.key, type="mouseout")))
+        assert str(row.styles.background_color) == "transparent"
+
     def test_keyboard_navigation(self):
         import asyncio
 
@@ -2675,6 +2744,40 @@ class TestMenuEvents:
         asyncio.run(key("Escape"))
         assert menu._open is False
 
+    def test_sibling_branches_are_mutually_exclusive(self):
+        import asyncio
+
+        menu = Menu(
+            MenuBranch("Themes", [("dark", "Dark")]),
+            MenuBranch("Languages", [("en", "English")]),
+        )
+        menu.open_at(0, 0)
+        first_key = menu._rows[0][1].key
+        second_key = menu._rows[1][1].key
+        asyncio.run(menu._rows[0][1]._handlers["mouseover"][0](DomEvent(key=first_key, type="mouseover")))
+        first = menu._branches[first_key]
+        asyncio.run(menu._rows[1][1]._handlers["mouseover"][0](DomEvent(key=second_key, type="mouseover")))
+        second = menu._branches[second_key]
+        assert first._open is False
+        assert second._open is True
+
+    def test_branch_hover_opens_and_leaf_click_closes_tree(self):
+        import asyncio
+
+        menu = Menu(MenuBranch("Themes", [("dark", "Dark"), ("light", "Light")]))
+        menu.open_at(0, 0)
+        branch_key = menu._rows[0][1].key
+        asyncio.run(menu._rows[0][1]._handlers["mouseover"][0](DomEvent(key=branch_key, type="mouseover")))
+        branch = menu._branches[branch_key]
+        assert branch._open is True
+        fired: list[str] = []
+        menu.on_change(lambda event: fired.append(event.value))
+        leaf = branch._rows[1][1]
+        asyncio.run(leaf._handlers["click"][0](DomEvent(key=leaf.key, type="click")))
+        assert fired == ["light"]
+        assert menu._open is False
+        assert branch._open is False
+
     def test_outsideclick_closes(self):
         import asyncio
 
@@ -2682,6 +2785,53 @@ class TestMenuEvents:
         menu.open_at(0, 0)
         asyncio.run(menu._root._handlers["outsideclick"][0](DomEvent(key=menu._root.key, type="outsideclick")))
         assert menu._open is False
+
+
+class TestCascadingDropdown:
+    def test_builds_fixed_trigger_and_nested_popup(self):
+        picker = CascadingDropdown(
+            "Theme",
+            items=[MenuBranch("Graphite", [("dark", "Dark"), ("light", "Light")])],
+        )
+        node = picker.build().to_node()
+        assert node.children[0].attrs["role"] == "combobox"
+        assert node.children[0].attrs["aria-haspopup"] == "menu"
+        assert picker._menu._root.styles.position == "absolute"
+        assert picker._menu._root.styles.z_index == 1100
+        assert picker._menu._root.styles.overflow == "visible"
+        assert len(picker._menu._branches) == 1
+
+    def test_sibling_branches_are_mutually_exclusive(self):
+        import asyncio
+
+        picker = CascadingDropdown(
+            "Theme",
+            items=[
+                MenuBranch("Graphite", [("graphite-dark", "Dark")]),
+                MenuBranch("Aurora", [("aurora-dark", "Dark")]),
+            ],
+        )
+        first_key, second_key = [row.key for _value, row in picker._menu._rows]
+        asyncio.run(picker._menu._rows[0][1]._handlers["mouseover"][0](DomEvent(key=first_key, type="mouseover")))
+        first = picker._menu._branches[first_key]
+        asyncio.run(picker._menu._rows[1][1]._handlers["mouseover"][0](DomEvent(key=second_key, type="mouseover")))
+        second = picker._menu._branches[second_key]
+        assert first._open is False
+        assert second._open is True
+
+    def test_leaf_selection_updates_value_and_dispatches(self):
+        import asyncio
+
+        picker = CascadingDropdown(
+            "Theme",
+            items=[MenuBranch("Graphite", [("dark", "Dark"), ("light", "Light")])],
+        )
+        picked: list[str] = []
+        picker.on_change(lambda event: picked.append(event.value))
+        leaf = next(iter(picker._menu._branches.values()))._rows[1][1]
+        asyncio.run(leaf._handlers["click"][0](DomEvent(key=leaf.key, type="click")))
+        assert picker.value == "light"
+        assert picked == ["light"]
 
 
 class TestImageBuild:

@@ -23,10 +23,21 @@ from neony.application import (
     WindowConfig,
     set_language,
 )
-from neony.application.elements import Button, Component, Dropdown, Heading, HStack, Separator, Spacer, Text, VStack
+from neony.application.elements import (
+    CascadingDropdown,
+    Component,
+    Dropdown,
+    Heading,
+    HStack,
+    MenuBranch,
+    Separator,
+    Spacer,
+    Text,
+    VStack,
+)
 from neony.application.elements.base import ReactiveText
-from neony.application.theme import stub
-from neony.dom import Computed, Div, DOMElement, DomEvent, Signal, Styles
+from neony.application.theme import Theme, stub
+from neony.dom import Div, DOMElement, DomEvent, Signal, Styles
 
 app = NeonApplication(
     Config(
@@ -127,27 +138,25 @@ def Mono(size: str = "13px") -> Div:
 # The active theme-mode rides a Signal so the theme button's label is a
 # live binding (a plain imperative set would overwrite the reactive text
 # and freeze the label on the startup language).
-theme_mode = Signal("light")
+theme_mode = Signal(app.theme.mode)
+_THEME_GROUPS = (
+    MenuBranch("Quiet Graphite", [("quiet-graphite-dark", "Dark"), ("quiet-graphite-light", "Light")]),
+    MenuBranch("Aurora Glass", [("aurora-glass-dark", "Dark"), ("aurora-glass-light", "Light")]),
+    MenuBranch("Terminal Ember", [("terminal-ember-dark", "Dark"), ("terminal-ember-light", "Light")]),
+    MenuBranch("Neon Mica", [("neon-mica-dark", "Dark"), ("neon-mica-light", "Light")]),
+)
+
+theme_picker = CascadingDropdown("Theme", items=_THEME_GROUPS, width="220px", glass=True)
+theme_picker.value = app.theme.mode
 
 
-def _mode_label_ref(mode: str) -> Computed[str]:
-    if mode == "light":
-        return tr.shell.light_mode
-    if mode == "dark":
-        return tr.shell.dark_mode
-    return tr.shell.deep_blue_mode
+async def on_theme_change(event: DomEvent) -> None:
+    theme = Theme.get(event.value)
+    await app.set_theme(theme)
+    theme_mode.set(theme.mode)
 
 
-theme_btn = Button(Computed(lambda: _mode_label_ref(theme_mode())()), variant="ghost")
-
-
-async def on_theme_click(_event: DomEvent) -> None:
-    nxt = app.theme.next()
-    await app.set_theme(nxt)
-    theme_mode.set(nxt.mode)
-
-
-theme_btn.on_click(on_theme_click)
+theme_picker.on_change(on_theme_change)
 
 # Language switcher — endonym items (each language shown in its own
 # name), so the picker is readable in any active language.
@@ -175,7 +184,7 @@ lang_dropdown.on_change(on_language_change)
 header = VStack(
     Heading(tr.shell.h1, level=1),
     Text(tr.shell.tagline, role="secondary"),
-    HStack(Spacer(), lang_dropdown, theme_btn, gap="8px"),
+    HStack(Spacer(), lang_dropdown, theme_picker, gap="8px"),
     Separator(),
     gap="12px",
 )

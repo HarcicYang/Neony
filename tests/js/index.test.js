@@ -53,6 +53,56 @@ describe("event delegation", () => {
     window.lumiview = { listen, invoke, window: win };
   });
 
+  it("positions cascade submenus on the side with viewport room", () => {
+    mountTree({
+      key: "cascade-row",
+      tag: "div",
+      attrs: { "data-neony-cascade-row": "true" },
+      children: [
+        { key: "cascade-trigger", tag: "button", text: "Theme" },
+        { key: "cascade-submenu", tag: "div", styles: { display: "none" } },
+      ],
+    });
+    const row = document.querySelector("[data-neony-key='cascade-row']");
+    const trigger = document.querySelector("[data-neony-key='cascade-trigger']");
+    const submenu = document.querySelector("[data-neony-key='cascade-submenu']");
+    row.getBoundingClientRect = () => ({ left: 900, right: 1060, top: 700, width: 160, height: 32 });
+    submenu.getBoundingClientRect = () => ({ left: 1064, right: 1264, top: 700, width: 200, height: 180 });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1100 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+
+    trigger.dispatchEvent(new window.MouseEvent("mouseover", { bubbles: true }));
+
+    expect(submenu.style.left).toBe("auto");
+    expect(submenu.style.right).toBe("calc(100% + 4px)");
+    expect(submenu.style.top).toBe("-84px");
+  });
+
+  it("keeps cascade submenus on the right when there is room", () => {
+    mountTree({
+      key: "cascade-row-right",
+      tag: "div",
+      attrs: { "data-neony-cascade-row": "true" },
+      children: [
+        { key: "cascade-trigger-right", tag: "button", text: "Theme" },
+        { key: "cascade-submenu-right", tag: "div", styles: { display: "none" } },
+      ],
+    });
+    const row = document.querySelector("[data-neony-key='cascade-row-right']");
+    const trigger = document.querySelector("[data-neony-key='cascade-trigger-right']");
+    const submenu = document.querySelector("[data-neony-key='cascade-submenu-right']");
+    row.getBoundingClientRect = () => ({ left: 100, right: 260, top: 100, width: 160, height: 32 });
+    submenu.getBoundingClientRect = () => ({ left: 264, right: 464, top: 100, width: 200, height: 180 });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1100 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+
+    trigger.dispatchEvent(new window.MouseEvent("mouseover", { bubbles: true }));
+
+    expect(submenu.style.left).toBe("calc(100% + 4px)");
+    expect(submenu.style.right).toBe("auto");
+    expect(submenu.style.top).toBe("0px");
+  });
+
   it("forwards click events with key, type, and null value", () => {
     mountTree({ key: "btn", tag: "button", text: "click me" });
     const el = document.querySelector("[data-neony-key='btn']");

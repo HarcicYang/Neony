@@ -59,7 +59,8 @@ _PANEL = Styles(
     position="absolute",
     top="calc(100% + 6px)",
     left="0",
-    z_index="500",
+    # Must sit above Dialog's panel content when mounted inside PromptDialog.
+    z_index="1100",
     display="none",
     flex_direction="column",
     padding="6px",

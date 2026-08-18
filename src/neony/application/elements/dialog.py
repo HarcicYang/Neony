@@ -101,7 +101,8 @@ _GLASS_PANEL = Styles(
     z_index="1",
     max_width="90%",
     max_height="90%",
-    overflow="auto",
+    # Popups such as Dropdown must escape the panel's content box.
+    overflow="visible",
     padding="20px",
     border_radius="12px",
     background_color=stub.surface_panel_glass_bg,

@@ -23,15 +23,36 @@ from neony.application.i18n import (
     tr_now,
 )
 from neony.application.page import Page
-from neony.application.theme import DARK, DEEP_BLUE, LIGHT, Theme
+from neony.application.theme import (
+    AURORA_GLASS_DARK,
+    AURORA_GLASS_LIGHT,
+    DARK,
+    DEEP_BLUE,
+    LIGHT,
+    NEON_MICA_DARK,
+    NEON_MICA_LIGHT,
+    QUIET_GRAPHITE_DARK,
+    QUIET_GRAPHITE_LIGHT,
+    TERMINAL_EMBER_DARK,
+    TERMINAL_EMBER_LIGHT,
+    Theme,
+)
 from neony.application.tray import Tray, TrayItem
 from neony.application.urls import data_url, file_url
 
 __all__ = [
+    "AURORA_GLASS_DARK",
+    "AURORA_GLASS_LIGHT",
     "DARK",
     "DEEP_BLUE",
     "LANGUAGES",
     "LIGHT",
+    "NEON_MICA_DARK",
+    "NEON_MICA_LIGHT",
+    "QUIET_GRAPHITE_DARK",
+    "QUIET_GRAPHITE_LIGHT",
+    "TERMINAL_EMBER_DARK",
+    "TERMINAL_EMBER_LIGHT",
     "Catalog",
     "Common",
     "Config",

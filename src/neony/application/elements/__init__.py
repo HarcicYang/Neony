@@ -10,6 +10,7 @@ from neony.application.elements.badge import Badge
 from neony.application.elements.base import Component
 from neony.application.elements.button import Button
 from neony.application.elements.card import Card
+from neony.application.elements.cascading_dropdown import CascadingDropdown
 from neony.application.elements.chat import MessageBubble, NoticeBubble
 from neony.application.elements.checkbox import Checkbox
 from neony.application.elements.combobox import ComboBox
@@ -22,7 +23,7 @@ from neony.application.elements.image import Image
 from neony.application.elements.input import Input
 from neony.application.elements.layout import Flex, GlassPanel, HStack, Separator, Spacer, VStack
 from neony.application.elements.list import List, ListItem
-from neony.application.elements.menu import Menu
+from neony.application.elements.menu import Menu, MenuBranch
 from neony.application.elements.progress import Progress
 from neony.application.elements.prompt_dialog import PromptDialog
 from neony.application.elements.radio import Radio, RadioGroup
@@ -46,6 +47,7 @@ __all__ = [
     "Badge",
     "Button",
     "Card",
+    "CascadingDropdown",
     "Checkbox",
     "Collapsible",
     "Column",
@@ -66,6 +68,7 @@ __all__ = [
     "List",
     "ListItem",
     "Menu",
+    "MenuBranch",
     "MessageBubble",
     "NoticeBubble",
     "Pane",

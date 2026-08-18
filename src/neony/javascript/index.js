@@ -784,7 +784,51 @@
         }
     }
 
+    function positionCascadeSubmenu(event) {
+        if (event.type !== "mouseover" || !event.target.closest) return;
+        var row = event.target.closest('[data-neony-cascade-row="true"]');
+        if (!row) return;
+        var submenu = null;
+        for (var i = 0; i < row.children.length; i++) {
+            var child = row.children[i];
+            if (child.matches && child.matches('[role="menu"]')) {
+                submenu = child;
+                break;
+            }
+        }
+        // Menu panels are generic divs today; use the second keyed child as
+        // the submenu while keeping the role lookup ready for richer ARIA.
+        if (!submenu && row.children.length > 1) submenu = row.children[1];
+        if (!submenu || !submenu.getBoundingClientRect) return;
+
+        // Measure the hidden panel without flashing it. Its normal open state
+        // is applied by Python immediately after this delegated hover event.
+        var oldDisplay = submenu.style.display;
+        var oldVisibility = submenu.style.visibility;
+        submenu.style.display = "flex";
+        submenu.style.visibility = "hidden";
+        submenu.style.left = "calc(100% + 4px)";
+        submenu.style.right = "auto";
+        submenu.style.top = "0px";
+        var rowRect = row.getBoundingClientRect();
+        var menuRect = submenu.getBoundingClientRect();
+        var gap = 4;
+        var roomRight = window.innerWidth - rowRect.right;
+        var roomLeft = rowRect.left;
+        if (roomRight < menuRect.width + gap && roomLeft >= menuRect.width + gap) {
+            submenu.style.left = "auto";
+            submenu.style.right = "calc(100% + 4px)";
+        }
+        var projectedBottom = rowRect.top + menuRect.height;
+        if (projectedBottom > window.innerHeight - gap) {
+            submenu.style.top = Math.min(0, window.innerHeight - gap - projectedBottom) + "px";
+        }
+        submenu.style.visibility = oldVisibility;
+        submenu.style.display = oldDisplay;
+    }
+
     function eventHandler(event) {
+        positionCascadeSubmenu(event);
         var el = event.target.closest ? event.target.closest("[data-neony-key]") : null;
         // Keys typed while no element is focused land on <body> — no
         // data-neony-key ancestor to trace to.  Window-level key
