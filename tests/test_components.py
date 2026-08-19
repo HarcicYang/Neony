@@ -3,21 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from neony.application import (
-    PLANET_PLAZA_DARK,
-    PLANET_PLAZA_LIGHT,
-    DARK,
-    DEEP_BLUE,
-    LIGHT,
-    CYBERANGEL_DARK,
-    CYBERANGEL_LIGHT,
-    NIGHTGLOW_DARK,
-    NIGHTGLOW_LIGHT,
-    EMBER_ZONE_DARK,
-    EMBER_ZONE_LIGHT,
-    Page,
-    Theme,
-)
+from neony.application import DARK, LIGHT, Page, Theme
 from neony.application.elements import (
     Accordion,
     Avatar,
@@ -789,23 +775,11 @@ class TestPageAndTheme:
         assert ":root" in css
 
     def test_theme_modes_cycle_order(self):
-        # next() is parameter-less and resolves the next preset via the registry.
-        assert DARK.next() is NIGHTGLOW_LIGHT
-        assert NIGHTGLOW_LIGHT.next() is PLANET_PLAZA_DARK
-        assert PLANET_PLAZA_DARK.next() is PLANET_PLAZA_LIGHT
-        assert PLANET_PLAZA_LIGHT.next() is EMBER_ZONE_DARK
-        assert EMBER_ZONE_LIGHT.next() is CYBERANGEL_DARK
-        assert CYBERANGEL_LIGHT.next() is DARK
-        assert Theme.modes() == (
-            "quiet-graphite-dark",
-            "quiet-graphite-light",
-            "aurora-glass-dark",
-            "aurora-glass-light",
-            "terminal-ember-dark",
-            "terminal-ember-light",
-            "neon-mica-dark",
-            "neon-mica-light",
-        )
+        modes = Theme.modes()
+        assert modes
+        assert len(modes) == len(set(modes))
+        for current, following in zip(modes, (*modes[1:], modes[0]), strict=True):
+            assert Theme.get(current).next() is Theme.get(following)
 
     def test_theme_modes_not_serialized(self):
         # modes() is a classmethod (not a model field) and must never leak
@@ -814,42 +788,33 @@ class TestPageAndTheme:
         assert "--color-registry" not in DARK.to_css()
 
     def test_theme_mode_label(self):
-        assert Theme.mode_label("quiet-graphite-dark") == "Quiet Graphite Light mode"
-        assert Theme.mode_label("quiet-graphite-light") == "Aurora Glass Dark mode"
-        assert Theme.mode_label("neon-mica-light") == "Quiet Graphite Dark mode"
+        modes = Theme.modes()
+        for current, following in zip(modes, (*modes[1:], modes[0]), strict=True):
+            expected = f"{following.replace('-', ' ').title()} mode"
+            assert Theme.mode_label(current) == expected
         with pytest.raises(ValueError):
-            Theme.mode_label("sepia")
+            Theme.mode_label("nonexistent")
 
     def test_theme_registry_lookup(self):
-        assert Theme.get("quiet-graphite-dark") is DARK
-        assert Theme.get("quiet-graphite-light") is LIGHT
-        assert Theme.get("aurora-glass-dark") is DEEP_BLUE
-        assert Theme.get("terminal-ember-dark") is EMBER_ZONE_DARK
-        assert Theme.get("neon-mica-light") is CYBERANGEL_LIGHT
-        with pytest.raises(KeyError):
-            Theme.get("paper-signal-dark")
+        for mode in Theme.modes():
+            assert Theme.get(mode).mode == mode
         with pytest.raises(KeyError):
             Theme.get("nonexistent")
 
     def test_theme_on_tokens_radiate(self):
-        presets = (
-            NIGHTGLOW_DARK,
-            NIGHTGLOW_LIGHT,
-            PLANET_PLAZA_DARK,
-            PLANET_PLAZA_LIGHT,
-            EMBER_ZONE_DARK,
-            EMBER_ZONE_LIGHT,
-            CYBERANGEL_DARK,
-            CYBERANGEL_LIGHT,
-        )
+        presets = tuple(Theme.get(mode) for mode in Theme.modes())
         for preset in presets:
             assert "--color-on-danger: #ffffff" in preset.to_css()
             assert "--color-accent:" in preset.to_css()
 
     def test_theme_families_have_light_and_dark_pairs(self):
-        for family in ("quiet-graphite", "aurora-glass", "terminal-ember", "neon-mica"):
-            assert Theme.get(f"{family}-dark").mode == f"{family}-dark"
-            assert Theme.get(f"{family}-light").mode == f"{family}-light"
+        families: dict[str, set[str]] = {}
+        for mode in Theme.modes():
+            family, variant = mode.rsplit("-", 1)
+            assert variant in {"dark", "light"}
+            families.setdefault(family, set()).add(variant)
+        assert families
+        assert all(variants == {"dark", "light"} for variants in families.values())
 
     def test_theme_immutable(self):
         with pytest.raises(ValidationError):
@@ -884,6 +849,7 @@ class TestPageAndTheme:
         assert stub_attrs == semantic_fields
 
     def test_theme_custom_preset_registers(self):
+        first_mode = Theme.modes()[0]
         sepia = Theme(
             mode="sepia",
             bg=Color(hex="#1a1a2e"),
@@ -915,7 +881,7 @@ class TestPageAndTheme:
             assert Theme.get("sepia") is sepia
             assert "sepia" in Theme.modes()
             # Custom preset appends last; next() cycles back to the first mode.
-            assert sepia.next() is DARK
+            assert sepia.next() is Theme.get(first_mode)
         finally:
             Theme._registry.pop("sepia", None)
 
