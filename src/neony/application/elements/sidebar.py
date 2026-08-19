@@ -17,9 +17,9 @@ from typing import Any, Self
 from pydantic import BaseModel, ConfigDict
 
 from neony.application.theme import stub
-from neony.dom import Border, Color, Div, DOMElement, DomEvent, Filter, Span, Styles, Transition
+from neony.dom import Border, Color, Div, DOMElement, DomEvent, Filter, Span, Styles
 
-from .. import shortcuts
+from .. import motion, shortcuts
 from ._panels import _PanelHost
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
@@ -38,7 +38,7 @@ _ITEM_BASE = Styles(
     # Always-present left border avoids a layout shift on activation.
     border_left=Border(width="3px", color=Color(name="transparent")),
     # Smooth the active/inactive background + border-color switch.
-    transition=Transition(duration="0.15s", timing="ease"),
+    transition=motion.transition(duration=motion.stub.fast),
 )
 
 _ITEM_ACTIVE = _ITEM_BASE.model_copy(

@@ -25,6 +25,7 @@ from neony.application._helpers import (
     _set_linux_app_name,
 )
 from neony.application.config import Config
+from neony.application.motion import DEFAULT as DEFAULT_MOTION
 from neony.application.page import Page
 from neony.application.theme import DARK, Theme
 from neony.application.tray import Tray
@@ -361,7 +362,7 @@ class NeonApplication(Generic[_S]):
     async def _inject_theme(self, entry: _Entry) -> None:
         """Inject theme CSS variables into one window's page."""
         assert entry.window is not None
-        css = self.theme.to_css()
+        css = self.theme.to_css() + " " + DEFAULT_MOTION.to_css()
         # NOTE: ``})()`` closes the IIFE — a stray brace makes the whole
         # script a SyntaxError.
         # Transparent windows keep the body transparent so the native

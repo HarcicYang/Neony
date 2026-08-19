@@ -29,8 +29,9 @@ from __future__ import annotations
 from typing import Self
 
 from neony.application.theme import stub
-from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles, Transition
+from neony.dom import Color, Div, DOMElement, DomEvent, Span, Styles
 
+from .. import motion
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
@@ -48,7 +49,7 @@ _ROW_BASE = Styles(
     overflow="hidden",
     text_overflow="ellipsis",
     user_select="none",
-    transition=Transition(property="background-color", duration="0.15s", timing="ease"),
+    transition=motion.transition("background-color", duration=motion.stub.fast),
 )
 
 _ROW_VIRTUAL = _ROW_BASE.model_copy(

@@ -146,7 +146,7 @@ _THEME_GROUPS = (
     MenuBranch("Neon Mica", [("neon-mica-dark", "Dark"), ("neon-mica-light", "Light")]),
 )
 
-theme_picker = CascadingDropdown("Theme", items=_THEME_GROUPS, width="220px", glass=True)
+theme_picker = CascadingDropdown("Theme", items=_THEME_GROUPS, width="220px")
 theme_picker.value = app.theme.mode
 
 

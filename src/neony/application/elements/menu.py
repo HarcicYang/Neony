@@ -16,12 +16,12 @@ from neony.dom import (
     Shadow,
     Span,
     Styles,
-    Transition,
     calc,
     px,
 )
 from neony.dom import Button as _ButtonElem
 
+from .. import motion
 from .base import Component, ReactiveText, _mount_text
 
 
@@ -52,7 +52,10 @@ _PANEL = Styles(
     box_shadow=BoxShadow(layers=[Shadow(x=0, y=8, blur=32, color=stub.shadow)]),
 )
 _PANEL_OPEN = _PANEL.model_copy(
-    update={"display": "flex", "animation": Animation(name="neony-rise-in", duration="0.15s", timing="ease-out")}
+    update={
+        "display": "flex",
+        "animation": Animation(name="neony-rise-in", duration=motion.stub.fast, timing=motion.stub.ease_enter),
+    }
 )
 _SUBMENU = _PANEL.model_copy(
     update={
@@ -64,15 +67,18 @@ _SUBMENU = _PANEL.model_copy(
     }
 )
 _SUBMENU_OPEN = _SUBMENU.model_copy(
-    update={"display": "flex", "animation": Animation(name="neony-rise-in", duration="0.15s", timing="ease-out")}
+    update={
+        "display": "flex",
+        "animation": Animation(name="neony-rise-in", duration=motion.stub.fast, timing=motion.stub.ease_enter),
+    }
 )
 
 _OPTION = Styles(
     display="flex",
     align_items="center",
     justify_content="space-between",
-    gap="16px",
-    padding="8px 12px",
+    gap="8px",
+    padding="8px 10px",
     border_radius="6px",
     border="none",
     background_color=Color(name="transparent"),
@@ -80,11 +86,19 @@ _OPTION = Styles(
     font_size="14px",
     text_align="left",
     cursor="pointer",
-    transition=Transition(duration="0.15s", timing="ease"),
+    transition=motion.transition(duration=motion.stub.fast),
 )
 _OPTION_ACTIVE = _OPTION.model_copy(update={"background_color": stub.accent_glass_bg})
 _OPTION_HOVER = _OPTION.model_copy(update={"background_color": stub.surface_glass_bg})
 _ROW_WRAP = Styles(position="relative", display="flex", width="100%")
+_BRANCH_CHEVRON = Styles(
+    margin_left="auto",
+    color=stub.text_secondary,
+    font_size="11px",
+    line_height="1",
+    transition=motion.transition("transform", duration=motion.stub.fast),
+)
+_BRANCH_CHEVRON_OPEN = _BRANCH_CHEVRON.model_copy(update={"transform": "rotate(90deg)"})
 
 
 class Menu(Component):
@@ -104,6 +118,7 @@ class Menu(Component):
         self._rows: list[tuple[str, _ButtonElem]] = []
         self._row_by_key: dict[str, str] = {}
         self._branches: dict[str, Menu] = {}
+        self._branch_chevrons: dict[str, Span] = {}
         self._hovered: set[int] = set()
         self._active_index = -1
         self._open = False
@@ -143,6 +158,8 @@ class Menu(Component):
         if not self._open:
             return
         self._open = False
+        if self._parent is not None:
+            self._parent._set_branch_chevron(self, False)
         self._root.styles = _SUBMENU if self._submenu else _PANEL
         self._root.args = {k: v for k, v in self._root.args.items() if k != "data-neony-outside"}
 
@@ -151,6 +168,14 @@ class Menu(Component):
             self._parent._close_sibling_branches(self)
         self._root.styles = _SUBMENU_OPEN
         self._open = True
+        if self._parent is not None:
+            self._parent._set_branch_chevron(self, True)
+
+    def _set_branch_chevron(self, branch: Menu, open: bool) -> None:
+        for row_key, candidate in self._branches.items():
+            if candidate is branch:
+                self._branch_chevrons[row_key].styles = _BRANCH_CHEVRON_OPEN if open else _BRANCH_CHEVRON
+                return
 
     def _close_sibling_branches(self, keep: Menu) -> None:
         """Keep one child branch open at each menu level."""
@@ -172,8 +197,10 @@ class Menu(Component):
         label_span = Span(container=[])
         _mount_text(label_span, label)
         children = [label_span]
+        branch_chevron: Span | None = None
         if branch is not None:
-            children.append(Span(container=[">"], styles=Styles(color=stub.text_secondary)))
+            branch_chevron = Span(container=["▶"], styles=_BRANCH_CHEVRON)
+            children.append(branch_chevron)
         row = _ButtonElem(type="button", container=children, styles=_OPTION, args={"role": "menuitem"})
         row.bubble_events = True
         self._rows.append((value, row))
@@ -182,6 +209,8 @@ class Menu(Component):
             row.on(event_type, self._make_row_handler(event_type, row.key))
 
         if branch is not None:
+            assert branch_chevron is not None
+            self._branch_chevrons[row.key] = branch_chevron
             self._branches[row.key] = Menu(*branch.items, _parent=self)
             wrapper = Div(
                 styles=_ROW_WRAP,

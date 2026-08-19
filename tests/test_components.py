@@ -231,13 +231,13 @@ class TestComponentBuild:
         tabs.add("One", Text("p1"))
         node = tabs.build().to_node()
         tab = node.children[0].children[0]
-        assert tab.styles["transition"] == "all 0.15s ease"
+        assert tab.styles["transition"] == "all var(--motion-fast) var(--motion-ease-standard)"
 
     def test_sidebar_item_transitions(self):
         """Active-state style swaps interpolate instead of snapping."""
         item = SidebarItem("Home")
         node = item.build().to_node()
-        assert node.styles["transition"] == "all 0.15s ease"
+        assert node.styles["transition"] == "all var(--motion-fast) var(--motion-ease-standard)"
 
 
 class TestComponentState:
@@ -2602,6 +2602,16 @@ class TestDropdownEvents:
         asyncio.run(row._handlers["mouseout"][0](DomEvent(key=span.key, type="mouseout")))
         assert 1 not in dd._hovered
 
+    def test_chevron_rotates_without_replacing_glyph(self):
+        dd = Dropdown(items=["a"])
+
+        assert dd._chevron.container == ["▾"]
+        dd._open_popup()
+        assert dd._chevron.container == ["▾"]
+        assert dd._chevron.styles.transform == "rotate(180deg)"
+        dd._close()
+        assert dd._chevron.styles.transform is None
+
     def test_keyboard_navigation(self):
         import asyncio
 
@@ -2670,6 +2680,9 @@ class TestMenuBuild:
         assert branch._root.styles.overflow == "visible"
         assert node.children[0].attrs["data-neony-cascade-row"] == "true"
         assert node.children[0].children[0].attrs["role"] == "menuitem"
+        chevron = menu._branch_chevrons[next(iter(menu._branches))]
+        assert chevron.container == ["▶"]
+        assert chevron.styles.transform is None
 
 
 class TestMenuEvents:
@@ -2760,6 +2773,8 @@ class TestMenuEvents:
         second = menu._branches[second_key]
         assert first._open is False
         assert second._open is True
+        assert menu._branch_chevrons[first_key].styles.transform is None
+        assert menu._branch_chevrons[second_key].styles.transform == "rotate(90deg)"
 
     def test_branch_hover_opens_and_leaf_click_closes_tree(self):
         import asyncio
@@ -2800,6 +2815,15 @@ class TestCascadingDropdown:
         assert picker._menu._root.styles.z_index == 1100
         assert picker._menu._root.styles.overflow == "visible"
         assert len(picker._menu._branches) == 1
+        picker._open_popup()
+        from neony.dom import Animation
+
+        animation = picker._menu._root.styles.animation
+        assert isinstance(animation, Animation)
+        assert animation.name == "neony-drop-in"
+        assert animation.duration == "var(--motion-normal)"
+        assert picker._chevron.container == ["▾"]
+        assert picker._chevron.styles.transform == "rotate(180deg)"
 
     def test_sibling_branches_are_mutually_exclusive(self):
         import asyncio

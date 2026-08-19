@@ -14,9 +14,10 @@ import urllib.parse
 from collections.abc import Sequence
 
 from neony.application.theme import Theme, stub
-from neony.dom import Animation, Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, Span, Styles, Transition
+from neony.dom import Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, Span, Styles
 from neony.dom import Button as _ButtonElem
 
+from .. import motion
 from .base import Component, ReactiveText, _mount_text
 
 _TRIGGER = Styles(
@@ -33,7 +34,7 @@ _TRIGGER = Styles(
     cursor="pointer",
     user_select="none",
     outline="none",
-    transition=Transition(property="border-color", duration="0.15s", timing="ease"),
+    transition=motion.transition("border-color", duration=motion.stub.fast),
 )
 
 _GLASS_TRIGGER = _TRIGGER.model_copy(
@@ -78,7 +79,7 @@ _PANEL = Styles(
 _PANEL_OPEN = _PANEL.model_copy(
     update={
         "display": "flex",
-        "animation": Animation(name="neony-drop-in", duration="0.2s", timing="ease-out"),
+        "animation": motion.popup_animation(),
     }
 )
 
@@ -93,10 +94,18 @@ _OPTION = Styles(
     font_size="14px",
     text_align="left",
     cursor="pointer",
-    transition=Transition(duration="0.15s", timing="ease"),
+    transition=motion.transition(duration=motion.stub.fast),
 )
 _OPTION_ACTIVE = _OPTION.model_copy(update={"background_color": stub.accent_glass_bg})
 _OPTION_HOVER = _OPTION.model_copy(update={"background_color": stub.surface_glass_bg})
+
+_CHEVRON_STYLE = Styles(
+    color=stub.text_secondary,
+    font_size="11px",
+    line_height="1",
+    transition=motion.transition("transform", duration=motion.stub.fast),
+)
+_CHEVRON_OPEN_STYLE = _CHEVRON_STYLE.model_copy(update={"transform": "rotate(180deg)"})
 
 
 class Dropdown(Component):
@@ -139,7 +148,7 @@ class Dropdown(Component):
 
         self._label_span = Span(container=[])
         _mount_text(self._label_span, label)
-        self._chevron = Span(container=["▾"])
+        self._chevron = Span(container=["▾"], styles=_CHEVRON_STYLE)
         self._trigger = Div(
             styles=(_GLASS_TRIGGER if glass else _TRIGGER).model_copy(update={"width": width}),
             args={"tabindex": "0", "role": "combobox", "aria-haspopup": "listbox", "aria-expanded": "false"},
@@ -256,7 +265,7 @@ class Dropdown(Component):
             self._active_index = 0
             self._apply_option_styles(0)
         self._popup.styles = _PANEL_OPEN
-        self._chevron.container = ["▴"]
+        self._chevron.styles = _CHEVRON_OPEN_STYLE
         self._trigger.args = {**self._trigger.args, "aria-expanded": "true"}
         self._wrapper.args = {**self._wrapper.args, "data-neony-outside": "true"}
 
@@ -265,7 +274,7 @@ class Dropdown(Component):
             return
         self._open = False
         self._popup.styles = _PANEL
-        self._chevron.container = ["▾"]
+        self._chevron.styles = _CHEVRON_STYLE
         self._trigger.args = {**self._trigger.args, "aria-expanded": "false"}
         self._wrapper.args = {k: v for k, v in self._wrapper.args.items() if k != "data-neony-outside"}
 

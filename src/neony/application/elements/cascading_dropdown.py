@@ -9,7 +9,15 @@ from neony.application.theme import Theme
 from neony.dom import Div, DomEvent, Span
 
 from .base import Component, ReactiveText, _mount_text
-from .dropdown import _GLASS_TRIGGER, _PANEL, _TRIGGER, _WRAP
+from .dropdown import (
+    _CHEVRON_OPEN_STYLE,
+    _CHEVRON_STYLE,
+    _GLASS_TRIGGER,
+    _PANEL,
+    _PANEL_OPEN,
+    _TRIGGER,
+    _WRAP,
+)
 from .menu import Menu, MenuBranch, MenuItem
 
 _CASCADE_PANEL = _PANEL.model_copy(
@@ -22,7 +30,7 @@ _CASCADE_PANEL = _PANEL.model_copy(
         "overflow": "visible",
     }
 )
-_CASCADE_PANEL_OPEN = _CASCADE_PANEL.model_copy(update={"display": "flex"})
+_CASCADE_PANEL_OPEN = _CASCADE_PANEL.model_copy(update={"display": "flex", "animation": _PANEL_OPEN.animation})
 
 
 class CascadingDropdown(Component):
@@ -52,7 +60,7 @@ class CascadingDropdown(Component):
         self._focused = False
         self._label_span = Span(container=[])
         _mount_text(self._label_span, label)
-        self._chevron = Span(container=["▾"])
+        self._chevron = Span(container=["▾"], styles=_CHEVRON_STYLE)
         self._trigger = Div(
             styles=(_GLASS_TRIGGER if glass else _TRIGGER).model_copy(update={"width": width}),
             args={"tabindex": "0", "role": "combobox", "aria-haspopup": "menu", "aria-expanded": "false"},
@@ -105,7 +113,7 @@ class CascadingDropdown(Component):
         self._menu._open = True
         self._menu._root.styles = _CASCADE_PANEL_OPEN
         self._menu._root.args = {**self._menu._root.args, "data-neony-outside": "true"}
-        self._chevron.container = ["▴"]
+        self._chevron.styles = _CHEVRON_OPEN_STYLE
         self._trigger.args = {**self._trigger.args, "aria-expanded": "true"}
 
     def _close(self) -> None:
@@ -114,7 +122,7 @@ class CascadingDropdown(Component):
         self._open = False
         self._menu.close()
         self._menu._root.styles = _CASCADE_PANEL
-        self._chevron.container = ["▾"]
+        self._chevron.styles = _CHEVRON_STYLE
         self._trigger.args = {**self._trigger.args, "aria-expanded": "false"}
         self._wrapper.args = {k: v for k, v in self._wrapper.args.items() if k != "data-neony-outside"}
 

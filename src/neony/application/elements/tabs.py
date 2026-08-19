@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from neony.application.theme import stub
-from neony.dom import Div, DOMElement, DomEvent, Filter, Span, Styles, Transition
+from neony.dom import Div, DOMElement, DomEvent, Filter, Span, Styles
 
+from .. import motion
 from ._panels import _PanelHost
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
@@ -21,7 +22,7 @@ _TAB_BASE = Styles(
     # and collapsing the tab to two stacked rows.
     white_space="nowrap",
     # Smooth the active/inactive background switch.
-    transition=Transition(duration="0.15s", timing="ease"),
+    transition=motion.transition(duration=motion.stub.fast),
 )
 
 _TAB_ACTIVE = _TAB_BASE.model_copy(
