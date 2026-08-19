@@ -4944,6 +4944,72 @@ class TestProgrammaticMirrorToSignal:
         assert sig() == "a"  # no longer mirrored
 
 
+class TestListVirtualization:
+    def test_large_list_materializes_bounded_window(self):
+        items = [f"item-{i}" for i in range(1000)]
+        listing = List(*items)
+
+        assert listing._virtualized is True
+        assert len(listing.items) == 1000
+        assert len(listing._row_by_key) <= 26
+        assert len(listing._root.container) == len(listing._row_by_key) + 2
+        hidden = len(listing.items) - listing._virtual_end
+        assert listing._bottom_spacer.styles.height == f"{hidden * listing._VIRTUAL_ROW_HEIGHT}px"
+
+    def test_small_list_keeps_full_dom(self):
+        listing = List(*(f"item-{i}" for i in range(200)))
+
+        assert listing._virtualized is False
+        assert len(listing._row_by_key) == 200
+        assert len(listing._root.container) == 200
+
+    def test_scroll_replaces_window_and_preserves_full_model(self):
+        listing = List(*(f"item-{i}" for i in range(1000)))
+        first_rows = set(listing._row_by_key)
+
+        target = 500
+        scroll_top = target * listing._VIRTUAL_ROW_HEIGHT
+        listing._handle_scroll(DomEvent(key=listing._root.key, type="scroll", scroll_top=scroll_top, client_height=500))
+
+        assert listing._virtual_start == target - listing._VIRTUAL_OVERSCAN
+        assert "item-500" in listing._row_by_key
+        assert not first_rows.intersection(listing._row_by_key)
+        assert [item.key for item in listing.items[:2]] == ["item-0", "item-1"]
+
+    def test_offscreen_programmatic_selection_keeps_public_semantics(self):
+        listing = List(*(f"item-{i}" for i in range(1000)))
+
+        listing.selected_key = "item-900"
+
+        assert listing.selected_key == "item-900"
+        assert "item-900" not in listing._row_by_key
+
+    def test_keyboard_end_materializes_target(self):
+        import asyncio
+
+        listing = List(*(f"item-{i}" for i in range(1000)))
+        event = DomEvent(key="row:item-0", type="keydown", value="End")
+
+        asyncio.run(listing._make_keydown_handler("item-0")(event))
+
+        assert listing.selected_key == "item-999"
+        assert "item-999" in listing._row_by_key
+        assert listing._focus_key == "item-999"
+
+    def test_reactive_rows_dispose_effects_when_scrolled_out(self):
+        from neony.dom import Signal
+
+        signals = [Signal(f"item-{i}") for i in range(250)]
+        listing = List(*(ListItem(signal, key=f"item-{i}") for i, signal in enumerate(signals)))
+        assert signals[0]._subs
+
+        scroll_top = 210 * listing._VIRTUAL_ROW_HEIGHT
+        listing._handle_scroll(DomEvent(key=listing._root.key, type="scroll", scroll_top=scroll_top, client_height=500))
+
+        assert signals[0]._subs == set()
+        assert signals[210]._subs
+
+
 class TestDataTableParentChain:
     """Rebuilt rows must keep _parent links so dirty changes propagate."""
 

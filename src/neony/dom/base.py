@@ -191,6 +191,9 @@ class DOMElement(BaseModel):
     # propagates up via _parent so no ancestor reuses a stale snapshot.
     _dirty: bool = PrivateAttr(default=False)
     _parent: DOMElement | None = PrivateAttr(default=None)
+    # Root-owned workset of elements directly mutated since the last render.
+    # Keys are object ids because pydantic models are intentionally unhashable.
+    _dirty_elements: dict[int, DOMElement] = PrivateAttr(default=cast(Any, None))
 
     # Opt-in event bubbling: events on handler-less descendants route here
     # (SidebarItem's icon/label spans; layout containers keep strict routing).
@@ -249,6 +252,7 @@ class DOMElement(BaseModel):
         # to avoid pydantic's per-instance default-factory introspection.
         self._handlers = {}
         self._bindings = []
+        self._dirty_elements = {}
         # object.__setattr__: the swap itself is not a mutation.
         object.__setattr__(self, "container", _Children(self, self.container))
         # Field-level styles mutations must reach the dirty tracker.
@@ -279,11 +283,14 @@ class DOMElement(BaseModel):
         object.__setattr__(self, "_serialized_attrs", None)
 
     def _mark_dirty(self) -> None:
-        """Mark this element and every ancestor dirty — an ancestor must
-        re-serialize when any descendant changed."""
-        node: DOMElement | None = self
-        while node is not None and not node._dirty:
+        """Mark this element and every ancestor dirty and enqueue the
+        directly changed element on the tree root's render workset."""
+        node: DOMElement = self
+        while True:
             node._dirty = True
+            if node._parent is None:
+                node._dirty_elements[id(self)] = self
+                return
             node = node._parent
 
     def mark_dirty(self) -> None:
@@ -677,6 +684,7 @@ class DOMElement(BaseModel):
         """
         seen_keys: set[str] = set()
         node = self._to_node_impl(seen_keys, snapshot_cache)
+        self._dirty_elements.clear()
         return node
 
     def _to_node_impl(

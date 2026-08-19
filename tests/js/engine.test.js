@@ -247,6 +247,32 @@ describe("patch ops", () => {
     expect(engine.root.children[1]).toBe(engine.registry.get("a"));
   });
 
+
+  it("reorder: skips DOM moves when children already match", () => {
+    const engine = baseEngine();
+    const insertBefore = vi.spyOn(engine.root, "insertBefore");
+    engine.applyOps([{ op: "reorder", parent: "root", ordered_keys: ["a", "b"] }]);
+    expect(insertBefore).not.toHaveBeenCalled();
+  });
+
+  it("update_attrs: skips an identical attribute write", () => {
+    const engine = baseEngine();
+    const a = engine.registry.get("a");
+    a.setAttribute("title", "same");
+    const setAttribute = vi.spyOn(a, "setAttribute");
+    engine.applyOps([{ op: "update_attrs", key: "a", set: { title: "same" }, remove: [] }]);
+    expect(setAttribute).not.toHaveBeenCalled();
+  });
+
+  it("update_styles: skips an identical style write", () => {
+    const engine = baseEngine();
+    const a = engine.registry.get("a");
+    a.style.setProperty("color", "red");
+    const setProperty = vi.spyOn(a.style, "setProperty");
+    engine.applyOps([{ op: "update_styles", key: "a", set: { color: "red" }, remove: [] }]);
+    expect(setProperty).not.toHaveBeenCalled();
+  });
+
   it("update_attrs: sets attributes", () => {
     const engine = baseEngine();
     engine.applyOps([{ op: "update_attrs", key: "a", set: { title: "hello" }, remove: [] }]);

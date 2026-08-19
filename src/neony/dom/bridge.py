@@ -543,13 +543,16 @@ class Neony(Plugin):
         from lumiview.task import run_async as _run_async
 
         log = logging.getLogger("neony.bridge")
-        for (ekey, etype), fns in list(self._handlers.items()):
-            if etype == event_type and (ekey is None or ekey == key):
-                for fn in fns:
-                    try:
-                        await _run_async(fn, key=key, event_type=event_type, value=value, **extra)
-                    except Exception:
-                        log.exception(f"Event handler for {event_type} on {key} failed")
+        # Exact and global handlers are indexed by (key, event type), so
+        # dispatch cost depends on the handlers that can actually run rather
+        # than every handler registered in the window.
+        direct = list(self._handlers.get((key, event_type), ()))
+        global_handlers = list(self._handlers.get((None, event_type), ()))
+        for fn in direct + global_handlers:
+            try:
+                await _run_async(fn, key=key, event_type=event_type, value=value, **extra)
+            except Exception:
+                log.exception(f"Event handler for {event_type} on {key} failed")
 
         # Bubble to the nearest bubble_events ancestor with a matching
         # handler — regardless of whether the target handled the event,
@@ -560,14 +563,14 @@ class Neony(Plugin):
             el = el._parent
             if not el.bubble_events:
                 continue
-            for (ekey, etype), fns in list(self._handlers.items()):
-                if etype == event_type and ekey == el.key:
-                    for fn in fns:
-                        try:
-                            await _run_async(fn, key=key, event_type=event_type, value=value, **extra)
-                        except Exception:
-                            log.exception(f"Event handler for {event_type} on {key} failed")
-                    return
+            fns = list(self._handlers.get((el.key, event_type), ()))
+            if fns:
+                for fn in fns:
+                    try:
+                        await _run_async(fn, key=key, event_type=event_type, value=value, **extra)
+                    except Exception:
+                        log.exception(f"Event handler for {event_type} on {key} failed")
+                return
 
     async def _on_paste_files(
         self,
@@ -735,23 +738,25 @@ class Neony(Plugin):
 
     # ---- direct-patch fast path ----
 
-    def _can_direct_patch(self, element: DOMElement) -> bool:
-        """True when every dirty element only has style/attr changes, so
-        the render can bypass full serialization and the diff engine."""
-        if element._dirty:
+    def _direct_patch_elements(self, root: DOMElement) -> list[DOMElement] | None:
+        """Return the root workset when every mutation is style/attr-only.
+
+        ``None`` selects structural serialization. Detached stale entries are
+        ignored unless they still belong to this root.
+        """
+        elements: list[DOMElement] = []
+        for element in root._dirty_elements.values():
+            node = element
+            while node._parent is not None:
+                node = node._parent
+            if node is not root or not element._dirty:
+                continue
             if element._dirty_type & DOMElement._DIRTY_STRUCTURAL:
-                return False
-            if (element._dirty_type & (DOMElement._DIRTY_STYLES | DOMElement._DIRTY_ATTRS)) and (
-                element.key not in self._snapshots
-            ):
-                # A changed element must have a snapshot to diff against.
-                return False
-        else:
-            return True  # clean subtree — nothing changed below
-        for child in element.container:
-            if isinstance(child, DOMElement) and not self._can_direct_patch(child):
-                return False
-        return True
+                return None
+            if element.key not in self._snapshots:
+                return None
+            elements.append(element)
+        return elements
 
     async def _emit_patch_ops(self, ops: list[Patch]) -> PatchMessage | None:
         """Increment *rev* once and emit *ops*, splitting huge batches.
@@ -781,16 +786,20 @@ class Neony(Plugin):
             await self._win.emit("neony:patch", msg.model_dump(mode="json"))
         return last
 
-    def _collect_direct_patches(self, element: DOMElement) -> list[Patch]:
-        """Generate style/attr patches for dirty elements, updating the
-        snapshot cache in place and clearing their dirty flags."""
+    def _collect_direct_patches(self, root: DOMElement, elements: list[DOMElement]) -> list[Patch]:
+        """Generate patches only for directly mutated workset elements."""
         patches: list[Patch] = []
-        self._collect_direct_patches_impl(element, patches)
+        for element in elements:
+            self._collect_direct_patch(element, patches)
+            node: DOMElement | None = element
+            while node is not None:
+                node._dirty = False
+                node._dirty_type = 0
+                node = node._parent
+        root._dirty_elements.clear()
         return patches
 
-    def _collect_direct_patches_impl(self, element: DOMElement, patches: list[Patch]) -> None:
-        if not element._dirty:
-            return
+    def _collect_direct_patch(self, element: DOMElement, patches: list[Patch]) -> None:
         cached = self._snapshots.get(element.key)
         if cached is not None:
             if element._dirty_type & DOMElement._DIRTY_STYLES:
@@ -809,9 +818,6 @@ class Neony(Plugin):
                     cached.attrs.update(new_attrs)
         element._dirty = False
         element._dirty_type = 0
-        for child in element.container:
-            if isinstance(child, DOMElement):
-                self._collect_direct_patches_impl(child, patches)
 
     async def _do_render(self, element: DOMElement) -> PatchMessage | None:
         """Serialize (via the snapshot cache — only dirty subtrees are
@@ -824,9 +830,10 @@ class Neony(Plugin):
                 "in a LumiView Bridge and the window must be created."
             )
 
-        if self._snapshot is not None and self._can_direct_patch(element):
+        direct_elements = self._direct_patch_elements(element) if self._snapshot is not None else None
+        if direct_elements is not None:
             # Fast path: style/attr-only changes bypass serialization + diff.
-            ops = self._collect_direct_patches(element)
+            ops = self._collect_direct_patches(element, direct_elements)
             msg = await self._emit_patch_ops(ops)
             self._last_tree = element
             return msg

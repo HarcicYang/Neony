@@ -321,8 +321,9 @@ class DataTable(Component):
             raise NotImplementedError("DataTable.selected_key: requires selection='single'; use selected_keys")
         if value is not None and value not in self._row_by_key:
             raise ValueError(f"DataTable.selected_key: unknown row key {value!r}")
+        previous = self._selected
         self._selected = {value} if value is not None else set()
-        self._apply_selection()
+        self._apply_selection(previous ^ self._selected)
         self._mirror_selected(value)
 
     @property
@@ -340,8 +341,9 @@ class DataTable(Component):
         for key in keys:
             if key not in self._row_by_key:
                 raise ValueError(f"DataTable.selected_keys: unknown row key {key!r}")
+        previous = self._selected
         self._selected = keys
-        self._apply_selection()
+        self._apply_selection(previous ^ self._selected)
 
     def bind_selected(self, signal: Signal[Any] | Computed[Any]) -> Self:
         """Bind a signal to the selection (``selection="single"`` only) —
@@ -429,7 +431,7 @@ class DataTable(Component):
             self._row_keys.append(key)
         # Drop selections whose rows no longer exist (rows replaced).
         self._selected &= set(self._row_keys)
-        self._apply_selection()
+        self._apply_selection(set(self._row_keys))
 
     def _row_key(self, row: dict, index: int) -> str:
         if self._row_key_fn is not None:
@@ -491,8 +493,11 @@ class DataTable(Component):
 
     # ---- internals: selection ----
 
-    def _apply_selection(self) -> None:
-        for key, row in self._row_by_key.items():
+    def _apply_selection(self, keys: set[str]) -> None:
+        for key in keys:
+            row = self._row_by_key.get(key)
+            if row is None:
+                continue
             active = key in self._selected
             row.styles = self._row_active if active else self._row_base
             row.args = {**row.args, "aria-selected": "true" if active else "false"}
@@ -521,6 +526,7 @@ class DataTable(Component):
         self._focus_key = None
 
     def _toggle_select(self, key: str) -> None:
+        previous = set(self._selected)
         if self._selection == "multi":
             if key in self._selected:
                 self._selected.discard(key)
@@ -528,7 +534,7 @@ class DataTable(Component):
                 self._selected.add(key)
         else:
             self._selected = {key}
-        self._apply_selection()
+        self._apply_selection(previous ^ self._selected)
         self._clear_focus()
 
     def _make_click_handler(self, key: str):

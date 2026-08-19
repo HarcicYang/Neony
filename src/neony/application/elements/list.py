@@ -51,11 +51,8 @@ _ROW_BASE = Styles(
     transition=Transition(property="background-color", duration="0.15s", timing="ease"),
 )
 
-_ROW_ACTIVE = _ROW_BASE.model_copy(
-    update={
-        "background_color": stub.surface,
-        "color": stub.text_primary,
-    }
+_ROW_VIRTUAL = _ROW_BASE.model_copy(
+    update={"line_height": "16px", "height": "16px", "min_height": "16px", "flex_shrink": "0"}
 )
 
 _LIST_ROOT = Styles(
@@ -89,6 +86,11 @@ class ListItem:
 
 
 class List(Component):
+    # Private automatic virtualization policy; public APIs stay unchanged.
+    _VIRTUALIZE_THRESHOLD = 200
+    _VIRTUAL_ROW_HEIGHT = 34
+    _VIRTUAL_OVERSCAN = 8
+
     #: Event types wired internally (via custom per-row handlers) —
     #: Component.on() must not wire these again.
     _bound_events: frozenset[str] = frozenset({"click", "keydown"})
@@ -102,8 +104,16 @@ class List(Component):
         super().__init__()
         self._items: list[ListItem] = []
         self._keys: list[str] = []
+        self._key_index: dict[str, int] = {}
         self._row_by_key: dict[str, Div] = {}
         self._selected_key: str | None = None
+        self._virtualized = False
+        self._virtual_start = 0
+        self._virtual_end = 0
+        self._viewport_height = self._VIRTUAL_ROW_HEIGHT * 10
+        self._top_spacer = Div(styles=Styles(height="0px", flex_shrink="0"))
+        self._bottom_spacer = Div(styles=Styles(height="0px", flex_shrink="0"))
+        self._initializing = True
         # Keyboard focus ring — only present after arrow navigation;
         # a mouse click selects and clears it (mirrors Tree).
         self._focus_key: str | None = None
@@ -113,8 +123,12 @@ class List(Component):
             args={"role": "listbox"},
             scroll_indicator=edge_fade,
         )
+        self._root.on("scroll", self._handle_scroll)
         for item in items:
             self.add(item)
+        self._initializing = False
+        if self._virtualized:
+            self._refresh_window(0, self._viewport_height, force=True)
         if active_key is not None:
             self.selected_key = active_key
 
@@ -131,27 +145,21 @@ class List(Component):
             if not isinstance(entry.label, str):
                 raise ValueError("List: a reactive label needs an explicit key")
             key = entry.label
-        if key in self._row_by_key:
+        if key in self._key_index:
             raise ValueError(f"List: duplicate item key {key!r}")
         entry.key = key  # persist the resolved identity
-        reactive_label = entry.icon is None and not isinstance(entry.label, str)
-        row = Div(
-            container=[] if reactive_label else self._label_content(entry),
-            styles=_ROW_ACTIVE if key == self._selected_key else _ROW_BASE,
-            args={"role": "option", "tabindex": "0", "aria-selected": "true" if key == self._selected_key else "false"},
-            key=f"row:{key}",
-        )
-        # A reactive bare label (no icon) binds live via _mount_text.
-        if reactive_label:
-            _mount_text(row, entry.label)
-        # Clicks land on the icon/label spans — bubble them to this row.
-        row.bubble_events = True
-        row.on_click(self._make_click_handler(key))
-        row.on("keydown", self._make_keydown_handler(key))
-        self._root.container.append(row)
-        self._row_by_key[key] = row
+        self._key_index[key] = len(self._keys)
         self._keys.append(key)
         self._items.append(entry)
+
+        was_virtualized = self._virtualized
+        self._virtualized = len(self._items) > self._VIRTUALIZE_THRESHOLD
+        if self._virtualized and not self._initializing:
+            self._refresh_window(self._virtual_start * self._VIRTUAL_ROW_HEIGHT, self._viewport_height, force=True)
+        elif not was_virtualized:
+            row = self._make_row(entry)
+            self._root.container.append(row)
+            self._row_by_key[key] = row
         return self
 
     def children(self, *items: str | ListItem) -> Self:
@@ -171,7 +179,7 @@ class List(Component):
 
     @selected_key.setter
     def selected_key(self, value: str | None) -> None:
-        if value is not None and value not in self._row_by_key:
+        if value is not None and value not in self._key_index:
             raise ValueError(f"List.selected_key: unknown key {value!r}")
         self._select(value)
         self._mirror_selected(value)
@@ -187,6 +195,68 @@ class List(Component):
 
     # ---- internals ----
 
+    def _row_style(self, active: bool) -> Styles:
+        base = _ROW_VIRTUAL if self._virtualized else _ROW_BASE
+        if not active:
+            return base
+        return base.model_copy(update={"background_color": stub.surface, "color": stub.text_primary})
+
+    def _make_row(self, entry: ListItem) -> Div:
+        key = entry.key
+        assert key is not None
+        reactive_label = entry.icon is None and not isinstance(entry.label, str)
+        row = Div(
+            container=[] if reactive_label else self._label_content(entry),
+            styles=self._row_style(key == self._selected_key),
+            args={"role": "option", "tabindex": "0", "aria-selected": "true" if key == self._selected_key else "false"},
+            key=f"row:{key}",
+        )
+        if reactive_label:
+            _mount_text(row, entry.label)
+        row.bubble_events = True
+        row.on_click(self._make_click_handler(key))
+        row.on("keydown", self._make_keydown_handler(key))
+        return row
+
+    def _refresh_window(self, scroll_top: int = 0, viewport_height: int | None = None, *, force: bool = False) -> None:
+        if not self._virtualized:
+            return
+        height = max(self._VIRTUAL_ROW_HEIGHT, viewport_height or self._viewport_height)
+        self._viewport_height = height
+        visible = max(1, (height + self._VIRTUAL_ROW_HEIGHT - 1) // self._VIRTUAL_ROW_HEIGHT)
+        window_size = visible + self._VIRTUAL_OVERSCAN * 2
+        requested = max(0, scroll_top // self._VIRTUAL_ROW_HEIGHT - self._VIRTUAL_OVERSCAN)
+        start = min(requested, max(0, len(self._items) - window_size))
+        end = min(len(self._items), start + window_size)
+        if not force and start == self._virtual_start and end == self._virtual_end:
+            return
+        self._virtual_start, self._virtual_end = start, end
+        for row in self._row_by_key.values():
+            self._dispose_row(row)
+        rows = [self._make_row(entry) for entry in self._items[start:end]]
+        self._row_by_key = dict(zip(self._keys[start:end], rows, strict=True))
+        self._top_spacer.styles = Styles(height=f"{start * self._VIRTUAL_ROW_HEIGHT}px", flex_shrink="0")
+        remaining = max(0, len(self._items) - end)
+        self._bottom_spacer.styles = Styles(height=f"{remaining * self._VIRTUAL_ROW_HEIGHT}px", flex_shrink="0")
+        self._root.container[:] = [self._top_spacer, *rows, self._bottom_spacer]
+
+    def _dispose_row(self, row: DOMElement) -> None:
+        row.unbind()
+        for child in row.container:
+            if isinstance(child, DOMElement):
+                self._dispose_row(child)
+
+    def _ensure_materialized(self, key: str) -> Div | None:
+        row = self._row_by_key.get(key)
+        if row is not None or not self._virtualized:
+            return row
+        self._refresh_window(self._key_index[key] * self._VIRTUAL_ROW_HEIGHT, self._viewport_height, force=True)
+        return self._row_by_key.get(key)
+
+    def _handle_scroll(self, event: DomEvent) -> None:
+        if self._virtualized:
+            self._refresh_window(event.scroll_top or 0, event.client_height or self._viewport_height)
+
     def _label_content(self, entry: ListItem) -> list[DOMElement | ReactiveText]:
         # Element-only children when an icon is present (reactive mode
         # forbids mixing); a bare string otherwise.
@@ -200,10 +270,16 @@ class List(Component):
         return [entry.label]
 
     def _select(self, key: str | None, *, focused: bool = False) -> None:
+        previous = self._selected_key
         self._selected_key = key
-        for row_key, row in self._row_by_key.items():
+        for row_key in (previous, key):
+            if row_key is None:
+                continue
+            row = self._row_by_key.get(row_key)
+            if row is None:
+                continue
             active = row_key == key
-            row.styles = _ROW_ACTIVE if active else _ROW_BASE
+            row.styles = self._row_style(active)
             row.args = {**row.args, "aria-selected": "true" if active else "false"}
         if focused and key is not None:
             self._set_focus(key)
@@ -215,7 +291,10 @@ class List(Component):
             return
         self._clear_focus()
         self._focus_key = key
-        row = self._row_by_key.get(key)
+        if self._virtualized and key not in self._row_by_key:
+            top = self._key_index[key] * self._VIRTUAL_ROW_HEIGHT
+            self._schedule_js(f"window.neony.scrollTo({self._root.key!r}, {top}, 'auto')")
+        row = self._ensure_materialized(key)
         if row is not None:
             row.styles = row.styles.model_copy(update={"box_shadow": "0 0 0 2px var(--color-accent)"})
 
@@ -262,8 +341,8 @@ class List(Component):
         """Move the selection by *step* rows, clamped at the ends (no
         wrap) — only fires ``change`` when the selection actually moves."""
         try:
-            index = self._keys.index(from_key)
-        except ValueError:
+            index = self._key_index[from_key]
+        except KeyError:
             return
         target = index + step
         if target < 0 or target >= len(self._keys):

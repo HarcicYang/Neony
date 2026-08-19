@@ -202,12 +202,14 @@ class NeonyEngine {
         const parent = this.registry.get(op.parent);
         if (!parent) return;
 
-        for (const key of op.ordered_keys) {
-            const child = this.registry.get(key);
-            if (child && child.parentNode === parent) {
-                // appendChild re-inserts an existing node at the end
-                parent.appendChild(child);
-            }
+        // Walk from the end so each misplaced node is inserted before the
+        // already-correct suffix. Nodes that are already in place are untouched.
+        let anchor = null;
+        for (let i = op.ordered_keys.length - 1; i >= 0; i--) {
+            const child = this.registry.get(op.ordered_keys[i]);
+            if (!child || child.parentNode !== parent) continue;
+            if (child.nextElementSibling !== anchor) parent.insertBefore(child, anchor);
+            anchor = child;
         }
     }
 
@@ -223,7 +225,7 @@ class NeonyEngine {
                 el.checked = true;
             } else if (name === "value" && el.tagName === "INPUT") {
                 if (el.value !== value) el.value = value;
-            } else {
+            } else if (el.getAttribute(name) !== String(value)) {
                 el.setAttribute(name, value);
             }
         }
@@ -245,15 +247,21 @@ class NeonyEngine {
 
         const setStyles = op.set || {};
         for (const [prop, value] of Object.entries(setStyles)) {
-            el.style.setProperty(prop, value);
+            if (el.style.getPropertyValue(prop) !== String(value)) {
+                el.style.setProperty(prop, value);
+            }
             // WebKitGTK needs the prefixed variant of backdrop-filter
-            if (prop === "backdrop-filter") {
+            if (prop === "backdrop-filter" && el.style.getPropertyValue("-webkit-backdrop-filter") !== String(value)) {
                 el.style.setProperty("-webkit-backdrop-filter", value);
             }
             // user-select also needs -webkit- and -moz- prefixes.
             if (prop === "user-select") {
-                el.style.setProperty("-webkit-user-select", value);
-                el.style.setProperty("-moz-user-select", value);
+                if (el.style.getPropertyValue("-webkit-user-select") !== String(value)) {
+                    el.style.setProperty("-webkit-user-select", value);
+                }
+                if (el.style.getPropertyValue("-moz-user-select") !== String(value)) {
+                    el.style.setProperty("-moz-user-select", value);
+                }
             }
         }
         const removeStyles = op.remove || [];
