@@ -140,10 +140,10 @@ def Mono(size: str = "13px") -> Div:
 # and freeze the label on the startup language).
 theme_mode = Signal(app.theme.mode)
 _THEME_GROUPS = (
-    MenuBranch("Quiet Graphite", [("quiet-graphite-dark", "Dark"), ("quiet-graphite-light", "Light")]),
-    MenuBranch("Aurora Glass", [("aurora-glass-dark", "Dark"), ("aurora-glass-light", "Light")]),
-    MenuBranch("Terminal Ember", [("terminal-ember-dark", "Dark"), ("terminal-ember-light", "Light")]),
-    MenuBranch("Neon Mica", [("neon-mica-dark", "Dark"), ("neon-mica-light", "Light")]),
+    MenuBranch("Nightglow", [("nightglow-dark", "Dark"), ("nightglow-light", "Light")]),
+    MenuBranch("Planet Plaza", [("planet-plaza-dark", "Dark"), ("planet-plaza-light", "Light")]),
+    MenuBranch("Ember Zone", [("ember-zone-dark", "Dark"), ("ember-zone-light", "Light")]),
+    MenuBranch("Cyberangel", [("cyberangel-dark", "Dark"), ("cyberangel-light", "Light")]),
 )
 
 theme_picker = CascadingDropdown("Theme", items=_THEME_GROUPS, width="220px")

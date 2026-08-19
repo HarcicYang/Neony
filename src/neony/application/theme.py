@@ -1,4 +1,4 @@
-"""Immutable semantic-colour theme presets.
+"""Immutable semantic-color theme presets.
 
 Each preset is a frozen :class:`Theme` instance; constructing one auto-registers
 it under its ``mode`` in a class-level registry. Tokens are exposed to CSS as
@@ -22,7 +22,7 @@ from neony.dom.css import BoxShadow, Color, Shadow
 
 
 class Theme(BaseModel):
-    """Semantic colour palette for one display mode.
+    """Semantic color palette for one display mode.
 
     Frozen and default-free: a ``Theme`` always describes one concrete palette,
     so every token must be supplied at construction (there is no meaningful
@@ -33,10 +33,10 @@ class Theme(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    #: Insertion-ordered map of registered ``mode`` -> preset instance.
-    #: ClassVar, so it is not a model field and never serialises into the CSS
-    #: block. Built-in presets are constructed first; user presets registered
-    #: later append naturally and join the :meth:`next` cycle.
+    # Insertion-ordered map of registered ``mode`` -> preset instance.
+    # ClassVar, so it is not a model field and never serializes into the CSS
+    # block. Built-in presets are constructed first; user presets registered
+    # later append naturally and join the :meth:`next` cycle.
     _registry: ClassVar[dict[str, Theme]] = {}
 
     def model_post_init(self, __context: object) -> None:
@@ -58,12 +58,12 @@ class Theme(BaseModel):
     border: Color
     #: Box-shadow token — typed as BoxShadow, NOT a plain str.
     shadow: BoxShadow
-    #: Text colour on a filled ``accent`` background (white across built-ins).
+    #: Text color on a filled ``accent`` background (white across built-ins).
     on_accent: Color
-    #: Text colour on a filled ``danger`` background (white across built-ins).
+    #: Text color on a filled ``danger`` background (white across built-ins).
     on_danger: Color
 
-    # --- background overlay (theme colour at ~70% for dimming) ---
+    # --- background overlay (theme color at ~70% for dimming) ---
     bg_overlay: Color
 
     # --- glass tokens (opt-in frosted look, per-theme) ---
@@ -117,7 +117,7 @@ class Theme(BaseModel):
 
     @staticmethod
     def glass_border(role: str = "neutral") -> str:
-        """Highlight border colour for a semantic role (``var(--color-*-glass)``).
+        """Highlight border color for a semantic role (``var(--color-*-glass)``).
 
         Resolved from the :data:`stub` token namespace — no raw ``var()``
         strings here; the token's ``var`` field carries the CSS name.
@@ -245,8 +245,8 @@ def _theme(
 
 
 # Four visual families, each with a paired light and dark material.
-QUIET_GRAPHITE_DARK = _theme(
-    "quiet-graphite-dark",
+NIGHTGLOW_DARK = _theme(
+    "nightglow-dark",
     bg="#17191c",
     surface="#23272c",
     raised="#2d3339",
@@ -271,8 +271,8 @@ QUIET_GRAPHITE_DARK = _theme(
     accent_glass_bg=(84, 185, 194, 0.58),
     danger_glass_bg=(232, 120, 120, 0.58),
 )
-QUIET_GRAPHITE_LIGHT = _theme(
-    "quiet-graphite-light",
+NIGHTGLOW_LIGHT = _theme(
+    "nightglow-light",
     bg="#edf1f1",
     surface="#ffffff",
     raised="#e5ebeb",
@@ -297,8 +297,8 @@ QUIET_GRAPHITE_LIGHT = _theme(
     accent_glass_bg=(36, 125, 133, 0.56),
     danger_glass_bg=(185, 87, 88, 0.56),
 )
-AURORA_GLASS_DARK = _theme(
-    "aurora-glass-dark",
+PLANET_PLAZA_DARK = _theme(
+    "planet-plaza-dark",
     bg="#111827",
     surface="#223148",
     raised="#2d4260",
@@ -323,8 +323,8 @@ AURORA_GLASS_DARK = _theme(
     accent_glass_bg=(113, 213, 196, 0.56),
     danger_glass_bg=(255, 140, 146, 0.56),
 )
-AURORA_GLASS_LIGHT = _theme(
-    "aurora-glass-light",
+PLANET_PLAZA_LIGHT = _theme(
+    "planet-plaza-light",
     bg="#eef1f8",
     surface="#ffffff",
     raised="#e5eaf5",
@@ -349,8 +349,8 @@ AURORA_GLASS_LIGHT = _theme(
     accent_glass_bg=(80, 104, 242, 0.56),
     danger_glass_bg=(211, 84, 107, 0.56),
 )
-TERMINAL_EMBER_DARK = _theme(
-    "terminal-ember-dark",
+EMBER_ZONE_DARK = _theme(
+    "ember-zone-dark",
     bg="#080a09",
     surface="#131914",
     raised="#1b241b",
@@ -375,8 +375,8 @@ TERMINAL_EMBER_DARK = _theme(
     accent_glass_bg=(227, 169, 79, 0.54),
     danger_glass_bg=(201, 101, 94, 0.54),
 )
-TERMINAL_EMBER_LIGHT = _theme(
-    "terminal-ember-light",
+EMBER_ZONE_LIGHT = _theme(
+    "ember-zone-light",
     bg="#e8e5dc",
     surface="#fcf8ee",
     raised="#eee9dd",
@@ -401,8 +401,8 @@ TERMINAL_EMBER_LIGHT = _theme(
     accent_glass_bg=(166, 109, 34, 0.54),
     danger_glass_bg=(174, 84, 76, 0.54),
 )
-NEON_MICA_DARK = _theme(
-    "neon-mica-dark",
+CYBERANGEL_DARK = _theme(
+    "cyberangel-dark",
     bg="#090b14",
     surface="#141827",
     raised="#1d2335",
@@ -427,8 +427,8 @@ NEON_MICA_DARK = _theme(
     accent_glass_bg=(139, 124, 255, 0.62),
     danger_glass_bg=(255, 111, 143, 0.62),
 )
-NEON_MICA_LIGHT = _theme(
-    "neon-mica-light",
+CYBERANGEL_LIGHT = _theme(
+    "cyberangel-light",
     bg="#eef0f8",
     surface="#ffffff",
     raised="#e7e9f5",
@@ -455,9 +455,9 @@ NEON_MICA_LIGHT = _theme(
 )
 
 # Compatibility aliases: the historical names remain importable.
-DARK = QUIET_GRAPHITE_DARK
-LIGHT = QUIET_GRAPHITE_LIGHT
-DEEP_BLUE = AURORA_GLASS_DARK
+DARK = NIGHTGLOW_DARK
+LIGHT = NIGHTGLOW_LIGHT
+DEEP_BLUE = PLANET_PLAZA_DARK
 
 
 class _ThemeStub(Theme):

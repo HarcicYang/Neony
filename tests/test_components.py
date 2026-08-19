@@ -4,17 +4,17 @@ import pytest
 from pydantic import ValidationError
 
 from neony.application import (
-    AURORA_GLASS_DARK,
-    AURORA_GLASS_LIGHT,
+    PLANET_PLAZA_DARK,
+    PLANET_PLAZA_LIGHT,
     DARK,
     DEEP_BLUE,
     LIGHT,
-    NEON_MICA_DARK,
-    NEON_MICA_LIGHT,
-    QUIET_GRAPHITE_DARK,
-    QUIET_GRAPHITE_LIGHT,
-    TERMINAL_EMBER_DARK,
-    TERMINAL_EMBER_LIGHT,
+    CYBERANGEL_DARK,
+    CYBERANGEL_LIGHT,
+    NIGHTGLOW_DARK,
+    NIGHTGLOW_LIGHT,
+    EMBER_ZONE_DARK,
+    EMBER_ZONE_LIGHT,
     Page,
     Theme,
 )
@@ -790,12 +790,12 @@ class TestPageAndTheme:
 
     def test_theme_modes_cycle_order(self):
         # next() is parameter-less and resolves the next preset via the registry.
-        assert DARK.next() is QUIET_GRAPHITE_LIGHT
-        assert QUIET_GRAPHITE_LIGHT.next() is AURORA_GLASS_DARK
-        assert AURORA_GLASS_DARK.next() is AURORA_GLASS_LIGHT
-        assert AURORA_GLASS_LIGHT.next() is TERMINAL_EMBER_DARK
-        assert TERMINAL_EMBER_LIGHT.next() is NEON_MICA_DARK
-        assert NEON_MICA_LIGHT.next() is DARK
+        assert DARK.next() is NIGHTGLOW_LIGHT
+        assert NIGHTGLOW_LIGHT.next() is PLANET_PLAZA_DARK
+        assert PLANET_PLAZA_DARK.next() is PLANET_PLAZA_LIGHT
+        assert PLANET_PLAZA_LIGHT.next() is EMBER_ZONE_DARK
+        assert EMBER_ZONE_LIGHT.next() is CYBERANGEL_DARK
+        assert CYBERANGEL_LIGHT.next() is DARK
         assert Theme.modes() == (
             "quiet-graphite-dark",
             "quiet-graphite-light",
@@ -824,8 +824,8 @@ class TestPageAndTheme:
         assert Theme.get("quiet-graphite-dark") is DARK
         assert Theme.get("quiet-graphite-light") is LIGHT
         assert Theme.get("aurora-glass-dark") is DEEP_BLUE
-        assert Theme.get("terminal-ember-dark") is TERMINAL_EMBER_DARK
-        assert Theme.get("neon-mica-light") is NEON_MICA_LIGHT
+        assert Theme.get("terminal-ember-dark") is EMBER_ZONE_DARK
+        assert Theme.get("neon-mica-light") is CYBERANGEL_LIGHT
         with pytest.raises(KeyError):
             Theme.get("paper-signal-dark")
         with pytest.raises(KeyError):
@@ -833,14 +833,14 @@ class TestPageAndTheme:
 
     def test_theme_on_tokens_radiate(self):
         presets = (
-            QUIET_GRAPHITE_DARK,
-            QUIET_GRAPHITE_LIGHT,
-            AURORA_GLASS_DARK,
-            AURORA_GLASS_LIGHT,
-            TERMINAL_EMBER_DARK,
-            TERMINAL_EMBER_LIGHT,
-            NEON_MICA_DARK,
-            NEON_MICA_LIGHT,
+            NIGHTGLOW_DARK,
+            NIGHTGLOW_LIGHT,
+            PLANET_PLAZA_DARK,
+            PLANET_PLAZA_LIGHT,
+            EMBER_ZONE_DARK,
+            EMBER_ZONE_LIGHT,
+            CYBERANGEL_DARK,
+            CYBERANGEL_LIGHT,
         )
         for preset in presets:
             assert "--color-on-danger: #ffffff" in preset.to_css()
