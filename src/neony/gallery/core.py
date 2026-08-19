@@ -16,7 +16,6 @@ from .i18n import tr, tr_now
 
 from neony.application import (
     Config,
-    LANGUAGES,
     Language,
     NeonApplication,
     WebViewConfig,
@@ -160,17 +159,15 @@ theme_picker.on_change(on_theme_change)
 
 # Language switcher — endonym items (each language shown in its own
 # name), so the picker is readable in any active language.
+# Only languages with a gallery catalog are offered here.  The framework
+# recognizes more language codes and falls back to English for them, but
+# exposing those codes would advertise translations the gallery does not ship.
+_GALLERY_LANGUAGES = (Language.EN, Language.ZH)
 _LANGUAGE_DISPLAY = {
     Language.EN: "English",
     Language.ZH: "中文",
-    Language.JA: "日本語",
-    Language.FR: "Français",
-    Language.DE: "Deutsch",
-    Language.ES: "Español",
-    Language.PT: "Português",
-    Language.RU: "Русский",
 }
-_LANGUAGE_ITEMS = [(lang.value, _LANGUAGE_DISPLAY[lang]) for lang in LANGUAGES]
+_LANGUAGE_ITEMS = [(lang.value, _LANGUAGE_DISPLAY[lang]) for lang in _GALLERY_LANGUAGES]
 
 lang_dropdown = Dropdown(tr.shell.language, items=_LANGUAGE_ITEMS, width="140px")
 

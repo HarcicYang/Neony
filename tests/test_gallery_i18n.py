@@ -202,6 +202,14 @@ class TestLeafWalk:
         walk(GalleryCatalog(), ())
 
 
+class TestLanguagePicker:
+    def test_only_catalog_languages_are_offered(self):
+        from neony.gallery.core import _GALLERY_LANGUAGES, _LANGUAGE_ITEMS
+
+        assert _GALLERY_LANGUAGES == (Language.EN, Language.ZH)
+        assert _LANGUAGE_ITEMS == [("en", "English"), ("zh", "中文")]
+
+
 class TestSectionsBuild:
     """Import every gallery section and build the full page tree.
 
