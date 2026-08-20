@@ -827,8 +827,96 @@
         submenu.style.display = oldDisplay;
     }
 
+    // ---- narrow overlay coordination ----
+    //
+    // These are deliberately two component-specific policies, not a global
+    // "one overlay" rule: Dialog, Tooltip, Select and ordinary dropdowns
+    // retain their existing independent lifecycles.
+    var messageActionsOwner = null;
+    var messageActionsHideTimer = null;
+    var MESSAGE_ACTIONS_HIDE_DELAY_MS = 160;
+
+    function cancelMessageActionsHide() {
+        if (messageActionsHideTimer !== null) {
+            clearTimeout(messageActionsHideTimer);
+            messageActionsHideTimer = null;
+        }
+    }
+
+    function setMessageActionsVisible(root, visible) {
+        if (!root || !root.isConnected) return;
+        var key = root.getAttribute("data-neony-message-actions");
+        var row = key ? engine.registry.get(key) : null;
+        if (row) row.style.display = visible ? "flex" : "none";
+    }
+
+    function coordinateMessageActions(event) {
+        if (event.type !== "mouseover" && event.type !== "mouseout") return;
+        var root = event.target.closest ? event.target.closest("[data-neony-message-actions]") : null;
+        if (!root) return;
+        var related = event.relatedTarget;
+        if (related && root.contains(related)) return; // internal bubble/action-row hop
+        if (event.type === "mouseover") {
+            cancelMessageActionsHide();
+            if (messageActionsOwner && messageActionsOwner !== root) {
+                setMessageActionsVisible(messageActionsOwner, false);
+            }
+            messageActionsOwner = root;
+            setMessageActionsVisible(root, true);
+        } else if (messageActionsOwner === root) {
+            cancelMessageActionsHide();
+            var owner = root;
+            messageActionsHideTimer = setTimeout(function () {
+                if (messageActionsOwner === owner) {
+                    setMessageActionsVisible(owner, false);
+                    messageActionsOwner = null;
+                }
+                messageActionsHideTimer = null;
+            }, MESSAGE_ACTIONS_HIDE_DELAY_MS);
+        }
+    }
+
+    function closeSupersededContextMenus(current) {
+        var menus = document.querySelectorAll('[data-neony-overlay-group="context-menu"][data-neony-overlay-open="true"]');
+        for (var i = 0; i < menus.length; i++) {
+            var menu = menus[i];
+            if (menu === current) continue;
+            menu.style.display = "none"; // remove the visual residue before IPC returns
+            var key = menu.getAttribute("data-neony-key");
+            if (key) {
+                window.lumiview.invoke("neony.event", { key: key, event_type: "outsideclick", value: null }).catch(function () {});
+            }
+        }
+    }
+
+    // Attribute patches are the authoritative indication that Python opened a
+    // cursor menu.  Observe them instead of treating every Menu instance (or
+    // every data-neony-outside node) as mutually exclusive.
+    var overlayObserver = new MutationObserver(function (records) {
+        for (var i = 0; i < records.length; i++) {
+            var menu = records[i].target;
+            if (
+                menu.getAttribute("data-neony-overlay-group") === "context-menu" &&
+                menu.getAttribute("data-neony-overlay-open") === "true"
+            ) {
+                closeSupersededContextMenus(menu);
+            }
+        }
+        if (messageActionsOwner && !messageActionsOwner.isConnected) messageActionsOwner = null;
+    });
+    overlayObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-neony-overlay-group", "data-neony-overlay-open"],
+        childList: true,
+        subtree: true,
+    });
+
     function eventHandler(event) {
         positionCascadeSubmenu(event);
+        if (event.type === "contextmenu") {
+            closeSupersededContextMenus(null);
+        }
+        coordinateMessageActions(event);
         var el = event.target.closest ? event.target.closest("[data-neony-key]") : null;
         // Keys typed while no element is focused land on <body> — no
         // data-neony-key ancestor to trace to.  Window-level key

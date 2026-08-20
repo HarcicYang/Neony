@@ -250,6 +250,79 @@ describe("event delegation", () => {
   });
 });
 
+describe("narrow overlay coordination", () => {
+  let invoke;
+
+  beforeEach(() => {
+    invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { listen, invoke, window: {} };
+  });
+
+  it("immediately hides a superseded top-level context menu", async () => {
+    mountTree({
+      key: "root",
+      tag: "div",
+      children: [
+        {
+          key: "old-menu",
+          tag: "div",
+          attrs: {
+            "data-neony-overlay-group": "context-menu",
+            "data-neony-overlay-open": "true",
+          },
+          styles: { display: "flex" },
+        },
+        {
+          key: "new-menu",
+          tag: "div",
+          attrs: { "data-neony-overlay-group": "context-menu" },
+          styles: { display: "flex" },
+        },
+      ],
+    });
+    const oldMenu = document.querySelector("[data-neony-key='old-menu']");
+    const newMenu = document.querySelector("[data-neony-key='new-menu']");
+    newMenu.setAttribute("data-neony-overlay-open", "true");
+    await Promise.resolve();
+
+    expect(oldMenu.style.display).toBe("none");
+    expect(newMenu.style.display).toBe("flex");
+    expect(invoke).toHaveBeenCalledWith("neony.event", {
+      key: "old-menu",
+      event_type: "outsideclick",
+      value: null,
+    });
+  });
+
+  it("keeps only the newest message action row visible", () => {
+    mountTree({
+      key: "root",
+      tag: "div",
+      children: [
+        {
+          key: "first-bubble",
+          tag: "div",
+          attrs: { "data-neony-message-actions": "first-actions" },
+          children: [{ key: "first-actions", tag: "div", styles: { display: "none" } }],
+        },
+        {
+          key: "second-bubble",
+          tag: "div",
+          attrs: { "data-neony-message-actions": "second-actions" },
+          children: [{ key: "second-actions", tag: "div", styles: { display: "none" } }],
+        },
+      ],
+    });
+    const first = document.querySelector("[data-neony-key='first-bubble']");
+    const second = document.querySelector("[data-neony-key='second-bubble']");
+    first.dispatchEvent(new window.MouseEvent("mouseover", { bubbles: true }));
+    second.dispatchEvent(new window.MouseEvent("mouseover", { bubbles: true }));
+
+    expect(document.querySelector("[data-neony-key='first-actions']").style.display).toBe("none");
+    expect(document.querySelector("[data-neony-key='second-actions']").style.display).toBe("flex");
+  });
+});
+
 describe("rich event payload", () => {
   let invoke;
   let win;

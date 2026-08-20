@@ -2768,6 +2768,32 @@ class TestMenuEvents:
         asyncio.run(menu._root._handlers["outsideclick"][0](DomEvent(key=menu._root.key, type="outsideclick")))
         assert menu._open is False
 
+    def test_opening_second_top_level_menu_closes_first(self):
+        first = Menu("first")
+        second = Menu("second")
+        Div(container=[first._root, second._root])
+        first.open_at(10, 10)
+        second.open_at(20, 20)
+
+        assert not first._open
+        assert first._root.styles.display == "none"
+        assert "data-neony-overlay-open" not in first._root.args
+        assert second._open
+        assert second._root.args["data-neony-overlay-group"] == "context-menu"
+
+    def test_opening_second_menu_closes_first_menu_tree(self):
+        first = Menu(MenuBranch("Branch", ["leaf"]))
+        branch = next(iter(first._branches.values()))
+        second = Menu("second")
+        Div(container=[first._root, second._root])
+        first.open_at(10, 10)
+        branch._open_submenu()
+        second.open_at(20, 20)
+
+        assert not first._open
+        assert not branch._open
+        assert second._open
+
 
 class TestCascadingDropdown:
     def test_builds_fixed_trigger_and_nested_popup(self):
@@ -2791,6 +2817,16 @@ class TestCascadingDropdown:
         assert animation.duration == "var(--motion-normal)"
         assert picker._chevron.container == ["▾"]
         assert picker._chevron.styles.transform == "rotate(180deg)"
+
+    def test_cascading_dropdown_does_not_join_context_menu_group(self):
+        picker = CascadingDropdown("Theme", items=["dark"])
+        picker._open_popup()
+        context_menu = Menu("copy")
+        context_menu.open_at(10, 10)
+
+        assert picker._open
+        assert picker._menu._root.styles.position == "absolute"
+        assert context_menu._open
 
     def test_sibling_branches_are_mutually_exclusive(self):
         import asyncio
@@ -5433,7 +5469,7 @@ class TestMessageBubbleEvents:
 
         asyncio.run(run())
 
-    def test_hover_shows_and_hides_actions(self):
+    def test_hover_shows_and_hides_actions_after_grace_delay(self):
         import asyncio
 
         b = MessageBubble("hi", actions=[("reply", "Reply")])
@@ -5447,11 +5483,46 @@ class TestMessageBubbleEvents:
                 DomEvent(key=b._actions.key, type="mouseover", related_key=b._actions.key)
             )
             assert b._actions.styles.display == "flex"
-            # real leave hides them
+            # A real leave preserves the row briefly so the pointer can cross
+            # the absolute-positioning gap before it reaches a button.
             await b._root._handlers["mouseout"][0](DomEvent(key=b._root.key, type="mouseout", related_key=None))
+            assert b._actions.styles.display == "flex"
+            await asyncio.sleep(0.2)
             assert b._actions.styles.display == "none"
 
         asyncio.run(run())
+
+    def test_reentering_actions_during_grace_delay_cancels_hide(self):
+        import asyncio
+
+        b = MessageBubble("hi", actions=[("reply", "Reply")])
+
+        async def run() -> None:
+            await b._root._handlers["mouseover"][0](DomEvent(key=b._root.key, type="mouseover"))
+            await b._root._handlers["mouseout"][0](DomEvent(key=b._root.key, type="mouseout"))
+            await asyncio.sleep(0.05)
+            await b._root._handlers["mouseover"][0](DomEvent(key=b._actions.key, type="mouseover"))
+            await asyncio.sleep(0.2)
+
+        asyncio.run(run())
+        assert b._actions.styles.display == "flex"
+
+    def test_hover_actions_are_exclusive_across_bubbles(self):
+        import asyncio
+
+        first = MessageBubble("first", actions=[("reply", "Reply")])
+        second = MessageBubble("second", actions=[("reply", "Reply")])
+        Div(container=[first._root, second._root])
+
+        async def run() -> None:
+            await first._root._handlers["mouseover"][0](DomEvent(key=first._root.key, type="mouseover"))
+            await second._root._handlers["mouseover"][0](DomEvent(key=second._root.key, type="mouseover"))
+            # A delayed leave from the first bubble cannot clear the newer owner.
+            await first._root._handlers["mouseout"][0](DomEvent(key=first._root.key, type="mouseout"))
+
+        asyncio.run(run())
+        assert first._actions.styles.display == "none"
+        assert second._actions.styles.display == "flex"
 
     def test_action_click_dispatches(self):
         import asyncio

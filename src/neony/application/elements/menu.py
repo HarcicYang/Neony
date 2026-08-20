@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Sequence
 
 from neony.application.theme import stub
@@ -101,6 +102,13 @@ _BRANCH_CHEVRON = Styles(
 _BRANCH_CHEVRON_OPEN = _BRANCH_CHEVRON.model_copy(update={"transform": "rotate(90deg)"})
 
 
+# One top-level cursor menu may be active in each mounted DOM tree.  Weak
+# keys keep pages/windows independent and let an unmounted tree disappear
+# without a process-global lifetime leak.  CascadingDropdown never calls
+# ``open_at`` so its embedded Menu does not enter this registry.
+_CONTEXT_MENUS: dict[int, tuple[weakref.ReferenceType, weakref.ReferenceType]] = {}
+
+
 class Menu(Component):
     """A cursor-positioned context menu with optional cascading branches.
 
@@ -131,11 +139,53 @@ class Menu(Component):
         for entry in items:
             self._add_option(entry)
 
+    def _context_scope(self) -> object:
+        """Return this menu's mounted tree root (one scope per window/page)."""
+        node = self._root
+        while node._parent is not None:
+            node = node._parent
+        return node
+
+    def _context_entry(self) -> tuple[object, weakref.ReferenceType[Menu] | None]:
+        """Return this tree's live scope and any active cursor menu.
+
+        DOMElement instances are intentionally unhashable, so the registry is
+        keyed by ``id(scope)`` and validates its weakly-held scope before use.
+        """
+        scope = self._context_scope()
+        entry = _CONTEXT_MENUS.get(id(scope))
+        if entry is None or entry[0]() is not scope:
+            return scope, None
+        return scope, entry[1]
+
+    def _activate_context_menu(self) -> None:
+        """Make this top-level cursor menu the sole owner in its tree."""
+        if self._submenu:
+            return
+        scope, previous_ref = self._context_entry()
+        previous = previous_ref() if previous_ref is not None else None
+        if previous is not None and previous is not self:
+            previous.close()
+        _CONTEXT_MENUS[id(scope)] = (weakref.ref(scope), weakref.ref(self))
+
+    def _deactivate_context_menu(self) -> None:
+        if self._submenu:
+            return
+        scope, current_ref = self._context_entry()
+        if current_ref is not None and current_ref() is self:
+            del _CONTEXT_MENUS[id(scope)]
+
     def open_at(self, x: float, y: float) -> None:
-        """Show the root context menu at viewport coordinates."""
+        """Show the root context menu at viewport coordinates.
+
+        Cursor-positioned top-level menus are exclusive within their mounted
+        DOM tree.  Embedded menus (for example CascadingDropdown) never use
+        this entry point and retain their independent popup semantics.
+        """
         if self._submenu:
             self._open_submenu()
             return
+        self._activate_context_menu()
         if self._active_index < 0 and self._rows:
             self._active_index = 0
             self._apply_option_styles(0)
@@ -148,20 +198,28 @@ class Menu(Component):
                 "max_height": calc(f"{max(0.0, y - 8):.0f}px"),
             }
         )
-        self._root.args = {**self._root.args, "data-neony-outside": "true"}
+        self._root.args = {
+            **self._root.args,
+            "data-neony-outside": "true",
+            "data-neony-overlay-group": "context-menu",
+            "data-neony-overlay-open": "true",
+        }
         self._open = True
 
     def close(self) -> None:
-        """Close this menu level and every descendant level."""
+        """Close this menu level and every descendant level idempotently."""
         for child in self._branches.values():
             child.close()
-        if not self._open:
-            return
-        self._open = False
+        self._deactivate_context_menu()
         if self._parent is not None:
             self._parent._set_branch_chevron(self, False)
+        self._open = False
         self._root.styles = _SUBMENU if self._submenu else _PANEL
-        self._root.args = {k: v for k, v in self._root.args.items() if k != "data-neony-outside"}
+        self._root.args = {
+            k: v
+            for k, v in self._root.args.items()
+            if k not in {"data-neony-outside", "data-neony-overlay-group", "data-neony-overlay-open"}
+        }
 
     def _open_submenu(self) -> None:
         if self._parent is not None:

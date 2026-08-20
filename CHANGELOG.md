@@ -253,6 +253,13 @@
 
 ### Fixed
 
+- **Overlay ownership and message actions** — cursor-positioned context
+  menus are now exclusive within one mounted page/window; opening another
+  closes the previous menu tree without affecting CascadingDropdown.
+  MessageBubble hover actions likewise have one owner per page/window,
+  and use a cancellable 160ms leave delay so the pointer can cross into
+  the absolutely positioned action row without it disappearing.
+
 - **`Tabs.active_key` fix** — the documented "key of active panel"
   returned a random element id; it now returns the tab title.
 - **Reactive primitives** (`neony.dom`) — `Signal`, `Computed`, `Effect`,

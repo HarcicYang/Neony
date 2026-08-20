@@ -420,10 +420,12 @@ other.on_action(lambda v: print(v))  # 快捷操作点击
 `actions` 在气泡下方渲染 hover 时出现的快捷按钮——`(value, label)`
 或 `str` 变成文本按钮，`Icon` 变成图标按钮；点击触发
 `on_action(value)`。快捷操作行**绝对定位**在气泡正下方，出现时覆盖
-下一条消息，不会撑高组件体积。`menu_items` 配置内置右键 `Menu`（默认
-复制/删除；`[]` 关闭菜单但 `on_contextmenu` 仍触发），选择通过
-`on_change` 派发（携带 value）。注意：菜单是气泡内的 `position:
-fixed` 元素；聊天容器请避开 `backdrop-filter` / `transform` 祖先。
+下一条消息，不会撑高组件体积；同一窗口内只有当前悬停消息会显示快捷
+操作行。`menu_items` 配置内置右键 `Menu`（默认复制/删除；`[]` 关闭菜单
+但 `on_contextmenu` 仍触发），选择通过 `on_change` 派发（携带 value）；
+同一窗口内打开该光标菜单会关闭此前打开的光标菜单。注意：菜单是气泡内
+的 `position: fixed` 元素；聊天容器请避开 `backdrop-filter` /
+`transform` 祖先。
 
 ### `NoticeBubble`
 

@@ -19,6 +19,8 @@ the bubble's DOM (hidden while closed).  Any ``backdrop-filter`` /
 
 from __future__ import annotations
 
+import asyncio
+import weakref
 from collections.abc import Sequence
 from typing import Self
 
@@ -83,6 +85,10 @@ _BUBBLE_OTHER = Styles(
 # Hover-revealed quick actions, positioned just below the bubble.  Out of
 # flow (absolute) so showing them never changes the row's height — they
 # overlay the message below instead of pushing it.
+# A short grace period bridges the small gap between a bubble and its
+# absolutely positioned action row without making a real leave feel sticky.
+_ACTIONS_HIDE_DELAY = 0.16
+
 _ACTIONS = Styles(
     position="absolute",
     top="calc(100% + 2px)",
@@ -102,6 +108,11 @@ _ACTION = Styles(
     font_size="12px",
     cursor="pointer",
 )
+
+# One action row may be visible in each mounted DOM tree.  This is scoped by
+# root rather than module-wide so independent application windows never affect
+# one another.  The weak references also avoid retaining rebuilt message lists.
+_MESSAGE_ACTION_OWNERS: dict[int, tuple[weakref.ReferenceType, weakref.ReferenceType]] = {}
 
 
 def _default_menu() -> tuple[tuple[str, ReactiveText], ...]:
@@ -173,6 +184,7 @@ class MessageBubble(Component):
         self._from_me = from_me
         self._action_by_key: dict[str, str] = {}
         self._actions_shown = False
+        self._actions_hide_task: asyncio.Task | None = None
 
         self._menu: Menu | None = None
         if menu_items is None:
@@ -206,6 +218,12 @@ class MessageBubble(Component):
         # buttons) must reach the row's handlers.
         self._root.bubble_events = True
         self._rebuild_row()
+        if actions:
+            self._root.args = {
+                **self._root.args,
+                "data-neony-message-actions": self._actions.key,
+                "data-neony-overlay-group": "message-actions",
+            }
 
         self._apply_side()
         self._bind(self._root, "mouseover")
@@ -317,11 +335,66 @@ class MessageBubble(Component):
         self._bind(btn, "click")
         self._actions.container.append(btn)
 
+    def _actions_scope(self) -> object:
+        """Return this bubble's mounted tree root for owner isolation."""
+        node = self._root
+        while node._parent is not None:
+            node = node._parent
+        return node
+
     def _set_actions_visible(self, visible: bool) -> None:
         if visible == self._actions_shown:
             return
         self._actions_shown = visible
         self._actions.styles = self._actions.styles.model_copy(update={"display": "flex" if visible else "none"})
+
+    def _actions_entry(self) -> tuple[object, weakref.ReferenceType[MessageBubble] | None]:
+        """Return this tree's live scope and its current action owner."""
+        scope = self._actions_scope()
+        entry = _MESSAGE_ACTION_OWNERS.get(id(scope))
+        if entry is None or entry[0]() is not scope:
+            return scope, None
+        return scope, entry[1]
+
+    def _cancel_actions_hide(self) -> None:
+        if self._actions_hide_task is not None:
+            self._actions_hide_task.cancel()
+            self._actions_hide_task = None
+
+    def _claim_actions(self) -> None:
+        self._cancel_actions_hide()
+        scope, previous_ref = self._actions_entry()
+        previous = previous_ref() if previous_ref is not None else None
+        if previous is not None and previous is not self:
+            previous._cancel_actions_hide()
+            previous._set_actions_visible(False)
+        _MESSAGE_ACTION_OWNERS[id(scope)] = (weakref.ref(scope), weakref.ref(self))
+        self._set_actions_visible(True)
+
+    def _release_actions(self) -> None:
+        self._cancel_actions_hide()
+        try:
+            self._actions_hide_task = asyncio.create_task(self._hide_actions_after_delay())
+        except RuntimeError:
+            # Direct programmatic/unit-test calls without a running loop keep
+            # their deterministic immediate close semantics.
+            self._finish_actions_release()
+
+    async def _hide_actions_after_delay(self) -> None:
+        try:
+            await asyncio.sleep(_ACTIONS_HIDE_DELAY)
+            self._finish_actions_release()
+        except asyncio.CancelledError:
+            return
+        finally:
+            if self._actions_hide_task is asyncio.current_task():
+                self._actions_hide_task = None
+
+    def _finish_actions_release(self) -> None:
+        scope, current_ref = self._actions_entry()
+        if current_ref is not None and current_ref() is self:
+            del _MESSAGE_ACTION_OWNERS[id(scope)]
+            self._set_actions_visible(False)
 
     def _related_inside(self, key: str | None) -> bool:
         """True when *key* belongs to the row's subtree — the pointer is
@@ -344,10 +417,10 @@ class MessageBubble(Component):
     async def _on_event(self, event_type: str, event: DomEvent) -> None:
         if event_type == "mouseover":
             if not self._related_inside(event.related_key):
-                self._set_actions_visible(True)
+                self._claim_actions()
         elif event_type == "mouseout":
             if not self._related_inside(event.related_key):
-                self._set_actions_visible(False)
+                self._release_actions()
         elif event_type == "contextmenu":
             if self._menu is not None:
                 self._menu.open_at(event.x or 0, event.y or 0)

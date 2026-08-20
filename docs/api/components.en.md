@@ -476,9 +476,12 @@ the bubble that appear on hover — a `(value, label)` pair or `str`
 becomes a text button, an `Icon` an icon button; clicking fires
 `on_action(value)`. The action row is absolutely positioned below the
 bubble, so showing it overlays the message beneath instead of shifting
-the row's height. `menu_items` configures the built-in right-click
+the row's height. Within one window, only the currently hovered message
+shows its quick-action row. `menu_items` configures the built-in right-click
 `Menu` (default Copy / Delete; `[]` disables it — `on_contextmenu`
-still fires) and selections dispatch to `on_change` with the value.
+still fires) and selections dispatch to `on_change` with the value;
+within one window, opening this cursor menu closes any previously open
+cursor menu.
 
 NOTE: the menu is a `position: fixed` element inside the bubble; keep
 chat panes away from `backdrop-filter` / `transform` ancestors.
