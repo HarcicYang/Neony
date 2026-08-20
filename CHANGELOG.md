@@ -253,6 +253,12 @@
 
 ### Fixed
 
+- **Overlay click-away delivery** — synthetic `outsideclick` is now
+  observed in document capture phase, so a blank-area click still closes
+  an open overlay even when later propagation is stopped. This restores
+  reliable click-away closing for CascadingDropdown and the other popup
+  components that use the marker.
+
 - **Overlay ownership and message actions** — cursor-positioned context
   menus are now exclusive within one mounted page/window; opening another
   closes the previous menu tree without affecting CascadingDropdown.

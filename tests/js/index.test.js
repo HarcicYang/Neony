@@ -1199,6 +1199,20 @@ describe("outsideclick", () => {
     expect(outsidePayloads()).toEqual([{ key: "dd", event_type: "outsideclick", value: null }]);
   });
 
+  it("fires outsideclick from a blank click even when bubble propagation is stopped", () => {
+    mountTree({
+      key: "dd",
+      tag: "div",
+      attrs: { "data-neony-outside": "true" },
+    });
+    const blank = document.createElement("div");
+    document.body.appendChild(blank);
+    blank.addEventListener("click", (event) => event.stopPropagation());
+    blank.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+    expect(outsidePayloads()).toEqual([{ key: "dd", event_type: "outsideclick", value: null }]);
+  });
+
   it("does not fire outsideclick for clicks inside the overlay", () => {
     mountTree({
       key: "dd",

@@ -1244,10 +1244,10 @@
     // Synthetic `outsideclick`: every element marked with
     // data-neony-outside="true" (an open overlay wrapper — trigger +
     // panel) receives one event per click that lands OUTSIDE its
-    // subtree, so overlays can close on click-away.  Bubble phase on
-    // document: the capture-phase handler above early-returns for
-    // clicks with no keyed ancestor (blank page space) — precisely the
-    // outside case this listener exists for.
+    // subtree, so overlays can close on click-away.  Capture phase is
+    // deliberate: a blank-area target (or a native/third-party listener)
+    // may stop propagation before document bubble phase, which otherwise
+    // leaves an open popup stranded.
     document.addEventListener(
         "click",
         function (event) {
@@ -1264,7 +1264,7 @@
                     });
             }
         },
-        false
+        true
     );
 
     // ---- Scroll indicator (data-neony-scroll) ----
