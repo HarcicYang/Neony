@@ -18,12 +18,12 @@ from typing import TYPE_CHECKING
 
 from neony.application.elements import VStack
 
-from . import buttons, chat, data, forms, glass, home, interaction, layout, system
+from . import buttons, chat, data, forms, glass, home, icons, interaction, layout, system
 
 if TYPE_CHECKING:
     from neony.application import Page
 
-_SECTION_MODULES = (home, buttons, forms, layout, glass, interaction, data, chat, system)
+_SECTION_MODULES = (home, buttons, forms, layout, glass, icons, interaction, data, chat, system)
 
 PANELS: dict[str, VStack] = {}
 for _module in _SECTION_MODULES:

@@ -8,13 +8,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from neony.application import icons
 from neony.application.elements import (
     Avatar,
     Button,
     Component,
     Dropdown,
     HStack,
-    Icon,
     ImageSegment,
     MessageBubble,
     NoticeBubble,
@@ -104,7 +104,7 @@ other_msg = MessageBubble(
     tr.chat.other_msg,
     avatar=Avatar(name="Sherry"),
     name="Sherry",
-    actions=[("copy", tr.chat.copy_text), Icon.glyph("😊")],
+    actions=[("copy", tr.chat.copy_text), icons.favorite],
 )
 other_msg.on_change(on_chat_menu)
 other_msg.on_action(on_chat_action)

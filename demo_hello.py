@@ -2,7 +2,7 @@
 """Hello demo — the smallest reactive Neony application."""
 
 from neony.application import Page, launch
-from neony.application.elements import Button, Heading, Text, VStack
+from neony.application.elements import Button, Heading, Text
 from neony.dom import Signal
 
 clicks = Signal(0)
@@ -13,12 +13,7 @@ counter.bind_text(clicks, fmt=lambda count: f"Clicked {count} times!" if count e
 counter.on_click(lambda _event: clicks.update(lambda count: count + 1))
 
 page = Page(gap="16px").add(
-    VStack(
-        Heading("Hello, Neony", level=1),
-        Text("Build desktop UI in pure Python.", role="secondary"),
-        counter,
-        gap="12px",
-    )
+    Heading("Hello, Neony", level=1), Text("Build desktop UI in pure Python.", role="secondary"), counter
 )
 
 launch(page, title="My App", width=480, height=360, devtools=True)

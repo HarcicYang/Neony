@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from neony.application import icons
 from neony.application.elements import (
     Avatar,
     Badge,
@@ -103,20 +104,24 @@ Checkbox("Glass", glass=True)""",
 icon_panel = Section(
     tr.glass.icon_title,
     tr.glass.icon_blurb,
-    """# Frameless — inline in the TitleBar (this window):
-TitleBar("My App", icon=Icon.image("https://harcic.is-a.dev/resource/favicon.svg"))
+    """# Built-in UI icons — imported from the stub namespace:
+from neony.application import icons
+Button("Save", icon=icons.check)
+SidebarItem("Home", icon=icons.home)
 
-# Decorated — the OS window chrome shows it:
+# Explicit custom content remains available:
+Icon.glyph("🍒")
+TitleBar(icon=Icon.image("https://example.com/logo.svg"))
+
+# Window / taskbar icons are separate native resources:
 launch(page, title="My App", icon="icon.png")
-# or: Config(window=WindowConfig(title="My App", icon="icon.png"))
-
-# Runtime swap (either mode):
-await app.set_icon("icon.png")
-
-# Local resources:
-from neony.application import file_url, data_url
-GlassPanel(background=file_url("bg.png"))
-TitleBar(icon=Icon.image(data_url("logo.svg")))""",
+await app.set_icon("icon.png")""",
+    HStack(
+        Button("Save", icon=icons.check),
+        Button("Settings", icon=icons.settings, variant="ghost"),
+        Button("Delete", icon=icons.delete, variant="danger"),
+        gap="8px",
+    ),
     VStack(
         Text(tr.glass.icon_live, role="secondary"),
         Text(tr.glass.icon_decorated, role="secondary"),

@@ -52,12 +52,7 @@ plus_btn.on_click(lambda _e: count.update(lambda c: c + 1))
 minus_btn.on_click(lambda _e: count.update(lambda c: c - 1))
 
 page_one = Page(gap="16px").add(
-    VStack(
-        Heading(f"Counter ({app.state.name})", level=2),
-        count_label,
-        HStack(plus_btn, minus_btn, gap="8px"),
-        gap="12px",
-    )
+    Heading(f"Counter ({app.state.name})", level=2), count_label, HStack(plus_btn, minus_btn, gap="8px")
 )
 
 # ── window 1: display — auto-syncs, no refresh button ─────────────
@@ -73,6 +68,7 @@ page_two = Page(gap="16px").add(
         gap="12px",
     )
 )
+
 
 # ── ready: give the second window its own title ──────────────────
 

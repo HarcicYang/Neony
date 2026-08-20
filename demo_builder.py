@@ -6,7 +6,7 @@ all content without exposing the native window or document builders.
 """
 
 from neony.application import Page, launch
-from neony.application.elements import Heading, Text, VStack
+from neony.application.elements import Heading, Text
 from neony.application.theme import stub
 from neony.dom import Div, Styles
 
@@ -25,13 +25,7 @@ disc = Div(
 )
 
 page = Page(fill=True, justify="center", align="center", max_width="100%").add(
-    VStack(
-        Heading("Hello, Neony", level=1),
-        Text("Built with Page and components.", role="secondary"),
-        disc,
-        gap="16px",
-        align="center",
-    )
+    Heading("Hello, Neony", level=1), Text("Built with Page and components.", role="secondary")
 )
 
 launch(page, title="Hello Neony!", width=900, height=640, devtools=True)

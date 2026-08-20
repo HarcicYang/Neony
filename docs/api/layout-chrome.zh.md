@@ -180,12 +180,16 @@ people.bind_selected(signal)  # 双向响应式选中
 
 ## `Icon`
 
-`TitleBar`、`Sidebar`/`Pane`/`SidebarItem`、`Tabs` 与 `TreeNode` 共用的统一图标——图片或字形，二选一显式声明：
+内置 UI 图标使用 Theme 风格的 stub 命名空间。图标目录实现类保持私有，不属于公开 API：
 
 ```python
-Icon.image("https://example.com/logo.svg")  # 固定尺寸方形（TitleBar 同款）
-Icon.image("assets/logo.png")
-Icon.glyph("🏠")  # emoji / Nerd Font 字符
+from neony.application import icons
+from neony.application.elements import Button
+
+Button("保存", icon=icons.check)
+SidebarItem("首页", icon=icons.home)
 ```
 
-**参数:** `Icon(src, kind)` — 经 `Icon.image(url_or_path)` 或 `Icon.glyph(text)` 构造；`render(size)` 生成元素（图片形式以 `background-image: url(...)` 绘制固定尺寸方形，contain/居中/不重复，绝不拉伸）。
+内置目录只使用一套随包分发的 Material Symbols Rounded 字体。图标继承组件的 `color` 主题令牌，采用固定方形几何，并统一 weight/fill/grade/optical-size 设置。这个单字体约束是观感一致性的边界；语义目录中不混用不同第三方字体。
+
+`Icon.image(url_or_path)` 继续用于 Logo 与原生图片资源，`Icon.glyph(text)` 继续用于明确的自定义文本或 emoji 内容。两者都会返回 `Icon`，可传给各组件的 `icon` 参数，包括 `Button.icon: Icon | None`。

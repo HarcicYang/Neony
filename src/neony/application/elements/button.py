@@ -9,6 +9,7 @@ from neony.dom import BoxShadow, Color, DOMElement, DomEvent, Shadow, Span, Styl
 from neony.dom import Button as _ButtonElem
 
 from .base import Component, ReactiveText, _mount_text
+from .icon import Icon
 
 
 class Button(Component):
@@ -22,7 +23,8 @@ class Button(Component):
 
     ``variant`` selects a token-based palette: ``"primary"`` (accent bg),
     ``"ghost"`` (transparent, bordered), ``"danger"`` (danger accent).
-    Hovering lifts the button; pressing dims and compresses it.
+    Hovering lifts the button; pressing dims and compresses it. ``icon`` is
+    an optional :class:`Icon`, rendered before the label.
     """
 
     def __init__(
@@ -32,7 +34,7 @@ class Button(Component):
         variant: Literal["primary", "ghost", "danger"] = "primary",
         glass: bool = False,
         disabled: bool = False,
-        icon: str | None = None,
+        icon: Icon | None = None,
     ) -> None:
         super().__init__()
         self._label = label
@@ -52,7 +54,7 @@ class Button(Component):
         # the label span (a raw string child can't subscribe), and
         # ``bubble_events`` lets clicks/hovers on those spans reach the
         # button's own handlers.
-        self._icon_span: Span | None = Span(container=[icon]) if icon else None
+        self._icon_span: Span | None = icon.render("16px") if icon is not None else None
         self._label_span = Span(container=[])
         _mount_text(self._label_span, label)
 
@@ -92,6 +94,10 @@ class Button(Component):
     def _variant_styles(variant: str, glass: bool = False) -> Styles:
         # border: none kills WebKitGTK's default 2px outset border.
         base = Styles(
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            gap="8px",
             padding="10px 20px",
             border_radius="8px",
             border="none",
@@ -192,21 +198,19 @@ class Button(Component):
         self._label_span.container = [value]
 
     @property
-    def icon(self) -> str | None:
+    def icon(self) -> Icon | None:
         return self._icon
 
     @icon.setter
-    def icon(self, value: str | None) -> None:
+    def icon(self, value: Icon | None) -> None:
         self._icon = value
-        if self._icon_span is not None:
-            if value:
-                self._icon_span.container = [value]
-            else:
+        if value is None:
+            if self._icon_span is not None:
                 self._icon_span = None
                 self._btn.container = self._text_content()
-        elif value:
-            self._icon_span = Span(container=[value])
-            self._btn.container = self._text_content()
+            return
+        self._icon_span = value.render("16px")
+        self._btn.container = self._text_content()
 
     @property
     def disabled(self) -> bool:

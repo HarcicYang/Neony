@@ -45,7 +45,7 @@ content = Div(
 
 # grow=1 makes the chrome stack fill the window; the content stage then
 # grows to fill the space below the titlebar.
-page.add(VStack(titlebar, content, gap="0px", grow=1))
+page.add(titlebar, content)
 
 
 def main() -> None:

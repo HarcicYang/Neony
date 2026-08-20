@@ -57,7 +57,9 @@ class TestEnKeysResolve:
         [
             (tr.shell.h1, "Neony Component Gallery"),
             (tr.nav.home, "Home"),
+            (tr.nav.icons, "Icons"),
             (tr.nav.datatable, "DataTable"),
+            (tr.icons.title, "Built-in Icons"),
             (tr.home.heading, "Welcome"),
             (tr.buttons.primary, "Primary Action"),
             (tr.forms.wifi, "Wi-Fi"),

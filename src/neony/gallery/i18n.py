@@ -38,6 +38,7 @@ class Shell(BaseModel):
 class Nav(BaseModel):
     model_config = _CFG
     home: TrRef[None] = TrRef("Home")
+    icons: TrRef[None] = TrRef("Icons")
     buttons: TrRef[None] = TrRef("Buttons")
     inputs_forms: TrRef[None] = TrRef("Inputs & Forms")
     inputs: TrRef[None] = TrRef("Inputs")
@@ -188,6 +189,19 @@ class Layout(BaseModel):
     selectable_copy: TrRef[None] = TrRef("Selectable copy — the normal default.")
 
 
+class Icons(BaseModel):
+    model_config = _CFG
+    title: TrRef[None] = TrRef("Built-in Icons")
+    blurb: TrRef[None] = TrRef(
+        "The complete public icons stub. Every entry uses the bundled Material Symbols Rounded font, "
+        "inherits its component colour from the active theme, and stays in a fixed square box."
+    )
+    navigation: TrRef[None] = TrRef("Navigation")
+    actions: TrRef[None] = TrRef("Actions")
+    direction: TrRef[None] = TrRef("Direction")
+    status: TrRef[None] = TrRef("Status & Content")
+
+
 class Glass(BaseModel):
     model_config = _CFG
     glass_title: TrRef[None] = TrRef("Frosted Glass")
@@ -208,12 +222,12 @@ class Glass(BaseModel):
     success_glow: TrRef[None] = TrRef("Success — role glows follow the theme")
     danger_emphasis: TrRef[None] = TrRef("Danger — destructive emphasis")
     corners_desc: TrRef[None] = TrRef("Per-corner radii — 24px / 4px / 24px / 4px")
-    icon_title: TrRef[None] = TrRef("Window Icon")
+    icon_title: TrRef[None] = TrRef("Icons")
     icon_blurb: TrRef[None] = TrRef(
-        "Frameless windows show the icon inline in the TitleBar; decorated "
-        "windows hand it to the OS window chrome via WindowConfig.icon — "
-        "both take the same URL or file path. file_url() / data_url() turn "
-        "local files into URL strings for icons, backgrounds and images."
+        "Built-in UI icons come from the stub namespace and one bundled Material "
+        "Symbols Rounded font. They inherit the current theme colour and use a "
+        "fixed square box for stable alignment. Image and glyph forms remain "
+        "available for logos and deliberate custom content."
     )
     icon_live: TrRef[None] = TrRef("Live: the favicon in the titlebar above uses TitleBar(icon=...).")
     icon_decorated: TrRef[None] = TrRef(
@@ -644,6 +658,7 @@ class GalleryCatalog(Catalog):
     buttons: Buttons = Buttons()
     forms: Forms = Forms()
     layout: Layout = Layout()
+    icons: Icons = Icons()
     glass: Glass = Glass()
     interaction: Interaction = Interaction()
     data: Data = Data()
@@ -677,6 +692,7 @@ register_catalog(
         ),
         nav=Nav(
             home="首页",
+            icons="图标库",
             buttons="按钮",
             inputs_forms="输入与表单",
             inputs="输入框",
@@ -807,6 +823,17 @@ register_catalog(
             success_text="成功文本——确认信息。",
             selectable_copy="可选中文本——普通默认。",
         ),
+        icons=Icons(
+            title="内置图标",
+            blurb=(
+                "完整的公开 icons stub。每个条目均使用随包分发的 Material Symbols Rounded 字体，"
+                "继承当前主题中的组件颜色，并保持固定方形布局。"
+            ),
+            navigation="导航",
+            actions="操作",
+            direction="方向",
+            status="状态与内容",
+        ),
         glass=Glass(
             glass_title="毛玻璃",
             glass_blurb=(
@@ -825,11 +852,10 @@ register_catalog(
             success_glow="成功——角色光晕跟随主题",
             danger_emphasis="危险——破坏性强调",
             corners_desc="每角半径——24px / 4px / 24px / 4px",
-            icon_title="窗口图标",
+            icon_title="图标",
             icon_blurb=(
-                "无边框窗口把图标内联画在 TitleBar 里；带边框窗口通过 WindowConfig.icon "
-                "把它交给操作系统窗口镶边——两者接受相同的 URL 或文件路径。file_url() / "
-                "data_url() 把本地文件转成图标、背景和图片用的 URL 字符串。"
+                "内置 UI 图标来自 stub 命名空间和一套随包分发的 Material Symbols Rounded "
+                "字体；它们继承当前主题颜色，并以固定方形盒布局。Logo 与明确的自定义内容仍可使用图片和 glyph 形式。"
             ),
             icon_live="实时：上方标题栏的 favicon 用了 TitleBar(icon=...)。",
             icon_decorated=(
