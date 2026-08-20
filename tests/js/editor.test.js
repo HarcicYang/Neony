@@ -32,8 +32,8 @@ describe("richText internals", () => {
     mountEditor('a<img src="x.png" alt="pic"><img src="y.png">b');
     expect(neony.richText.exportContent("editor")).toEqual([
       { kind: "text", text: "a" },
-      { kind: "image", src: "x.png", alt: "pic" },
-      { kind: "image", src: "y.png", alt: "" },
+      { kind: "image", src: "x.png", alt: "pic", width: "40px", height: "40px" },
+      { kind: "image", src: "y.png", alt: "", width: "40px", height: "40px" },
       { kind: "text", text: "b" },
     ]);
   });
@@ -53,10 +53,25 @@ describe("richText internals", () => {
     expect(neony.richText.insertImage("editor", "x.png", "pic", 1)).toBe(true);
     expect(neony.richText.exportContent("editor")).toEqual([
       { kind: "text", text: "a" },
-      { kind: "image", src: "x.png", alt: "pic" },
+      { kind: "image", src: "x.png", alt: "pic", width: "40px", height: "40px" },
       { kind: "text", text: "b" },
     ]);
     expect(neony.richText.getCaret("editor")).toBe(2);
+    const image = document.querySelector("img[data-neony-rich-image]");
+    expect(image.style.width).toBe("40px");
+    expect(image.style.height).toBe("40px");
+    expect(image.style.maxWidth).toBe("min(320px, 100%)");
+    expect(image.style.maxHeight).toBe("240px");
+  });
+
+  it("applies custom image dimensions within the display cap", () => {
+    mountEditor("ab");
+    neony.richText.insertImage("editor", "x.png", "pic", 1, "800px", "600px");
+    const image = document.querySelector("img[data-neony-rich-image]");
+    expect(image.style.width).toBe("800px");
+    expect(image.style.height).toBe("600px");
+    expect(image.style.maxWidth).toBe("min(320px, 100%)");
+    expect(image.style.maxHeight).toBe("240px");
   });
 
   it("loads segments from the Python model", () => {
@@ -64,12 +79,12 @@ describe("richText internals", () => {
     expect(
       neony.richText.loadContent("editor", [
         { kind: "text", text: "你好" },
-        { kind: "image", src: "x.png", alt: "" },
+        { kind: "image", src: "x.png", alt: "", width: "40px", height: "40px" },
       ])
     ).toBe(true);
     expect(neony.richText.exportContent("editor")).toEqual([
       { kind: "text", text: "你好" },
-      { kind: "image", src: "x.png", alt: "" },
+      { kind: "image", src: "x.png", alt: "", width: "40px", height: "40px" },
     ]);
   });
 

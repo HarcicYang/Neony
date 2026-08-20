@@ -133,6 +133,8 @@
                         kind: "image",
                         src: node.getAttribute("src") || "",
                         alt: node.getAttribute("alt") || "",
+                        width: node.style.width || "40px",
+                        height: node.style.height || "40px",
                     });
                 } else if (isBreak(node)) {
                     units.push({ kind: "text", text: "\n" });
@@ -231,7 +233,20 @@
         };
     }
 
-    function insertImage(key, src, alt, pos) {
+    function styleImage(img, width = "40px", height = "40px") {
+        img.style.display = "inline-block";
+        img.style.width = width || "40px";
+        img.style.height = height || "40px";
+        img.style.maxWidth = "min(320px, 100%)";
+        img.style.maxHeight = "240px";
+        img.style.objectFit = "cover";
+        img.style.verticalAlign = "middle";
+        img.style.borderRadius = "5px";
+        img.style.cursor = "pointer";
+        img.style.userSelect = "none";
+    }
+
+    function insertImage(key, src, alt, pos, width = "40px", height = "40px") {
         const root = elForKey(key);
         if (!root) return false;
 
@@ -254,6 +269,7 @@
         if (alt) img.setAttribute("alt", alt);
         img.setAttribute("data-neony-rich-image", "true");
         img.setAttribute("draggable", "false");
+        styleImage(img, width, height);
 
         if (!range.collapsed) range.deleteContents();
         range.insertNode(img);
@@ -279,6 +295,7 @@
                 if (seg.alt) img.setAttribute("alt", seg.alt);
                 img.setAttribute("data-neony-rich-image", "true");
                 img.setAttribute("draggable", "false");
+                styleImage(img, seg.width, seg.height);
                 root.appendChild(img);
             } else {
                 root.appendChild(document.createTextNode(seg.text || ""));

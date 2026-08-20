@@ -457,7 +457,7 @@ Neony 渲染中保持稳定。扁平位置按一个文字字符记 1、一张行
 
 - `content() -> list[TextSegment | ImageSegment]` — 有序内容。
 - `set_content(segments)` — 编程式替换。
-- `insert_text(text, *, at_caret=True)` / `insert_image(src, *, at_caret=True, alt="", width=None, height=None)`。
+- `insert_text(text, *, at_caret=True)` / `insert_image(src, *, at_caret=True, alt="", width=None, height=None)`。图片默认显示为 `40×40px`；自定义尺寸的显示上限为 `320×240px`，宽度同时不超过编辑器容器。
 - `caret_position()` / `selection_range()` / `set_caret(position)` / `focus()`。
 - 事件：`on_change`（`event.value` 为分段列表）、`on_submit`
   （Enter；默认换行被拦截）、`on_input`、`on_click`、

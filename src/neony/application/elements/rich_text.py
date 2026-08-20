@@ -75,10 +75,15 @@ _EDITOR = Styles(
 
 _TEXT = Styles(white_space="pre-wrap", word_break="break-word")
 
+_IMAGE_MAX_WIDTH = "min(320px, 100%)"
+_IMAGE_MAX_HEIGHT = "240px"
+
 _IMAGE = Styles(
     display="inline-block",
     width="40px",
     height="40px",
+    max_width=_IMAGE_MAX_WIDTH,
+    max_height=_IMAGE_MAX_HEIGHT,
     border_radius="5px",
     object_fit="cover",
     vertical_align="middle",
@@ -191,26 +196,52 @@ class RichText(Component):
         return TextSegment(text=str(segment))
 
     @staticmethod
-    def _build_segment_element(segment: RichSegment) -> Div | Span | Img:
+    def _css_size(value: int | str | None, default: str) -> str:
+        if value is None:
+            return default
+        return f"{value}px" if isinstance(value, int) else value
+
+    @classmethod
+    def _image_styles(cls, segment: ImageSegment) -> Styles:
+        return _IMAGE.model_copy(
+            update={
+                "width": cls._css_size(segment.width, "40px"),
+                "height": cls._css_size(segment.height, "40px"),
+            }
+        )
+
+    @classmethod
+    def _build_segment_element(cls, segment: RichSegment) -> Div | Span | Img:
         if isinstance(segment, ImageSegment):
             return Img(
                 src=segment.src,
                 alt=segment.alt,
-                styles=_IMAGE,
+                styles=cls._image_styles(segment),
                 args={"data-neony-rich-image": "true", "draggable": "false"},
             )
         return Span(container=[segment.text], styles=_TEXT)
 
-    @staticmethod
-    def _segment_to_js(segment: RichSegment) -> dict[str, Any]:
+    @classmethod
+    def _segment_to_js(cls, segment: RichSegment) -> dict[str, Any]:
         if isinstance(segment, ImageSegment):
-            return {"kind": "image", "src": segment.src, "alt": segment.alt}
+            return {
+                "kind": "image",
+                "src": segment.src,
+                "alt": segment.alt,
+                "width": cls._css_size(segment.width, "40px"),
+                "height": cls._css_size(segment.height, "40px"),
+            }
         return {"kind": "text", "text": segment.text}
 
     @staticmethod
     def _segment_from_js(item: dict[str, Any]) -> RichSegment:
         if item.get("kind") == "image":
-            return ImageSegment(src=str(item.get("src", "")), alt=str(item.get("alt", "")))
+            return ImageSegment(
+                src=str(item.get("src", "")),
+                alt=str(item.get("alt", "")),
+                width=str(item.get("width", "40px")),
+                height=str(item.get("height", "40px")),
+            )
         return TextSegment(text=str(item.get("text", "")))
 
     def _flat_length(self) -> int:
@@ -357,7 +388,12 @@ class RichText(Component):
         self._normalize_segments()
         self._caret = pos + 1
         self._selection_end = self._caret
-        script = f"window.neony.richText.insertImage({self._json_key()}, {json.dumps(src)}, {json.dumps(alt)}, {pos})"
+        width_css = self._css_size(width, "40px")
+        height_css = self._css_size(height, "40px")
+        script = (
+            f"window.neony.richText.insertImage({self._json_key()}, {json.dumps(src)}, "
+            f"{json.dumps(alt)}, {pos}, {json.dumps(width_css)}, {json.dumps(height_css)})"
+        )
         self._schedule_js(script)
         self._fire_change("program")
         return self

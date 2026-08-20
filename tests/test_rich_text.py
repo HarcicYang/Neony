@@ -29,6 +29,19 @@ def test_build_is_managed_contenteditable():
     assert node.children[0].text == "你好"
     assert node.children[1].tag == "img"
     assert node.children[1].attrs["src"] == "x.png"
+    assert node.children[1].styles["width"] == "40px"
+    assert node.children[1].styles["height"] == "40px"
+    assert node.children[1].styles["max-width"] == "min(320px, 100%)"
+    assert node.children[1].styles["max-height"] == "240px"
+
+
+def test_image_custom_size_is_capped():
+    editor = RichText(segments=[ImageSegment(src="x.png", width=800, height="600px")])
+    image = editor.build().to_node().children[0]
+    assert image.styles["width"] == "800px"
+    assert image.styles["height"] == "600px"
+    assert image.styles["max-width"] == "min(320px, 100%)"
+    assert image.styles["max-height"] == "240px"
 
 
 def test_content_returns_ordered_segments():
