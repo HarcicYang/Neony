@@ -262,16 +262,24 @@ indicator.
 
 ## `Icon`
 
-One icon used by `TitleBar`, `Sidebar`/`Pane`/`SidebarItem`, `Tabs` and
-`TreeNode` — either an image or a text glyph, explicitly:
+Built-in UI icons use the Theme-style stub namespace. The catalog class is
+private and is not part of the public API:
 
 ```python
-Icon.image("https://example.com/logo.svg")  # fixed-size square (TitleBar-style)
-Icon.image("assets/logo.png")
-Icon.glyph("🏠")  # emoji / Nerd Font char
+from neony.application import icons
+from neony.application.elements import Button
+
+Button("Save", icon=icons.check)
+SidebarItem("Home", icon=icons.home)
 ```
 
-**Options:** `Icon(src, kind)` — constructed via `Icon.image(url_or_path)`
-or `Icon.glyph(text)`; `render(size)` produces the element (the image
-form paints a fixed-size square via `background-image: url(...)`,
-contain/center/no-repeat, so it never stretches).
+The built-in catalog uses one bundled Material Symbols Rounded font. Icons
+inherit the component's `color` token, use fixed square geometry, and keep the
+same weight/fill/grade/optical-size settings. This single-font policy is the
+visual consistency boundary; different third-party fonts are not mixed inside
+one semantic catalog.
+
+`Icon.image(url_or_path)` remains for logos and native image resources, while
+`Icon.glyph(text)` remains for deliberate custom text or emoji content. Both
+return `Icon` values and are accepted by component `icon` parameters,
+including `Button.icon: Icon | None`.

@@ -25,6 +25,7 @@ from neony.application._helpers import (
     _set_linux_app_name,
 )
 from neony.application.config import Config
+from neony.application.icon_font import css as icon_font_css
 from neony.application.motion import DEFAULT as DEFAULT_MOTION
 from neony.application.page import Page
 from neony.application.theme import DARK, Theme
@@ -142,6 +143,7 @@ class NeonApplication(Generic[_S]):
         entry.window.on(WindowEvent.PageLoadFinishedEvent)(lambda _event, _loaded=page_loaded: _loaded.set())
         with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
+        await self._inject_icon_font(entry)
         await self._inject_theme(entry)
         await self._inject_keyframes(entry)
         await self._apply_transparent_effect(entry.window)
@@ -358,6 +360,17 @@ class NeonApplication(Generic[_S]):
         for entry in self._entries:
             if entry.window is not None:
                 await self._inject_theme(entry)
+
+    async def _inject_icon_font(self, entry: _Entry) -> None:
+        """Inject Neony's self-hosted icon font once into one window."""
+        assert entry.window is not None
+        css = icon_font_css()
+        js = (
+            "(() => { const el = document.getElementById('neony-icon-font'); "
+            f"if (el) el.textContent = {css!r}; else {{ const s = document.createElement('style'); "
+            f"s.id = 'neony-icon-font'; s.textContent = {css!r}; document.head.appendChild(s); }} }})()"
+        )
+        await entry.window.eval_js(js)
 
     async def _inject_theme(self, entry: _Entry) -> None:
         """Inject theme CSS variables into one window's page."""

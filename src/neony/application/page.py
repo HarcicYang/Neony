@@ -10,7 +10,7 @@ from neony.application.theme import stub
 from neony.dom import Div, DOMElement, DomEvent, Styles
 
 from . import shortcuts
-from .elements import Component
+from .elements import Component, VStack
 
 _Direction = Literal["row", "row-reverse", "column", "column-reverse"]
 _Align = Literal["stretch", "center", "flex-start", "flex-end", "baseline"]
@@ -276,7 +276,19 @@ class Page:
             else:
                 container.append(child)
 
-        root = Div(styles=outer, container=[Div(styles=inner, container=container)])
+        content = VStack(
+            *container,
+            gap=self._gap,
+            align=self._align,
+            justify=self._justify,
+            padding=self._padding,
+            width=self._width,
+            grow=1 if self._fill else 0,
+        ).build()
+        # Preserve VStack's min-height:0 shrink contract while retaining Page's
+        # width, spacing and advanced direction/alignment compatibility.
+        content.styles = inner.model_copy(update={"min_height": "0"})
+        root = Div(styles=outer, container=[content])
         if self._shortcut_handlers or self._keydown_handlers or self._keyup_handlers:
             # Window-level keys must fire while typing in any input, so
             # keydown/keyup anywhere in the tree bubbles to the root

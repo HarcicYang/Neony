@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from neony.application.elements import Icon, Tree, TreeNode
+from neony.application import icons
+from neony.application.elements import Tree, TreeNode
 
 from .i18n import tr
 from .sections import PANELS
 
 gallery_tree = Tree(width="220px").children(
-    TreeNode(tr.nav.home, key="home", icon=Icon.glyph("🏠")).panel(PANELS["home"]),
+    TreeNode(tr.nav.home, key="home", icon=icons.home).panel(PANELS["home"]),
+    TreeNode(tr.nav.icons, key="icons", icon=icons.star).panel(PANELS["icons"]),
     TreeNode(tr.nav.buttons, key="buttons", shortcut="Ctrl+1").panel(PANELS["buttons"]),
     TreeNode(tr.nav.inputs_forms, key="inputs-forms", expanded=True).children(
         TreeNode(tr.nav.inputs, key="inputs", shortcut="Ctrl+2").panel(PANELS["inputs"]),

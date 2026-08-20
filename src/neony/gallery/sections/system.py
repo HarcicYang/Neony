@@ -12,6 +12,7 @@ import sys
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from neony.application import icons
 from neony.application.elements import (
     Button,
     Checkbox,
@@ -19,7 +20,6 @@ from neony.application.elements import (
     GlassPanel,
     Heading,
     HStack,
-    Icon,
     Input,
     Pane,
     Separator,
@@ -458,9 +458,9 @@ profile_pane = GlassPanel(
 
 active_pane = Signal("home")
 sidebar = Sidebar(
-    Pane(tr.system.home, key="home", icon=Icon.glyph("🏠"), panel=home_pane),
-    Pane(tr.system.settings, key="settings", icon=Icon.glyph("⚙️"), panel=settings_pane),
-    Pane(tr.system.profile, key="profile", icon=Icon.glyph("👤"), panel=profile_pane),
+    Pane(tr.system.home, key="home", icon=icons.home, panel=home_pane),
+    Pane(tr.system.settings, key="settings", icon=icons.settings, panel=settings_pane),
+    Pane(tr.system.profile, key="profile", icon=icons.person, panel=profile_pane),
     radius="12px",
 )
 sidebar.bind_selected(active_pane)
@@ -472,8 +472,8 @@ sidebar_panel = Section(
     tr.system.sidebar_blurb,
     """active = Signal("home")
 sidebar = Sidebar(
-    Pane("Home", key="home", icon=Icon.glyph("🏠"), panel=home_panel),
-    Pane("Settings", key="settings", icon=Icon.glyph("⚙️"), panel=settings_panel),
+    Pane("Home", key="home", icon=icons.home, panel=home_panel),
+    Pane("Settings", key="settings", icon=icons.settings, panel=settings_panel),
 )
 sidebar.bind_selected(active)
 state.bind_text(active, fmt=lambda key: f"active: {key}")""",

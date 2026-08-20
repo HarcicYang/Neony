@@ -764,6 +764,7 @@ class TestPageAndTheme:
         inner = node.children[0]
         assert inner.styles["display"] == "flex"
         assert inner.styles["flex-direction"] == "column"
+        assert inner.styles["min-height"] == "0"  # VStack shrink contract
         assert inner.styles["max-width"] == "600px"
         assert inner.styles["margin"] == "0 auto"
         assert len(inner.children) == 1
@@ -3939,6 +3940,8 @@ class TestIcon:
         assert span.container == ["🏠"]
         assert span.styles.font_size == "16px"
         assert span.styles.background_image is None
+        assert span.styles.width == "16px"
+        assert span.styles.height == "16px"
 
     def test_repr_distinguishes_kinds(self):
         from neony.application.elements import Icon

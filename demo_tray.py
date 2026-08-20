@@ -14,7 +14,7 @@ Usage:
 """
 
 from neony.application import Config, NeonApplication, Page, Tray, TrayItem, WebViewConfig, WindowConfig
-from neony.application.elements import Button, Text, VStack
+from neony.application.elements import Button, Text
 from neony.dom import Signal
 
 app = NeonApplication(
@@ -87,12 +87,9 @@ tray = Tray(
 app.tray = tray
 
 page = Page(gap="16px", padding="24px", max_width="100%").add(
-    VStack(
-        Text("Tray Demo", weight="700", size="18px"),
-        status,
-        Button("Hide to tray", variant="ghost").on_click(on_tray_left_click),
-        gap="12px",
-    )
+    Text("Tray Demo", weight="700", size="18px"),
+    status,
+    Button("Hide to tray", variant="ghost").on_click(on_tray_left_click),
 )
 
 

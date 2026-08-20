@@ -80,9 +80,7 @@ stage = GlassPanel(
 )
 
 titlebar = TitleBar("Neony — Accordion")
-page = Page(gap="0px", padding="0px", max_width="100%", fill=True, radius="12px").add(
-    VStack(titlebar, stage, gap="0px", align="stretch", grow=1)
-)
+page = Page(gap="0px", padding="0px", max_width="100%", fill=True, radius="12px").add(titlebar, stage)
 
 
 def main() -> None:

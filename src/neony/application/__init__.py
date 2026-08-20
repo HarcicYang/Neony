@@ -4,7 +4,7 @@ Public API::
 
     from neony.application import Config, NeonApplication, WindowConfig
     from neony.application import Page, launch
-    from neony.application import Theme, DARK, LIGHT
+    from neony.application import Theme, DARK, LIGHT, icons
     from neony.application.elements import Button, Checkbox, Input, Tabs, ...
 """
 
@@ -22,6 +22,7 @@ from neony.application.i18n import (
     tr,
     tr_now,
 )
+from neony.application.icons import stub as icons
 from neony.application.page import Page
 from neony.application.theme import (
     CYBERANGEL_DARK,
@@ -68,6 +69,7 @@ __all__ = [
     "data_url",
     "file_url",
     "get_language",
+    "icons",
     "launch",
     "register_catalog",
     "set_language",

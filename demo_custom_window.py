@@ -14,18 +14,7 @@ Usage:
 """
 
 from neony.application import Config, NeonApplication, Page, Theme, WebViewConfig, WindowConfig
-from neony.application.elements import (
-    Button,
-    GlassPanel,
-    Heading,
-    HStack,
-    Icon,
-    Pane,
-    Sidebar,
-    Text,
-    TitleBar,
-    VStack,
-)
+from neony.application.elements import Button, GlassPanel, Heading, HStack, Icon, Pane, Sidebar, Text, TitleBar
 from neony.dom import DomEvent
 
 # ── application: frameless + transparent ─────────────────────────
@@ -125,9 +114,7 @@ sidebar.on_change(lambda e: print(f"[sidebar] pane: {e.value}"))
 # fill=True stretches the page to the window; the VStack grows to fill
 # it; the Sidebar (rail + panes, one unit) fills the space below the
 # titlebar.  radius rounds the whole window frame.
-page = Page(gap="0px", padding="0px", max_width="100%", fill=True, radius="12px").add(
-    VStack(titlebar, sidebar, gap="0px", align="stretch", grow=1)
-)
+page = Page(gap="0px", padding="0px", max_width="100%", fill=True, radius="12px").add(titlebar, sidebar)
 for combo, fn in sidebar.shortcuts():
     page.on_shortcut(combo, fn)
 

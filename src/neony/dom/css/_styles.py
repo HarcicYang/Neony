@@ -210,6 +210,7 @@ class Styles(BaseModel):
         | None
     ) = Field(default=None)
     font_family: str | None = Field(default=None)
+    font_variation_settings: str | None = Field(default=None)
     line_height: str | None = Field(default=None)
     text_align: (
         Literal[
