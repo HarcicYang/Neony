@@ -113,6 +113,15 @@ _GLASS_PANEL = Styles(
     animation=Animation(name="fade-slide", duration="0.2s", timing="ease-out"),
 )
 
+_PANEL_EXIT_ANIMATION = Animation(
+    name="fade-slide",
+    duration="0.2s",
+    timing="ease-in",
+    direction="reverse",
+    fill_mode="forwards",
+)
+_DIALOG_EXIT_TIMEOUT = 0.3
+
 _SOLID_PANEL = _GLASS_PANEL.model_copy(
     update={
         "background_color": stub.surface,
@@ -134,7 +143,7 @@ _ACTION_BAR = Styles(display="flex", justify_content="flex-end", gap="8px", marg
 class Dialog(Component):
     #: Wired internally.  ``open`` / ``close`` are pseudo-events
     #: dispatched by the component (TitleBar precedent).
-    _bound_events: frozenset[str] = frozenset({"click", "keydown", "outsideclick", "open", "close"})
+    _bound_events: frozenset[str] = frozenset({"click", "keydown", "outsideclick", "animationend", "open", "close"})
 
     """A modal overlay: themed scrim + centered panel with action
     buttons.
@@ -187,6 +196,7 @@ class Dialog(Component):
         self._root.bubble_events = True
 
         self._bind(self._scrim, "click")
+        self._bind(self._panel, "animationend")
         self._bind(self._root, "keydown")
         self._bind(self._root, "outsideclick")
 
@@ -209,25 +219,38 @@ class Dialog(Component):
             self._cancel_close()
             self._root.styles = _ROOT_OPEN
             self._scrim.styles = _SCRIM_OPEN
+            self._panel.styles = self._panel_restore
             self._root.args = {**self._root.args, "data-neony-outside": "true"}
         else:
             self._root.styles = _ROOT_OPEN
             self._scrim.styles = _SCRIM
-            self._panel.styles = self._panel_restore.model_copy(update={"opacity": 0.0, "z_index": -1})
+            self._panel.styles = self._panel_restore.model_copy(update={"animation": _PANEL_EXIT_ANIMATION})
             self._root.args = {k: v for k, v in self._root.args.items() if k != "data-neony-outside"}
             try:
-                self._close_task = asyncio.create_task(self._finish_close())
+                asyncio.get_running_loop()
             except RuntimeError:
                 # No running event loop — hide immediately, skip the fade.
-                self._root.styles = _ROOT
-                self._panel.styles = self._panel_restore
+                self._complete_close()
+            else:
+                self._close_task = asyncio.create_task(self._finish_close())
         self._dispatch_pseudo("open" if value else "close", self)
 
     async def _finish_close(self) -> None:
-        # await asyncio.sleep(0.2)  # the reversed fade-slide plays out
-        if not self._open:
-            self._panel.styles = self._panel_restore
-            self._root.styles = _ROOT
+        """Fallback when CSS ``animationend`` is suppressed or interrupted."""
+        try:
+            await asyncio.sleep(_DIALOG_EXIT_TIMEOUT)
+            if not self._open:
+                self._complete_close()
+                # This runs after the originating event's automatic render;
+                # explicitly schedule the second-phase display:none patch.
+                self._root._request_render()
+        finally:
+            if self._close_task is asyncio.current_task():
+                self._close_task = None
+
+    def _complete_close(self) -> None:
+        self._panel.styles = self._panel_restore
+        self._root.styles = _ROOT
 
     def _cancel_close(self) -> None:
         if self._close_task is not None:
@@ -291,4 +314,12 @@ class Dialog(Component):
                 self.open = False
         elif event_type == "outsideclick":
             self.open = False
+        elif (
+            event_type == "animationend"
+            and not self._open
+            and event.key == self._panel.key
+            and event.animation_name == "fade-slide"
+        ):
+            self._cancel_close()
+            self._complete_close()
         await self._dispatch(event_type, event)

@@ -2165,23 +2165,52 @@ class TestDialogBuild:
             assert dlg._root.args.get("data-neony-outside") == "true"
             assert dlg._scrim.styles.opacity == 1.0  # scrim fades in
             dlg.open = False
-            # Two-phase close: the panel replays its entrance keyframe
-            # in reverse (the same fade-slide, no exit animation) while
-            # the scrim fades out, then display:none.
+            # Two-phase close: the panel reverses its entrance keyframe
+            # while the scrim fades out, then animationend/fallback hides
+            # the root with display:none.
             assert dlg._root.styles.display == "flex"
             assert dlg._scrim.styles.opacity == 0.0
             assert "data-neony-outside" not in dlg._root.args
             closing = dlg._panel.styles.animation
             assert isinstance(closing, Animation)
             assert closing.name == "fade-slide"
-            assert closing.direction == "normal"
+            assert closing.direction == "reverse"
+            assert closing.fill_mode == "forwards"
             assert dlg._panel.styles.width == "480px"  # closing keeps the open geometry
-            await asyncio.sleep(0.45)
+            await asyncio.sleep(0.35)
             assert dlg._root.styles.display == "none"
             # The forward entrance animation is restored for next open.
             restored = dlg._panel.styles.animation
             assert isinstance(restored, Animation)
             assert restored.direction == "normal"
+
+        asyncio.run(run())
+
+    def test_animationend_finishes_close_immediately(self):
+        import asyncio
+
+        dlg = Dialog(open=True)
+        dlg.open = False
+        asyncio.run(
+            dlg._panel._handlers["animationend"][0](
+                DomEvent(key=dlg._panel.key, type="animationend", animation_name="fade-slide")
+            )
+        )
+        assert dlg._root.styles.display == "none"
+        assert dlg._close_task is None
+
+    def test_reopen_cancels_pending_close(self):
+        import asyncio
+
+        async def run() -> None:
+            dlg = Dialog(open=True)
+            dlg.open = False
+            assert dlg._close_task is not None
+            dlg.open = True
+            assert dlg._close_task is None
+            await asyncio.sleep(0.35)
+            assert dlg.open
+            assert dlg._root.styles.display == "flex"
 
         asyncio.run(run())
 
