@@ -697,10 +697,10 @@ class TestEventBubbling:
         asyncio.run(_fire(app, btn._label_span.key, "click"))
         assert calls == ["clicked"]
 
-    def test_dropdown_label_span_click_opens_popup(self):
-        """Regression: clicking the dropdown's label text must open the
-        popup — the label span's click bubbles to the trigger (which owns
-        the click handler and is now bubble_events)."""
+    def test_dropdown_label_span_mousedown_opens_popup(self):
+        """Regression: pressing the dropdown label must open the popup —
+        the label span's mousedown bubbles to the trigger, which owns the
+        reliable WebKitGTK popup-control handler."""
         from neony.application.elements import Dropdown
 
         app = NeonApplication(Config(auto_render=True))
@@ -708,7 +708,7 @@ class TestEventBubbling:
         dd = Dropdown("Theme", items=[("dark", "Dark")])
         _setup_entry(app, dd.build(), fake)
 
-        asyncio.run(_fire(app, dd._label_span.key, "click"))
+        asyncio.run(_fire(app, dd._label_span.key, "mousedown"))
         assert dd._open is True
 
     def test_select_label_span_click_opens_popup(self):

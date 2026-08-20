@@ -2508,16 +2508,28 @@ class TestDropdownEvents:
     def _click_trigger(self, dd):
         import asyncio
 
-        asyncio.run(dd._trigger._handlers["click"][0](DomEvent(key=dd._trigger.key, type="click")))
+        asyncio.run(dd._trigger._handlers["mousedown"][0](DomEvent(key=dd._trigger.key, type="mousedown")))
 
     def test_trigger_toggles_popup_and_marker(self):
         dd = Dropdown(items=["a"])
         self._click_trigger(dd)
         assert dd._open is True
         assert dd._popup.styles.display == "flex"
+        assert dd._click_away.styles.display == "block"
         assert dd._wrapper.args.get("data-neony-outside") == "true"
         self._click_trigger(dd)
         assert not dd._open
+        assert dd._click_away.styles.display == "none"
+
+    def test_click_away_closes_and_can_reopen(self):
+        import asyncio
+
+        dd = Dropdown(items=["a"])
+        self._click_trigger(dd)
+        asyncio.run(dd._click_away._handlers["mousedown"][0](DomEvent(key=dd._click_away.key, type="mousedown")))
+        assert not dd._open
+        self._click_trigger(dd)
+        assert dd._open
 
     def test_row_click_selects_and_fires(self):
         import asyncio
@@ -2802,21 +2814,47 @@ class TestCascadingDropdown:
             items=[MenuBranch("Graphite", [("dark", "Dark"), ("light", "Light")])],
         )
         node = picker.build().to_node()
-        assert node.children[0].attrs["role"] == "combobox"
-        assert node.children[0].attrs["aria-haspopup"] == "menu"
-        assert picker._menu._root.styles.position == "absolute"
-        assert picker._menu._root.styles.z_index == 1100
-        assert picker._menu._root.styles.overflow == "visible"
-        assert len(picker._menu._branches) == 1
+        assert node.children[1].attrs["role"] == "combobox"
+        assert node.children[1].attrs["aria-haspopup"] == "menu"
+        assert picker._popup.styles.position == "absolute"
+        assert picker._popup.styles.z_index == 1100
+        assert picker._popup.styles.overflow == "visible"
+        assert len(picker._branches) == 1
         picker._open_popup()
+        assert picker._click_away.styles.display == "block"
         from neony.dom import Animation
 
-        animation = picker._menu._root.styles.animation
+        animation = picker._popup.styles.animation
         assert isinstance(animation, Animation)
         assert animation.name == "neony-drop-in"
         assert animation.duration == "var(--motion-normal)"
         assert picker._chevron.container == ["▾"]
         assert picker._chevron.styles.transform == "rotate(180deg)"
+
+    def test_cascading_dropdown_outsideclick_closes_all_branches(self):
+        import asyncio
+
+        picker = CascadingDropdown("Theme", items=[MenuBranch("Palette", ["dark"])])
+        picker._open_popup()
+        key = next(iter(picker._branches))
+        picker._open_branch(key)
+        assert picker._wrapper.args["data-neony-outside"] == "true"
+        asyncio.run(
+            picker._wrapper._handlers["outsideclick"][0](DomEvent(key=picker._wrapper.key, type="outsideclick"))
+        )
+        assert not picker._open
+        assert picker._branches[key].styles.display == "none"
+        assert picker._click_away.styles.display == "none"
+
+    def test_cascading_dropdown_click_away_closes_and_can_reopen(self):
+        import asyncio
+
+        picker = CascadingDropdown("Theme", items=[MenuBranch("Palette", ["dark"])])
+        picker._open_popup()
+        asyncio.run(picker._wrapper._handlers["mousedown"][0](DomEvent(key=picker._click_away.key, type="mousedown")))
+        assert not picker._open
+        picker._open_popup()
+        assert picker._open
 
     def test_cascading_dropdown_does_not_join_context_menu_group(self):
         picker = CascadingDropdown("Theme", items=["dark"])
@@ -2825,12 +2863,10 @@ class TestCascadingDropdown:
         context_menu.open_at(10, 10)
 
         assert picker._open
-        assert picker._menu._root.styles.position == "absolute"
+        assert picker._popup.styles.position == "absolute"
         assert context_menu._open
 
     def test_sibling_branches_are_mutually_exclusive(self):
-        import asyncio
-
         picker = CascadingDropdown(
             "Theme",
             items=[
@@ -2838,13 +2874,13 @@ class TestCascadingDropdown:
                 MenuBranch("Aurora", [("aurora-dark", "Dark")]),
             ],
         )
-        first_key, second_key = [row.key for _value, row in picker._menu._rows]
-        asyncio.run(picker._menu._rows[0][1]._handlers["mouseover"][0](DomEvent(key=first_key, type="mouseover")))
-        first = picker._menu._branches[first_key]
-        asyncio.run(picker._menu._rows[1][1]._handlers["mouseover"][0](DomEvent(key=second_key, type="mouseover")))
-        second = picker._menu._branches[second_key]
-        assert first._open is False
-        assert second._open is True
+        first_key, second_key = list(picker._branches)
+        picker._open_branch(first_key)
+        first = picker._branches[first_key]
+        picker._open_branch(second_key)
+        second = picker._branches[second_key]
+        assert first.styles.display == "none"
+        assert second.styles.display == "flex"
 
     def test_leaf_selection_updates_value_and_dispatches(self):
         import asyncio
@@ -2855,7 +2891,7 @@ class TestCascadingDropdown:
         )
         picked: list[str] = []
         picker.on_change(lambda event: picked.append(event.value))
-        leaf = next(iter(picker._menu._branches.values()))._rows[1][1]
+        leaf = picker._rows[1][1]
         asyncio.run(leaf._handlers["click"][0](DomEvent(key=leaf.key, type="click")))
         assert picker.value == "light"
         assert picked == ["light"]

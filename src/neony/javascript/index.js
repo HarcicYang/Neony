@@ -1248,24 +1248,22 @@
     // deliberate: a blank-area target (or a native/third-party listener)
     // may stop propagation before document bubble phase, which otherwise
     // leaves an open popup stranded.
-    document.addEventListener(
-        "click",
-        function (event) {
-            var roots = document.querySelectorAll('[data-neony-outside="true"]');
-            for (var i = 0; i < roots.length; i++) {
-                var root = roots[i];
-                if (root.contains(event.target)) continue;
-                var key = root.getAttribute("data-neony-key");
-                if (!key) continue;
-                window.lumiview
-                    .invoke("neony.event", { key: key, event_type: "outsideclick", value: null })
-                    .catch(function () {
-                        // Fire-and-forget — ignore delivery failures
-                    });
-            }
-        },
-        true
-    );
+    function dispatchOutsideClick(event) {
+        var roots = document.querySelectorAll('[data-neony-outside="true"]');
+        for (var i = 0; i < roots.length; i++) {
+            var root = roots[i];
+            if (root.contains(event.target)) continue;
+            var key = root.getAttribute("data-neony-key");
+            if (!key) continue;
+            window.lumiview
+                .invoke("neony.event", { key: key, event_type: "outsideclick", value: null })
+                .catch(function () {
+                    // Fire-and-forget — ignore delivery failures
+                });
+        }
+    }
+
+    document.addEventListener("click", dispatchOutsideClick, true);
 
     // ---- Scroll indicator (data-neony-scroll) ----
     //

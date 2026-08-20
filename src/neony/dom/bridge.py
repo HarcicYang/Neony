@@ -789,8 +789,14 @@ class Neony(Plugin):
     def _collect_direct_patches(self, root: DOMElement, elements: list[DOMElement]) -> list[Patch]:
         """Generate patches only for directly mutated workset elements."""
         patches: list[Patch] = []
+        # Collect every directly mutated element before clearing anything.
+        # A dirty child may precede a dirty ancestor in the root workset;
+        # clearing its ancestor chain inline would erase the ancestor's own
+        # _dirty_type and silently drop its patch (nested popup close: branch
+        # hides, but the outer panel's display:none never reaches the DOM).
         for element in elements:
             self._collect_direct_patch(element, patches)
+        for element in elements:
             node: DOMElement | None = element
             while node is not None:
                 node._dirty = False
@@ -807,15 +813,20 @@ class Neony(Plugin):
                 diff = DiffEngine._diff_dict(cached.styles, new_styles)
                 if diff:
                     patches.append(UpdateStylesPatch(key=element.key, set=diff["set"], remove=diff["remove"]))
-                    cached.styles.clear()
-                    cached.styles.update(new_styles)
+                    # Snapshot dictionaries may alias an element's serialized
+                    # style cache from the initial mount. Mutating them in place
+                    # corrupts reusable Styles constants (closed → open), so a
+                    # later close serializes the stale open value and emits no
+                    # hiding patch. Always detach the snapshot copy.
+                    cached.styles = dict(new_styles)
             if element._dirty_type & DOMElement._DIRTY_ATTRS:
                 new_attrs = element._serialize_attrs()
                 diff = DiffEngine._diff_dict(cached.attrs, new_attrs)
                 if diff:
                     patches.append(UpdateAttrsPatch(key=element.key, set=diff["set"], remove=diff["remove"]))
-                    cached.attrs.clear()
-                    cached.attrs.update(new_attrs)
+                    # Attribute serialization is cached as well; keep bridge
+                    # snapshots detached from the live element cache.
+                    cached.attrs = dict(new_attrs)
         element._dirty = False
         element._dirty_type = 0
 

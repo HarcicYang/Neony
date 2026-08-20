@@ -55,6 +55,10 @@ _CHEVRON = f'url("data:image/svg+xml,{urllib.parse.quote(_CHEVRON_SVG)}")'
 _CHEVRON_UP = f'url("data:image/svg+xml,{urllib.parse.quote(_CHEVRON_UP_SVG)}")'
 
 _WRAP = Styles(position="relative", display="inline-block")
+# A component-owned click-away layer replaces the unreliable document-level
+# synthetic outsideclick route on WebKitGTK. It stays below the trigger/panel.
+_CLICK_AWAY = Styles(position="fixed", top="0", right="0", bottom="0", left="0", z_index=1099, display="none")
+_CLICK_AWAY_OPEN = _CLICK_AWAY.model_copy(update={"display": "block"})
 
 _PANEL = Styles(
     position="absolute",
@@ -150,12 +154,15 @@ class Dropdown(Component):
         _mount_text(self._label_span, label)
         self._chevron = Span(container=["▾"], styles=_CHEVRON_STYLE)
         self._trigger = Div(
-            styles=(_GLASS_TRIGGER if glass else _TRIGGER).model_copy(update={"width": width}),
+            styles=(_GLASS_TRIGGER if glass else _TRIGGER).model_copy(
+                update={"width": width, "position": "relative", "z_index": 1100}
+            ),
             args={"tabindex": "0", "role": "combobox", "aria-haspopup": "listbox", "aria-expanded": "false"},
             container=[self._label_span, self._chevron],
         )
         self._popup = Div(styles=_PANEL, container=[])
-        self._wrapper = Div(styles=_WRAP, container=[self._trigger, self._popup])
+        self._click_away = Div(styles=_CLICK_AWAY)
+        self._wrapper = Div(styles=_WRAP, container=[self._click_away, self._trigger, self._popup])
         # Clicks on the label/chevron spans bubble to the trigger (which
         # owns the click handler); keydowns from a focused option bubble
         # up to the wrapper.
@@ -166,7 +173,11 @@ class Dropdown(Component):
         for entry in items:
             self._add_option(entry)
 
-        self._bind(self._trigger, "click")
+        # WebKitGTK/Wayland reliably delivers mousedown for popup controls,
+        # whereas its synthesized click can arrive late or be skipped.
+        # Rows remain click-driven; only open/close controls use mousedown.
+        self._bind(self._trigger, "mousedown")
+        self._bind(self._click_away, "mousedown")
         self._bind(self._trigger, "focus")
         self._bind(self._trigger, "blur")
         self._bind(self._wrapper, "keydown")
@@ -265,6 +276,7 @@ class Dropdown(Component):
             self._active_index = 0
             self._apply_option_styles(0)
         self._popup.styles = _PANEL_OPEN
+        self._click_away.styles = _CLICK_AWAY_OPEN
         self._chevron.styles = _CHEVRON_OPEN_STYLE
         self._trigger.args = {**self._trigger.args, "aria-expanded": "true"}
         self._wrapper.args = {**self._wrapper.args, "data-neony-outside": "true"}
@@ -274,6 +286,7 @@ class Dropdown(Component):
             return
         self._open = False
         self._popup.styles = _PANEL
+        self._click_away.styles = _CLICK_AWAY
         self._chevron.styles = _CHEVRON_STYLE
         self._trigger.args = {**self._trigger.args, "aria-expanded": "false"}
         self._wrapper.args = {k: v for k, v in self._wrapper.args.items() if k != "data-neony-outside"}
@@ -297,7 +310,17 @@ class Dropdown(Component):
     # ---- events ----
 
     async def _on_event(self, event_type: str, event: DomEvent) -> None:
-        if event_type == "click":
+        if event_type == "mousedown":
+            # Open/close controls use mousedown; option rows still use click
+            # so selection preserves the normal button activation behavior.
+            if event.key == self._click_away.key:
+                self._close()
+            else:
+                if self._open:
+                    self._close()
+                else:
+                    self._open_popup()
+        elif event_type == "click":
             if event.key in self._row_by_key:
                 await self._select(self._row_by_key[event.key], event)
             else:
