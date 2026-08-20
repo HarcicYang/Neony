@@ -56,8 +56,10 @@ class NeonApplication(Generic[_S]):
     def __init__(self, config: Config | None = None, *, state: _S | None = None) -> None:
         self.config = config or Config()
         self._entries: list[_Entry] = []
-        # Fire-and-forget render tasks scheduled by signal bindings.
+        # Fire-and-forget render tasks plus one coalesced dirty-driven task
+        # per mounted window. Ordinary DOM mutations schedule the latter.
         self._render_tasks: set[asyncio.Task] = set()
+        self._scheduled_renders: dict[int, asyncio.Task] = {}
         # Per-window (key, event_type) pairs already registered on the
         # bridge — dynamic elements created after startup (popup rows,
         # ...) register their handlers on the next render.
@@ -570,19 +572,48 @@ class NeonApplication(Generic[_S]):
     # ---- handler collection ----
 
     def _arm_render_request(self, tree: DOMElement, idx: int) -> None:
-        """Wire the tree root so bound-signal writes can schedule renders
-        (dropped outside a running event loop — the next event-driven
-        render picks the change up anyway)."""
+        """Schedule one next-tick render for any mutation on a mounted tree.
+
+        Repeated writes in the same synchronous turn coalesce. Manual-render
+        applications keep their explicit semantics, and mutations outside a
+        running event loop remain pending for the next explicit/event render.
+        """
 
         def request() -> None:
+            if not self.config.auto_render or idx in self._scheduled_renders:
+                return
             try:
-                asyncio.get_running_loop()
+                loop = asyncio.get_running_loop()
             except RuntimeError:
                 return
-            # Held in a set so the task isn't garbage-collected mid-run.
-            self._render_tasks.add(asyncio.create_task(self.render(window_index=idx)))
+
+            async def flush() -> None:
+                current = asyncio.current_task()
+                try:
+                    # Let the current handler/timer callback finish so all of
+                    # its mutations share one patch batch.
+                    await asyncio.sleep(0)
+                    # Release the slot before the awaited bridge render. A new
+                    # mutation during WebView I/O must be able to queue the next
+                    # commit instead of being mistaken for this one.
+                    if self._scheduled_renders.get(idx) is current:
+                        self._scheduled_renders.pop(idx, None)
+                    await self.render(window_index=idx)
+                finally:
+                    if self._scheduled_renders.get(idx) is current:
+                        self._scheduled_renders.pop(idx, None)
+
+            task = loop.create_task(flush())
+            self._scheduled_renders[idx] = task
+            self._render_tasks.add(task)
+            task.add_done_callback(self._render_tasks.discard)
 
         tree._render_request = request
+
+    def _cancel_scheduled_render(self, idx: int) -> None:
+        task = self._scheduled_renders.pop(idx, None)
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
 
     def _arm_eval_js_request(self, tree: DOMElement, idx: int) -> None:
         """Wire the tree root so components can run internal JS commands
@@ -649,6 +680,10 @@ class NeonApplication(Generic[_S]):
             if asyncio.iscoroutine(result):
                 await result
             if self.config.auto_render:
+                # Mutations inside fn scheduled a next-tick flush. This event
+                # wrapper already owns the commit, so cancel that redundant
+                # task and preserve immediate/deferred event semantics.
+                self._cancel_scheduled_render(idx)
                 immediate = event_type not in _DEFERRED_EVENTS
                 await self.render(window_index=idx, immediate=immediate)
 

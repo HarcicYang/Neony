@@ -9,8 +9,8 @@ directional animation — sliding in from the edge/corner it sits at
 diagonally) — and leaves by replaying the same keyframe reversed,
 sliding back toward that edge/corner.
 
-NOTE: the host is a full-viewport ``position: fixed`` layer at
-``z-index: 1100`` (above Dialog) with ``pointer-events: none``, so
+NOTE: the host is a full-viewport ``position: fixed`` notification layer at
+``z-index: 1200`` (above Dialog and dropdown/cascade popups) with ``pointer-events: none``, so
 clicks pass through to the page except on the cards themselves.  Mount
 it at the page root — any ``backdrop-filter`` / ``transform`` ancestor
 would become the containing block for ``position: fixed`` in WebKit
@@ -70,7 +70,7 @@ _ROOT = Styles(
     left="0",
     right="0",
     bottom="0",
-    z_index="1100",
+    z_index="1200",
     pointer_events="none",
     display="flex",
     flex_direction="column",

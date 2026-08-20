@@ -290,6 +290,7 @@ class DOMElement(BaseModel):
             node._dirty = True
             if node._parent is None:
                 node._dirty_elements[id(self)] = self
+                node._request_render()
                 return
             node = node._parent
 
@@ -309,8 +310,9 @@ class DOMElement(BaseModel):
 
         def run() -> None:
             write()
+            # The write marks its element dirty; every mounted dirty root now
+            # schedules one coalesced render automatically.
             self._mark_dirty()
-            self._request_render()
 
         eff = effect(run)
         self._bindings.append(eff)

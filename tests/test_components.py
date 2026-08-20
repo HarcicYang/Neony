@@ -5128,7 +5128,7 @@ class TestToastBuild:
         toast = Toast()
         assert toast._root.styles.position == "fixed"
         assert toast._root.styles.pointer_events == "none"
-        assert toast._root.styles.z_index == 1100
+        assert toast._root.styles.z_index == 1200
         assert toast._root.styles.display == "flex"
         assert toast._root.styles.flex_direction == "column"
 

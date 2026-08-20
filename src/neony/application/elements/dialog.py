@@ -240,10 +240,9 @@ class Dialog(Component):
         try:
             await asyncio.sleep(_DIALOG_EXIT_TIMEOUT)
             if not self._open:
+                # Mounted dirty elements schedule their own coalesced render,
+                # including state changes made by delayed component tasks.
                 self._complete_close()
-                # This runs after the originating event's automatic render;
-                # explicitly schedule the second-phase display:none patch.
-                self._root._request_render()
         finally:
             if self._close_task is asyncio.current_task():
                 self._close_task = None
