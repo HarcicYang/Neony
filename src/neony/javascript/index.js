@@ -8,10 +8,52 @@
 
     const engine = new NeonyEngine();
 
+    function releaseMedia(el) {
+        if (!el) return;
+        if (el._neonyMediaObjectUrl) {
+            URL.revokeObjectURL(el._neonyMediaObjectUrl);
+            el._neonyMediaObjectUrl = null;
+        }
+        el._neonyMediaSourceToken = (el._neonyMediaSourceToken || 0) + 1;
+        for (const child of el.children || []) releaseMedia(child);
+    }
+
+    async function hydrateMedia(el) {
+        if (!el || (el.tagName !== "AUDIO" && el.tagName !== "VIDEO")) return;
+        const source = el._neonyMediaSource || el.getAttribute("src");
+        // Drop any previously hydrated Blob first — this also covers
+        // switching to a non-protocol source (https:/data:) that the
+        // browser's own media pipeline loads natively.
+        if (el._neonyMediaObjectUrl) {
+            URL.revokeObjectURL(el._neonyMediaObjectUrl);
+            el._neonyMediaObjectUrl = null;
+        }
+        if (!source || !source.startsWith("neony://")) return;
+        const token = (el._neonyMediaSourceToken || 0) + 1;
+        el._neonyMediaSourceToken = token;
+        try {
+            const response = await fetch(source, { credentials: "omit" });
+            if (!response.ok) throw new Error("protocol media request failed: " + response.status);
+            const blob = await response.blob();
+            if (el._neonyMediaSourceToken !== token || el._neonyMediaSource !== source) return;
+            const objectUrl = URL.createObjectURL(blob);
+            el._neonyMediaObjectUrl = objectUrl;
+            // Assigning src starts the media load in the browser; calling
+            // load() explicitly breaks jsdom and is unnecessary here.
+            el.setAttribute("src", objectUrl);
+        } catch (error) {
+            if (el._neonyMediaSourceToken === token) {
+                console.error("[neony] failed to hydrate media source", source, error);
+            }
+        }
+    }
+
     window.neony = {
         engine,
         mount: (msg) => engine.mount(msg),
         applyMessage: (msg) => engine.applyMessage(msg),
+        hydrateMedia,
+        releaseMedia,
         // Internal scroll commands.  Keyed lookup only; the smooth/auto
         // behavior maps directly to the native Element.scrollTo options
         // (jsdom falls back to a plain scrollTop assignment).

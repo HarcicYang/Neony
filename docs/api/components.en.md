@@ -369,7 +369,9 @@ img.src = data_url("other.svg")  # any URL string
 ```
 
 A themed frame around a single `<img>`. `src` is an **already-built URL**
-— pass it `file_url(path)` for a local file, `data_url(path)` to embed the
+— pass it `file_url(path)` for a local file, `local_url(path)` to stream
+it over the built-in `neony://local` protocol (works where `file://` is
+blocked), `data_url(path)` to embed the
 bytes, or any `https://` URL; the component does no path conversion itself
 (keeping that boundary in the caller's hands). A rounded, overflow-hidden
 frame wraps the image so `object-fit` can crop to the radius and a

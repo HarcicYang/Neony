@@ -112,7 +112,82 @@ launch(page, title="Demo", width=480, height=360, devtools=True)
 
 Accepts all `WindowConfig` / `WebViewConfig` fields plus
 `mount_selector`, `auto_render`, and `state` (a custom state object —
-see [`NeonApplication`](#neonapplication)).
+see [`NeonApplication`](#neonapplication)) — and `protocols`
+(see [Custom protocols](#custom-protocols)).
+
+## Custom protocols
+
+Serve Python-generated content to the page through `neony://<key>/…`
+URLs. Handlers are plain functions or methods declared with the
+`@protocol` decorator; sync handlers run on the app thread pool, async
+handlers on the app event loop.
+
+```python
+from neony.application import Page, launch, local_files, local_url, protocol
+from neony.application.protocols import Request, Response
+
+
+@protocol("qr")
+def qr_codes(request: Request) -> Response:
+    key = request.path.strip("/")  # neony://qr/<key> → "<key>"
+    return Response(body=make_qr_png(key), headers={"Content-Type": "image/png"})
+
+
+class Avatars:
+    def __init__(self, db) -> None:
+        self.db = db
+
+    @protocol("avatar")
+    async def handle(self, request: Request) -> Response:  # state via self
+        data = await self.db.fetch_avatar(request.path.strip("/"))
+        return Response(status=404) if data is None else Response(body=data, headers={"Content-Type": "image/jpeg"})
+
+
+launch(page, title="Demo", protocols=[qr_codes, Avatars(db), local_files])
+```
+
+**Rules**
+
+- Declare everything before `launch()` / `run()` — webview schemes are
+  registered once at window creation and cannot be added afterwards.
+- Keys must match `^[a-z][a-z0-9-]*$` (the key is the URL authority,
+  which browsers lowercase). Duplicate keys raise `ValueError`.
+- The handler receives a frozen pydantic `Request`: `key`, `path`
+  (percent-decoded payload), `method`, `url`, `query`, `headers`, plus
+  a case-insensitive `request.header(name)` helper. Return a frozen
+  `Response(status, headers, body)` (`Response.text()` /
+  `Response.json()` for convenience).
+- URLs are built by `local_url(path)` → `neony://local/…` and
+  `protocol_url(key, value)` → `neony://<key>/…`.
+- Requests to unregistered keys answer `404`; handler exceptions log
+  and answer `500`.
+
+**Built-in `local_files`** serves any absolute filesystem path over
+`neony://local/…` — the custom-scheme twin of `file_url()`. WebViews
+block `file://` subresources when the page is loaded from an HTML
+string, so this is the way to show local media:
+
+```python
+from neony.application import Image, launch, local_files, local_url
+
+launch(page, protocols=[local_files])
+Image(local_url("~/Music/song.mp3"))
+```
+
+It supports HTTP `Range` requests (`206 Partial Content`), answers
+`HEAD`, guesses MIME types, and sends `ETag` / `Last-Modified` /
+`Accept-Ranges`. There is no path allow-list: a Neony page is trusted
+application content. See [`demo_protocols.py`](../../demo_protocols.py).
+
+**Media playback** — a webview's media pipeline (GStreamer on Linux)
+cannot read custom URI schemes, so the runtime hydrates `<audio>` /
+`<video>` sources pointing at `neony://…` automatically: it fetches the
+bytes over the protocol, swaps in a `blob:` URL, and revokes it when
+the source changes or the element is removed. Playback and seeking then
+work everywhere `file://` subresources are blocked. The whole file is
+held in memory while playing — ideal for voice clips and sound effects;
+mind the size for long videos. Protocol responses carry permissive CORS
+headers so the page (an opaque origin) can `fetch()` them.
 
 ## `Config`, `WindowConfig`, `WebViewConfig`
 

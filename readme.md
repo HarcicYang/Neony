@@ -159,6 +159,17 @@ All components share a fluent, chainable API — see the
 - **Clipboard** — `app.clipboard_write(text)` / `app.clipboard_read()`.
 - **Local resource URLs** — `file_url()` / `data_url()` for Windows
   paths, spaces, and non-ASCII filenames.
+- **Custom protocols** — serve content to the page via
+  `neony://<key>/…` URLs: declare handlers with `@protocol("key")`
+  (plain functions or methods) and pass them to
+  `launch(page, protocols=[...])`. The built-in `local_files` handler
+  serves local files over `neony://local/…` with Range support where
+  `file://` is blocked by the webview; `local_url(path)` /
+  `protocol_url(key, value)` build the URLs. `<audio>` / `<video>`
+  sources on a custom scheme are hydrated automatically — the webview's
+  media pipeline can't read custom schemes, so the runtime fetches the
+  bytes and swaps in a Blob URL — and local media plays (and seeks)
+  with no extra work. See [`demo_protocols.py`](demo_protocols.py).
 - **Internationalization** — typed catalogs plus `tr` / `set_language()`;
   bound labels update live on a language switch.
 - **Multi-window** — `run(*pages)` opens one window per page, all

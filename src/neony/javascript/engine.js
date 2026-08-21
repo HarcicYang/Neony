@@ -183,6 +183,7 @@ class NeonyEngine {
     _remove(op) {
         const el = this.registry.get(op.key);
         if (!el) return;
+        if (window.neony && window.neony.releaseMedia) window.neony.releaseMedia(el);
         unregisterSubtree(el, this.registry);
         if (el.parentNode) el.parentNode.removeChild(el);
     }
@@ -190,6 +191,7 @@ class NeonyEngine {
     _replace(op) {
         const oldEl = this.registry.get(op.key);
         if (!oldEl) return;
+        if (window.neony && window.neony.releaseMedia) window.neony.releaseMedia(oldEl);
         unregisterSubtree(oldEl, this.registry);
 
         const newEl = buildNode(op.node, this.registry);
@@ -228,6 +230,10 @@ class NeonyEngine {
             } else if (el.getAttribute(name) !== String(value)) {
                 el.setAttribute(name, value);
             }
+            if ((el.tagName === "AUDIO" || el.tagName === "VIDEO") && name === "src") {
+                el._neonyMediaSource = String(value);
+                if (window.neony && window.neony.hydrateMedia) window.neony.hydrateMedia(el);
+            }
         }
         const removeAttrs = op.remove || [];
         for (const name of removeAttrs) {
@@ -236,6 +242,15 @@ class NeonyEngine {
             } else if (name === "value" && el.tagName === "INPUT") {
                 el.value = "";
             } else {
+                if ((el.tagName === "AUDIO" || el.tagName === "VIDEO") && name === "src") {
+                    // Python cleared src: drop the hydrated Blob and reset
+                    // the element so playback actually stops.
+                    el._neonyMediaSource = null;
+                    if (window.neony && window.neony.releaseMedia) window.neony.releaseMedia(el);
+                    if (typeof el.load === "function") {
+                        try { el.load(); } catch (_) { /* non-browser DOM */ }
+                    }
+                }
                 el.removeAttribute(name);
             }
         }

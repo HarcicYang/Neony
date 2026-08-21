@@ -151,6 +151,15 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 - **剪贴板** — `app.clipboard_write(text)` / `app.clipboard_read()`。
 - **本地资源 URL** — `file_url()` / `data_url()`，处理 Windows 路径、
   空格与非 ASCII 文件名。
+- **自定义协议** — 通过 `neony://<key>/…` URL 向页面提供内容：用
+  `@protocol("key")` 声明处理器（普通函数或方法均可），再传给
+  `launch(page, protocols=[...])`。内置 `local_files` 处理器经
+  `neony://local/…` 提供本地文件（支持 Range），解决 WebView 拦截
+  `file://` 子资源的问题；`local_url(path)` /
+  `protocol_url(key, value)` 负责构建 URL。自定义 scheme 上的
+  `<audio>` / `<video>` 源会被运行时自动水合——媒体管线读不了
+  自定义 scheme，运行时 fetch 字节后换成 Blob URL——本地媒体播放
+  与拖动进度开箱即用。参见 [`demo_protocols.py`](demo_protocols.py)。
 - **国际化** — 类型化目录 + `tr` / `set_language()`；绑定文案在切换
   语言时即时更新。
 - **多窗口** — `run(*pages)` 每个页面一个窗口，共享同一事件循环与

@@ -7,7 +7,7 @@ import asyncio
 import contextlib
 import logging
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from types import SimpleNamespace
 from typing import Any, Generic, Self, TypeVar, cast
 
@@ -28,6 +28,7 @@ from neony.application.config import Config
 from neony.application.icon_font import css as icon_font_css
 from neony.application.motion import DEFAULT as DEFAULT_MOTION
 from neony.application.page import Page
+from neony.application.protocols.base import NeonyProtocolDispatch, collect_protocol_handlers
 from neony.application.theme import DARK, Theme
 from neony.application.tray import Tray
 from neony.dom import DOMElement, DomEvent, KeyFrame
@@ -53,8 +54,19 @@ class NeonApplication(Generic[_S]):
         app.run(Page().add(counter))
     """
 
-    def __init__(self, config: Config | None = None, *, state: _S | None = None) -> None:
+    def __init__(
+        self,
+        config: Config | None = None,
+        *,
+        state: _S | None = None,
+        protocols: Sequence[Any] | None = None,
+    ) -> None:
         self.config = config or Config()
+        # Custom protocol declarations (``neony://<key>/…`` handlers).
+        # Resolved once in run(); webview schemes cannot change after
+        # window creation, so late additions are impossible by design.
+        self._protocols: list[Any] = list(protocols) if protocols else []
+        self._protocol_handlers: dict[str, Callable[..., Any]] = {}
         self._entries: list[_Entry] = []
         # Fire-and-forget render tasks plus one coalesced dirty-driven task
         # per mounted window. Ordinary DOM mutations schedule the latter.
@@ -94,6 +106,9 @@ class NeonApplication(Generic[_S]):
             self._collect_handlers(neony, tree, idx, self._registered[idx])
             self._arm_render_request(tree, idx)
             self._arm_eval_js_request(tree, idx)
+        # Resolve custom protocol declarations once — every window this
+        # app opens (startup and dynamic) registers the same set.
+        self._protocol_handlers = collect_protocol_handlers(self._protocols)
         # Linux: taskbar/dock shows the app name, not ``python3``.
         _set_linux_app_name(self.config.window.title)
         self._lumiview_app = App(name=self.config.window.title.replace(" ", ""))
@@ -126,6 +141,10 @@ class NeonApplication(Generic[_S]):
             from lumiview.plugins.window_controls import WindowControls
 
             includes.append(WindowControls())
+        if self._protocol_handlers:
+            # One webview scheme (neony) routed by URL authority — see
+            # neony.application.protocols.
+            kwargs["source"] = NeonyProtocolDispatch(self._protocol_handlers)
         entry.window = await Window.create(
             title=title,
             html=_INITIAL_HTML,
@@ -973,13 +992,16 @@ def launch(
     page: Page | DOMElement | list[Page | DOMElement],
     *,
     state: Any = None,
+    protocols: Sequence[Any] | None = None,
     **config_kwargs: Any,
 ) -> None:
     """Build a Config from kwargs and run *page* (a list opens multiple
     windows sharing one app state).  Kwargs mirror :class:`WindowConfig` /
     :class:`WebViewConfig` plus ``mount_selector`` and ``auto_render``.
     *state* replaces the default ``SimpleNamespace`` (see
-    :class:`NeonApplication`)."""
+    :class:`NeonApplication`).  *protocols* declares custom protocol
+    handlers (``neony.application.protocols``) — must be given before
+    the run; webview schemes cannot be registered later."""
     from neony.application.config import WebViewConfig, WindowConfig
 
     pages = page if isinstance(page, list) else [page]
@@ -993,4 +1015,4 @@ def launch(
         webview=WebViewConfig(**webview_cfg),
         **top_cfg,
     )
-    NeonApplication(config, state=state).run(*pages)
+    NeonApplication(config, state=state, protocols=protocols).run(*pages)

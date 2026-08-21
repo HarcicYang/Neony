@@ -327,7 +327,8 @@ img.src = data_url("other.svg")  # 任意 URL 字符串
 ```
 
 包裹单个 `<img>` 的主题化框架。`src` 是**已拼好的 URL**——本地文件传
-`file_url(path)`，嵌入字节传 `data_url(path)`，或任意 `https://` URL；
+`file_url(path)`，经内置 `neony://local` 协议流式加载传 `local_url(path)`
+（`file://` 被拦截时可用），嵌入字节传 `data_url(path)`，或任意 `https://` URL；
 组件自身不做任何路径转换（这个边界交给调用方）。圆角、overflow-hidden
 的框架包裹图片，让 `object-fit` 能裁切到圆角，字节到达前显示占位色。
 

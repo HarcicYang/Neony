@@ -4,6 +4,30 @@
 
 ### Added
 
+- **Custom protocols** — serve Python-generated content to the page
+  through `neony://<key>/…` URLs. Handlers are declared with the
+  `@protocol("key")` decorator (plain functions or methods — decorated
+  methods keep normal `self` binding, so state lives in the instance)
+  and registered via a new keyword-only `protocols=` argument on
+  `launch()` / `NeonApplication()`. All of an app's windows share one
+  registration; declarations must happen before the run, since webview
+  schemes cannot be added after window creation. Handlers receive a
+  frozen pydantic `Request` (`key`, percent-decoded `path`, `method`,
+  `url`, `query`, `headers`) and return a frozen `Response`; sync
+  handlers run on the thread pool, async handlers on the event loop,
+  exceptions log and answer `500`, unregistered keys answer `404`.
+  The built-in `local_files` handler serves any absolute path over
+  `neony://local/…` with HTTP Range support (`206`/`416`), HEAD, MIME
+  guessing and cache headers. A webview's media pipeline cannot read
+  custom URI schemes, so `<audio>`/`<video>` sources on `neony://…`
+  are hydrated automatically — the JS runtime fetches the bytes over
+  the protocol (responses carry permissive CORS headers for the
+  opaque-origin page) and swaps in a Blob URL, revoked on source change
+  or element removal — so local media playback and seeking now
+  work where `file://` subresources are blocked (pages loaded from an
+  HTML string). URL builders: `local_url(path)` and
+  `protocol_url(key, value)` in `neony.application.urls`. New demo:
+  `demo_protocols.py`.
 - **Pointer-driven in-app drags** — elements with `drag_payload` no
   longer use HTML5 drag-and-drop: WebKitGTK's native drag image
   positions randomly on Wayland (sometimes grab-relative, sometimes

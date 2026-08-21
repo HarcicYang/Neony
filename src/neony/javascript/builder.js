@@ -37,6 +37,14 @@ function buildNode(desc, registry) {
         el.setAttribute(name, value);
     }
 
+    // WebKitGTK's media pipeline does not resolve custom URI schemes. Keep
+    // the declared source in a private property; the runtime hydrates it to
+    // a Blob URL after the node is mounted.
+    if ((desc.tag === "audio" || desc.tag === "video") && attrs.src) {
+        el._neonyMediaSource = attrs.src;
+        el._neonyMediaSourceToken = 0;
+    }
+
     if (desc.text !== null && desc.text !== undefined) {
         el.textContent = desc.text;
     }
@@ -46,8 +54,12 @@ function buildNode(desc, registry) {
         el.appendChild(buildNode(child, registry));
     }
 
-    // Register for later patch lookups
+    // Register for later patch lookups. Media hydration is called here so
+    // initial mounts and nested create patches share the same path.
     registry.set(desc.key, el);
+    if ((desc.tag === "audio" || desc.tag === "video") && window.neony && window.neony.hydrateMedia) {
+        window.neony.hydrateMedia(el);
+    }
     return el;
 }
 

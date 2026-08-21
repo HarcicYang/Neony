@@ -24,6 +24,7 @@ from neony.application.i18n import (
 )
 from neony.application.icons import stub as icons
 from neony.application.page import Page
+from neony.application.protocols import Request, Response, local_files, protocol
 from neony.application.theme import (
     CYBERANGEL_DARK,
     CYBERANGEL_LIGHT,
@@ -39,7 +40,7 @@ from neony.application.theme import (
     Theme,
 )
 from neony.application.tray import Tray, TrayItem
-from neony.application.urls import data_url, file_url
+from neony.application.urls import data_url, file_url, local_url, protocol_url
 
 __all__ = [
     "CYBERANGEL_DARK",
@@ -60,6 +61,8 @@ __all__ = [
     "Language",
     "NeonApplication",
     "Page",
+    "Request",
+    "Response",
     "Theme",
     "TrRef",
     "Tray",
@@ -71,6 +74,10 @@ __all__ = [
     "get_language",
     "icons",
     "launch",
+    "local_files",
+    "local_url",
+    "protocol",
+    "protocol_url",
     "register_catalog",
     "set_language",
     "tr",

@@ -756,9 +756,9 @@ class TestTypedState:
         captured: list = []
         original_init = NeonApplication.__init__
 
-        def spy_init(self, config=None, *, state=None) -> None:
+        def spy_init(self, config=None, *, state=None, protocols=None) -> None:
             captured.append(state)
-            original_init(self, config, state=state)
+            original_init(self, config, state=state, protocols=protocols)
 
         import unittest.mock
 

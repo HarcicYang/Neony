@@ -43,6 +43,96 @@ describe("bootstrap", () => {
   });
 });
 
+describe("custom-scheme media hydration", () => {
+  let fetchMock;
+  let createObjectURL;
+  let revokeObjectURL;
+
+  beforeEach(() => {
+    // Production always has window.neony (the IIFE installs it before any
+    // patch arrives); the shared afterEach wipes it between tests, so the
+    // engine/builder hooks need it restored here.
+    window.neony = neony;
+    window.lumiview = { listen, invoke: vi.fn(() => Promise.resolve()) };
+    fetchMock = vi.fn(() => Promise.resolve({ ok: true, blob: () => Promise.resolve(new Blob(["audio"])) }));
+    window.fetch = fetchMock;
+    globalThis.fetch = fetchMock;
+    createObjectURL = vi.fn(() => "blob:neony-media");
+    revokeObjectURL = vi.fn();
+    window.URL.createObjectURL = createObjectURL;
+    window.URL.revokeObjectURL = revokeObjectURL;
+    globalThis.URL.createObjectURL = createObjectURL;
+    globalThis.URL.revokeObjectURL = revokeObjectURL;
+  });
+
+  afterEach(() => {
+    delete window.URL.createObjectURL;
+    delete window.URL.revokeObjectURL;
+    delete globalThis.URL.createObjectURL;
+    delete globalThis.URL.revokeObjectURL;
+  });
+
+  it("hydrates a custom-scheme audio source through Blob URL", async () => {
+    mountTree({ key: "audio", tag: "audio", attrs: { src: "neony://local/song.wav" } });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    await neony.hydrateMedia(audio);
+
+    expect(fetchMock).toHaveBeenCalledWith("neony://local/song.wav", { credentials: "omit" });
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(audio.getAttribute("src")).toBe("blob:neony-media");
+    expect(audio._neonyMediaSource).toBe("neony://local/song.wav");
+  });
+
+  it("cancels stale hydration and revokes the old object URL", async () => {
+    let resolveFirst;
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }));
+    mountTree({ key: "audio", tag: "audio" });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    audio._neonyMediaSource = "neony://local/old.wav";
+    const first = neony.hydrateMedia(audio);
+    audio._neonyMediaSource = "neony://local/new.wav";
+    const second = neony.hydrateMedia(audio);
+    expect(resolveFirst).toBeTypeOf("function");
+    resolveFirst({ ok: true, blob: () => Promise.resolve(new Blob(["old"])) });
+    fetchMock.mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["new"])) });
+    await Promise.all([first, second]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(audio._neonyMediaSource).toBe("neony://local/new.wav");
+    expect(audio.getAttribute("src")).toBe("blob:neony-media");
+  });
+
+  it("releases object URLs when media nodes are removed", async () => {
+    mountTree({ key: "audio", tag: "audio", attrs: { src: "neony://local/song.wav" } });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    await neony.hydrateMedia(audio);
+    expect(audio._neonyMediaObjectUrl).toBe("blob:neony-media");
+    neony.releaseMedia(audio);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:neony-media");
+  });
+
+  it("stops and releases the Blob when Python clears src", async () => {
+    mountTree({ key: "audio", tag: "audio", attrs: { src: "neony://local/song.wav" } });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    await neony.hydrateMedia(audio);
+    audio.load = vi.fn();
+    neony.engine.applyOps([{ op: "update_attrs", key: "audio", set: {}, remove: ["src"] }]);
+    expect(audio.getAttribute("src")).toBe(null);
+    expect(audio._neonyMediaSource).toBe(null);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:neony-media");
+    expect(audio.load).toHaveBeenCalled();
+  });
+
+  it("revokes the hydrated Blob when the source switches away from neony://", async () => {
+    mountTree({ key: "audio", tag: "audio", attrs: { src: "neony://local/song.wav" } });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    await neony.hydrateMedia(audio);
+    neony.engine.applyOps([{ op: "update_attrs", key: "audio", set: { src: "https://example.com/song.wav" }, remove: [] }]);
+    await Promise.resolve();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:neony-media");
+    expect(audio.getAttribute("src")).toBe("https://example.com/song.wav");
+  });
+});
+
 describe("event delegation", () => {
   let invoke;
   let win;

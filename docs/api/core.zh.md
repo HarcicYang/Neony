@@ -108,7 +108,77 @@ launch(page, title="Demo", width=480, height=360, devtools=True)
 
 接受全部 `WindowConfig` / `WebViewConfig` 字段，
 以及 `mount_selector`、`auto_render` 和 `state`(自定义状态对象 ——
-见 [`NeonApplication`](#neonapplication))。
+见 [`NeonApplication`](#neonapplication)) —— 以及 `protocols`
+(见[自定义协议](#自定义协议))。
+
+## 自定义协议
+
+通过 `neony://<key>/…` URL 向页面提供 Python 生成的数据。处理器就是
+用 `@protocol` 装饰的普通函数或方法：同步处理器运行在线程池，异步
+处理器运行在应用事件循环。
+
+```python
+from neony.application import Page, launch, local_files, local_url, protocol
+from neony.application.protocols import Request, Response
+
+
+@protocol("qr")
+def qr_codes(request: Request) -> Response:
+    key = request.path.strip("/")  # neony://qr/<key> → "<key>"
+    return Response(body=make_qr_png(key), headers={"Content-Type": "image/png"})
+
+
+class Avatars:
+    def __init__(self, db) -> None:
+        self.db = db
+
+    @protocol("avatar")
+    async def handle(self, request: Request) -> Response:  # 状态放 self
+        data = await self.db.fetch_avatar(request.path.strip("/"))
+        return Response(status=404) if data is None else Response(body=data, headers={"Content-Type": "image/jpeg"})
+
+
+launch(page, title="Demo", protocols=[qr_codes, Avatars(db), local_files])
+```
+
+**规则**
+
+- 必须在 `launch()` / `run()` 之前声明 —— webview scheme 只在窗口
+  创建时注册一次，之后无法追加。
+- key 必须匹配 `^[a-z][a-z0-9-]*$`(key 是 URL 的 authority，浏览器
+  会将其小写归一化)。重复 key 抛出 `ValueError`。
+- 处理器收到冻结的 pydantic `Request`:`key`、`path`(已解码的载荷)、
+  `method`、`url`、`query`、`headers`,以及大小写不敏感的
+  `request.header(name)` 辅助方法。返回冻结的
+  `Response(status, headers, body)`(便捷构造:`Response.text()` /
+  `Response.json()`)。
+- URL 构建使用 `local_url(path)` → `neony://local/…` 与
+  `protocol_url(key, value)` → `neony://<key>/…`。
+- 未注册的 key 返回 `404`;处理器异常会记录日志并返回 `500`。
+
+**内置 `local_files`** 把任意绝对文件路径经 `neony://local/…` 提供
+给页面 —— 等价于 `file_url()` 的自定义协议版本。页面由 HTML 字符串
+加载时 WebView 会拦截 `file://` 子资源，因此本地媒体要走这条路：
+
+```python
+from neony.application import Image, launch, local_files, local_url
+
+launch(page, protocols=[local_files])
+Image(local_url("~/Music/song.mp3"))
+```
+
+它支持 HTTP `Range` 请求(`206 Partial Content`)、应答 `HEAD`、猜测
+MIME 类型，并发送 `ETag` / `Last-Modified` / `Accept-Ranges`。没有路径
+白名单：Neony 页面是受信任的应用内容。参见
+[`demo_protocols.py`](../../demo_protocols.py)。
+
+**媒体播放** —— WebView 的媒体管线（Linux 上为 GStreamer）无法读取
+自定义 URI scheme，因此运行时会自动水合指向 `neony://…` 的
+`<audio>` / `<video>` 源：经协议 fetch 字节后换成 `blob:` URL，并在源
+变更或元素移除时释放。播放与进度拖动因此在 `file://` 子资源被拦截的
+环境下照常工作。播放期间整个文件驻留内存——适合语音条与音效，长视频
+需注意体积。协议响应附带宽松的 CORS 头，使页面（opaque origin）能够
+`fetch()` 这些资源。
 
 ## `Config`， `WindowConfig`， `WebViewConfig`
 
