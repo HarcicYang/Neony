@@ -366,7 +366,10 @@ class RichText(Component):
             image_url = _image_data_url(content)
             if image_url is not None:
                 await asyncio.sleep(0)
+                before = self._segments.copy()
                 self._replace_blob_images(image_url)
+                if self._segments != before:
+                    await self._notify_change("user")
         except asyncio.CancelledError:
             raise
         except Exception:
