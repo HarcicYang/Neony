@@ -452,6 +452,15 @@ class Component:
         """Attach the source-aware dispatcher to an internal element."""
         element.on(event_type, self._make_handler(event_type))
 
+    def _clipboard_read(self) -> Coroutine[Any, Any, bytes | str] | None:
+        """Return the mounted application's system clipboard read coroutine."""
+        node: DOMElement | None = self._root
+        while node is not None and node._parent is not None:
+            node = node._parent
+        if node is None or node._clipboard_read_request is None:
+            return None
+        return node._clipboard_read_request()
+
     def _call_js(self, script: str) -> Coroutine[Any, Any, Any] | None:
         """Return the tree root's internal JS eval coroutine, if armed.
 

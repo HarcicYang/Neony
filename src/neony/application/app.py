@@ -632,6 +632,11 @@ class NeonApplication(Generic[_S]):
 
         tree._eval_js_request = request
 
+        async def read_clipboard() -> bytes | str:
+            return await self.clipboard_read()
+
+        tree._clipboard_read_request = read_clipboard
+
     def _collect_handlers(
         self, neony: Neony, element: DOMElement, idx: int, registered: set[tuple[str, str]] | None = None
     ) -> None:

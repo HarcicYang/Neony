@@ -233,6 +233,8 @@ class DOMElement(BaseModel):
     # Armed by the app on each tree root so a component can run internal
     # JS without holding a window reference (scroll commands, caret reads).
     _eval_js_request: Callable[[str], Coroutine[Any, Any, Any]] | None = PrivateAttr(default=None)
+    # Armed by the app for component-level system clipboard reads.
+    _clipboard_read_request: Callable[[], Coroutine[Any, Any, bytes | str]] | None = PrivateAttr(default=None)
     # Managed content: the bridge freezes diffing under this subtree after
     # the initial mount; live content (a contenteditable editor) is owned
     # by the JS engine and updated through internal commands, never by the

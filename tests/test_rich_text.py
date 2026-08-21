@@ -83,6 +83,29 @@ def test_set_content_replaces_model_and_dom_children():
     assert len(editor._root.container) == 2
 
 
+def test_paste_replaces_browser_blob_image_from_system_clipboard():
+    editor = RichText(segments=["before", ImageSegment(src="blob:null/image"), "after"])
+    clipboard = b"\x89PNG\r\n\x1a\nclipboard"
+
+    async def read_clipboard() -> bytes:
+        return clipboard
+
+    editor._root._clipboard_read_request = read_clipboard
+
+    async def scenario() -> None:
+        await editor._on_event("paste", DomEvent(key=editor._root.key, type="paste"))
+        assert editor._paste_image_task is not None
+        await editor._paste_image_task
+
+    asyncio.run(scenario())
+    content = editor.content()
+    assert [_as_text(content[0]).text, _as_image(content[1]).src, _as_text(content[2]).text] == [
+        "before",
+        "data:image/png;base64,iVBORw0KGgpjbGlwYm9hcmQ=",
+        "after",
+    ]
+
+
 def test_on_event_updates_caret_and_selection():
     editor = RichText(segments=["abcd"])
     asyncio.run(

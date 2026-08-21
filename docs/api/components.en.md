@@ -520,6 +520,7 @@ count one per text character and one per inline image.
 - `set_content(segments)` — replace programmatically.
 - `insert_text(text, *, at_caret=True)` / `insert_image(src, *, at_caret=True, alt="", width=None, height=None)`. Images display at `40×40px` by default; custom dimensions are capped at `320×240px`, with width also constrained to the editor container.
 - `caret_position()` / `selection_range()` / `set_caret(position)` / `focus()`.
+- When an image is pasted, RichText reads image bytes from the system clipboard and replaces the browser-created `blob:` image; no extra configuration is required, and the image display cap still applies.
 - Events: `on_change` (`event.value` is the segment list), `on_submit`
   (Enter; the default newline is suppressed), `on_input`, `on_click`,
   `on_paste_files` (raw synthetic paste event), `on_paste_image`

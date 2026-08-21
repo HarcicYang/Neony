@@ -113,6 +113,19 @@ def _data_url_to_tempfile(data_url: str, name: str) -> str | None:
     return path
 
 
+def _image_data_url(content: bytes) -> str | None:
+    suffix = _suffix_for_bytes(content)
+    mime = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+    }.get(suffix)
+    if mime is None:
+        return None
+    return f"data:{mime};base64,{base64.b64encode(content).decode('ascii')}"
+
+
 def _suffix_for_bytes(content: bytes) -> str:
     if content.startswith(b"\x89PNG\r\n\x1a\n"):
         return ".png"
@@ -153,6 +166,7 @@ class RichText(Component):
             "compositionupdate",
             "compositionend",
             "paste_files",
+            "paste",
         }
     )
 
@@ -167,6 +181,7 @@ class RichText(Component):
         self._caret = self._flat_length()
         self._selection_end = self._caret
         self._selected_image_index: int | None = None
+        self._paste_image_task: asyncio.Task[None] | None = None
 
         args: dict[str, Any] = {
             "contenteditable": "true",
@@ -325,6 +340,38 @@ class RichText(Component):
         if self._segments != old:
             await self._notify_change("user")
 
+    def _replace_blob_images(self, image_url: str) -> None:
+        """Replace browser-created blob images with a controlled data URL."""
+        replaced = False
+        rebuilt: list[RichSegment] = []
+        for segment in self._segments:
+            if isinstance(segment, ImageSegment) and segment.src.startswith("blob:") and not replaced:
+                rebuilt.append(ImageSegment(src=image_url, alt=segment.alt))
+                replaced = True
+            else:
+                rebuilt.append(segment)
+        if replaced:
+            self._segments = rebuilt
+            self._normalize_segments()
+            self._sync_dom(self._caret)
+
+    async def _read_pasted_image(self) -> None:
+        request = self._clipboard_read()
+        if request is None:
+            return
+        try:
+            content = await request
+            if not isinstance(content, bytes):
+                return
+            image_url = _image_data_url(content)
+            if image_url is not None:
+                await asyncio.sleep(0)
+                self._replace_blob_images(image_url)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            return
+
     async def _handle_paste_files(self, event: DomEvent) -> None:
         """Write pasted file bytes to temp files and dispatch paste_image."""
         files = event.paste_files or []
@@ -459,5 +506,9 @@ class RichText(Component):
                 await self._dispatch("submit", event)
         elif event_type == "paste_files":
             await self._handle_paste_files(event)
+        elif event_type == "paste" and (self._paste_image_task is None or self._paste_image_task.done()):
+            self._paste_image_task = asyncio.create_task(self._read_pasted_image())
+            self._js_tasks.add(self._paste_image_task)
+            self._paste_image_task.add_done_callback(self._js_tasks.discard)
 
         await self._dispatch(event_type, event)
