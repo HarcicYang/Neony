@@ -378,6 +378,37 @@ class TestRichPayload:
         assert bound["key"] == "btn"
         assert bound["event_type"] == "click"
 
+    def test_media_event_payload_passes_strict_binding(self):
+        """Media events carry media_* fields; the command signature must
+        accept them (and integer-valued numbers) or every timeupdate is
+        rejected at the bridge — gallery regression: transport dead."""
+        import typing
+
+        from lumiview._binding import bind_arguments
+        from lumiview.scope import Command, Scope
+
+        command_fn = Neony(name="neony")._on_event
+        payload = {
+            "key": "media",
+            "event_type": "timeupdate",
+            "value": None,
+            "media_time": 0,  # JS double 0.0 → JSON int 0
+            "media_duration": 90,
+            "media_volume": 1,
+            "media_muted": False,
+            "media_paused": False,
+        }
+        bound = bind_arguments(
+            Command(fn=command_fn, name="event", scope=Scope("test")),
+            payload,
+            window=None,
+        )
+        assert bound["media_time"] == 0
+        assert bound["media_duration"] == 90
+        hints = typing.get_type_hints(command_fn)
+        for name in ("media_time", "media_duration", "media_volume"):
+            assert hints[name] is Any, f"{name} must stay Any (strict int/float matching)"
+
     def test_clipboard_data_reaches_handler(self):
         app = NeonApplication(Config(auto_render=True))
         fake = FakeWindow()

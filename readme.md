@@ -126,6 +126,7 @@ Import from `neony.application.elements`.
 | `Pane`                    | Selectable Sidebar entry + content panel — `key`, `icon`, `section`, `shortcut` |
 | `SidebarGroup`            | Titled section of a Sidebar — small uppercase label above its items          |
 | `Image`                   | Themed image in a rounded, overflow-hidden frame (`src` is any URL)            |
+| `Video` / `Audio`         | Managed themed media players — custom transport row, `neony://` sources auto-hydrated, full playback commands & events |
 | `Avatar`                  | User avatar — image, letter initial, or placeholder, optional corner `badge`   |
 | `Badge`                   | Status pill or corner count — variants, status dot, `99+` clamp, zero hides    |
 | `Card`                    | Titled content panel — actions, footer, optional frosted-glass `glass` surface |

@@ -118,3 +118,13 @@ class DomEvent(BaseModel):
     # Dropped files (drop events only): one dict per file with keys
     # ``name``, ``path`` (empty string on WKWebView), ``size``, ``type``.
     drop_files: list[dict[str, Any]] | None = None
+
+    # Media elements (direct-wired neony Video/Audio events): playback
+    # position, clip duration, volume level, mute state, paused flag and
+    # the MediaError code on ``error``.  Absent on other events.
+    media_time: float | None = None
+    media_duration: float | None = None
+    media_volume: float | None = None
+    media_muted: bool | None = None
+    media_paused: bool | None = None
+    media_error: int | None = None

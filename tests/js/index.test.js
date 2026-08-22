@@ -53,7 +53,24 @@ describe("custom-scheme media hydration", () => {
     // patch arrives); the shared afterEach wipes it between tests, so the
     // engine/builder hooks need it restored here.
     window.neony = neony;
-    window.lumiview = { listen, invoke: vi.fn(() => Promise.resolve()) };
+    // 真实 WebKitGTK 上 fetch() 无法加载自定义 scheme，水合走 invoke 桥；
+    // 这里模拟 Python 端 media_read 的返回（btoa("audio") ≙ 旧 Blob(["audio"])）。
+    window.lumiview = {
+      listen,
+      invoke: vi.fn((command, payload) => {
+        if (command === "neony.media_read") {
+          return Promise.resolve({
+            status: 200,
+            content_type: "audio/wav",
+            data_b64: btoa("audio"),
+            total: 5,
+            complete: true,
+          });
+        }
+        return Promise.resolve();
+      }),
+    };
+    // fetch 仅作回退路径（无 lumiview 的环境），同样保持可断言。
     fetchMock = vi.fn(() => Promise.resolve({ ok: true, blob: () => Promise.resolve(new Blob(["audio"])) }));
     window.fetch = fetchMock;
     globalThis.fetch = fetchMock;
@@ -72,20 +89,94 @@ describe("custom-scheme media hydration", () => {
     delete globalThis.URL.revokeObjectURL;
   });
 
-  it("hydrates a custom-scheme audio source through Blob URL", async () => {
-    mountTree({ key: "audio", tag: "audio", attrs: { src: "neony://local/song.wav" } });
+  it("hydrates a contract-managed audio source through Blob URL", async () => {
+    // 组件契约：源走 data-neony-media-src，永不落 src 属性
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: { "data-neony-media-src": "neony://local/song.wav" },
+    });
     const audio = document.querySelector("[data-neony-key='audio']");
     await neony.hydrateMedia(audio);
 
-    expect(fetchMock).toHaveBeenCalledWith("neony://local/song.wav", { credentials: "omit" });
+    expect(window.lumiview.invoke).toHaveBeenCalledWith(
+      "neony.media_read",
+      expect.objectContaining({ url: "neony://local/song.wav", offset: 0 }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(createObjectURL).toHaveBeenCalled();
     expect(audio.getAttribute("src")).toBe("blob:neony-media");
     expect(audio._neonyMediaSource).toBe("neony://local/song.wav");
   });
 
+  it("does not auto-hydrate raw src attributes anymore", async () => {
+    mountTree({ key: "audio", tag: "audio", attrs: { src: "neony://local/song.wav" } });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    await Promise.resolve();
+
+    const reads = window.lumiview.invoke.mock.calls.filter(([name]) => name === "neony.media_read");
+    expect(reads.length).toBe(0);
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(audio.getAttribute("src")).toBe("neony://local/song.wav");
+  });
+
+  it("restarts the media load via load() after swapping in the Blob URL", async () => {
+    // WebKitGTK keeps the media pipeline stuck on the interrupted request
+    // when src changes mid-load; only an explicit load() restarts it.
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: { "data-neony-media-src": "neony://local/song.wav" },
+    });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    const load = vi.fn();
+    audio.load = load;
+    await neony.hydrateMedia(audio);
+
+    expect(audio.getAttribute("src")).toBe("blob:neony-media");
+    expect(load).toHaveBeenCalled();
+  });
+
+  it("rehydrates when the engine updates the media contract attribute", async () => {
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: { "data-neony-media-src": "neony://local/old.wav" },
+    });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    neony.engine.applyOps([
+      { op: "update_attrs", key: "audio", set: { "data-neony-media-src": "neony://local/new.wav" }, remove: [] },
+    ]);
+    expect(window.lumiview.invoke).toHaveBeenCalledWith(
+      "neony.media_read",
+      expect.objectContaining({ url: "neony://local/new.wav", offset: 0 }),
+    );
+    expect(audio._neonyMediaSource).toBe("neony://local/new.wav");
+    await vi.waitFor(() => expect(audio.getAttribute("src")).toBe("blob:neony-media"));
+  });
+
+  it("stops playback when Python clears the media contract attribute", async () => {
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: { "data-neony-media-src": "neony://local/song.wav" },
+    });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    await neony.hydrateMedia(audio);
+    audio.load = vi.fn();
+    neony.engine.applyOps([
+      { op: "update_attrs", key: "audio", set: {}, remove: ["data-neony-media-src"] },
+    ]);
+
+    expect(audio._neonyMediaSource).toBe(null);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:neony-media");
+    expect(audio.getAttribute("src")).toBe(null);
+    expect(audio.load).toHaveBeenCalled();
+  });
+
   it("cancels stale hydration and revokes the old object URL", async () => {
     let resolveFirst;
-    fetchMock.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }));
+    window.lumiview.invoke.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }));
     mountTree({ key: "audio", tag: "audio" });
     const audio = document.querySelector("[data-neony-key='audio']");
     audio._neonyMediaSource = "neony://local/old.wav";
@@ -93,16 +184,209 @@ describe("custom-scheme media hydration", () => {
     audio._neonyMediaSource = "neony://local/new.wav";
     const second = neony.hydrateMedia(audio);
     expect(resolveFirst).toBeTypeOf("function");
-    resolveFirst({ ok: true, blob: () => Promise.resolve(new Blob(["old"])) });
-    fetchMock.mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["new"])) });
+    resolveFirst({ status: 200, content_type: "audio/wav", data_b64: btoa("old") });
     await Promise.all([first, second]);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const reads = window.lumiview.invoke.mock.calls.filter(([name]) => name === "neony.media_read");
+    expect(reads.length).toBe(2);
+    expect(reads[1][1].url).toBe("neony://local/new.wav");
     expect(audio._neonyMediaSource).toBe("neony://local/new.wav");
     expect(audio.getAttribute("src")).toBe("blob:neony-media");
   });
 
+  it("detaches the stale source immediately while a large file is read, via a fresh node", async () => {
+    // 第一段：正常水合旧文件
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: {
+        "data-neony-media-src": "neony://local/old.wav",
+        "data-neony-direct-events": "timeupdate,error",
+      },
+    });
+    // 第一段：对原始元素做首次水合 —— 无既有源，不得换节点
+    const audio = document.querySelector("[data-neony-key='audio']");
+    await neony.hydrateMedia(audio);
+    expect(audio.getAttribute("src")).toBe("blob:neony-media");
+    expect(document.querySelector("[data-neony-key='audio']")).toBe(audio);
+
+    // 第二段：换大文件 —— 换源必须替换为克隆节点（WebKitGTK 管线复用缺陷规避）
+    let resolveRead;
+    window.lumiview.invoke.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        }),
+    );
+    neony.engine.applyOps([
+      { op: "update_attrs", key: "audio", set: { "data-neony-media-src": "neony://local/big.wav" }, remove: [] },
+    ]);
+    // 同步段：注册表与 DOM 均已指向新节点，旧节点被摘除
+    const fresh = document.querySelector("[data-neony-key='audio']");
+    expect(fresh).not.toBe(audio);
+    expect(audio.parentNode).toBe(null); // 旧节点已下树（管线随之销毁）
+    expect(neony.engine.registry.get("audio")).toBe(fresh);
+    expect(fresh._neonyDirectWired).toBe(true); // 直连事件已重新接线
+
+    // 读取中：新节点 src 为空；读取完成后 Blob 落在新节点上
+    expect(fresh.getAttribute("src")).toBe(null);
+    resolveRead({ status: 200, content_type: "audio/wav", data_b64: btoa("big") });
+    await vi.waitFor(() => expect(fresh.getAttribute("src")).toBe("blob:neony-media"));
+
+    // 水合完成后，新节点上的媒体事件照常经标准通道转发
+    const eventsBefore = window.lumiview.invoke.mock.calls.filter(([n]) => n === "neony.event").length;
+    fresh.dispatchEvent(new Event("timeupdate"));
+    await vi.waitFor(() => {
+      expect(window.lumiview.invoke.mock.calls.filter(([n]) => n === "neony.event").length).toBeGreaterThan(eventsBefore);
+    });
+  });
+
+  it("migrates live audio state onto the fresh node and keeps commands routed", async () => {
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: {
+        "data-neony-media-src": "neony://local/first.wav",
+        "data-neony-direct-events": "timeupdate",
+      },
+    });
+    await vi.waitFor(() =>
+      expect(document.querySelector("[data-neony-key='audio']").getAttribute("src")).toBe("blob:neony-media"),
+    );
+    const first = document.querySelector("[data-neony-key='audio']");
+    first.volume = 0.4;
+    first.muted = true;
+
+    neony.engine.applyOps([
+      { op: "update_attrs", key: "audio", set: { "data-neony-media-src": "neony://local/second.wav" }, remove: [] },
+    ]);
+    const fresh = document.querySelector("[data-neony-key='audio']");
+    expect(fresh.volume).toBe(0.4);
+    expect(fresh.muted).toBe(true);
+
+    // 命令路由跟随 registry → 新节点收到 play/pause
+    const play = vi.fn(() => Promise.resolve());
+    fresh.play = play;
+    await vi.waitFor(() => expect(fresh._neonyHydrating).toBeFalsy()); // 水合收尾后再点播
+    neony.mediaPlay("audio");
+    expect(play).toHaveBeenCalledTimes(1);
+  });
+
+  it("pulls large sources chunk by chunk and assembles the Blob", async () => {
+    const CHUNK = 1 << 20;
+    const calls = [];
+    window.lumiview.invoke.mockImplementation((command, payload) => {
+      if (command !== "neony.media_read") return Promise.resolve();
+      calls.push(payload);
+      const { offset } = payload;
+      if (offset === 0) {
+        return Promise.resolve({ status: 206, content_type: "video/mp4", data_b64: btoa("AAAA"), total: 6, complete: false });
+      }
+      return Promise.resolve({ status: 206, content_type: "video/mp4", data_b64: btoa("BBBB"), total: 6, complete: false });
+    });
+    // 8 字节文件分两块（mock 每块 4 字节）
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: { "data-neony-media-src": "neony://local/big.mp4" },
+    });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    await vi.waitFor(() => expect(audio.getAttribute("src")).toBe("blob:neony-media"));
+
+    expect(calls.length).toBe(2);
+    expect(calls[0]).toMatchObject({ url: "neony://local/big.mp4", offset: 0, chunk: CHUNK });
+    expect(createObjectURL).toHaveBeenCalled();
+  });
+
+  it("reports the hydration phase via media_loading events", async () => {
+    let resolveRead;
+    window.lumiview.invoke.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        }),
+    );
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: { "data-neony-media-src": "neony://local/song.wav" },
+    });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    await vi.waitFor(() => {
+      const starts = window.lumiview.invoke.mock.calls.filter(
+        ([name, payload]) => name === "neony.event" && payload.event_type === "media_loading" && payload.value === true,
+      );
+      expect(starts.length).toBe(1);
+    });
+
+    resolveRead({ status: 200, content_type: "audio/wav", data_b64: btoa("audio") });
+    await vi.waitFor(() => {
+      const ends = window.lumiview.invoke.mock.calls.filter(
+        ([name, payload]) => name === "neony.event" && payload.event_type === "media_loading" && payload.value === false,
+      );
+      expect(ends.length).toBe(1);
+    });
+  });
+
+  it("parks play() during hydration and resumes once the Blob is attached", async () => {
+    let resolveRead;
+    window.lumiview.invoke.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        }),
+    );
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: { "data-neony-media-src": "neony://local/song.wav" },
+    });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    const play = vi.fn(() => Promise.resolve());
+    audio.play = play;
+
+    neony.mediaPlay("audio"); // 水合未完成 → 只挂起，不得对空源调 play
+    expect(play).not.toHaveBeenCalled();
+
+    resolveRead({ status: 200, content_type: "audio/wav", data_b64: btoa("audio") });
+    await vi.waitFor(() => expect(play).toHaveBeenCalled());
+
+    // pause 撤销挂起
+    window.lumiview.invoke.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        }),
+    );
+    neony.engine.applyOps([
+      { op: "update_attrs", key: "audio", set: { "data-neony-media-src": "neony://local/next.wav" }, remove: [] },
+    ]);
+    neony.mediaPause("audio");
+    resolveRead({ status: 200, content_type: "audio/wav", data_b64: btoa("next") });
+    await vi.waitFor(() => expect(audio.getAttribute("src")).toBe("blob:neony-media"));
+    expect(play).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to fetch when the bridge is unavailable", async () => {
+    delete window.lumiview;
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: { "data-neony-media-src": "neony://local/song.wav" },
+    });
+    const audio = document.querySelector("[data-neony-key='audio']");
+    await neony.hydrateMedia(audio);
+
+    expect(fetchMock).toHaveBeenCalledWith("neony://local/song.wav", { credentials: "omit" });
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(audio.getAttribute("src")).toBe("blob:neony-media");
+  });
+
   it("releases object URLs when media nodes are removed", async () => {
-    mountTree({ key: "audio", tag: "audio", attrs: { src: "neony://local/song.wav" } });
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: { "data-neony-media-src": "neony://local/song.wav" },
+    });
     const audio = document.querySelector("[data-neony-key='audio']");
     await neony.hydrateMedia(audio);
     expect(audio._neonyMediaObjectUrl).toBe("blob:neony-media");
@@ -110,26 +394,52 @@ describe("custom-scheme media hydration", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:neony-media");
   });
 
-  it("stops and releases the Blob when Python clears src", async () => {
-    mountTree({ key: "audio", tag: "audio", attrs: { src: "neony://local/song.wav" } });
+  it("revokes the hydrated Blob and falls back to native src on switch", async () => {
+    mountTree({
+      key: "audio",
+      tag: "audio",
+      attrs: { "data-neony-media-src": "neony://local/song.wav" },
+    });
     const audio = document.querySelector("[data-neony-key='audio']");
     await neony.hydrateMedia(audio);
-    audio.load = vi.fn();
-    neony.engine.applyOps([{ op: "update_attrs", key: "audio", set: {}, remove: ["src"] }]);
-    expect(audio.getAttribute("src")).toBe(null);
-    expect(audio._neonyMediaSource).toBe(null);
-    expect(revokeObjectURL).toHaveBeenCalledWith("blob:neony-media");
-    expect(audio.load).toHaveBeenCalled();
-  });
-
-  it("revokes the hydrated Blob when the source switches away from neony://", async () => {
-    mountTree({ key: "audio", tag: "audio", attrs: { src: "neony://local/song.wav" } });
-    const audio = document.querySelector("[data-neony-key='audio']");
-    await neony.hydrateMedia(audio);
-    neony.engine.applyOps([{ op: "update_attrs", key: "audio", set: { src: "https://example.com/song.wav" }, remove: [] }]);
+    neony.engine.applyOps([
+      {
+        op: "update_attrs",
+        key: "audio",
+        set: { src: "https://example.com/song.wav" },
+        remove: ["data-neony-media-src"],
+      },
+    ]);
     await Promise.resolve();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:neony-media");
     expect(audio.getAttribute("src")).toBe("https://example.com/song.wav");
+  });
+
+  it("wires direct listeners for data-neony-direct-events and forwards state", async () => {
+    const invoke = vi.fn(() => Promise.resolve());
+    window.lumiview = { listen, invoke };
+    mountTree({
+      key: "media",
+      tag: "video",
+      attrs: { "data-neony-direct-events": "timeupdate,volumechange,error" },
+    });
+    const video = document.querySelector("[data-neony-key='media']");
+
+    // 挂载即直连：builder 钩子完成 addEventListener
+    video.volume = 0.4;
+    video.muted = true;
+    video.dispatchEvent(new Event("volumechange"));
+    await Promise.resolve();
+
+    const forwarded = invoke.mock.calls.filter(([name]) => name === "neony.event");
+    expect(forwarded.length).toBeGreaterThan(0);
+    // volume 赋值本身会同步触发一次原生 volumechange（muted 尚为 false），
+    // 手动 dispatch 的那一条才是完整状态 —— 取最后一条。
+    const payload = forwarded[forwarded.length - 1][1];
+    expect(payload.key).toBe("media");
+    expect(payload.event_type).toBe("volumechange");
+    expect(payload.media_volume).toBe(0.4);
+    expect(payload.media_muted).toBe(true);
   });
 });
 
@@ -1624,6 +1934,261 @@ describe("transition and animation events", () => {
     expect(payload.animation_name).toBeUndefined();
   });
 });
+
+describe("WebAudio transport (managed audio)", () => {
+    beforeEach(() => {
+      // 与主套件同款桥 mock：本 describe 独立成块，需自备 window.lumiview。
+      window.neony = neony;
+      window.lumiview = {
+        listen,
+        invoke: vi.fn((command) => {
+          if (command === "neony.media_read") {
+            return Promise.resolve({
+              status: 200,
+              content_type: "audio/mpeg",
+              data_b64: btoa("mp3-bytes"),
+              total: 9,
+              complete: true,
+            });
+          }
+          return Promise.resolve();
+        }),
+      };
+      const fetchMock = vi.fn(() => Promise.resolve({ ok: true, blob: () => Promise.resolve(new Blob(["audio"])) }));
+      window.fetch = fetchMock;
+      globalThis.fetch = fetchMock;
+      window.URL.createObjectURL = vi.fn(() => "blob:neony-media");
+      window.URL.revokeObjectURL = vi.fn();
+    });
+
+    beforeEach(() => {
+      FakeCtx.instances.length = 0;
+      FakeCtx.failNextDecode = false;
+      if (neony.mediaEngineReset) neony.mediaEngineReset();
+    });
+
+    afterEach(() => {
+      delete window.AudioContext;
+    });
+
+    class FakeParam {
+      constructor(v) {
+        this.value = v;
+      }
+    }
+    class FakeGain {
+      constructor() {
+        this.gain = new FakeParam(1);
+        this.connect = vi.fn();
+        this.disconnect = vi.fn();
+      }
+    }
+    class FakeSrc {
+      constructor() {
+        this.connect = vi.fn();
+        this.start = vi.fn();
+        this.stop = vi.fn();
+        this.disconnect = vi.fn();
+        this.onended = null;
+      }
+    }
+    class FakeCtx {
+      static instances = [];
+      static failNextDecode = false;
+      constructor() {
+        this.currentTime = 100;
+        this.sampleRate = 44100;
+        this.destination = {};
+        this.decoded = [];
+        FakeCtx.instances.push(this);
+      }
+      createGain() {
+        return new FakeGain();
+      }
+      createBufferSource() {
+        return new FakeSrc();
+      }
+      decodeAudioData(buf, ok, fail) {
+        this.decoded.push(buf.byteLength);
+        if (FakeCtx.failNextDecode) {
+          const e = Promise.reject(new Error("bad audio"));
+          if (fail) fail(new Error("bad audio"));
+          return e;
+        }
+        const p = Promise.resolve({ duration: 12.5 });
+        if (ok) ok({ duration: 12.5 });
+        return p;
+      }
+    }
+
+    function mountEngineAudio() {
+      mountTree({
+        key: "wa",
+        tag: "audio",
+        attrs: {
+          "data-neony-media-src": "neony://local/a.mp3",
+          "data-neony-media-engine": "webaudio",
+          "data-neony-direct-events": "timeupdate",
+        },
+      });
+      return document.querySelector("[data-neony-key='wa']");
+    }
+
+    it("decodes through the engine and never touches element src", async () => {
+      window.AudioContext = FakeCtx;
+      const el = mountEngineAudio();
+      await vi.waitFor(() => {
+        const ctx = FakeCtx.instances.at(-1);
+        expect(ctx && ctx.decoded.length).toBe(1);
+      });
+      const ctx = FakeCtx.instances.at(-1);
+      await vi.waitFor(() => {
+        expect(el.getAttribute("src")).toBe(null); // 引擎路径永不落 src
+        expect(ctx.decoded.length).toBe(1);
+      });
+      const events = window.lumiview.invoke.mock.calls.filter(([n, p]) => n === "neony.event" && p.key === "wa");
+      const types = events.map(([, p]) => p.event_type);
+      expect(types).toContain("loadedmetadata");
+      expect(types).toContain("durationchange");
+      const meta = events.find(([, p]) => p.event_type === "loadedmetadata")[1];
+      expect(meta.media_duration).toBe(12.5);
+    });
+
+    it("plays, tracks time, pauses and resumes at offset", async () => {
+      window.AudioContext = FakeCtx;
+      const el = mountEngineAudio();
+      await vi.waitFor(() => {
+        const ctx = FakeCtx.instances.at(-1);
+        expect(ctx && ctx.decoded.length).toBe(1);
+      });
+      const ctx = FakeCtx.instances.at(-1);
+      await vi.waitFor(() => expect(ctx.decoded.length).toBe(1));
+      const src = el._neonyWaSrcForTest ?? null;
+      void src;
+
+      neony.mediaPlay("wa");
+      const st = neony.engine.registry.get("wa"); // element identity
+      void st;
+      const events = () => window.lumiview.invoke.mock.calls.filter(([n, p]) => n === "neony.event" && p.key === "wa");
+      expect(events().some(([, p]) => p.event_type === "play")).toBe(true);
+
+      // 推进虚拟时钟 2 秒 → tick 合成 timeupdate
+      ctx.currentTime += 2;
+      neony.mediaEngineTick();
+      const tu = events().filter(([, p]) => p.event_type === "timeupdate").pop();
+      expect(Number(tu[1].media_time)).toBeCloseTo(2.0, 1);
+
+      neony.mediaPause("wa");
+      expect(events().some(([, p]) => p.event_type === "pause")).toBe(true);
+      // 再播：从暂停点继续
+      ctx.currentTime += 5; // 与播放无关
+      neony.mediaPlay("wa");
+      ctx.currentTime += 1;
+      neony.mediaEngineTick();
+      const tu2 = events().filter(([, p]) => p.event_type === "timeupdate").pop();
+      expect(Number(tu2[1].media_time)).toBeCloseTo(3.0, 1);
+    });
+
+    it("emits timeupdate automatically while playing (no manual pump)", async () => {
+      window.AudioContext = FakeCtx;
+      mountEngineAudio();
+      await vi.waitFor(() => {
+        const ctx = FakeCtx.instances.at(-1);
+        expect(ctx && ctx.decoded.length).toBe(1);
+      });
+      const ctx = FakeCtx.instances.at(-1);
+      neony.mediaPlay("wa");
+      ctx.currentTime += 0.5;
+      await vi.waitFor(() => {
+        const events = window.lumiview.invoke.mock.calls.filter(([n, p]) => n === "neony.event" && p.key === "wa");
+        expect(events.some(([, p]) => p.event_type === "timeupdate")).toBe(true);
+      });
+    });
+
+    it("seeks with clamping and reports seeked", async () => {
+      window.AudioContext = FakeCtx;
+      mountEngineAudio();
+      await vi.waitFor(() => {
+        const ctx = FakeCtx.instances.at(-1);
+        expect(ctx && ctx.decoded.length).toBe(1);
+      });
+      const ctx = FakeCtx.instances.at(-1);
+      await vi.waitFor(() => expect(ctx.decoded.length).toBe(1));
+      neony.mediaSeek("wa", 999); // clamp → duration 12.5
+      neony.mediaEngineTick();
+      const events = window.lumiview.invoke.mock.calls.filter(([n, p]) => n === "neony.event" && p.key === "wa");
+      const tu = events.filter(([, p]) => p.event_type === "timeupdate").pop()[1];
+      expect(Number(tu.media_time)).toBe(12.5);
+      // 非播放态 seek 发 seeked
+      neony.mediaSeek("wa", 1);
+      expect(events.filter(([, p]) => p.event_type === "seeked").length).toBeGreaterThan(0);
+    });
+
+    it("routes volume and mute into the gain node", async () => {
+      window.AudioContext = FakeCtx;
+      mountEngineAudio();
+      await vi.waitFor(() => {
+        const ctx = FakeCtx.instances.at(-1);
+        expect(ctx && ctx.decoded.length).toBe(1);
+      });
+      const ctx = FakeCtx.instances.at(-1);
+      await vi.waitFor(() => expect(ctx.decoded.length).toBe(1));
+      neony.mediaSetVolume("wa", 0.3);
+      neony.mediaSetMuted("wa", true);
+      const events = window.lumiview.invoke.mock.calls.filter(([n, p]) => n === "neony.event" && p.key === "wa");
+      const vc = events.filter(([, p]) => p.event_type === "volumechange").pop()[1];
+      expect(Number(vc.media_volume)).toBe(0.3);
+      expect(vc.media_muted).toBe(true);
+    });
+
+    it("releases engine state on element removal", async () => {
+      window.AudioContext = FakeCtx;
+      mountEngineAudio();
+      await vi.waitFor(() => {
+        const ctx = FakeCtx.instances.at(-1);
+        expect(ctx && ctx.decoded.length).toBe(1);
+      });
+      const ctx = FakeCtx.instances.at(-1);
+      await vi.waitFor(() => expect(ctx.decoded.length).toBe(1));
+      neony.mediaPlay("wa");
+      neony.releaseMedia(document.querySelector("[data-neony-key='wa']"));
+      // 状态已清：再次 play 不得崩溃也不得再发 play 事件
+      const before = window.lumiview.invoke.mock.calls.length;
+      neony.mediaPlay("wa");
+      expect(window.lumiview.invoke.mock.calls.length).toBe(before);
+    });
+
+    it("synthesizes an error event when decoding fails", async () => {
+      const ctx = new FakeCtx();
+      FakeCtx.failNextDecode = true;
+      window.AudioContext = FakeCtx;
+      mountEngineAudio();
+      await vi.waitFor(() => {
+        const events = window.lumiview.invoke.mock.calls.filter(([n, p]) => n === "neony.event" && p.key === "wa");
+        expect(events.some(([, p]) => p.event_type === "error" && p.media_error === 4)).toBe(true);
+      });
+    });
+
+    it("falls back to the native blob path when AudioContext is unavailable", async () => {
+      FakeCtx.instances.length = 0;
+      delete window.AudioContext;
+      const el = mountEngineAudio();
+      await vi.waitFor(() => expect(el.getAttribute("src")).toBe("blob:neony-media"));
+    });
+
+    it("keeps native video path even with engine attr absent", async () => {
+      window.AudioContext = FakeCtx;
+      mountTree({
+        key: "vid",
+        tag: "video",
+        attrs: { "data-neony-media-src": "neony://local/v.mp4" },
+      });
+      await vi.waitFor(() => {
+        const el = document.querySelector("[data-neony-key='vid']");
+        expect(el.getAttribute("src")).toBe("blob:neony-media");
+      });
+    });
+  });
 
 describe("Flaza protocol additions (composition, scroll geometry, paste files, scrollTo)", () => {
   let invoke;

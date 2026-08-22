@@ -107,8 +107,13 @@ class NeonApplication(Generic[_S]):
             self._arm_render_request(tree, idx)
             self._arm_eval_js_request(tree, idx)
         # Resolve custom protocol declarations once — every window this
-        # app opens (startup and dynamic) registers the same set.
+        # app opens (startup and dynamic) registers the same set.  Also
+        # handed to each page's bridge: ``neony.media_read`` serves the
+        # same dispatch to JS media hydration (WebKitGTK fetch() cannot
+        # load custom schemes).
         self._protocol_handlers = collect_protocol_handlers(self._protocols)
+        for entry in self._entries:
+            entry.neony._protocol_handlers = self._protocol_handlers
         # Linux: taskbar/dock shows the app name, not ``python3``.
         _set_linux_app_name(self.config.window.title)
         self._lumiview_app = App(name=self.config.window.title.replace(" ", ""))

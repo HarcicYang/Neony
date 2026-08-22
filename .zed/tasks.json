@@ -206,5 +206,18 @@
     "show_summary": true,
     "show_command": true,
     "save": "all"
+  },
+  {
+    "label": "Run media demo",
+    "command": "uv run demo_media.py",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "reveal_target": "dock",
+    "hide": "never",
+    "shell": "system",
+    "show_summary": true,
+    "show_command": true,
+    "save": "none"
   }
 ]

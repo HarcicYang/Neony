@@ -37,11 +37,15 @@ function buildNode(desc, registry) {
         el.setAttribute(name, value);
     }
 
-    // WebKitGTK's media pipeline does not resolve custom URI schemes. Keep
-    // the declared source in a private property; the runtime hydrates it to
-    // a Blob URL after the node is mounted.
-    if ((desc.tag === "audio" || desc.tag === "video") && attrs.src) {
-        el._neonyMediaSource = attrs.src;
+    // Managed media (neony Video/Audio components): the source travels
+    // in data-neony-media-src and NEVER lands in the DOM src attribute —
+    // WebKitGTK's media pipeline cannot resolve custom URI schemes, and
+    // swapping src mid-flight leaves it stuck on the interrupted load.
+    // The attribute stays in the DOM as diff state; hydration runs after
+    // mount from this clean, sourceless state.
+    const mediaSrc = attrs["data-neony-media-src"];
+    if (mediaSrc !== undefined) {
+        el._neonyMediaSource = mediaSrc;
         el._neonyMediaSourceToken = 0;
     }
 
@@ -54,11 +58,15 @@ function buildNode(desc, registry) {
         el.appendChild(buildNode(child, registry));
     }
 
-    // Register for later patch lookups. Media hydration is called here so
-    // initial mounts and nested create patches share the same path.
+    // Register for later patch lookups. Media hydration and direct event
+    // wiring are called here so initial mounts and nested create patches
+    // share the same path.
     registry.set(desc.key, el);
-    if ((desc.tag === "audio" || desc.tag === "video") && window.neony && window.neony.hydrateMedia) {
+    if (mediaSrc !== undefined && window.neony && window.neony.hydrateMedia) {
         window.neony.hydrateMedia(el);
+    }
+    if (attrs["data-neony-direct-events"] && window.neony && window.neony.wireDirectEvents) {
+        window.neony.wireDirectEvents(el);
     }
     return el;
 }

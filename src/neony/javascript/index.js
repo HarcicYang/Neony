@@ -10,6 +10,8 @@
 
     function releaseMedia(el) {
         if (!el) return;
+        var key = el.getAttribute && el.getAttribute("data-neony-key");
+        if (key && webAudio.states.has(key)) waRelease(key);
         if (el._neonyMediaObjectUrl) {
             URL.revokeObjectURL(el._neonyMediaObjectUrl);
             el._neonyMediaObjectUrl = null;
@@ -18,9 +20,323 @@
         for (const child of el.children || []) releaseMedia(child);
     }
 
+    // ── WebAudio transport (managed <audio> only) ─────────────────────
+    // WebKitGTK funnels every HTMLMediaElement in a page through one
+    // shared audio chain.  The FIRST lifecycle prerolls cleanly, but any
+    // later source change fights that chain: decoder misalignment
+    // (fixed separately by node replacement) and — still unsolved at
+    // pipeline level — a corked shared stream that stays silent for
+    // tens of seconds.  Decoding into an AudioBuffer and driving
+    // BufferSourceNodes sidesteps HTMLMediaElement pipelines entirely:
+    // switching sources becomes swapping buffer nodes, instantly.
+    var webAudio = {
+        ctx: null,
+        states: new Map(),
+        ensureCtx: function () {
+            if (!this.ctx) {
+                var AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return null;
+                this.ctx = new AC();
+            }
+            return this.ctx;
+        },
+    };
+
+    function waStateOf(key, el) {
+        var st = webAudio.states.get(key);
+        if (!st) {
+            st = {
+                key: key,
+                el: el,
+                buffer: null,
+                gain: null,
+                srcNode: null,
+                volume: typeof el.volume === "number" ? el.volume : 1,
+                muted: !!el.muted,
+                playing: false,
+                offset: 0,
+                startCtx: 0,
+                loadToken: 0,
+                pendingPlay: false,
+                duration: 0,
+                endedSent: false,
+            };
+            webAudio.states.set(key, st);
+        }
+        return st;
+    }
+
+    function waGain(st) {
+        if (!st.gain && webAudio.ctx) {
+            st.gain = webAudio.ctx.createGain();
+            st.gain.gain.value = st.muted ? 0 : st.volume;
+            st.gain.connect(webAudio.ctx.destination);
+        }
+        return st.gain;
+    }
+
+    function waApplyGain(st) {
+        if (st.gain) st.gain.gain.value = st.muted ? 0 : st.volume;
+    }
+
+    function waEmit(key, type, fields) {
+        var st = webAudio.states.get(key);
+        if (!window.lumiview || !window.lumiview.invoke || !st) return;
+        var payload = { key: key, event_type: type, value: null };
+        payload.media_time = waTime(st);
+        payload.media_duration = st.duration;
+        payload.media_volume = st.volume;
+        payload.media_muted = st.muted;
+        payload.media_paused = !st.playing;
+        if (fields) for (var k in fields) payload[k] = fields[k];
+        window.lumiview.invoke("neony.event", payload).catch(function () {});
+    }
+
+    function waTime(st) {
+        if (!webAudio.ctx) return st.offset;
+        var t = st.playing ? webAudio.ctx.currentTime - st.startCtx + st.offset : st.offset;
+        if (st.duration > 0 && t > st.duration) t = st.duration;
+        return t;
+    }
+
+    function waStopSource(st) {
+        if (st.srcNode) {
+            try {
+                st.srcNode.onended = null;
+                st.srcNode.stop();
+            } catch (_) { /* already stopped */ }
+            try { st.srcNode.disconnect(); } catch (_) {}
+            st.srcNode = null;
+        }
+    }
+
+    function waStart(st, offset) {
+        var ctx = webAudio.ensureCtx();
+        if (!ctx || !st.buffer) return;
+        waStopSource(st);
+        var node = ctx.createBufferSource();
+        node.buffer = st.buffer;
+        node.connect(waGain(st));
+        node.onended = function () {
+            if (st.srcNode === node && st.playing) waFinish(st);
+        };
+        st.srcNode = node;
+        st.offset = Math.max(0, Math.min(offset, st.duration));
+        st.startCtx = ctx.currentTime;
+        st.playing = true;
+        st.endedSent = false;
+        waEnsureTimer();
+        try { node.start(0, st.offset); } catch (_) {}
+        waEmit(st.key, "play");
+    }
+
+    function waFinish(st) {
+        // Natural end: park at the final sample and report like native.
+        waStopSource(st);
+        st.playing = false;
+        st.offset = st.duration;
+        waEmit(st.key, "ended");
+        waEmit(st.key, "pause");
+    }
+
+    function waPause(st) {
+        if (st.playing) {
+            st.offset = waTime(st);
+            waStopSource(st);
+            st.playing = false;
+            waEmit(st.key, "pause");
+        }
+        waEmit(st.key, "timeupdate");
+    }
+
+    function waSeek(st, time) {
+        var target = Math.max(0, Math.min(time, st.duration));
+        var wasPlaying = st.playing;
+        waStopSource(st);
+        st.playing = false;
+        st.offset = target;
+        if (wasPlaying) {
+            waStart(st, target); // emits play
+        } else {
+            waEmit(st.key, "seeked");
+        }
+        waEmit(st.key, "timeupdate");
+    }
+
+    // Production clock driver: native <media> elements emit their own
+    // timeupdate events, decoded-buffer playback has no such source, so
+    // the engine pumps synthesized updates itself.
+    var waTimer = null;
+    function waEnsureTimer() {
+        if (waTimer === null && typeof setInterval === "function") {
+            waTimer = setInterval(function () {
+                try { waTick(); } catch (_) { /* one bad state must not kill the clock */ }
+            }, 250);
+        }
+    }
+
+    function waTick() {
+        webAudio.states.forEach(function (st) {
+            if (!st.playing || !st.buffer) return;
+            var t = waTime(st);
+            if (st.duration > 0 && t >= st.duration - 0.02) {
+                waFinish(st);
+                return;
+            }
+            waEmit(st.key, "timeupdate");
+        });
+    }
+
+    async function webAudioLoad(el, source) {
+        var key = el.getAttribute("data-neony-key");
+        if (!key) return;
+        var st = waStateOf(key, el);
+        var token = st.loadToken + 1;
+        st.loadToken = token;
+        // The shared byte reader validates against the element token as
+        // well — keep both counters in lockstep.
+        el._neonyMediaSourceToken = token;
+        st.source = source;
+        // Drop the previous decode immediately: buffers are the whole
+        // file in PCM, so holding two during a switch doubles memory.
+        st.buffer = null;
+        waHardReset(st);
+
+        el._neonyHydrating = true;
+        notifyLoading(el, true);
+        try {
+            var read = await readProtocolBytes(el, source, token);
+            if (!read || st.loadToken !== token || st.source !== source) return;
+            var ctx = webAudio.ensureCtx();
+            if (!ctx) throw new Error("WebAudio unavailable");
+            var arrayBuf = read.bytes.slice().buffer;
+            var buffer = await new Promise(function (resolve, reject) {
+                var p = ctx.decodeAudioData(arrayBuf, resolve, reject);
+                if (p && typeof p.then === "function") p.then(resolve, reject);
+            });
+            if (st.loadToken !== token || st.source !== source) return;
+            st.buffer = buffer;
+            st.duration = buffer.duration;
+            st.offset = 0;
+            st.endedSent = false;
+            waEmit(key, "loadedmetadata", { media_duration: buffer.duration });
+            waEmit(key, "durationchange", { media_duration: buffer.duration });
+            if (st.pendingPlay) {
+                st.pendingPlay = false;
+                waStart(st, 0);
+            }
+        } catch (error) {
+            if (st.loadToken === token) {
+                console.error("[neony] audio decode failed:", error);
+                waEmit(key, "error", { media_error: 4 }); // MEDIA_ERR_SRC_NOT_SUPPORTED
+            }
+        } finally {
+            if (st.loadToken === token) {
+                el._neonyHydrating = false;
+                notifyLoading(el, false);
+            }
+        }
+    }
+
+    function waHardReset(st) {
+        waStopSource(st);
+        st.playing = false;
+        st.offset = 0;
+        st.duration = 0;
+        st.pendingPlay = false;
+        if (st.gain) {
+            try { st.gain.disconnect(); } catch (_) {}
+            st.gain = null;
+        }
+    }
+
+    function waRelease(key) {
+        var st = webAudio.states.get(key);
+        if (!st) return;
+        waHardReset(st);
+        webAudio.states.delete(key);
+    }
+
+    function isWebAudioBacked(el) {
+        return (
+            !!el &&
+            el.getAttribute &&
+            el.getAttribute("data-neony-media-engine") === "webaudio" &&
+            el.getAttribute("data-neony-key")
+        );
+    }
+
+    function notifyLoading(el, active) {
+        // Surface the hydration phase to the component so its transport
+        // row can show a loading sweep where the position slider sits.
+        if (!window.lumiview || !window.lumiview.invoke) return;
+        var key = el.getAttribute && el.getAttribute("data-neony-key");
+        if (!key) return;
+        window.lumiview
+            .invoke("neony.event", { key: key, event_type: "media_loading", value: active })
+            .catch(function () {});
+    }
+
+    function base64ToBytes(b64) {
+        var bin = atob(b64);
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes;
+    }
+
+    function base64ToBlob(b64, type) {
+        return new Blob([base64ToBytes(b64)], { type: type || "application/octet-stream" });
+    }
+
+    // Piecewise protocol read shared by both playback transports.  One
+    // giant base64 reply would stall the asyncio loop (json.dumps) and
+    // the WebView main thread (eval_js parse) for seconds on large
+    // files.  Returns null when the hydration was superseded mid-read.
+    async function readProtocolBytes(el, source, token) {
+        const CHUNK = 1 << 20; // 1 MiB per round trip
+        const parts = [];
+        let offset = 0;
+        let contentType = "application/octet-stream";
+        for (;;) {
+            if (el._neonyMediaSourceToken !== token || el._neonyMediaSource !== source) return null;
+            const res = await window.lumiview.invoke("neony.media_read", {
+                url: source,
+                offset: offset,
+                chunk: CHUNK,
+            });
+            if (res.status >= 400) throw new Error("protocol media request failed: " + res.status);
+            const bytes = base64ToBytes(res.data_b64);
+            parts.push(bytes);
+            offset += bytes.length;
+            if (res.content_type) contentType = res.content_type;
+            if (res.complete || (res.total !== null && offset >= res.total)) break;
+        }
+        let total = 0;
+        for (const part of parts) total += part.length;
+        const out = new Uint8Array(total);
+        let at = 0;
+        for (const part of parts) {
+            out.set(part, at);
+            at += part.length;
+        }
+        return { bytes: out, contentType };
+    }
+
     async function hydrateMedia(el) {
-        if (!el || (el.tagName !== "AUDIO" && el.tagName !== "VIDEO")) return;
-        const source = el._neonyMediaSource || el.getAttribute("src");
+        if (!el) return;
+        // Managed media only: the desired source arrives via the
+        // data-neony-media-src contract (neony Video/Audio components).
+        const source = el._neonyMediaSource || null;
+        if (!source || !source.startsWith("neony://")) return;
+        // WebAudio-backed elements never touch HTMLMediaElement src at
+        // all — their bytes decode into buffer nodes instead (see the
+        // engine block below for why the native path is not viable).
+        // Without any AudioContext implementation we degrade to the
+        // native pipeline rather than refusing to play.
+        if (isWebAudioBacked(el) && webAudio.ensureCtx()) {
+            await webAudioLoad(el, source);
+            return;
+        }
         // Drop any previously hydrated Blob first — this also covers
         // switching to a non-protocol source (https:/data:) that the
         // browser's own media pipeline loads natively.
@@ -28,24 +344,133 @@
             URL.revokeObjectURL(el._neonyMediaObjectUrl);
             el._neonyMediaObjectUrl = null;
         }
-        if (!source || !source.startsWith("neony://")) return;
         const token = (el._neonyMediaSourceToken || 0) + 1;
+        const key = el.getAttribute && el.getAttribute("data-neony-key");
+        // WebKitGTK pipeline-reuse defect: loading a SECOND blob into an
+        // already-hydrated <audio>/<video> makes the reused GStreamer
+        // pipeline feed misaligned AAC frames to the decoder ("Audio
+        // decoding error" / decode_pce warnings) and playback stays
+        // silent for ~10 s until it resyncs.  A freshly built element
+        // always decodes cleanly, so a re-hydration swaps in a clone:
+        // dropping the old node destroys its media player outright and
+        // the replacement builds a pristine pipeline.
+        if (
+            key &&
+            engine.registry &&
+            typeof engine.registry.set === "function" &&
+            el.parentNode &&
+            (el.getAttribute("src") || el._neonyMediaObjectUrl)
+        ) {
+            var freshNode = el.cloneNode(false);
+            if (typeof el.volume === "number") {
+                try { freshNode.volume = el.volume; } catch (_) { /* jsdom */ }
+            }
+            freshNode.muted = !!el.muted;
+            // Engine bookkeeping lives in expando props, not attributes:
+            // carry the desired source across so in-flight checks in THIS
+            // hydration keep passing against the replacement.
+            freshNode._neonyMediaSource = source;
+            if (el._neonyPendingPlay) freshNode._neonyPendingPlay = true;
+            freshNode._neonyDirectWired = false;
+            wireDirectEvents(freshNode);
+            var parent = el.parentNode;
+            parent.replaceChild(freshNode, el);
+            engine.registry.set(key, freshNode);
+            releaseMedia(el); // revoke the outgoing Blob; dead node only
+            el = freshNode;
+        }
         el._neonyMediaSourceToken = token;
+        // Detach the element from the OLD resource right away: reading a
+        // large file through the bridge takes a while, and playback on
+        // the stale blob (a silent tail, or the wrong file entirely)
+        // must not survive the switch.  A play() arriving mid-hydration
+        // is parked and resumed once the new source is attached.
+        if (el.getAttribute("src")) {
+            el.removeAttribute("src");
+            if (typeof el.load === "function") {
+                try { el.load(); } catch (_) { /* non-browser DOM */ }
+            }
+        }
+        el._neonyHydrating = true;
+        notifyLoading(el, true);
         try {
-            const response = await fetch(source, { credentials: "omit" });
-            if (!response.ok) throw new Error("protocol media request failed: " + response.status);
-            const blob = await response.blob();
+            let blob;
+            if (window.lumiview && window.lumiview.invoke) {
+                const read = await readProtocolBytes(el, source, token);
+                if (!read) return; // superseded mid-read
+                blob = new Blob([read.bytes], { type: read.contentType });
+            } else {
+                const response = await fetch(source, { credentials: "omit" });
+                if (!response.ok) throw new Error("protocol media request failed: " + response.status);
+                blob = await response.blob();
+            }
             if (el._neonyMediaSourceToken !== token || el._neonyMediaSource !== source) return;
             const objectUrl = URL.createObjectURL(blob);
             el._neonyMediaObjectUrl = objectUrl;
-            // Assigning src starts the media load in the browser; calling
-            // load() explicitly breaks jsdom and is unnecessary here.
+            // Swapping src while the element's previous load is still in
+            // flight does not restart resource selection on WebKitGTK —
+            // the media pipeline stays stuck on the interrupted request
+            // forever (readyState 0, no error).  An explicit load()
+            // restarts it; jsdom has no usable HTMLMediaElement.load.
             el.setAttribute("src", objectUrl);
+            if (typeof el.load === "function") {
+                try { el.load(); } catch (_) { /* non-browser DOM */ }
+            }
+            if (el._neonyPendingPlay) {
+                el._neonyPendingPlay = false;
+                if (el.play) el.play().catch(function () {});
+            }
         } catch (error) {
             if (el._neonyMediaSourceToken === token) {
                 console.error("[neony] failed to hydrate media source", source, error);
             }
+        } finally {
+            if (el._neonyMediaSourceToken === token) {
+                el._neonyHydrating = false;
+                notifyLoading(el, false);
+            }
         }
+    }
+
+    // ---- direct media events ----
+    //
+    // Media events (timeupdate, loadedmetadata, ...) do not bubble, so
+    // document-level delegation can never see them.  Elements carrying
+    // data-neony-direct-events="a,b,c" get real addEventListener hooks;
+    // each firing is forwarded through the standard neony.event channel
+    // with media state riding in dedicated payload fields.
+
+    function wireDirectEvents(el) {
+        if (!el || el._neonyDirectWired) return;
+        var spec = el.getAttribute && el.getAttribute("data-neony-direct-events");
+        if (!spec) return;
+        el._neonyDirectWired = true;
+        var types = spec.split(",");
+        var onDirect = function (event) {
+            if (!window.lumiview || !window.lumiview.invoke) return;
+            var key = el.getAttribute("data-neony-key");
+            if (!key) return;
+            var payload = { key: key, event_type: event.type, value: null };
+            if (el.currentTime !== undefined) payload.media_time = el.currentTime;
+            if (el.duration !== undefined && !isNaN(el.duration)) payload.media_duration = el.duration;
+            if (el.volume !== undefined) payload.media_volume = el.volume;
+            payload.media_muted = !!el.muted;
+            payload.media_paused = !!el.paused;
+            if (event.type === "error" && el.error) payload.media_error = el.error.code;
+            window.lumiview.invoke("neony.event", payload).catch(function (err) {
+                // Visible, not silent: a rejected event payload means the
+                // bridge command signature and JS drifted apart.
+                console.error("[neony] media event dispatch failed:", err);
+            });
+        };
+        for (var i = 0; i < types.length; i++) {
+            var t = types[i].trim();
+            if (t) el.addEventListener(t, onDirect);
+        }
+    }
+
+    function mediaEl(key) {
+        return engine.registry.get(key) || null;
     }
 
     window.neony = {
@@ -54,6 +479,86 @@
         applyMessage: (msg) => engine.applyMessage(msg),
         hydrateMedia,
         releaseMedia,
+        wireDirectEvents,
+        // Managed-media playback commands (neony Video/Audio components).
+        mediaPlay: (key) => {
+            var el = mediaEl(key);
+            if (isWebAudioBacked(el)) {
+                var st0 = waStateOf(key, el);
+                if (!st0.buffer || el._neonyHydrating) {
+                    st0.pendingPlay = true; // decode in flight — resume on arrival
+                    return;
+                }
+                waStart(st0, st0.playing ? st0.offset : st0.offset);
+                return;
+            }
+            if (!el || !el.play) {
+                if (window.__NEONY_DIAG) console.error("[neony-diag] mediaPlay: no element for", key);
+                return;
+            }
+            if (el._neonyHydrating) {
+                // Source still being read through the bridge — resume as
+                // soon as the new Blob is attached instead of failing on
+                // the detached element.
+                el._neonyPendingPlay = true;
+                return;
+            }
+            el.play().catch(function () {});
+        },
+        mediaPause: (key) => {
+            var el = mediaEl(key);
+            if (isWebAudioBacked(el)) {
+                waStateOf(key, el).pendingPlay = false;
+                waPause(waStateOf(key, el));
+                return;
+            }
+            el._neonyPendingPlay = false;
+            if (el && el.pause) el.pause();
+        },
+        mediaSeek: (key, time) => {
+            var el = mediaEl(key);
+            if (isWebAudioBacked(el)) {
+                if (isFinite(time)) waSeek(waStateOf(key, el), time);
+                return;
+            }
+            if (el && isFinite(time)) el.currentTime = time;
+        },
+        mediaSetMuted: (key, muted) => {
+            var el = mediaEl(key);
+            if (isWebAudioBacked(el)) {
+                var stM = waStateOf(key, el);
+                stM.muted = !!muted;
+                waApplyGain(stM);
+                waEmit(key, "volumechange");
+                return;
+            }
+            if (el) el.muted = !!muted;
+        },
+        mediaSetVolume: (key, volume) => {
+            var el = mediaEl(key);
+            if (isWebAudioBacked(el)) {
+                var stV = waStateOf(key, el);
+                if (isFinite(volume)) stV.volume = Math.min(1, Math.max(0, volume));
+                waApplyGain(stV);
+                waEmit(key, "volumechange");
+                return;
+            }
+            if (el && isFinite(volume)) el.volume = Math.min(1, Math.max(0, volume));
+        },
+        // Internal: drives WebAudio timeupdate/ended synthesis.  Exposed
+        // so tests (and embedders without rAF loops) can pump the clock.
+        mediaEngineTick: () => waTick(),
+        // Internal: drops the shared AudioContext and all per-element
+        // state.  Tests reset between cases; embedders can use it on
+        // page teardown to release the audio device immediately.
+        mediaEngineReset: () => {
+            webAudio.states.forEach(waHardReset);
+            webAudio.states.clear();
+            if (webAudio.ctx) {
+                try { webAudio.ctx.close(); } catch (_) {}
+                webAudio.ctx = null;
+            }
+        },
         // Internal scroll commands.  Keyed lookup only; the smooth/auto
         // behavior maps directly to the native Element.scrollTo options
         // (jsdom falls back to a plain scrollTop assignment).

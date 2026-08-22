@@ -374,12 +374,18 @@ class Neony(Plugin):
         # Mutated in place on every drag-enter/drop; ``_on_event`` uses it
         # to backfill ``drop_files`` entries whose ``path`` is empty.
         self.native_drop_paths: list[str] = []
+        # Protocol handlers (URL authority → handler), assigned by
+        # ``NeonApplication.run`` after collection — commands register at
+        # construction, but the declarations resolve later.  ``media_read``
+        # routes through the same dispatch as webview scheme requests.
+        self._protocol_handlers: dict[str, Callable[..., Any]] | None = None
 
         # Register JS→Python IPC commands on this scope
         self.command(self._on_event, name="event")
         self.command(self._on_resync, name="resync")
         self.command(self._on_ready_ack, name="ready")
         self.command(self._on_paste_files, name="paste_files")
+        self.command(self._on_media_read, name="media_read")
 
     # ---- Plugin lifecycle hooks ----
 
@@ -471,6 +477,15 @@ class Neony(Plugin):
         # drop event.  ``Any`` for the same strict-conversion reasons as
         # the numeric fields; DomEvent.drop_files is the typed surface.
         drop_files: Any = None,
+        # Media elements (direct-wired Video/Audio events).  Numeric
+        # fields are ``Any`` for the same reason as coordinates above —
+        # JSON integers must not be rejected by strict float matching.
+        media_time: Any = None,
+        media_duration: Any = None,
+        media_volume: Any = None,
+        media_muted: Any = None,
+        media_paused: Any = None,
+        media_error: Any = None,
     ) -> None:
         """Handle a DOM event from JavaScript.  The event dispatches to
         its own element's handlers, then bubbles to the nearest
@@ -519,6 +534,12 @@ class Neony(Plugin):
             "image_alt": image_alt,
             "drag_payload": drag_payload,
             "drop_files": drop_files,
+            "media_time": media_time,
+            "media_duration": media_duration,
+            "media_volume": media_volume,
+            "media_muted": media_muted,
+            "media_paused": media_paused,
+            "media_error": media_error,
         }
         # Snapshot: a handler may render, and the render registers
         # handlers for elements created since the last sweep — mutating
@@ -591,6 +612,102 @@ class Neony(Plugin):
             value=None,
             extra={"paste_files": files},
         )
+
+    async def _on_media_read(
+        self,
+        ctx: BridgeContext,
+        url: str,
+        offset: Any = None,
+        chunk: Any = None,
+    ) -> dict[str, Any]:
+        """Read a ``neony://`` resource for JS-side media hydration.
+
+        WebKitGTK's ``fetch()`` only implements CORS semantics for
+        HTTP(S) — a custom-scheme fetch is rejected before the request is
+        even issued ("Cross origin requests are only supported for
+        HTTP"), so the media adapter cannot pull protocol bytes itself.
+        This command is the bridge transport: it routes the URL through
+        the same registered protocol handlers as native scheme requests
+        (identical permission surface as <img> subresources) and returns
+        base64-encoded body bytes for the JS side to wrap in a Blob.
+
+        With ``offset`` (and optional ``chunk`` size) the read is served
+        through the handler's HTTP Range support and only that slice is
+        returned — JS pulls large files piecewise so neither the asyncio
+        loop (one giant ``json.dumps``) nor the WebView main thread (one
+        giant ``eval_js`` parse) stalls for the whole file.  A handler
+        that ignores Range answers ``200`` with the full body; the reply
+        is flagged ``complete`` so JS can fall back to single-shot.
+
+        Raises:
+            BridgeError: non-``neony://`` URL, unknown protocol key, or
+                an upstream error status (4xx/5xx other than 206).
+        """
+        import base64
+        from urllib.parse import unquote, urlparse
+
+        from lumiview.bridge import BridgeError
+        from lumiview.task import run_async
+
+        parsed = urlparse(url)
+        if parsed.scheme != "neony":
+            raise BridgeError("bad_url", f"media_read only serves neony:// URLs, got {parsed.scheme!r}")
+        key = parsed.netloc.lower()
+        handler = (self._protocol_handlers or {}).get(key)
+        if handler is None:
+            raise BridgeError("not_found", f"No protocol handler for neony://{key}")
+
+        from neony.application.protocols.base import Request
+
+        headers: dict[str, str] = {}
+        if offset is not None:
+            start = int(offset)
+            length = int(chunk) if chunk else 1 << 20
+            headers["Range"] = f"bytes={start}-{start + length - 1}"
+
+        request = Request(
+            key=key,
+            path=unquote(parsed.path or "/"),
+            method="GET",
+            url=url,
+            query=parsed.query or "",
+            headers=headers,
+        )
+
+        # Same scheduling contract as NeonyProtocolDispatch._dispatch:
+        # sync handlers on the app thread pool, async on the loop.
+        from lumiview.app import App
+
+        app = App.get()
+        result = await run_async(handler, request, pool=app._threadpool)
+        if result.status >= 400:
+            raise BridgeError("upstream_error", f"Protocol {key!r} answered {result.status}")
+
+        content_type = ""
+        content_range = ""
+        for header_name, header_value in result.headers.items():
+            lowered = header_name.lower()
+            if lowered == "content-type":
+                content_type = header_value
+            elif lowered == "content-range":
+                content_range = header_value
+
+        total = None
+        if content_range:
+            tail = content_range.rsplit("/", 1)[-1].strip()
+            if tail.isdigit():
+                total = int(tail)
+        complete = result.status == 200 or (total is not None and total == len(result.body))
+        if result.status == 200:
+            total = len(result.body)
+
+        return {
+            "status": result.status,
+            "content_type": content_type,
+            "data_b64": base64.b64encode(result.body).decode("ascii"),
+            "total": total,
+            "complete": complete,
+        }
 
     async def _on_resync(self, ctx: BridgeContext, rev: int) -> None:
         """JS detected a revision gap — re-send the full mount."""

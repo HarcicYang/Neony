@@ -25,6 +25,7 @@ gallery_tree = Tree(width="220px").children(
         TreeNode(tr.nav.glass, key="glass").panel(PANELS["glass"]),
         TreeNode(tr.nav.content, key="content").panel(PANELS["content"]),
         TreeNode(tr.nav.icon, key="icon").panel(PANELS["icon"]),
+        TreeNode(tr.nav.media, key="media").panel(PANELS["media"]),
     ),
     TreeNode(tr.nav.interaction, key="interaction").children(
         TreeNode(tr.nav.events, key="events").panel(PANELS["events"]),

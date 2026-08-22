@@ -122,6 +122,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Pane`                    | 可选的 Sidebar 条目 + 内容面板 — `key`、`icon`、`section`、`shortcut` |
 | `SidebarGroup`            | Sidebar 的分组小节 — 条目上方的小号大写标签                    |
 | `Image`                   | 主题化图片，圆角 overflow-hidden 框架（`src` 为任意 URL）     |
+| `Video` / `Audio`         | 全托管主题化媒体播放器 — 自绘传输条，`neony://` 源自动水合，完整播放命令与事件 |
 | `Avatar`                  | 用户头像 — 图片 / 字母占位 / 空占位，可选角标 `badge`         |
 | `Badge`                   | 状态标签或角标计数 — 多变体、状态点、`99+` 截断、0 自动隐藏    |
 | `Card`                    | 带标题的内容卡片 — 操作区、页脚、可选毛玻璃 `glass` 表面       |

@@ -64,6 +64,7 @@ class Nav(BaseModel):
     notify_chat: TrRef[None] = TrRef("Notifications & Chat")
     notifications: TrRef[None] = TrRef("Notifications")
     chat: TrRef[None] = TrRef("Chat")
+    media: TrRef[None] = TrRef("Media")
     system: TrRef[None] = TrRef("System & Advanced")
     animations: TrRef[None] = TrRef("Animations")
     reactive: TrRef[None] = TrRef("Reactive")
@@ -651,6 +652,30 @@ class System(BaseModel):
     dialog_save_title: TrRef[None] = TrRef("Save as")
 
 
+class Media(Catalog):
+    """Media section — Video / Audio players."""
+
+    title: TrRef[None] = TrRef("Video & Audio")
+    blurb: TrRef[None] = TrRef(
+        "Managed, themed media players. Pick any local media file — the "
+        "source is served over ``neony://local`` and hydrated by the "
+        "runtime; playback runs on the built-in transport, native controls "
+        "are never shown. A synthesized 440 Hz tone is loaded at startup "
+        "so there is always something to play."
+    )
+    pick: TrRef[None] = TrRef("Choose media file…")
+    pick_title: TrRef[None] = TrRef("Choose media")
+    loaded_fmt: TrRef[dict[str, object]] = TrRef("Loaded: {name}")
+    playground_title: TrRef[None] = TrRef("Command playground")
+    playground_blurb: TrRef[None] = TrRef(
+        "Playback commands and events from Python: the buttons call "
+        "play/pause/seek; the status line is fed by timeupdate/ended events."
+    )
+    status_idle: TrRef[None] = TrRef("idle")
+    status_playing_fmt: TrRef[dict[str, object]] = TrRef("playing · {time} / {duration}")
+    status_ended: TrRef[None] = TrRef("ended")
+
+
 class GalleryCatalog(Catalog):
     shell: Shell = Shell()
     nav: Nav = Nav()
@@ -664,6 +689,7 @@ class GalleryCatalog(Catalog):
     data: Data = Data()
     chat: Chat = Chat()
     system: System = System()
+    media: Media = Media()
 
 
 #: Gallery-wide typed ``tr`` — ``tr.nav.home`` returns a reactive ``TrRef``.
@@ -724,6 +750,7 @@ register_catalog(
             sidebar="侧边栏",
             tabs="标签页",
             window="窗口",
+            media="媒体",
             dialogs="文件对话框",
         ),
         home=Home(
@@ -1227,6 +1254,24 @@ register_catalog(
             dialog_folder="选择文件夹…",
             dialog_open_title="打开文件",
             dialog_save_title="另存为",
+        ),
+        media=Media(
+            title="视频与音频",
+            blurb=(
+                "全托管的主题化媒体播放器。任选本地媒体文件——源经 ``neony://local`` "
+                "提供并由运行时自动水合，播放完全由内置传输条驱动，原生控件永不显示。"
+                "启动时已加载一段合成的 440 Hz 正弦音，随时可播。"
+            ),
+            pick="选择媒体文件…",
+            pick_title="选择媒体",
+            loaded_fmt="已加载：{name}",
+            playground_title="命令演练场",
+            playground_blurb=(
+                "来自 Python 的播放命令与事件：按钮调用 play/pause/seek；状态行由 timeupdate/ended 事件驱动。"
+            ),
+            status_idle="待机",
+            status_playing_fmt="播放中 · {time} / {duration}",
+            status_ended="已结束",
         ),
     ),
 )

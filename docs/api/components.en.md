@@ -380,6 +380,45 @@ placeholder tint shows before the bytes arrive. `width`/`height` accept
 (`cover`/`contain`/`fill`/`none`/`scale-down`); pass `radius="50%"` for a
 circle. `src` and `alt` are settable after construction.
 
+### `Video`
+
+```python
+from neony.application.urls import local_url
+
+clip = Video(local_url(Path("clip.mp4").resolve()), width=560, radius="12px")
+await clip.play()
+await clip.seek(12.5)
+await clip.set_volume(0.4)
+```
+
+A fully managed, themed video player. Native controls are never shown —
+playback runs through the built-in transport row (play/pause, position
+slider with scrubbing, time labels, mute, volume) built from regular
+Neony widgets and updated reactively from media events. Sources are
+owned by the component: pass `local_url(path)` to stream over the
+built-in `neony://local` protocol — the runtime hydrates it
+(fetch → Blob URL → load) because WebKitGTK's media pipeline cannot
+resolve custom schemes — or hand it any `https://`/`data:` URL for the
+native path; switching between the two at runtime is handled for you
+(`bind_src(signal)` keeps it declarative). Commands: `play()`, `pause()`,
+`seek(seconds)`, `set_muted(bool)`, `toggle_muted()`, `set_volume(0..1)`.
+Events: `on_play`, `on_pause`, `on_ended`, `on_timeupdate`, `on_error`.
+Reactive reads: `playing`, `position`, `duration`, `muted`, `volume`.
+Options: `poster`, `width`/`height` (`int` → px), `radius`, `autoplay`,
+`loop`, `muted`, `preload`.
+
+### `Audio`
+
+```python
+song = Audio(local_url(Path("song.mp3").resolve()), width=420)
+song.on_ended(lambda event: playlist.advance())
+await song.toggle_muted()
+```
+
+The same managed player engine as [`Video`](#video) as a compact control
+card. Same ownership model, transport row, commands, events and options
+(minus the picture surface); `width` sizes the card.
+
 ### `Avatar`
 
 ```python

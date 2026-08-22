@@ -20,6 +20,7 @@ from neony.application import (
     NeonApplication,
     WebViewConfig,
     WindowConfig,
+    local_files,
     set_language,
 )
 from neony.application.elements import (
@@ -48,7 +49,11 @@ app = NeonApplication(
             transparent=True,
         ),
         webview=WebViewConfig(devtools=True),
-    )
+    ),
+    # Serve neony://local for the Media section (and any local assets):
+    # without a declared handler both the webview scheme dispatch and the
+    # JS media-read bridge answer "no handler".
+    protocols=[local_files],
 )
 
 _BACKGROUND_URL = "https://harcic.is-a.dev/resource/backgrounds/8.webp"

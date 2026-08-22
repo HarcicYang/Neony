@@ -24,10 +24,14 @@ _ROW = Styles(display="flex", flex_direction="column", gap="6px", width="100%")
 
 _LABEL = Styles(font_size="14px", color=stub.text_secondary)
 
-# The thumb (8px radius) travels the track's full width, so the track
-# is inset by 8px each side — at 0%/100% the thumb centres exactly on
-# the track ends.
+# The thumb (8px radius) must centre exactly on the track ends.  The
+# track is inset by the thumb radius on both sides, so the thumb's
+# travel range is ``8px .. 100%-8px`` — expressed as
+# ``calc(8px + (100% - 16px) * ratio)`` because a plain percentage of
+# the wrapper would overshoot the track by one radius at each end.
 _THUMB_RADIUS = "8px"
+_THUMB_TRAVEL_MIN = f"calc({_THUMB_RADIUS})"
+_THUMB_SPAN = "(100% - 16px)"
 
 _WRAP = Styles(position="relative", width="100%", height="22px")
 
@@ -54,7 +58,7 @@ _FILL = Styles(
 _THUMB = Styles(
     position="absolute",
     top="50%",
-    left="0%",
+    left=_THUMB_TRAVEL_MIN,
     transform=Transform.translate(x="-50%", y="-50%"),  # centres the knob on the value point
     width="16px",
     height="16px",
@@ -205,7 +209,9 @@ class Slider(Component):
         ratio = 0.0 if span <= 0 else (self._value - self._min) / span * 100.0
         width = pct(f"{ratio:.2f}")
         fill_style = _FILL.model_copy(update={"width": width})
-        thumb_style = _THUMB.model_copy(update={"left": width})
+        # Thumb centre rides the INSET track: radius offset plus the
+        # remaining span scaled by the ratio (see _THUMB_TRAVEL_* above).
+        thumb_style = _THUMB.model_copy(update={"left": f"calc({_THUMB_RADIUS} + {_THUMB_SPAN} * {ratio / 100.0:.6f})"})
         if not animated:
             fill_style = fill_style.model_copy(update={"transition": None})
             thumb_style = thumb_style.model_copy(update={"transition": None})

@@ -4,6 +4,48 @@
 
 ### Added
 
+- **`Video` / `Audio` components** — managed, themed media players in
+  `neony.application.elements`. Native controls are never shown;
+  playback runs through a built-in transport row (play/pause, scrubbing
+  position slider, time labels, mute, volume) built from regular Neony
+  widgets and driven reactively by media events. Sources are owned by
+  the component: `neony://…` URLs travel via a `data-neony-media-src`
+  contract attribute — the element never carries a `src`, so WebKitGTK's
+  pipeline starts from a clean state and the hydration (bridge read →
+  Blob URL → explicit `load()`) can no longer be absorbed by an
+  interrupted load (the old auto-hydration left 3-second clips stuck at
+  `readyState 0` for minutes); `https://`/`data:` URLs take the native path, and
+  runtime switches between the two are handled. Commands: `play`,
+  `pause`, `seek`, `set_muted`, `toggle_muted`, `set_volume`; events
+  `on_play` / `on_pause` / `on_ended` / `on_timeupdate` / `on_error`;
+  reactive reads `playing` / `position` / `duration` / `muted` /
+  `volume`; `bind_src(signal)` for declarative sources. Non-bubbling
+  media events (`timeupdate`, `play`, …) are wired through a new
+  `data-neony-direct-events` direct-listener bridge and carried on
+  `DomEvent` as `media_time` / `media_duration` / `media_volume` /
+  `media_muted` / `media_paused` / `media_error`. New demos:
+  `demo_media.py` and a gallery Media section.
+- **WebAudio transport for `Audio`** — the component's inner element
+  carries a `data-neony-media-engine="webaudio"` contract and its
+  playback is driven entirely by the engine instead of
+  HTMLMediaElement: hydration bytes are decoded with
+  `decodeAudioData`, play/pause/seek/volume/mute run through shared
+  `AudioContext` buffer/gain nodes, and the usual event set is
+  synthesized onto the same `neony.event` channel (an internal 250 ms
+  clock emits `timeupdate`/`ended`; `mediaEngineTick` /
+  `mediaEngineReset` are exposed for embedders). Rationale: WebKitGTK
+  funnels every media element in a page through one shared audio chain
+  that goes silent after source changes (corked stream, decoder
+  misalignment); decoded-buffer playback sidesteps that pipeline class,
+  making switches effectively instant. Without any AudioContext
+  implementation the component degrades to the native blob path.
+  `Video` keeps the native pipeline.
+- **BREAKING (raw DOM media)** — raw `<audio>`/`<video>` DOM elements no
+  longer hydrate `neony://` sources automatically; hydration now keys on
+  the component-managed contract attributes only (`data-neony-media-src`
+  / `data-neony-direct-events`). Migrate raw elements to the new
+  `Video`/`Audio` components.
+
 - **Custom protocols** — serve Python-generated content to the page
   through `neony://<key>/…` URLs. Handlers are declared with the
   `@protocol("key")` decorator (plain functions or methods — decorated
@@ -20,12 +62,16 @@
   `neony://local/…` with HTTP Range support (`206`/`416`), HEAD, MIME
   guessing and cache headers. A webview's media pipeline cannot read
   custom URI schemes, so `<audio>`/`<video>` sources on `neony://…`
-  are hydrated automatically — the JS runtime fetches the bytes over
-  the protocol (responses carry permissive CORS headers for the
-  opaque-origin page) and swaps in a Blob URL, revoked on source change
-  or element removal — so local media playback and seeking now
-  work where `file://` subresources are blocked (pages loaded from an
-  HTML string). URL builders: `local_url(path)` and
+  are hydrated automatically: WebKitGTK's `fetch()` only implements CORS
+  semantics for HTTP(S) and rejects custom-scheme requests before they
+  are issued, so hydration reads through a dedicated bridge command
+  (`neony.media_read`) that routes the URL through the same registered
+  protocol handlers as native scheme requests, returns base64 body
+  bytes, and swaps in a Blob URL (revoked on source change or element
+  removal) with an explicit `load()` restart — local media playback and
+  seeking now work where `file://` subresources are blocked (pages
+  loaded from an HTML string). A fetch fallback covers non-bridge
+  embeddings. URL builders: `local_url(path)` and
   `protocol_url(key, value)` in `neony.application.urls`. New demo:
   `demo_protocols.py`.
 - **Pointer-driven in-app drags** — elements with `drag_payload` no
@@ -276,6 +322,21 @@
   `selected_*` API.
 
 ### Fixed
+
+- **Managed media source switching** — three defects in how a hydrated
+  `neony://` source is replaced. Loading a second blob into an
+  already-hydrated element reuses the WebKitGTK pipeline and feeds
+  misaligned AAC frames to the decoder (~10 s of silence before it
+  resyncs): a re-hydration now swaps in a fresh clone node, so every
+  source change starts from a pristine pipeline. The bridge read
+  (`neony.media_read`) previously answered with the whole file as one
+  giant base64 payload, stalling the asyncio loop and the WebView main
+  thread for seconds on large media: replies are now served in 1 MiB
+  `Range` slices (falling back to a full-body `200` when the handler
+  ignores ranges). And while the new bytes were in flight nothing told
+  the user what was happening: the transport row now shows an
+  indeterminate loading strip over the seek slider until hydration
+  finishes.
 
 - **Overlay click-away delivery** — synthetic `outsideclick` is now
   observed in document capture phase, so a blank-area click still closes

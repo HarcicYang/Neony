@@ -23,6 +23,7 @@ from neony.application.elements.image import Image
 from neony.application.elements.input import Input
 from neony.application.elements.layout import Flex, GlassPanel, HStack, Separator, Spacer, VStack
 from neony.application.elements.list import List, ListItem
+from neony.application.elements.media import Audio, Video
 from neony.application.elements.menu import Menu, MenuBranch
 from neony.application.elements.progress import Progress
 from neony.application.elements.prompt_dialog import PromptDialog
@@ -43,6 +44,7 @@ from neony.application.elements.treeview import Tree, TreeNode
 
 __all__ = [
     "Accordion",
+    "Audio",
     "Avatar",
     "Badge",
     "Button",
@@ -99,4 +101,5 @@ __all__ = [
     "Tree",
     "TreeNode",
     "VStack",
+    "Video",
 ]

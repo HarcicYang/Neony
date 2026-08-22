@@ -1613,7 +1613,8 @@ class TestSliderBuild:
         # first paint is instant — the transition only appears when a
         # programmatic set glides the fill (test_value_setter…)
         assert "transition" not in fill.styles
-        assert thumb.styles["left"] == "30.00%"
+        # thumb centre rides the inset track: 8px + 30% of the remaining span
+        assert thumb.styles["left"] == "calc(8px + (100% - 16px) * 0.300000)"
         assert thumb.styles["transform"] == "translate(-50%, -50%)"
 
     def test_step_any_is_stepless(self):

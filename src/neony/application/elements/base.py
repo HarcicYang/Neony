@@ -57,6 +57,19 @@ _DOM_EVENTS = frozenset(
         "compositionstart",
         "compositionupdate",
         "compositionend",
+        # Media elements (neony Video/Audio).  These never bubble — the
+        # JS runtime attaches direct listeners via data-neony-direct-events
+        # and forwards them through the standard event channel.
+        "play",
+        "pause",
+        "ended",
+        "timeupdate",
+        "loadedmetadata",
+        "durationchange",
+        "volumechange",
+        "seeked",
+        "waiting",
+        "error",
         # Synthetic bridge event: async paste file contents (see
         # Neony._on_paste_files).  Not a DOM event, but wired the same
         # way so ``component.on_paste_files(...)`` works.

@@ -230,9 +230,16 @@ class NeonyEngine {
             } else if (el.getAttribute(name) !== String(value)) {
                 el.setAttribute(name, value);
             }
-            if ((el.tagName === "AUDIO" || el.tagName === "VIDEO") && name === "src") {
+            // Managed media (neony Video/Audio components): the source
+            // travels in data-neony-media-src and never lands in the DOM
+            // src attribute — WebKitGTK cannot resolve custom schemes, so
+            // hydration must run from the clean state this set produces.
+            if (name === "data-neony-media-src") {
                 el._neonyMediaSource = String(value);
                 if (window.neony && window.neony.hydrateMedia) window.neony.hydrateMedia(el);
+            }
+            if (name === "data-neony-direct-events" && window.neony && window.neony.wireDirectEvents) {
+                window.neony.wireDirectEvents(el);
             }
         }
         const removeAttrs = op.remove || [];
@@ -242,13 +249,19 @@ class NeonyEngine {
             } else if (name === "value" && el.tagName === "INPUT") {
                 el.value = "";
             } else {
-                if ((el.tagName === "AUDIO" || el.tagName === "VIDEO") && name === "src") {
-                    // Python cleared src: drop the hydrated Blob and reset
-                    // the element so playback actually stops.
+                if (name === "data-neony-media-src") {
+                    // Python cleared a managed source: drop the hydrated
+                    // Blob and reset the element so playback stops.  Only
+                    // clear a blob: src — a native src set in the same
+                    // patch batch (scheme switch) must survive.
                     el._neonyMediaSource = null;
                     if (window.neony && window.neony.releaseMedia) window.neony.releaseMedia(el);
-                    if (typeof el.load === "function") {
-                        try { el.load(); } catch (_) { /* non-browser DOM */ }
+                    var currentSrc = el.getAttribute("src");
+                    if (currentSrc && currentSrc.indexOf("blob:") === 0) {
+                        el.removeAttribute("src");
+                        if (typeof el.load === "function") {
+                            try { el.load(); } catch (_) { /* non-browser DOM */ }
+                        }
                     }
                 }
                 el.removeAttribute(name);

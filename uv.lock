@@ -71,7 +71,7 @@ wheels = [
 
 [[package]]
 name = "neony"
-version = "0.2.3.post2"
+version = "0.2.4"
 source = { editable = "." }
 dependencies = [
     { name = "lumiview" },
