@@ -109,6 +109,30 @@ describe("custom-scheme media hydration", () => {
     expect(audio._neonyMediaSource).toBe("neony://local/song.wav");
   });
 
+  it("starts initial contract hydration only after the video is connected", async () => {
+    let connectedAtRead = null;
+    window.lumiview.invoke.mockImplementation((command) => {
+      if (command === "neony.media_read") {
+        connectedAtRead = document.querySelector("[data-neony-key='initial-video']").isConnected;
+        return Promise.resolve({
+          status: 200,
+          content_type: "video/mp4",
+          data_b64: btoa("mp4"),
+          total: 3,
+          complete: true,
+        });
+      }
+      return Promise.resolve();
+    });
+    mountTree({
+      key: "initial-video",
+      tag: "video",
+      attrs: { "data-neony-media-src": "neony://local/clip.mp4" },
+    });
+
+    await vi.waitFor(() => expect(connectedAtRead).toBe(true));
+  });
+
   it("does not auto-hydrate raw src attributes anymore", async () => {
     mountTree({ key: "audio", tag: "audio", attrs: { src: "neony://local/song.wav" } });
     const audio = document.querySelector("[data-neony-key='audio']");
@@ -344,6 +368,9 @@ describe("custom-scheme media hydration", () => {
     const play = vi.fn(() => Promise.resolve());
     audio.play = play;
 
+    // 初始水合会延迟到节点连接后的 microtask；先等待它真的进入
+    // bridge 读取阶段，随后 play 才应被 park。
+    await vi.waitFor(() => expect(resolveRead).toBeTypeOf("function"));
     neony.mediaPlay("audio"); // 水合未完成 → 只挂起，不得对空源调 play
     expect(play).not.toHaveBeenCalled();
 

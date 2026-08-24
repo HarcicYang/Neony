@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neony"
-version = "0.2.4"
+version = "0.2.4.post1"
 description = "Reactive desktop UI framework for Python — built on LumiView, a pythonic webview desktop app framework"
 readme = "readme.md"
 license = "Apache-2.0"
@@ -23,6 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "lumiview==0.1.0.dev5",
+    "imageio-ffmpeg>=0.5.0",
     "pyclip>=0.7.0",
     "pydantic>=2.13.4",
 ]

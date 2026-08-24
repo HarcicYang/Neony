@@ -58,12 +58,27 @@ function buildNode(desc, registry) {
         el.appendChild(buildNode(child, registry));
     }
 
-    // Register for later patch lookups. Media hydration and direct event
-    // wiring are called here so initial mounts and nested create patches
-    // share the same path.
+    // Register for later patch lookups. Direct-event wiring may happen
+    // immediately, but initial media hydration must wait until the
+    // surrounding create operation has appended this node to the live
+    // document. WebKitGTK can leave a Blob-backed <video> at HAVE_NOTHING
+    // forever when resource selection starts on a detached node (Flaza
+    // message videos are created with their MP4 source already present;
+    // Gallery normally changes source only after mount).
     registry.set(desc.key, el);
     if (mediaSrc !== undefined && window.neony && window.neony.hydrateMedia) {
-        window.neony.hydrateMedia(el);
+        const hydrateAfterMount = function () {
+            // A later patch may have removed/replaced this node before
+            // this microtask runs; never hydrate detached stale nodes.
+            if (el.isConnected && registry.get(desc.key) === el) {
+                window.neony.hydrateMedia(el);
+            }
+        };
+        if (typeof queueMicrotask === "function") {
+            queueMicrotask(hydrateAfterMount);
+        } else {
+            Promise.resolve().then(hydrateAfterMount);
+        }
     }
     if (attrs["data-neony-direct-events"] && window.neony && window.neony.wireDirectEvents) {
         window.neony.wireDirectEvents(el);

@@ -206,7 +206,11 @@ class MessageBubble(Component):
             _mount_text(self._bubble, text)
         else:
             content_el: DOMElement = content.build() if isinstance(content, Component) else content
-            self._bubble.container = [content_el]
+            # Plain-list assignment bypasses _Children and leaves the
+            # content subtree's _parent unset — eval-js walks (media play,
+            # clipboard, scroll) would stop at the bubble and silently drop.
+            self._bubble.container.clear()
+            self._bubble.container.append(content_el)
         self._actions = Div(styles=_ACTIONS, container=[])
         self._col = Div(styles=_COL, container=[self._name_span, self._bubble, self._actions])
 

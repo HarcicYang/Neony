@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.2.4.post1 — 2026-08-24
+
+### Fixed
+
+- **MessageBubble content parent-link** — assigning a plain list to
+  `container` bypassed the `_Children` proxy, leaving the content
+  subtree's `_parent` unset; eval-js walks (media play/pause, clipboard,
+  scroll) stopped at the bubble and silently dropped commands. Now uses
+  `clear()` + `append()` so `_Children` maintains the links.
+- **Initial media hydration on detached nodes** — `hydrateMedia()` for
+  contract-attributed `<video>`/`<audio>` elements is deferred to a
+  microtask after the node has been appended to the live document;
+  WebKitGTK can leave a Blob-backed video at `HAVE_NOTHING` forever when
+  resource selection starts on a detached node.
+- **HEVC fallback transcode** — new `neony.application.media_compat`
+  module: detects MP4 files whose video codec (`hvc1`/`hev1`) cannot be
+  decoded by the host GStreamer install and transparently transcodes to
+  H.264 via `imageio-ffmpeg` (new dependency), caching the result next
+  to the original. Support detection prefers the live WebView's
+  `canPlayType`, falls back to enumerating GStreamer decoder factory
+  caps for `video/x-h265`; file-level codec detection parses the MP4
+  `stsd` box in pure Python.
+
 ## Unreleased
 
 ### Added

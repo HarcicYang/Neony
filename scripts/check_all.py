@@ -25,6 +25,7 @@ Options:
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -139,6 +140,11 @@ def main() -> int:
     parser.add_argument("--fix", action="store_true", help="apply ruff auto-fixes before checking")
     parser.add_argument("--smoke", action="store_true", help="also run xvfb smoke tests")
     parser.add_argument("--list", action="store_true", help="print the checks that would run, then exit")
+    # pyrefly misresolves Component subclasses when PYTHONPATH leaks the
+    # project into sys.path from a parent process — clear it so every
+    # subprocess sees a clean environment.
+    os.environ.pop("PYTHONPATH", None)
+
     args = parser.parse_args()
 
     if args.fix:

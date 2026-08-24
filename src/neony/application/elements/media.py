@@ -17,6 +17,7 @@ regular Neony components and updated reactively from media events.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Literal, Self
 
@@ -24,6 +25,7 @@ from neony.application.elements.button import Button
 from neony.application.elements.progress import Progress
 from neony.application.elements.slider import Slider
 from neony.application.elements.text import Text
+from neony.application.media_compat import ensure_playable_source
 from neony.application.theme import stub
 from neony.dom import Audio as DomAudio
 from neony.dom import Div, Signal, Styles, Transform
@@ -134,23 +136,48 @@ class _MediaBase(Component):
     def _is_protocol_src(src: str) -> bool:
         return src.startswith("neony://")
 
-    def _apply_source(self) -> None:
-        """Route *src* through the right channel: the hydration contract
-        for ``neony://``, the native attribute for everything else.
+    def _schedule_source_resolution(self) -> None:
+        """Resolve codec compatibility for *src*, then route the result
+        through the right channel (hydration contract for ``neony://``,
+        native attribute for everything else).
 
         A source change invalidates every playback fact about the old
         resource — reset the reactive state so transport UI and command
         handlers reflect the fresh (not-yet-playing) element."""
+        requested = self._src
         self._playing.set(False)
         self._time_sig.set(0.0)
         self._duration_sig.set(0.0)
         self._scrubbing = False
-        self._position_slider.value = 0.0
-        if self._is_protocol_src(self._src):
-            self._media._set_attr("data-neony-media-src", self._src)
+        slider = getattr(self, "_position_slider", None)
+        if slider is not None:
+            slider.value = 0.0
+
+        async def _resolve() -> None:
+            resolved = await ensure_playable_source(requested)
+            # Skip if the user changed src again while we were working.
+            if self._src == requested:
+                self._apply_resolved(resolved)
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No event loop (pure-sync build phase) — apply directly;
+            # transcode fallback simply cannot run here.
+            self._apply_resolved(requested)
+            return
+        task = loop.create_task(_resolve())
+        # Reuse the JS-task set to hold a strong reference.
+        self._js_tasks.add(task)
+        task.add_done_callback(self._js_tasks.discard)
+
+    def _apply_resolved(self, resolved: str) -> None:
+        """Route *resolved* through the right channel."""
+        if self._is_protocol_src(resolved):
+            self._media._set_attr("data-neony-media-src", resolved)
             self._media.src = None
         else:
-            self._media.src = self._src
+            self._media.src = resolved
             self._media._set_attr("data-neony-media-src", None)
 
     @property
@@ -160,7 +187,7 @@ class _MediaBase(Component):
     @src.setter
     def src(self, value: str) -> None:
         self._src = value
-        self._apply_source()
+        self._schedule_source_resolution()
 
     def bind_src(self, signal: Signal[str]) -> Self:
         """Keep ``src`` in lockstep with *signal* (one-way)."""
@@ -422,11 +449,6 @@ class Video(_MediaBase):
         }
         if poster:
             native_kwargs["poster"] = poster
-        # Managed sources travel via the contract attribute, never src.
-        if self._is_protocol_src(src):
-            data_attrs["data-neony-media-src"] = src
-        else:
-            native_kwargs["src"] = src
 
         self._media = DomVideo(
             styles=Styles(width="100%", display="block"),
@@ -444,6 +466,7 @@ class Video(_MediaBase):
             ),
             container=[self._media, self._transport_row()],
         )
+        self._schedule_source_resolution()
 
 
 class Audio(_MediaBase):
@@ -481,10 +504,6 @@ class Audio(_MediaBase):
             "loop": loop,
             "muted": muted,
         }
-        if self._is_protocol_src(src):
-            data_attrs["data-neony-media-src"] = src
-        else:
-            native_kwargs["src"] = src
 
         self._media = DomAudio(args=data_attrs, **native_kwargs)
         self._bind_direct_events()
@@ -498,6 +517,7 @@ class Audio(_MediaBase):
             ),
             container=[self._media, self._transport_row()],
         )
+        self._schedule_source_resolution()
 
     @property
     def _frame(self) -> DOMElement:
