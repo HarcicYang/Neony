@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
 [![Status: pre-beta](https://img.shields.io/badge/status-pre--beta-yellow.svg)](#)
 
-> 📖 **文档（最新发布）：** https://harcic.is-a.dev/neony/zh · [English](https://harcic.is-a.dev/neony)
+> 📖 **文档（最新发布）：** [简体中文](https://harcic.me/neony/zh) · [English](https://harcic.me/neony)
 >
 > 托管文档跟随**最新 tag**（`v0.2.0`）。需要**最新 commit** 的文档（仓库内
 > `docs/`），见 [`docs/`](../../tree/HEAD/docs/) —
