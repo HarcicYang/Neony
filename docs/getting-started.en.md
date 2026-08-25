@@ -99,8 +99,8 @@ button.on_click(save)
 Programmatic state changes update the UI but do not pretend to be user events.
 
 Component callbacks for actual DOM interaction receive an event whose
-`source` is `"user"`. See the events and shortcuts guide when that chapter is available, and the
-current [API reference](api.en.md) for the complete event surface.
+`source` is `"user"`. The [Core API](api/core.en.md) covers the complete
+event surface, including keyboard and shortcut handling.
 
 ## 5. Add reactive presentation
 
@@ -145,14 +145,14 @@ surface = Div(
 )
 ```
 
-The built-in presets are `DARK`, `LIGHT`, and `DEEP_BLUE`. See
-[Theming](api/platform-i18n.en.md) for custom tokens, transitions, or
-keyframes.
+Ten built-in presets span four visual families (`DARK`, `LIGHT`, and
+`DEEP_BLUE` remain as aliases). See [Theming](api/platform-i18n.en.md)
+for custom tokens, motion, transitions, or keyframes.
 
 ## 7. Choose the next guide
 
 - Need installation help? Read [Installation and platforms](guides/installation-platforms.en.md).
-- Need state synchronization? Read `guides/reactive.en.md` when available and
+- Need state synchronization? Read [Reactivity](api/reactive.en.md) and
   start with [`demo_reactive.py`](../demo_reactive.py).
 - Need frameless windows? Read the API's `Page`, `WindowConfig`, and `TitleBar`
   sections, then run [`demo_custom_window.py`](../demo_custom_window.py).
@@ -163,5 +163,5 @@ keyframes.
   uv run gallery
   ```
 
-For exact signatures, use the [API reference](api.en.md). For repository
+For exact signatures, use the [API index](api/README.en.md). For repository
 changes, read [Contributing](../CONTRIBUTING.md).

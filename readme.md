@@ -6,9 +6,9 @@ Reactive desktop UI framework for Python, built on [LumiView](https://github.com
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
 [![Status: pre-beta](https://img.shields.io/badge/status-pre--beta-yellow.svg)](#)
 
-> 📖 **Docs (latest release):** https://harcic.is-a.dev/neony · [中文](https://harcic.is-a.dev/neony/zh)
+> 📖 **Docs (latest release):** https://harcic.me/neony · [中文](https://harcic.me/neony/zh)
 >
-> These hosted docs track the **latest tag** (`v0.2.0`). For the **latest commit**
+> These hosted docs point to the **latest tag**. For the **latest commit**
 > (in-repo `docs/`), see [`docs/`](../../tree/HEAD/docs/) —
 > [`docs/README.en.md`](../../blob/HEAD/docs/README.en.md),
 > [`getting-started`](../../blob/HEAD/docs/getting-started.en.md),
@@ -36,7 +36,8 @@ It builds on [LumiView](https://lumiview.dev), which uses the same Rust
 - **Dirty-subtree diffing** — only changed elements re-serialize; unchanged subtrees reuse cached snapshots
 - **Style direct-patch** — pure style/attr changes (hover, focus, press) patch straight from the snapshot cache, skipping serialization and diff
 - **Same stack as Tauri** — Rust `tao`/`wry` webviews via LumiView
-- **3 theme presets** — dark / light / deep-blue via CSS custom properties
+- **10 theme presets** — Nightglow / Planet Plaza / Ember Zone / Cyberangel
+  families, each with light and dark material, via CSS custom properties
 - **(Optional) Frosted glass** — translucent surfaces with backdrop blur
 - **Colour-matched glow** — focus rings and hover glows tinted with each element's semantic colour
 - **Scroll indicator** — native scrollbars are hidden; scroll surfaces get a theme-matched floating thumb (faint at rest, strengthens on scroll/hover, draggable, click-to-page) plus a dynamic edge fade that only shows where content actually overflows
@@ -104,7 +105,8 @@ Import from `neony.application.elements`.
 | `PromptDialog`            | Single-field text prompt on top of `Dialog` — confirm / cancel, Enter / Escape |
 | `Tooltip`                 | Hover bubble wrapped around an anchor, placement offsets, hover delay        |
 | `Dropdown`                | Themed popup under a trigger — full keyboard nav + click-away close          |
-| `Menu`                    | Fixed popup positioned at the cursor (`open_at(x, y)` from contextmenu)      |
+| `Menu` / `MenuBranch`     | Fixed popup at the cursor (`open_at(x, y)` from contextmenu) with cascading branches |
+| `CascadingDropdown`       | Multi-level trigger dropdown — nested branches open beside their parent item |
 | `Toast`                   | Transient notifications at a screen edge — 6 placements, success/info/error, placement-tied directional animations |
 | `Input`                   | Single-line text field — text / password / email / number…                     |
 | `Heading`                 | Themed heading (h1–h6) with automatic sizing                                   |
@@ -115,6 +117,7 @@ Import from `neony.application.elements`.
 | `List` / `ListItem`       | Scrollable single-select data list — listbox model, arrow keys move selection, `selected_key` / `bind_selected` |
 | `DataTable` / `Column`    | Column config + data rows — sticky header, click-to-sort, single / multi row selection |
 | `Reorder` / `ReorderItem` | Drag-reorder board — any component/DOM element can be a card; `direction` + `wrap` makes a grid reorderable on both axes, multiple boards exchange cards |
+| `ReorderContent`          | Reorderable container content — drag reorder without a board border/background |
 | `Icon`                    | One icon — `Icon.image(url_or_path)` fixed-size square or `Icon.glyph(text)`, shared by TitleBar / Sidebar / Tabs / Tree |
 | `Flex`                    | Generic flex container with full control                                       |
 | `VStack` / `HStack`       | Vertical / horizontal flex stacks                                              |
@@ -126,7 +129,7 @@ Import from `neony.application.elements`.
 | `Pane`                    | Selectable Sidebar entry + content panel — `key`, `icon`, `section`, `shortcut` |
 | `SidebarGroup`            | Titled section of a Sidebar — small uppercase label above its items          |
 | `Image`                   | Themed image in a rounded, overflow-hidden frame (`src` is any URL)            |
-| `Video` / `Audio`         | Managed themed media players — custom transport row, `neony://` sources auto-hydrated, full playback commands & events |
+| `Video` / `Audio`         | Managed themed media players — custom transport row, `neony://` sources auto-hydrated, WebAudio audio engine, HEVC transcode fallback |
 | `Avatar`                  | User avatar — image, letter initial, or placeholder, optional corner `badge`   |
 | `Badge`                   | Status pill or corner count — variants, status dot, `99+` clamp, zero hides    |
 | `Card`                    | Titled content panel — actions, footer, optional frosted-glass `glass` surface |
@@ -137,7 +140,7 @@ Import from `neony.application.elements`.
 | `StickToBottom`           | Chat-stream scroll container — auto-pins near the bottom; pauses on scroll-up, resumes near the bottom |
 
 All components share a fluent, chainable API — see the
-[API reference](docs/api.en.md) for usage.
+[API index](docs/api/README.en.md) for usage.
 
 ---
 
@@ -145,7 +148,7 @@ All components share a fluent, chainable API — see the
 
 - **Frameless custom titlebar** — set `decorations=False`, add a
   `TitleBar`, and drag / minimize / maximize / close all work
-  automatically. See [`docs/api.en.md`](docs/api.en.md) and the
+  automatically. See [`docs/api/layout-chrome.en.md`](docs/api/layout-chrome.en.md) and the
   [`demo_custom_window.py`](demo_custom_window.py) demo.
 - **Transparent windows & native effects** — `transparent=True`
   automatically applies the platform material (Wayland blur on Linux
@@ -166,11 +169,12 @@ All components share a fluent, chainable API — see the
   `launch(page, protocols=[...])`. The built-in `local_files` handler
   serves local files over `neony://local/…` with Range support where
   `file://` is blocked by the webview; `local_url(path)` /
-  `protocol_url(key, value)` build the URLs. `<audio>` / `<video>`
-  sources on a custom scheme are hydrated automatically — the webview's
-  media pipeline can't read custom schemes, so the runtime fetches the
-  bytes and swaps in a Blob URL — and local media plays (and seeks)
-  with no extra work. See [`demo_protocols.py`](demo_protocols.py).
+  `protocol_url(key, value)` build the URLs. The managed `Video` /
+  `Audio` components hydrate `neony://` sources automatically — the
+  webview's media pipeline can't read custom schemes, so the runtime
+  fetches the bytes and swaps in a Blob URL — and local media plays
+  (and seeks) with no extra work. Raw `<audio>` / `<video>` DOM elements
+  are not hydrated. See [`demo_protocols.py`](demo_protocols.py).
 - **Internationalization** — typed catalogs plus `tr` / `set_language()`;
   bound labels update live on a language switch.
 - **Multi-window** — `run(*pages)` opens one window per page, all
@@ -192,12 +196,17 @@ All components share a fluent, chainable API — see the
 
 ## Theming
 
-Three built-in presets — `DARK` (default), `LIGHT`, `DEEP_BLUE` — exposed as
-CSS custom properties on `:root`. Switching themes replaces that variable
-block only — no DOM diff; the browser recolors every `var(--color-*)`.
-Scrollbars and interaction glows (focus rings, hover halos) reference the
-same tokens, so they follow theme switches too. See the
-[API reference](docs/api.en.md) for switching and custom themes.
+Ten built-in presets across four visual families — Nightglow, Planet Plaza,
+Ember Zone, and Cyberangel, each with paired light and dark material —
+exposed as CSS custom properties on `:root`; the historical names `DARK`
+(default), `LIGHT`, and `DEEP_BLUE` remain as aliases. Switching themes
+replaces that variable block only — no DOM diff; the browser recolors
+every `var(--color-*)`. Scrollbars and interaction glows (focus rings,
+hover halos) reference the same tokens, so they follow theme switches
+too. See the [API reference](docs/api/platform-i18n.en.md) for switching
+and custom themes. Motion tokens work the same way: `Motion.DEFAULT`
+injects `--motion-*` variables, with `transition()` /
+`popup_animation()` / `submenu_animation()` covering common interactions.
 
 ---
 
@@ -217,6 +226,8 @@ Run from the repository root:
 | `demo_tree.py`                | Tree: collapsible navigation tree + content host                 |
 | `demo_tray.py`                | System tray: native menu + close-to-tray pattern                 |
 | `demo_builder.py`             | Centered `Page` mixing components with a raw styled `Div`        |
+| `demo_media.py`               | Managed `Video` / `Audio` players with media events              |
+| `demo_protocols.py`           | `neony://` custom protocols: local media + dynamic responses      |
 
 ```bash
 uv run gallery

@@ -129,6 +129,15 @@ file paths should use the Neony native drop channel and test on the target OS.
 The macOS runtime and HiDPI/mixed-DPI behavior are not fully covered by the
 repository's Linux CI; treat those as platform-specific verification work.
 
+## HEVC / codec fallback
+
+WebView media pipelines do not guarantee HEVC (`hvc1` / `hev1`) support.
+When a managed `Video` or `Audio` loads a local MP4 the runtime cannot
+decode, it detects the codec and transcodes the file to H.264 with
+`imageio-ffmpeg`. The wheel ships a static ffmpeg binary, so no system
+`ffmpeg` or media toolchain is required. The result is cached next to the
+original as `<file>.transcoded.mp4` and reused on later launches.
+
 ## Native file dialogs
 
 The public async methods are:
@@ -174,4 +183,4 @@ platform where the application will ship.
 
 For a first working application, return to
 [Getting started](../getting-started.en.md). For exact configuration fields,
-see the [API reference](../api.en.md).
+see the [API index](../api/README.en.md).

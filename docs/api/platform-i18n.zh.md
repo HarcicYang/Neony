@@ -66,16 +66,21 @@ app.set_language(Language.ZH) / app.language  # app 级便捷方法
 
 ## 主题
 
-三套内置预设 — `DARK`， `LIGHT`， `DEEP_BLUE` — 以 CSS 自定义属性暴露。每个预设都是
+四个视觉族共十套内置预设 — Nightglow、Planet Plaza、Ember Zone、
+Cyberangel，每族 light / dark 成对 — 以 CSS 自定义属性暴露。历史名称
+`DARK`（默认）、`LIGHT`、`DEEP_BLUE` 保留为 `NIGHTGLOW_DARK`、
+`NIGHTGLOW_LIGHT`、`PLANET_PLAZA_DARK` 的别名。每个预设都是
 **不可变**的 `Theme` 实例；构造任意 `Theme` 即按其 `mode` 自动注册。
 
 ```python
-app.theme  # 当前激活的预设（默认 DARK）
-Theme.get("light")  # 按 mode 名单次查询已注册预设
+from neony.application import NIGHTGLOW_LIGHT, Theme
+
+app.theme  # 当前激活的预设（默认 DARK → NIGHTGLOW_DARK）
+Theme.get("nightglow-light")  # 按 mode 名单次查询已注册预设
 app.theme.next()  # 切换顺序里紧接当前预设的下一个
 Theme.modes()  # 已注册 mode 名，按预设构造顺序排列
-Theme.mode_label("dark")  # "Light mode" — 下一个 mode 的标签
-await app.set_theme(LIGHT)  # 切换当前预设并重新注入变量
+Theme.mode_label("nightglow-dark")  # "Nightglow Light mode" — 下一个 mode 的标签
+await app.set_theme(NIGHTGLOW_LIGHT)  # 切换当前预设并重新注入变量
 ```
 
 `Theme.set_mode` / `Theme.toggle` 已移除 —— 切换改为经
@@ -94,12 +99,61 @@ await app.set_theme(LIGHT)  # 切换当前预设并重新注入变量
 
 ```python
 from neony.application import Theme
+from neony.dom import BoxShadow, Color, Shadow
 
-my_theme = Theme(mode="sepia", bg="#1a1a2e", accent="#4a90d9", on_accent="#ffffff", ...)
-# 构造即自动注册；需提供全部令牌 —— Theme 无默认值。
+# Theme 无默认值 —— 自定义预设必须提供完整令牌集。
+my_theme = Theme(
+    mode="sepia",
+    bg=Color(hex="#f4efe6"),
+    surface=Color(hex="#fffaf0"),
+    surface_raised=Color(hex="#efe7d8"),
+    text_primary=Color(hex="#2b2118"),
+    text_secondary=Color(hex="#756a5b"),
+    accent=Color(hex="#b3652d"),
+    accent_dim=Color(hex="#8e4c1f"),
+    danger=Color(hex="#b95758"),
+    success=Color(hex="#27875f"),
+    border=Color(rgba=(62, 52, 34, 0.16)),
+    shadow=BoxShadow(layers=[Shadow(x=0, y=20, blur=54, color=Color(rgba=(70, 57, 32, 0.18)))]),
+    on_accent=Color(hex="#fffaf0"),
+    on_danger=Color(hex="#ffffff"),
+    bg_overlay=Color(rgba=(244, 239, 230, 0.74)),
+    surface_glass=Color(rgba=(249, 245, 237, 0.82)),
+    surface_raised_glass=Color(rgba=(255, 250, 240, 0.92)),
+    border_glass=Color(rgba=(62, 52, 34, 0.18)),
+    accent_glass=Color(rgba=(179, 101, 45, 0.18)),
+    danger_glass=Color(rgba=(185, 87, 88, 0.18)),
+    success_glass=Color(rgba=(39, 135, 95, 0.16)),
+    surface_glass_bg=Color(rgba=(249, 245, 237, 0.72)),
+    surface_panel_glass_bg=Color(rgba=(255, 250, 240, 0.92)),
+    accent_glass_bg=Color(rgba=(179, 101, 45, 0.54)),
+    danger_glass_bg=Color(rgba=(185, 87, 88, 0.54)),
+)
 await app.set_theme(my_theme)
 Theme.get("sepia") is my_theme  # True
 ```
+
+## 运动令牌
+
+弹出层、过渡与组件动画背后的时长和缓动曲线，与主题采用平行的令牌体系。
+`Motion` 是不可变、按名称注册的预设；目前只有内置 `DEFAULT`。组件引用
+`motion.stub` 变量，因此未来新增预设时只需重新注入 `--motion-*`，
+无需改动组件代码。
+
+```python
+from neony.application.motion import Motion, popup_animation, stub, transition
+
+Motion.get("default").fast  # "0.12s" — 具体默认预设
+stub.fast  # "var(--motion-fast)" — 组件样式使用的令牌
+transition(
+    "background-color"
+)  # Transition(property=..., duration=var(--motion-normal), timing=var(--motion-ease-standard))
+popup_animation()  # Animation(name="neony-drop-in", duration=var(--motion-normal), timing=var(--motion-ease-enter))
+```
+
+注入变量：`--motion-fast`、`--motion-normal`、`--motion-slow`、
+`--motion-ease-standard`、`--motion-ease-enter`、`--motion-ease-exit`、
+`--motion-popup-animation`、`--motion-submenu-animation`。
 
 ## 平台原生能力
 

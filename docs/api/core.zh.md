@@ -167,18 +167,20 @@ launch(page, protocols=[local_files])
 Image(local_url("~/Music/song.mp3"))
 ```
 
-它支持 HTTP `Range` 请求(`206 Partial Content`)、应答 `HEAD`、猜测
-MIME 类型，并发送 `ETag` / `Last-Modified` / `Accept-Ranges`。没有路径
-白名单：Neony 页面是受信任的应用内容。参见
+它支持 HTTP `Range` 请求(`206 Partial Content`,区间不可满足时返回
+`416`)、应答 `HEAD`、猜测 MIME 类型，并发送 `ETag` / `Last-Modified` /
+`Accept-Ranges`。没有路径白名单：Neony 页面是受信任的应用内容。参见
 [`demo_protocols.py`](../../demo_protocols.py)。
 
 **媒体播放** —— WebView 的媒体管线（Linux 上为 GStreamer）无法读取
-自定义 URI scheme，因此运行时会自动水合指向 `neony://…` 的
-`<audio>` / `<video>` 源：经协议 fetch 字节后换成 `blob:` URL，并在源
-变更或元素移除时释放。播放与进度拖动因此在 `file://` 子资源被拦截的
-环境下照常工作。播放期间整个文件驻留内存——适合语音条与音效，长视频
-需注意体积。协议响应附带宽松的 CORS 头，使页面（opaque origin）能够
-`fetch()` 这些资源。
+自定义 URI scheme。受管 `Video` / `Audio` 组件会通过
+`data-neony-media-src` 契约自动水合 `neony://…` 源：运行时经协议
+fetch 字节后换成 `blob:` URL，并在源变更或元素移除时释放。原始
+`<audio>` / `<video>` DOM 元素不再水合——请使用组件（见
+[`Video` / `Audio`](components.zh.md#video)）。播放与进度拖动因此在
+`file://` 子资源被拦截的环境下照常工作。播放期间整个文件驻留内存——
+适合语音条与音效，长视频需注意体积。协议响应附带宽松的 CORS 头，
+使页面（opaque origin）能够 `fetch()` 这些资源。
 
 ## `Config`， `WindowConfig`， `WebViewConfig`
 
@@ -206,13 +208,16 @@ Page(gap="16px", padding="24px", max_width="720px")
 Page(fill=True, radius="12px")  # 装饰性布局
 ```
 
-**参数:** `direction`， `gap`， `padding`， `align`， `justify`，
-`width`， `max_width`， `glass`， `fill`， `radius`
+**参数:** `direction`， `gap`， `padding`(默认 `"24px"`)， `align`，
+`justify`， `width`， `max_width`(默认 `"600px"`)， `glass`， `fill`，
+`radius`
 
 `fill=True` 撑满窗口高度。`radius` 圆角窗口边框(用于透明无边框窗口)。
 
 **方法:** `add(child)`(链式)， `on_close(fn)`(链式 —— 见
-[生命周期](#生命周期))， `build()` → DOMElement
+[生命周期](#生命周期))、`on_focus(fn)` / `on_blur(fn)`(链式)、
+`on_keydown(fn)` / `on_keyup(fn)`(链式)、`on_shortcut(combo, fn)`(链式)、
+`build()` → DOMElement
 
 ## 生命周期
 
@@ -253,6 +258,19 @@ page.on_close(lambda: print("窗口关闭中"))
 page = Page()
 page.on_focus(lambda: print("活跃"))
 page.on_blur(lambda: print("非活跃"))
+```
+
+**键盘与快捷键** — `Page.on_keydown(fn)` / `Page.on_keyup(fn)` 接收
+全部按键事件，包括子输入框获得焦点时的输入。`Page.on_shortcut(combo,
+fn)` 注册应用内快捷键：combo 可以是 `"Ctrl+S"` 这样的字符串，也可以
+是按平台的字典（`{"darwin": "Meta+S", "default": "Ctrl+S"}`）。
+快捷键不依赖当前焦点元素。
+
+```python
+page = Page()
+page.on_keydown(lambda e: print(e.key, e.code, e.ctrl_key))
+page.on_shortcut("Ctrl+S", save)
+page.on_shortcut({"darwin": "Meta+K", "default": "Ctrl+K"}, open_search)
 ```
 
 ## 多窗口

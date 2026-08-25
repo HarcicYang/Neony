@@ -19,9 +19,9 @@ from datetime import datetime
 from pathlib import Path
 
 from neony.application import Page, launch, local_files, local_url, protocol, protocol_url
-from neony.application.elements import Button, Flex, Heading, Text
+from neony.application.elements import Audio, Button, Flex, Heading, Text, Video
 from neony.application.protocols import Request, Response
-from neony.dom import Audio, Computed, Img, Signal, Video
+from neony.dom import Computed, Img, Signal
 
 AUDIO = {".mp3", ".m4a", ".wav", ".ogg", ".oga", ".flac", ".opus"}
 VIDEO = {".mp4", ".webm", ".mkv", ".mov", ".avi"}
@@ -88,9 +88,12 @@ scanned = (
 media_files = [write_test_tone(), *scanned]
 
 selected: Signal[Path | None] = Signal(None)
+selected_src: Signal[str] = Signal("")
 
-player = Video(controls=True, preload="metadata", width=480)
-music = Audio(controls=True, preload="metadata")
+player = Video("", width=480, preload="metadata")
+music = Audio("", preload="metadata")
+player.bind_src(selected_src)
+music.bind_src(selected_src)
 picture = Img(width=320)
 
 show_video = Computed(lambda: selected() is not None and kind_of(selected()) == "video")  # type: ignore[arg-type]
@@ -104,8 +107,7 @@ picture.bind_visible(show_image)
 def make_opener(path: Path):
     def open_media(_event) -> None:
         src = local_url(path)  # → "neony://local/<abs-path>"
-        player.src = src
-        music.src = src
+        selected_src.set(src)
         picture.src = src
         selected.set(path)
 

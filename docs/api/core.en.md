@@ -153,8 +153,8 @@ launch(page, title="Demo", protocols=[qr_codes, Avatars(db), local_files])
 - Keys must match `^[a-z][a-z0-9-]*$` (the key is the URL authority,
   which browsers lowercase). Duplicate keys raise `ValueError`.
 - The handler receives a frozen pydantic `Request`: `key`, `path`
-  (percent-decoded payload), `method`, `url`, `query`, `headers`, plus
-  a case-insensitive `request.header(name)` helper. Return a frozen
+  (percent-decoded payload), `method`, `url`, `query`, `headers`,
+  plus a case-insensitive `request.header(name)` helper. Return a frozen
   `Response(status, headers, body)` (`Response.text()` /
   `Response.json()` for convenience).
 - URLs are built by `local_url(path)` → `neony://local/…` and
@@ -174,16 +174,20 @@ launch(page, protocols=[local_files])
 Image(local_url("~/Music/song.mp3"))
 ```
 
-It supports HTTP `Range` requests (`206 Partial Content`), answers
-`HEAD`, guesses MIME types, and sends `ETag` / `Last-Modified` /
-`Accept-Ranges`. There is no path allow-list: a Neony page is trusted
-application content. See [`demo_protocols.py`](../../demo_protocols.py).
+It supports HTTP `Range` requests (`206 Partial Content`, `416` for an
+unsatisfiable range), answers `HEAD`, guesses MIME types, and sends
+`ETag` / `Last-Modified` / `Accept-Ranges`. There is no path allow-list:
+a Neony page is trusted application content. See
+[`demo_protocols.py`](../../demo_protocols.py).
 
 **Media playback** — a webview's media pipeline (GStreamer on Linux)
-cannot read custom URI schemes, so the runtime hydrates `<audio>` /
-`<video>` sources pointing at `neony://…` automatically: it fetches the
-bytes over the protocol, swaps in a `blob:` URL, and revokes it when
-the source changes or the element is removed. Playback and seeking then
+cannot read custom URI schemes. The managed `Video` / `Audio`
+components hydrate `neony://…` sources automatically through the
+`data-neony-media-src` contract: the runtime fetches the bytes over the
+protocol, swaps in a `blob:` URL, and revokes it when the source changes
+or the element is removed. Raw `<audio>` / `<video>` DOM elements are
+not hydrated — use the components (see
+[`Video` / `Audio`](components.en.md#video)). Playback and seeking then
 work everywhere `file://` subresources are blocked. The whole file is
 held in memory while playing — ideal for voice clips and sound effects;
 mind the size for long videos. Protocol responses carry permissive CORS
@@ -217,14 +221,17 @@ Page(gap="16px", padding="24px", max_width="720px")
 Page(fill=True, radius="12px")  # chrome layouts
 ```
 
-**Options:** `direction`, `gap`, `padding`, `align`, `justify`,
-`width`, `max_width`, `glass`, `fill`, `radius`
+**Options:** `direction`, `gap`, `padding` (default `"24px"`), `align`,
+`justify`, `width`, `max_width` (default `"600px"`), `glass`, `fill`,
+`radius`
 
 `fill=True` stretches to the full window height. `radius` rounds the
 window frame (for transparent frameless windows).
 
-**Methods:** `add(child)` (chainable), `on_close(fn)` (chainable —
-see [Lifecycle](#lifecycle)), `build()` → DOMElement
+**Methods:** `add(child)` (chainable), `on_close(fn)` (chainable — see
+[Lifecycle](#lifecycle)), `on_focus(fn)` / `on_blur(fn)` (chainable),
+`on_keydown(fn)` / `on_keyup(fn)` (chainable), `on_shortcut(combo, fn)`
+(chainable), `build()` → DOMElement
 
 ## Lifecycle
 
@@ -267,6 +274,20 @@ status bar, or knowing which window is active in a multi-window app.
 page = Page()
 page.on_focus(lambda: print("active"))
 page.on_blur(lambda: print("inactive"))
+```
+
+**Keyboard & shortcuts** — `Page.on_keydown(fn)` /
+`Page.on_keyup(fn)` receive every key event, including keys typed while
+a child input has focus. `Page.on_shortcut(combo, fn)` registers an
+in-app shortcut; the combo is a string like `"Ctrl+S"` or a per-platform
+dict (`{"darwin": "Meta+S", "default": "Ctrl+S"}`). Shortcuts fire
+regardless of which element has focus.
+
+```python
+page = Page()
+page.on_keydown(lambda e: print(e.key, e.code, e.ctrl_key))
+page.on_shortcut("Ctrl+S", save)
+page.on_shortcut({"darwin": "Meta+K", "default": "Ctrl+K"}, open_search)
 ```
 
 ## Multi-window

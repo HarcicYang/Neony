@@ -8,7 +8,7 @@
 
 > 📖 **文档（最新发布）：** [简体中文](https://harcic.me/neony/zh) · [English](https://harcic.me/neony)
 >
-> 托管文档跟随**最新 tag**（`v0.2.0`）。需要**最新 commit** 的文档（仓库内
+> 托管文档指向**最新tag**。需要**最新 commit** 的文档（仓库内
 > `docs/`），见 [`docs/`](../../tree/HEAD/docs/) —
 > [`docs/README.zh.md`](../../blob/HEAD/docs/README.zh.md)、
 > [`入门教程`](../../blob/HEAD/docs/getting-started.zh.md)、
@@ -33,7 +33,8 @@ Neony 在原生窗口中渲染响应式 DOM。你完全用 Python 对象——�
 - **脏子树 diff** — 只有变化的元素重新序列化，未变子树复用缓存快照
 - **样式直通补丁** — 纯样式/属性变化(hover、focus、press)直接从快照缓存打补丁，跳过序列化与 diff
 - **与 Tauri 同源** — Rust `tao`/`wry` WebView(经 LumiView)
-- **三套主题预设** — dark / light / deep-blue，基于 CSS 自定义属性
+- **十套主题预设** — Nightglow / Planet Plaza / Ember Zone / Cyberangel
+  四个视觉族，每族 light / dark 成对，基于 CSS 自定义属性
 - **(可选)毛玻璃** — 半透明表面 + 背景模糊
 - **语义色光晕** — 焦点环与悬停辉光跟随元素语义颜色
 - **滚动指示器** — 原生滚动条被隐藏；滚动表面获得随主题的浮动滑块（静止时淡显、滚动/悬停时增强、可拖拽、点击轨道翻页），以及只在内容真正溢出方向显示的动态边缘渐变
@@ -100,7 +101,8 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `PromptDialog`            | 基于 `Dialog` 的单行文本提示 — 确认 / 取消，Enter / Escape       |
 | `Tooltip`                 | 包裹 anchor 的悬停气泡，placement 偏移 + 悬停延迟               |
 | `Dropdown`                | trigger 下的主题化弹出面板 — 完整键盘导航 + 点击外部关闭        |
-| `Menu`                    | 光标定位的固定弹出菜单（`open_at(x, y)` 来自 contextmenu）      |
+| `Menu` / `MenuBranch`     | 光标定位的固定弹出菜单（`open_at(x, y)` 来自 contextmenu），支持级联分支 |
+| `CascadingDropdown`       | 多级触发式下拉 — 嵌套分支在父项旁展开                          |
 | `Toast`                   | 屏幕边缘的瞬时通知 — 6 方位、success/info/error、与方位绑定的方向性动画 |
 | `Input`                   | 单行输入框 — text / password / email / number…                 |
 | `Heading`                 | 主题标题(h1–h6)，自动字号                                      |
@@ -111,6 +113,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `List` / `ListItem`       | 可滚动单选数据列表 — listbox 模型、方向键移动选中、`selected_key` / `bind_selected` |
 | `DataTable` / `Column`    | 列配置 + 数据行 — 固定表头、点击排序、单选 / 多选行 |
 | `Reorder` / `ReorderItem` | 拖拽重排面板 — 任意组件/DOM 元素都可作为卡片；`direction` + `wrap` 可作网格纵横双向重排，多个面板可交换卡片 |
+| `ReorderContent`          | 可重排容器内容 — 不带面板边框/背景的拖拽重排                    |
 | `Icon`                    | 统一图标 — `Icon.image(url_or_path)` 固定方形图片或 `Icon.glyph(text)` 字形，TitleBar / Sidebar / Tabs / Tree 共用 |
 | `Flex`                    | 通用弹性容器，完全控制                                         |
 | `VStack` / `HStack`       | 纵向 / 横向弹性堆叠                                            |
@@ -122,7 +125,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Pane`                    | 可选的 Sidebar 条目 + 内容面板 — `key`、`icon`、`section`、`shortcut` |
 | `SidebarGroup`            | Sidebar 的分组小节 — 条目上方的小号大写标签                    |
 | `Image`                   | 主题化图片，圆角 overflow-hidden 框架（`src` 为任意 URL）     |
-| `Video` / `Audio`         | 全托管主题化媒体播放器 — 自绘传输条，`neony://` 源自动水合，完整播放命令与事件 |
+| `Video` / `Audio`         | 全托管主题化媒体播放器 — 自绘传输条，`neony://` 源自动水合，WebAudio 音频引擎，HEVC 转码回退 |
 | `Avatar`                  | 用户头像 — 图片 / 字母占位 / 空占位，可选角标 `badge`         |
 | `Badge`                   | 状态标签或角标计数 — 多变体、状态点、`99+` 截断、0 自动隐藏    |
 | `Card`                    | 带标题的内容卡片 — 操作区、页脚、可选毛玻璃 `glass` 表面       |
@@ -132,15 +135,16 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `ScrollArea`              | 可滚动垂直区域，带 `scroll_to_bottom()` / `scroll_to_top()` / `scroll_to()` |
 | `StickToBottom`           | 聊天流滚动容器 — 接近底部自动贴底；上滚暂停，回到底部附近恢复 |
 
-所有组件共享链式 API，用法见 [API 参考](docs/api.zh.md)。
+所有组件共享链式 API，用法见 [API 索引](docs/api/README.zh.md)。
 
 ---
 
 ## 窗口特性
 
 - **无边框自定义标题栏** — 设置 `decorations=False`，添加 `TitleBar`，
-  拖动 / 最小化 / 最大化 / 关闭全部自动生效。见 [API 参考](docs/api.zh.md)
-  与 [`demo_custom_window.py`](demo_custom_window.py) 示例。
+  拖动 / 最小化 / 最大化 / 关闭全部自动生效。见
+  [`docs/api/layout-chrome.zh.md`](docs/api/layout-chrome.zh.md) 与
+  [`demo_custom_window.py`](demo_custom_window.py) 示例。
 - **透明窗口与原生效果** — `transparent=True` 会自动套上平台材质
   （Linux 在合成器支持时走 Wayland blur，Windows 为 Acrylic，macOS 为
   Blur）。`apply_blur()`、`apply_acrylic()`、`apply_mica()` 是手动覆盖，
@@ -157,10 +161,11 @@ launch(page, title="My App", width=480, height=360, devtools=True)
   `launch(page, protocols=[...])`。内置 `local_files` 处理器经
   `neony://local/…` 提供本地文件（支持 Range），解决 WebView 拦截
   `file://` 子资源的问题；`local_url(path)` /
-  `protocol_url(key, value)` 负责构建 URL。自定义 scheme 上的
-  `<audio>` / `<video>` 源会被运行时自动水合——媒体管线读不了
-  自定义 scheme，运行时 fetch 字节后换成 Blob URL——本地媒体播放
-  与拖动进度开箱即用。参见 [`demo_protocols.py`](demo_protocols.py)。
+  `protocol_url(key, value)` 负责构建 URL。受管 `Video` / `Audio`
+  组件会自动水合 `neony://` 源——媒体管线读不了自定义 scheme，
+  运行时 fetch 字节后换成 Blob URL——本地媒体播放与拖动进度开箱即用。
+  原始 `<audio>` / `<video>` DOM 元素不再水合。
+  参见 [`demo_protocols.py`](demo_protocols.py)。
 - **国际化** — 类型化目录 + `tr` / `set_language()`；绑定文案在切换
   语言时即时更新。
 - **多窗口** — `run(*pages)` 每个页面一个窗口，共享同一事件循环与
@@ -180,10 +185,14 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 
 ## 主题
 
-三套内置预设 — `DARK`（默认）、`LIGHT`、`DEEP_BLUE` — 以 CSS 自定义属性
-暴露在 `:root`。切换主题只替换这块变量，不走 DOM diff；浏览器按新的
-`var(--color-*)` 重上色。滚动条与交互光晕（焦点环、悬停辉光）引用同一套
-token，因此也随主题自动切换。切换与自定义主题见 [API 参考](docs/api.zh.md)。
+四个视觉族共十套内置预设 — Nightglow、Planet Plaza、Ember Zone、
+Cyberangel，每族 light / dark 成对 — 以 CSS 自定义属性暴露在 `:root`；
+历史名称 `DARK`（默认）、`LIGHT`、`DEEP_BLUE` 仍作为别名保留。切换主题
+只替换这块变量，不走 DOM diff；浏览器按新的 `var(--color-*)` 重上色。
+滚动条与交互光晕（焦点环、悬停辉光）引用同一套 token，因此也随主题
+自动切换。切换与自定义主题见 [API 参考](docs/api/platform-i18n.zh.md)。
+运动令牌采用同样机制：`Motion.DEFAULT` 注入 `--motion-*` 变量，
+`transition()` / `popup_animation()` / `submenu_animation()` 覆盖常见交互。
 
 ---
 
@@ -203,6 +212,8 @@ token，因此也随主题自动切换。切换与自定义主题见 [API 参考
 | `demo_tree.py`                  | Tree：可折叠导航树 + 内容宿主          |
 | `demo_tray.py`                  | 系统托盘：原生菜单 + 关闭到托盘模式    |
 | `demo_builder.py`               | 居中 `Page`，组件与原始样式 `Div` 混用 |
+| `demo_media.py`                 | 受管 `Video` / `Audio` 播放器与媒体事件 |
+| `demo_protocols.py`             | `neony://` 自定义协议：本地媒体 + 动态响应 |
 
 ```bash
 uv run gallery

@@ -312,10 +312,44 @@ pattern as `Select`). Full keyboard nav (Enter/Space opens, arrows
 clamp at the ends, PageUp/PageDown jump to first/last, Enter picks,
 Escape/Tab and click-away close). `items` is settable.
 
+### `CascadingDropdown`
+
+```python
+menu = CascadingDropdown(
+    "Account",
+    items=[
+        ("profile", "Profile"),
+        MenuBranch(
+            "Share",
+            [
+                ("copy", "Copy link"),
+                ("email", "Email"),
+                MenuBranch("More", [("embed", "Embed"), ("print", "Print")]),
+            ],
+        ),
+    ],
+)
+```
+
+A selector with recursively nested option branches. Unlike `Menu`, it
+keeps the `Dropdown` trigger lifecycle: one trigger, one popup, the same
+click-away / Escape close path, and the full keyboard navigation.
+`MenuBranch(label, items)` renders a row whose child panel opens beside
+it (with a chevron); `Enter` / `ArrowRight` enter a branch. Selections
+report a leaf value through the standard Dropdown `on_change` /
+`bind_value` API.
+
 ### `Menu`
 
 ```python
-menu = Menu(("rename", "Rename"), ("delete", "Delete"))
+menu = Menu(
+    ("rename", "Rename"),
+    ("delete", "Delete"),
+    MenuBranch(
+        "Export",
+        [("csv", "CSV"), ("json", "JSON"), MenuBranch("More", [("pdf", "PDF")])],
+    ),
+)
 btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y))  # cursor position
 menu.on_change(lambda e: print(e.value))
 ```
@@ -325,7 +359,10 @@ A fixed popup positioned with `open_at(x, y)` — typically a
 needed. Same keyboard nav as `Dropdown`; closes on selection, Escape,
 or click-away. The panel pops upward — its bottom edge anchors 8px
 above the cursor — and clamps to the viewport via `calc()` max
-width/height, so it never overflows an edge.
+width/height, so it never overflows an edge. `MenuBranch(label, items)`
+adds a cascading branch: `ArrowRight` / `Enter` opens the child menu,
+`ArrowLeft` returns to the parent level, and Escape closes one menu
+level at a time before the whole tree.
 
 ### `Toast`
 
@@ -400,12 +437,16 @@ built-in `neony://local` protocol — the runtime hydrates it
 (fetch → Blob URL → load) because WebKitGTK's media pipeline cannot
 resolve custom schemes — or hand it any `https://`/`data:` URL for the
 native path; switching between the two at runtime is handled for you
-(`bind_src(signal)` keeps it declarative). Commands: `play()`, `pause()`,
-`seek(seconds)`, `set_muted(bool)`, `toggle_muted()`, `set_volume(0..1)`.
-Events: `on_play`, `on_pause`, `on_ended`, `on_timeupdate`, `on_error`.
-Reactive reads: `playing`, `position`, `duration`, `muted`, `volume`.
-Options: `poster`, `width`/`height` (`int` → px), `radius`, `autoplay`,
-`loop`, `muted`, `preload`.
+(`bind_src(signal)` keeps it declarative). For local MP4 files whose
+codec the webview cannot decode (HEVC `hvc1`/`hev1`), the runtime
+detects it and transparently transcodes to H.264 via `imageio-ffmpeg`,
+caching the result next to the original as `<file>.transcoded.mp4`.
+Commands: `play()`, `pause()`, `seek(seconds)`, `set_muted(bool)`,
+`toggle_muted()`, `set_volume(0..1)`. Events: `on_play`, `on_pause`,
+`on_ended`, `on_timeupdate`, `on_error`. Reactive reads: `playing`,
+`position`, `duration`, `muted`, `volume`. Options: `poster`,
+`width`/`height` (`int` → px), `radius`, `autoplay`, `loop`, `muted`,
+`preload`.
 
 ### `Audio`
 
@@ -416,8 +457,12 @@ await song.toggle_muted()
 ```
 
 The same managed player engine as [`Video`](#video) as a compact control
-card. Same ownership model, transport row, commands, events and options
-(minus the picture surface); `width` sizes the card.
+card. Playback runs through the WebAudio engine (`decodeAudioData` on a
+shared buffer/gain graph), which sidesteps WebKitGTK's shared
+HTMLMediaElement audio pipeline; without an `AudioContext` the runtime
+falls back to the native blob path. Same ownership model, transport row,
+commands, events, options (minus the picture surface) and HEVC transcode
+fallback; `width` sizes the card.
 
 ### `Avatar`
 
@@ -602,6 +647,11 @@ regardless of the current pin state. Mount contract: same as
 
 The ready-made way to reorder a collection is the `Reorder` board — a
 flex container of draggable cards that owns the reorder internally:
+
+`ReorderContent` is the accepted card-content type: a reactive string,
+`Component`, or raw `DOMElement`. It is exported from
+`neony.application.elements` and also used by `ReorderItem[T]` as the
+content type parameter.
 
 ```python
 from neony.application.elements import Reorder, ReorderItem

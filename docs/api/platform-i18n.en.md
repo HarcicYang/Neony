@@ -70,17 +70,23 @@ app.set_language(Language.ZH) / app.language  # app-level convenience
 
 ## Theming
 
-Three built-in presets — `DARK`, `LIGHT`, `DEEP_BLUE` — exposed as CSS custom
-properties. Each preset is an **immutable** `Theme` instance; constructing any
-`Theme` auto-registers it under its `mode`.
+Ten built-in presets across four visual families — Nightglow, Planet
+Plaza, Ember Zone, and Cyberangel — each with paired light and dark
+material. They are exposed as CSS custom properties; the historical
+names `DARK` (default), `LIGHT`, and `DEEP_BLUE` remain as aliases for
+`NIGHTGLOW_DARK`, `NIGHTGLOW_LIGHT`, and `PLANET_PLAZA_DARK`. Each
+preset is an **immutable** `Theme` instance; constructing any `Theme`
+auto-registers it under its `mode`.
 
 ```python
-app.theme  # the active preset (defaults to DARK)
-Theme.get("light")  # single-shot lookup of a registered preset by mode name
+from neony.application import NIGHTGLOW_LIGHT, Theme
+
+app.theme  # the active preset (defaults to DARK → NIGHTGLOW_DARK)
+Theme.get("nightglow-light")  # single-shot lookup of a registered preset by mode name
 app.theme.next()  # the preset that follows the active one in toggle order
 Theme.modes()  # registered mode names, in preset-construction order
-Theme.mode_label("dark")  # "Light mode" — the label of the next mode
-await app.set_theme(LIGHT)  # swap the active preset and re-inject variables
+Theme.mode_label("nightglow-dark")  # "Nightglow Light mode" — the label of the next mode
+await app.set_theme(NIGHTGLOW_LIGHT)  # swap the active preset and re-inject variables
 ```
 
 `Theme.set_mode` / `Theme.toggle` were removed — switching swaps the active
@@ -100,12 +106,62 @@ Custom themes:
 
 ```python
 from neony.application import Theme
+from neony.dom import BoxShadow, Color, Shadow
 
-my_theme = Theme(mode="sepia", bg="#1a1a2e", accent="#4a90d9", on_accent="#ffffff", ...)
-# Construction auto-registers it; supply every token — Theme has no defaults.
+# Theme has no defaults — a custom preset must supply the full token set.
+my_theme = Theme(
+    mode="sepia",
+    bg=Color(hex="#f4efe6"),
+    surface=Color(hex="#fffaf0"),
+    surface_raised=Color(hex="#efe7d8"),
+    text_primary=Color(hex="#2b2118"),
+    text_secondary=Color(hex="#756a5b"),
+    accent=Color(hex="#b3652d"),
+    accent_dim=Color(hex="#8e4c1f"),
+    danger=Color(hex="#b95758"),
+    success=Color(hex="#27875f"),
+    border=Color(rgba=(62, 52, 34, 0.16)),
+    shadow=BoxShadow(layers=[Shadow(x=0, y=20, blur=54, color=Color(rgba=(70, 57, 32, 0.18)))]),
+    on_accent=Color(hex="#fffaf0"),
+    on_danger=Color(hex="#ffffff"),
+    bg_overlay=Color(rgba=(244, 239, 230, 0.74)),
+    surface_glass=Color(rgba=(249, 245, 237, 0.82)),
+    surface_raised_glass=Color(rgba=(255, 250, 240, 0.92)),
+    border_glass=Color(rgba=(62, 52, 34, 0.18)),
+    accent_glass=Color(rgba=(179, 101, 45, 0.18)),
+    danger_glass=Color(rgba=(185, 87, 88, 0.18)),
+    success_glass=Color(rgba=(39, 135, 95, 0.16)),
+    surface_glass_bg=Color(rgba=(249, 245, 237, 0.72)),
+    surface_panel_glass_bg=Color(rgba=(255, 250, 240, 0.92)),
+    accent_glass_bg=Color(rgba=(179, 101, 45, 0.54)),
+    danger_glass_bg=Color(rgba=(185, 87, 88, 0.54)),
+)
 await app.set_theme(my_theme)
 Theme.get("sepia") is my_theme  # True
 ```
+
+## Motion tokens
+
+Durations and easing behind popups, transitions, and component
+animations are tokenized in parallel with themes. `Motion` is an
+immutable, registered preset; `DEFAULT` is currently the only built-in
+one. Components reference `motion.stub` variables, so a future preset
+can re-inject `--motion-*` without changing component code.
+
+```python
+from neony.application.motion import Motion, popup_animation, stub, transition
+
+Motion.get("default").fast  # "0.12s" — the concrete default preset
+stub.fast  # "var(--motion-fast)" — the token used by component styles
+transition(
+    "background-color"
+)  # Transition(property=..., duration=var(--motion-normal), timing=var(--motion-ease-standard))
+popup_animation()  # Animation(name="neony-drop-in", duration=var(--motion-normal), timing=var(--motion-ease-enter))
+```
+
+Injected variables: `--motion-fast`, `--motion-normal`, `--motion-slow`,
+`--motion-ease-standard`, `--motion-ease-enter`, `--motion-ease-exit`,
+`--motion-popup-animation`, `--motion-submenu-animation`.
 
 ## Platform-native surfaces
 

@@ -47,7 +47,7 @@ Pull Request 都非常欢迎。本文档说明项目约定与贡献方式。
 文档按语言拆分——英语为主，中文独立成文件:
 
 - `readme.md`(EN)/ `readme.zh.md`(中文)
-- `docs/api.en.md` / `docs/api.zh.md`
+- `docs/api/*.en.md` / `docs/api/*.zh.md`
 - `CONTRIBUTING.md` / `CONTRIBUTING.zh.md`
 
 新功能必须同步更新两种语言版本。
@@ -105,8 +105,9 @@ vitest）。干净 checkout 不包含被 Git 跟踪的 `node_modules/`；目录�
    的冒烟测试（Linux 上需要 `xvfb-run`）。
 2. **补充测试** — bug 修复需要回归测试;新组件需要覆盖构建/状态/
    事件(参见 `tests/test_components.py` 中的模式)。
-3. **更新文档** — 行为有可见变化时更新 README(两种语言);API 变化
-   更新 `docs/api.en.md` / `docs/api.zh.md`。
+3. **更新文档** — 行为有可见变化时更新 README（两种语言）；API 变化更新
+   成对的 `docs/api/*.en.md` / `docs/api/*.zh.md` 章节；章节列表变化时
+   同步更新 `docs/api/README.*`；新增的 demo 也要加入根 README 的 demos 表。
 4. **遵循 Conventional Commits** — 提交信息加类型与可选 scope 前缀:
    `feat(scope):`、`fix(scope):`、`perf(scope):`、`refactor(scope):`、
    `docs:`、`chore:`、……。Changelog(`CHANGELOG.md`)由人工维护;

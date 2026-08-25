@@ -45,9 +45,12 @@ Planned work, roughly in priority order.
 ## Components
 
 - [x] **Form controls** — Radio/RadioGroup, Switch, Select, ComboBox, Slider, Progress
-- [x] **Overlays** — Dialog (fixed scrim + centered glass panel; scrim/Escape/✕/outsideclick close), Tooltip (anchor-relative, placement + delay, zero measurement), Dropdown (Select's popup pattern, full keyboard nav), Menu (`open_at(x, y)` from contextmenu coords)
+- [x] **Overlays** — Dialog (fixed scrim + centered glass panel; scrim/Escape/✕/outsideclick close), Tooltip (anchor-relative, placement + delay, zero measurement), Dropdown (Select's popup pattern, full keyboard nav), Menu / MenuBranch (cascading branches; `open_at(x, y)` from contextmenu coords), CascadingDropdown (multi-level trigger popup)
 - [x] **Data views** — DataTable (sticky-header grid, click-to-sort, single/multi row selection), List (scrollable single-select data list), Tree (navigation rail + content host)
 - [x] **Content** — Card (titled content panel; actions/footer; optional glass), Avatar (image/initial/placeholder + optional corner badge), Badge (pill or corner count; dot; 99+ clamp; zero hides), Image (rounded overflow-hidden frame; `src` is any URL)
+- [x] **Reveal & scroll layout** — Accordion / Collapsible (stacked expandable sections, fluent `.section()`), ScrollArea (programmatic scroll API), StickToBottom (chat-stream auto-scroll), Reorder / ReorderContent (drag reorder with or without a board frame)
+- [x] **Media players** — managed Video / Audio: custom transport, `neony://` source hydration, WebAudio audio engine, HEVC transcode fallback via `imageio-ffmpeg`
+- [x] **Rich text editing** — RichText managed `contenteditable`: text + inline images, caret/selection API, insert at caret, ordered `content()` export, IME-safe, paste image files
 - [x] **Notifications & Chat** — Toast (6 placements, success/info/error, placement-tied directional enter/exit animations), MessageBubble (QQ/Telegram style: from_me alignment/colors, optional avatar + name, built-in right-click menu, hover quick actions), NoticeBubble (centered system pill)
 
 ## Flaza (QQ client) requirements
@@ -120,7 +123,12 @@ Planned work, roughly in priority order.
 - [x] **CSS `transition` support** in `Styles` — typed `Transition` descriptor (`property`/`duration`/`timing`/`delay`) or raw shorthand string; also `transform` and `outline` fields.  Existing components' transitions now actually reach the DOM.
 - [x] **Transition hooks** — `transitionend` / `animationstart` / `animationend` delegated events with `transition_property` / `animation_name` / `elapsed_time` payloads.
 - [x] **Typed `@keyframes`** — chainable `KeyFrame(name).set(...)` / `Props` / `Animation` models; `app.register_keyframe()` injects into a global `<style id="neony-keyframes">` (built-in `neony-rise-in` / `neony-fade-in` always injected for components).
+- [x] **Motion tokens** — `Motion.DEFAULT` injects the `--motion-*` variables; helpers `transition()` / `popup_animation()` / `submenu_animation()` cover popup and submenu timing; components reference `motion.stub`
 - [ ] **Built-in animated containers**
+
+## Theming
+
+- [x] **Preset themes** — four visual families (Nightglow / Planet Plaza / Ember Zone / Cyberangel) with dark/light variants, ten presets total; `DARK` / `LIGHT` / `DEEP_BLUE` remain aliases; `Theme` is immutable and requires the full token set
 
 ## Platform integration
 

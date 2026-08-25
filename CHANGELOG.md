@@ -1,29 +1,6 @@
 # Changelog
 
-## 0.2.4.post1 — 2026-08-24
-
-### Fixed
-
-- **MessageBubble content parent-link** — assigning a plain list to
-  `container` bypassed the `_Children` proxy, leaving the content
-  subtree's `_parent` unset; eval-js walks (media play/pause, clipboard,
-  scroll) stopped at the bubble and silently dropped commands. Now uses
-  `clear()` + `append()` so `_Children` maintains the links.
-- **Initial media hydration on detached nodes** — `hydrateMedia()` for
-  contract-attributed `<video>`/`<audio>` elements is deferred to a
-  microtask after the node has been appended to the live document;
-  WebKitGTK can leave a Blob-backed video at `HAVE_NOTHING` forever when
-  resource selection starts on a detached node.
-- **HEVC fallback transcode** — new `neony.application.media_compat`
-  module: detects MP4 files whose video codec (`hvc1`/`hev1`) cannot be
-  decoded by the host GStreamer install and transparently transcodes to
-  H.264 via `imageio-ffmpeg` (new dependency), caching the result next
-  to the original. Support detection prefers the live WebView's
-  `canPlayType`, falls back to enumerating GStreamer decoder factory
-  caps for `video/x-h265`; file-level codec detection parses the MP4
-  `stsd` box in pure Python.
-
-## Unreleased
+## 0.3.0 — 2026-08-25
 
 ### Added
 
@@ -37,17 +14,17 @@
   pipeline starts from a clean state and the hydration (bridge read →
   Blob URL → explicit `load()`) can no longer be absorbed by an
   interrupted load (the old auto-hydration left 3-second clips stuck at
-  `readyState 0` for minutes); `https://`/`data:` URLs take the native path, and
-  runtime switches between the two are handled. Commands: `play`,
-  `pause`, `seek`, `set_muted`, `toggle_muted`, `set_volume`; events
-  `on_play` / `on_pause` / `on_ended` / `on_timeupdate` / `on_error`;
-  reactive reads `playing` / `position` / `duration` / `muted` /
-  `volume`; `bind_src(signal)` for declarative sources. Non-bubbling
-  media events (`timeupdate`, `play`, …) are wired through a new
-  `data-neony-direct-events` direct-listener bridge and carried on
-  `DomEvent` as `media_time` / `media_duration` / `media_volume` /
-  `media_muted` / `media_paused` / `media_error`. New demos:
-  `demo_media.py` and a gallery Media section.
+  `readyState 0` for minutes); `https://`/`data:` URLs take the native
+  path, and runtime switches between the two are handled. Commands:
+  `play`, `pause`, `seek`, `set_muted`, `toggle_muted`,
+  `set_volume`; events `on_play` / `on_pause` / `on_ended` /
+  `on_timeupdate` / `on_error`; reactive reads `playing` / `position` /
+  `duration` / `muted` / `volume`; `bind_src(signal)` for declarative
+  sources. Non-bubbling media events (`timeupdate`, `play`, …) are
+  wired through a new `data-neony-direct-events` direct-listener bridge
+  and carried on `DomEvent` as `media_time` / `media_duration` /
+  `media_volume` / `media_muted` / `media_paused` / `media_error`. New
+  demos: `demo_media.py` and a gallery Media section.
 - **WebAudio transport for `Audio`** — the component's inner element
   carries a `data-neony-media-engine="webaudio"` contract and its
   playback is driven entirely by the engine instead of
@@ -68,7 +45,6 @@
   the component-managed contract attributes only (`data-neony-media-src`
   / `data-neony-direct-events`). Migrate raw elements to the new
   `Video`/`Audio` components.
-
 - **Custom protocols** — serve Python-generated content to the page
   through `neony://<key>/…` URLs. Handlers are declared with the
   `@protocol("key")` decorator (plain functions or methods — decorated
@@ -97,6 +73,167 @@
   embeddings. URL builders: `local_url(path)` and
   `protocol_url(key, value)` in `neony.application.urls`. New demo:
   `demo_protocols.py`.
+- **Redesigned theme system** — ten built-in presets across four visual
+  families (Nightglow, Planet Plaza, Ember Zone, Cyberangel), each with
+  paired light and dark material. `Theme` is immutable and registers
+  itself by `mode`; `Theme.get()`, `Theme.modes()` and
+  `Theme.mode_label()` expose the registry/toggle cycle, `theme.next()`
+  rotates, and `app.set_theme()` swaps the active preset by replacing
+  the `:root` `--color-*` block (no DOM diff). `DARK` (default),
+  `LIGHT` and `DEEP_BLUE` remain aliases; custom themes supply the full
+  token set and join the same registry.
+- **Motion tokens** — `Motion` is an immutable, registered preset
+  namespace parallel to themes: components reference `motion.stub`
+  variables, `transition()` / `popup_animation()` /
+  `submenu_animation()` build typed motion values, and `--motion-*`
+  CSS variables are injected once per window.
+- **Cascading menus** — `MenuBranch(label, items)` and
+  `CascadingDropdown` add recursively nested option branches to
+  `Menu` / `Dropdown`. ArrowRight / Enter descend into a branch,
+  ArrowLeft returns to the parent level, and Escape closes one menu
+  level at a time; popups keep full keyboard navigation and click-away
+  dismissal.
+- **`RichText`** — a managed inline `contenteditable` editor with text
+  and image segments, caret / selection / insertion APIs,
+  IME-safe submit, `content()` / `set_content()`, and event payloads.
+  Pasting image files replaces the browser-created `blob:` image with
+  real bytes from the system clipboard; inline image dimensions are
+  cap-controlled.
+- **Scroll containers** — `ScrollArea` and `StickToBottom` expose
+  scrolling through Python commands (`scroll_to_top()` /
+  `scroll_to_bottom()` / `scroll_to()`); the chat-stream container
+  auto-pins near the bottom and pauses the pin when the user scrolls
+  up.
+- **Built-in semantic icons** — a public `icons` namespace plus a
+  self-hosted Material Symbols Rounded WOFF2 embedded as a data URL, so
+  glyph icons work offline and consistently across platforms.
+
+### Performance
+
+- **Faster DOM element construction** — `DOMElement` private handler/
+  binding collections are now materialised in `model_post_init` instead
+  of through pydantic `PrivateAttr(default_factory=...)`, which
+  re-introspected factory signatures for every element. Microbenchmarks
+  show roughly 8–10× faster bare `Div()` construction.
+- **Cached style and attribute serialization** — `Styles` caches its
+  kebab-case CSS dict and invalidates it on field writes / `model_copy`;
+  `DOMElement` caches its serialized attribute dict, invalidates it on
+  relevant mutations, and reuses a per-class typed-attribute field list.
+  Unchanged re-renders and direct-patch sweeps no longer re-run pydantic
+  model serializers for every node.
+- **Linear diff bookkeeping** — moved-key positions and insert indices
+  now use precomputed maps instead of repeated tree walks /
+  `list.index()` calls, removing quadratic paths from large child lists.
+- **Key lifecycle cleanup** — removed or replaced subtrees are pruned
+  from snapshot caches, the bubbling key map and the bridge handler
+  registry; `NeonApplication` drops the matching idempotent-registration
+  entries so long-running apps no longer accumulate dead keys.
+- **Chunked patch delivery** — render cycles with more than 1000 ops
+  are split into buffered `PatchMessage` chunks sharing one revision;
+  first mounts over 1000 nodes mount the root skeleton and stream child
+  subtrees as chunked create patches. The JS engine applies a batch only
+  after all chunks arrive, and requests a resync on gaps or malformed
+  batches.
+- **Windowed `List` virtualization** — `List` auto-virtualizes past
+  200 rows: only the visible window plus overscan is rendered, with
+  top/bottom spacers preserving scroll geometry, and selection /
+  keyboard navigation materializes the target row on demand. The public
+  API is unchanged.
+- **Scheduled dirty tree updates** — dirty mutations now schedule one
+  coalesced render task per window instead of flushing per write;
+  bursts of signal writes in one synchronous turn produce a single
+  render, and delayed component state changes (dialog close, toasts)
+  render automatically.
+
+### Changed
+
+- **`Page` defaults to a `VStack` layout** — the content area is a
+  flex column with `min-height: 0` mount contracts, so scroll
+  components behave consistently inside `Page`; `Page.add(*children)`
+  stays chainable.
+- **Theme preset naming** — built-ins now use family/mode names
+  (`NIGHTGLOW_DARK`, `PLANET_PLAZA_LIGHT`, …); the historical
+  `DARK` / `LIGHT` / `DEEP_BLUE` names remain importable aliases.
+
+### Fixed
+
+- **Managed media source switching** — three defects in how a hydrated
+  `neony://` source is replaced. Loading a second blob into an
+  already-hydrated element reuses the WebKitGTK pipeline and feeds
+  misaligned AAC frames to the decoder (~10 s of silence before it
+  resyncs): a re-hydration now swaps in a fresh clone node, so every
+  source change starts from a pristine pipeline. The bridge read
+  (`neony.media_read`) previously answered with the whole file as one
+  giant base64 payload, stalling the asyncio loop and the WebView main
+  thread for seconds on large media: replies are now served in 1 MiB
+  `Range` slices (falling back to a full-body `200` when the handler
+  ignores ranges). And while the new bytes were in flight nothing told
+  the user what was happening: the transport row now shows an
+  indeterminate loading strip over the seek slider until hydration
+  finishes.
+- **Overlay click-away delivery** — synthetic `outsideclick` is now
+  observed in document capture phase, so a blank-area click still closes
+  an open overlay even when later propagation is stopped. This restores
+  reliable click-away closing for CascadingDropdown and the other popup
+  components that use the marker.
+- **Overlay ownership and message actions** — cursor-positioned context
+  menus are now exclusive within one mounted page/window; opening another
+  closes the previous menu tree without affecting CascadingDropdown.
+  MessageBubble hover actions likewise have one owner per page/window,
+  and use a cancellable 160ms leave delay so the pointer can cross into
+  the absolutely positioned action row without it disappearing.
+- **Nested popup closure synchronization** — opening or closing one
+  popup no longer leaves sibling menu branches or stale tree states
+  open; CascadingDropdown and its child branches share one close path
+  with the other overlay components.
+- **Dialog exit animation** — closing now keeps the dialog mounted and
+  plays the panel exit animation before hiding it; reopening cancels an
+  in-flight close, and a fallback timeout completes the hide when
+  `animationend` is suppressed.
+- **RichText pasted images** — browser-created `blob:` images are
+  replaced with clipboard bytes, auto-inserted `<img>` elements are
+  routed back through the managed editor, and inline image dimensions
+  respect the display/container caps.
+
+### Docs
+
+- API reference split into `docs/api/*` chapters (core, components,
+  reactive, dom-css, layout-chrome, platform-i18n) with an index.
+- Bilingual `docs/getting-started.*`, platform installation guides, and
+  README / ROADMAP / CONTRIBUTING alignment updated for the new
+  components, protocols, theming and media APIs.
+
+---
+
+## 0.2.4.post1 — 2026-08-24
+
+### Fixed
+
+- **MessageBubble content parent-link** — assigning a plain list to
+  `container` bypassed the `_Children` proxy, leaving the content
+  subtree's `_parent` unset; eval-js walks (media play/pause, clipboard,
+  scroll) stopped at the bubble and silently dropped commands. Now uses
+  `clear()` + `append()` so `_Children` maintains the links.
+- **Initial media hydration on detached nodes** — `hydrateMedia()` for
+  contract-attributed `<video>`/`<audio>` elements is deferred to a
+  microtask after the node has been appended to the live document;
+  WebKitGTK can leave a Blob-backed video at `HAVE_NOTHING` forever when
+  resource selection starts on a detached node.
+- **HEVC fallback transcode** — new `neony.application.media_compat`
+  module: detects MP4 files whose video codec (`hvc1`/`hev1`) cannot be
+  decoded by the host GStreamer install and transparently transcodes to
+  H.264 via `imageio-ffmpeg` (new dependency), caching the result next
+  to the original. Support detection prefers the live WebView's
+  `canPlayType`, falls back to enumerating GStreamer decoder factory
+  caps for `video/x-h265`; file-level codec detection parses the MP4
+  `stsd` box in pure Python.
+
+---
+
+## 0.2.0 — 2026-08-13
+
+### Added
+
 - **Pointer-driven in-app drags** — elements with `drag_payload` no
   longer use HTML5 drag-and-drop: WebKitGTK's native drag image
   positions randomly on Wayland (sometimes grab-relative, sometimes
@@ -280,33 +417,6 @@
   swaps the active preset. New `on_accent` token (text/icon colour on
   accent surfaces, e.g. accent buttons).
 
-### Performance
-
-- **Faster DOM element construction** — `DOMElement` private handler/
-  binding collections are now materialised in `model_post_init` instead
-  of through pydantic `PrivateAttr(default_factory=...)`, which
-  re-introspected factory signatures for every element.  Microbenchmarks
-  show roughly 8–10× faster bare `Div()` construction.
-- **Cached style and attribute serialization** — `Styles` caches its
-  kebab-case CSS dict and invalidates it on field writes / `model_copy`;
-  `DOMElement` caches its serialized attribute dict, invalidates it on
-  relevant mutations, and reuses a per-class typed-attribute field list.
-  Unchanged re-renders and direct-patch sweeps no longer re-run pydantic
-  model serializers for every node.
-- **Linear diff bookkeeping** — moved-key positions and insert indices
-  now use precomputed maps instead of repeated tree walks /
-  `list.index()` calls, removing quadratic paths from large child lists.
-- **Key lifecycle cleanup** — removed or replaced subtrees are pruned
-  from snapshot caches, the bubbling key map and the bridge handler
-  registry; `NeonApplication` drops the matching idempotent-registration
-  entries so long-running apps no longer accumulate dead keys.
-- **Chunked patch delivery** — render cycles with more than 1000 ops
-  are split into buffered `PatchMessage` chunks sharing one revision;
-  first mounts over 1000 nodes mount the root skeleton and stream child
-  subtrees as chunked create patches.  The JS engine applies a batch only
-  after all chunks arrive, and requests a resync on gaps or malformed
-  batches.
-
 ### Changed
 
 - **Progress constructor order** — `Progress(label, *, value=..., max=...)`
@@ -345,34 +455,6 @@
   `selected_*` API.
 
 ### Fixed
-
-- **Managed media source switching** — three defects in how a hydrated
-  `neony://` source is replaced. Loading a second blob into an
-  already-hydrated element reuses the WebKitGTK pipeline and feeds
-  misaligned AAC frames to the decoder (~10 s of silence before it
-  resyncs): a re-hydration now swaps in a fresh clone node, so every
-  source change starts from a pristine pipeline. The bridge read
-  (`neony.media_read`) previously answered with the whole file as one
-  giant base64 payload, stalling the asyncio loop and the WebView main
-  thread for seconds on large media: replies are now served in 1 MiB
-  `Range` slices (falling back to a full-body `200` when the handler
-  ignores ranges). And while the new bytes were in flight nothing told
-  the user what was happening: the transport row now shows an
-  indeterminate loading strip over the seek slider until hydration
-  finishes.
-
-- **Overlay click-away delivery** — synthetic `outsideclick` is now
-  observed in document capture phase, so a blank-area click still closes
-  an open overlay even when later propagation is stopped. This restores
-  reliable click-away closing for CascadingDropdown and the other popup
-  components that use the marker.
-
-- **Overlay ownership and message actions** — cursor-positioned context
-  menus are now exclusive within one mounted page/window; opening another
-  closes the previous menu tree without affecting CascadingDropdown.
-  MessageBubble hover actions likewise have one owner per page/window,
-  and use a cancellable 160ms leave delay so the pointer can cross into
-  the absolutely positioned action row without it disappearing.
 
 - **`Tabs.active_key` fix** — the documented "key of active panel"
   returned a random element id; it now returns the tab title.
@@ -481,33 +563,6 @@
   `test_binding.py`, `test_cross_window.py`, `test_effect.py`,
   `test_keyframe.py`, and more.
 
-### Performance
-
-- **Faster DOM element construction** — `DOMElement` private handler/
-  binding collections are now materialised in `model_post_init` instead
-  of through pydantic `PrivateAttr(default_factory=...)`, which
-  re-introspected factory signatures for every element.  Microbenchmarks
-  show roughly 8–10× faster bare `Div()` construction.
-- **Cached style and attribute serialization** — `Styles` caches its
-  kebab-case CSS dict and invalidates it on field writes / `model_copy`;
-  `DOMElement` caches its serialized attribute dict, invalidates it on
-  relevant mutations, and reuses a per-class typed-attribute field list.
-  Unchanged re-renders and direct-patch sweeps no longer re-run pydantic
-  model serializers for every node.
-- **Linear diff bookkeeping** — moved-key positions and insert indices
-  now use precomputed maps instead of repeated tree walks /
-  `list.index()` calls, removing quadratic paths from large child lists.
-- **Key lifecycle cleanup** — removed or replaced subtrees are pruned
-  from snapshot caches, the bubbling key map and the bridge handler
-  registry; `NeonApplication` drops the matching idempotent-registration
-  entries so long-running apps no longer accumulate dead keys.
-- **Chunked patch delivery** — render cycles with more than 1000 ops
-  are split into buffered `PatchMessage` chunks sharing one revision;
-  first mounts over 1000 nodes mount the root skeleton and stream child
-  subtrees as chunked create patches.  The JS engine applies a batch only
-  after all chunks arrive, and requests a resync on gaps or malformed
-  batches.
-
 ### Changed
 
 - **LumiView 0.1.0.dev3** — migrated to the event-based API; `Neony`
@@ -605,33 +660,6 @@
   content panels, distinct from chrome glass (0.60 alpha).
 - **`box-sizing: border-box` global reset**: prevents `width:100% +
   padding` overflow.
-
-### Performance
-
-- **Faster DOM element construction** — `DOMElement` private handler/
-  binding collections are now materialised in `model_post_init` instead
-  of through pydantic `PrivateAttr(default_factory=...)`, which
-  re-introspected factory signatures for every element.  Microbenchmarks
-  show roughly 8–10× faster bare `Div()` construction.
-- **Cached style and attribute serialization** — `Styles` caches its
-  kebab-case CSS dict and invalidates it on field writes / `model_copy`;
-  `DOMElement` caches its serialized attribute dict, invalidates it on
-  relevant mutations, and reuses a per-class typed-attribute field list.
-  Unchanged re-renders and direct-patch sweeps no longer re-run pydantic
-  model serializers for every node.
-- **Linear diff bookkeeping** — moved-key positions and insert indices
-  now use precomputed maps instead of repeated tree walks /
-  `list.index()` calls, removing quadratic paths from large child lists.
-- **Key lifecycle cleanup** — removed or replaced subtrees are pruned
-  from snapshot caches, the bubbling key map and the bridge handler
-  registry; `NeonApplication` drops the matching idempotent-registration
-  entries so long-running apps no longer accumulate dead keys.
-- **Chunked patch delivery** — render cycles with more than 1000 ops
-  are split into buffered `PatchMessage` chunks sharing one revision;
-  first mounts over 1000 nodes mount the root skeleton and stream child
-  subtrees as chunked create patches.  The JS engine applies a batch only
-  after all chunks arrive, and requests a resync on gaps or malformed
-  batches.
 
 ### Changed
 

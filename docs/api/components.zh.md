@@ -276,10 +276,42 @@ trigger + 主题化玻璃弹出面板（原生 button 行，与 `Select` 同模�
 完整键盘导航（Enter/Space 打开、方向键两端钳制、PageUp/PageDown
 首尾、Enter 选中、Escape/Tab 与点击外部关闭）。`items` 可设置。
 
+### `CascadingDropdown`
+
+```python
+menu = CascadingDropdown(
+    "Account",
+    items=[
+        ("profile", "Profile"),
+        MenuBranch(
+            "Share",
+            [
+                ("copy", "Copy link"),
+                ("email", "Email"),
+                MenuBranch("More", [("embed", "Embed"), ("print", "Print")]),
+            ],
+        ),
+    ],
+)
+```
+
+支持递归嵌套选项分支的选择器。与 `Menu` 不同，它保持 `Dropdown` 的
+trigger 生命周期：一个 trigger、一个弹出面板，同一套点击外部 / Escape
+关闭路径与完整键盘导航。`MenuBranch(label, items)` 渲染一行带箭头的
+分支，子面板在其旁边打开；`Enter` / `ArrowRight` 进入分支。选中分支
+叶子值时，经标准 Dropdown `on_change` / `bind_value` API 上报。
+
 ### `Menu`
 
 ```python
-menu = Menu(("rename", "重命名"), ("delete", "删除"))
+menu = Menu(
+    ("rename", "Rename"),
+    ("delete", "Delete"),
+    MenuBranch(
+        "Export",
+        [("csv", "CSV"), ("json", "JSON"), MenuBranch("More", [("pdf", "PDF")])],
+    ),
+)
 btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y))  # 光标位置
 menu.on_change(lambda e: print(e.value))
 ```
@@ -288,6 +320,8 @@ menu.on_change(lambda e: print(e.value))
 视口坐标，无需测量。键盘导航与 `Dropdown` 相同；选中、Escape 或
 点击外部关闭。面板**向上弹出**——底边锚在光标上方 8px——并通过
 `calc()` 的 max-width/height 钳制在视口内，靠近屏幕边缘也不会溢出。
+`MenuBranch(label, items)` 添加级联分支：`ArrowRight` / `Enter` 打开
+子菜单，`ArrowLeft` 回到父级，Escape 在关闭整棵菜单树前逐层关闭。
 
 ### `Toast`
 
@@ -358,7 +392,9 @@ scheme；或传任意 `https://`/`data:` URL 走原生路径；两者在运行�
 事件：`on_play`、`on_pause`、`on_ended`、`on_timeupdate`、`on_error`。
 响应式读取：`playing`、`position`、`duration`、`muted`、`volume`。
 选项：`poster`、`width`/`height`（`int` → px）、`radius`、`autoplay`、
-`loop`、`muted`、`preload`。
+`loop`、`muted`、`preload`。对于 WebView 无法解码的本地 MP4（HEVC
+`hvc1`/`hev1`），运行时检测后经 `imageio-ffmpeg` 透明转码为 H.264，
+并在原文件旁缓存为 `<file>.transcoded.mp4`。
 
 ### `Audio`
 
@@ -369,7 +405,10 @@ await song.toggle_muted()
 ```
 
 与 [`Video`](#video) 同一套托管播放引擎的紧凑控制卡片形态。所有权模型、
-传输条、命令、事件与选项完全一致（少了画面区域）；`width` 控制卡片宽度。
+传输条、命令、事件与选项完全一致（少了画面区域）。播放走 WebAudio 引擎
+（共享 buffer/gain 图上的 `decodeAudioData`），绕开 WebKitGTK 共享的
+HTMLMediaElement 音频管线；没有 `AudioContext` 时运行时回退到原生
+blob 路径。HEVC 转码回退同样适用；`width` 控制卡片宽度。
 
 ### `Avatar`
 
@@ -533,6 +572,10 @@ await stick.scroll_to_bottom(force=True)
 
 重排集合的现成方式是 `Reorder` 面板——一个由可拖拽卡片组成的 flex
 容器，重排逻辑内聚在组件内部：
+
+`ReorderContent` 是卡片可接受的内容类型别名：响应式字符串、
+`Component` 或原始 `DOMElement`。它从 `neony.application.elements`
+导出，并作为 `ReorderItem[T]` 的内容类型参数。
 
 ```python
 from neony.application.elements import Reorder, ReorderItem

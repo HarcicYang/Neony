@@ -95,8 +95,8 @@ button.on_click(save)
 ```
 
 程序化状态修改会更新界面，但不会伪造用户事件。真正的 DOM 用户交互进入
-组件回调时，事件的 `source` 为 `"user"`。完整事件 API 可查当前
-[API 参考](api.zh.md)；事件专题指南将在后续补齐。
+组件回调时，事件的 `source` 为 `"user"`。事件、键盘与快捷键 API 见
+[核心 API](api/core.zh.md)。
 
 ## 5. 添加响应式展示
 
@@ -139,13 +139,14 @@ surface = Div(
 )
 ```
 
-内置主题是 `DARK`、`LIGHT` 和 `DEEP_BLUE`。需要自定义 token、transition
-或 keyframe 时，再阅读主题与 CSS 专题指南。
+四个视觉族共十套内置预设（`DARK`、`LIGHT`、`DEEP_BLUE` 保留为别名）。
+需要自定义 token、运动、transition 或 keyframe 时，再阅读
+[主题与平台专题](api/platform-i18n.zh.md)。
 
 ## 7. 下一步阅读
 
 - 需要安装帮助：阅读[安装与平台指南](guides/installation-platforms.zh.md)。
-- 需要状态同步：后续阅读 `guides/reactive.zh.md`，先运行
+- 需要状态同步：阅读[响应式 API](api/reactive.zh.md)，先运行
   [`demo_reactive.py`](../demo_reactive.py)。
 - 需要无边框窗口：查 API 中的 `Page`、`WindowConfig`、`TitleBar`，再运行
   [`demo_custom_window.py`](../demo_custom_window.py)。
@@ -156,5 +157,5 @@ surface = Div(
   uv run gallery
   ```
 
-精确签名请查 [API 参考](api.zh.md)；修改仓库前请阅读
+精确签名请查 [API 索引](api/README.zh.md)；修改仓库前请阅读
 [贡献指南](../CONTRIBUTING.zh.md)。

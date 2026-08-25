@@ -58,7 +58,7 @@ Documentation is split by language — English as the primary language,
 Chinese as a separate file:
 
 - `readme.md` (EN) / `readme.zh.md` (中文)
-- `docs/api.en.md` / `docs/api.zh.md`
+- `docs/api/*.en.md` / `docs/api/*.zh.md`
 - `CONTRIBUTING.md` / `CONTRIBUTING.zh.md`
 
 New features must update both language versions.
@@ -121,7 +121,9 @@ reach for them only when you change `src/neony/javascript/*`.
    coverage of build/state/events (see `tests/test_components.py` for
    the patterns).
 3. **Update docs** — README (both languages) when behaviour changes
-   visibly; `docs/api.en.md` / `docs/api.zh.md` for API changes.
+   visibly; the paired `docs/api/*.en.md` / `docs/api/*.zh.md` chapters
+   for API changes; `docs/api/README.*` when the chapter list changes;
+   and new demos also go into the root README demos table.
 4. **Follow Conventional Commits** — prefix commits with a type and
    optional scope: `feat(scope):`, `fix(scope):`, `perf(scope):`,
    `refactor(scope):`, `docs:`, `chore:`, ... The changelog

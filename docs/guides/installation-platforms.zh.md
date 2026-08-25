@@ -121,6 +121,14 @@ macOS 使用系统提供的 WKWebView。文件对话框使用 `osascript`，透�
 仓库的 Linux CI 没有完整覆盖 macOS runtime 和 HiDPI/mixed-DPI 行为，这些属于
 需要单独验证的平台工作。
 
+## HEVC / 编解码回退
+
+WebView 媒体管线不保证支持 HEVC（`hvc1` / `hev1`）。受管 `Video` /
+`Audio` 加载本地 MP4 且运行时无法解码时，会检测编码并借助
+`imageio-ffmpeg` 透明转码为 H.264。该 wheel 自带静态 ffmpeg，因此不需要
+安装系统 `ffmpeg` 或媒体工具链。转码结果缓存在原文件旁
+`<file>.transcoded.mp4`，后续启动直接复用。
+
 ## 原生文件对话框
 
 公开的异步方法是：
@@ -164,4 +172,4 @@ filetypes = [("PNG images", "*.png"), ("All files", "*.*")]
 | 透明窗口没有 blur | 检查 compositor/平台支持；blur 失败不会让窗口崩溃，窗口仍可使用。 |
 
 想先运行一个应用，请回到[入门教程](../getting-started.zh.md)。需要精确配置
-字段时，请查阅 [API 参考](../api.zh.md)。
+字段时，请查阅 [API 索引](../api/README.zh.md)。
