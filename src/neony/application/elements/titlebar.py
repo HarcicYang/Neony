@@ -22,9 +22,9 @@ from .icon import Icon
 # WindowControls bridge commands exposed by ``window.lumiview.window.*``.
 _ACTIONS = {"minimize": "minimize", "maximize": "toggleMaximize", "close": "close"}
 _ICONS = {
-    "minimize": Icon._font("minimize").render("14px"),
-    "maximize": Icon._font("maximize").render("14px"),
-    "close": Icon._font("close").render("14px"),
+    "minimize": Icon._font("minimize"),
+    "maximize": Icon._font("maximize"),
+    "close": Icon._font("close"),
 }
 
 
@@ -156,7 +156,7 @@ class TitleBar(Component):
             args["data-window-action"] = _ACTIONS[kind]
         return _ButtonElem(
             type="button",
-            container=[_ICONS[kind]],
+            container=[_ICONS[kind].render("14px")],
             styles=styles,
             args=args,
         )

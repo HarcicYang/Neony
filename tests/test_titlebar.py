@@ -14,6 +14,13 @@ def _walk(element: DOMElement) -> list[DOMElement]:
 
 
 class TestTitleBarIcon:
+    def test_instances_do_not_share_control_elements(self):
+        first = TitleBar("First")
+        second = TitleBar("Second")
+
+        first.build()
+        second.build()
+
     def test_icon_element_rendered_before_title(self):
         tb = TitleBar("My App", icon=Icon.image("https://example.com/icon.svg"))
         root = tb.build()
