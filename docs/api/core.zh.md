@@ -6,7 +6,7 @@
 
 ## `NeonApplication`
 
-应用对象 — 持有窗口、桥接、主题与共享状态。用 `Config` 构造，
+应用对象 — 持有窗口、主题与共享状态。用 `Config` 构造，
 组装 `Page`，然后 `run()`。
 
 ```python
@@ -19,7 +19,7 @@ app = NeonApplication(
     )
 )
 app.state.count = 0  # 共享可变状态
-app.theme = Theme.get("light")  # run() 前选定初始预设
+app.theme = Theme.get("nightglow-light")  # run() 前选定初始预设
 
 
 def main() -> None:
@@ -48,26 +48,26 @@ app.state.user_name = "Ada"
 所有窗口共享同一个 `state` 对象，是
 [`SharedSignal`](reactive.zh.md#sharedsignal) 之外跨窗口数据的命令式方案。
 
-**属性:** `config`， `state`， `theme`， `ready_handler`， `close_handler`
+**属性：** `config`、`state`、`theme`、`ready_handler`、`close_handler`
 
-**窗口方法**(全部异步):
+**窗口方法**（全部异步）：
 
-`set_title(title)`， `set_size(w, h)`， `minimize()`， `toggle_maximize()`，
-`is_maximized()`， `set_fullscreen(f)`， `start_dragging()`， `close()`，
-`apply_blur(color?)`， `apply_acrylic(color?)`， `apply_mica()`，
-`clear_effect(effect)`， `eval_js(script)`， `set_icon(icon)`。
+`set_title(title)`、`set_size(w, h)`、`minimize()`、`toggle_maximize()`、
+`is_maximized()`、`set_fullscreen(f)`、`start_dragging()`、`close()`、
+`apply_blur(color?)`、`apply_acrylic(color?)`、`apply_mica()`、
+`clear_effect(effect)`、`eval_js(script)`、`set_icon(icon)`。
 
 `transparent=True` 会自动套上平台材质（Linux 在合成器支持时走 Wayland
 blur，Windows 为 Acrylic，macOS 为 Blur）。`apply_*` 是手动覆盖，且受
 平台限制：`apply_blur` 仅 macOS/Windows；acrylic / mica 仅 Windows 11。
 
-**应用方法:** `exit(code=0)` — 优雅退出整个应用(同步)。`close_to_tray=True`
+**应用方法：** `exit(code=0)` — 优雅退出整个应用（同步）。`close_to_tray=True`
 时关窗只会隐藏应用，`exit()` 才是真正的退出途径——例如托盘菜单的
 "退出"项。
 
-**主题与渲染:**
+**主题与渲染：**
 
-`set_theme(theme)`， `sync_theme()`， `set_background(url)`， `render()`
+`set_theme(theme)`、`sync_theme()`、`set_background(url)`、`render()`
 
 **文件对话框**（均为 async — 系统原生）：
 `open_file(...) -> str | None`，`open_files(...) -> list[str]`，
@@ -89,12 +89,12 @@ folder = await app.select_folder()  # str | None
 
 对话框就是平台自己的 — Linux 用 zenity（大多数桌面发行版自带）、
 macOS 用 `osascript`、Windows 用 PowerShell，另有 tkinter 回退 —
-以子进程方式弹出，对话框开启期间应用事件循环照常运转。Neony
+异步弹出，对话框开启期间应用事件循环照常运转。Neony
 不绘制任何东西：外观、导航与过滤完全由操作系统提供。
 
 `filetypes` 映射到原生过滤器界面（`[("PNG images", "*.png"),
 ("All files", "*.*")]`）；`default_dir` / `default_name` 预选起始
-位置。无 WebView、无进程内 tkinter 窗口、无内置对话框组件。
+位置。
 
 ## `launch()`
 
@@ -172,24 +172,20 @@ Image(local_url("~/Music/song.mp3"))
 `Accept-Ranges`。没有路径白名单：Neony 页面是受信任的应用内容。参见
 [`demo_protocols.py`](../../demo_protocols.py)。
 
-**媒体播放** —— WebView 的媒体管线（Linux 上为 GStreamer）无法读取
-自定义 URI scheme。受管 `Video` / `Audio` 组件会通过
-`data-neony-media-src` 契约自动水合 `neony://…` 源：运行时经协议
-fetch 字节后换成 `blob:` URL，并在源变更或元素移除时释放。原始
-`<audio>` / `<video>` DOM 元素不再水合——请使用组件（见
-[`Video` / `Audio`](components.zh.md#video)）。播放与进度拖动因此在
-`file://` 子资源被拦截的环境下照常工作。播放期间整个文件驻留内存——
-适合语音条与音效，长视频需注意体积。协议响应附带宽松的 CORS 头，
-使页面（opaque origin）能够 `fetch()` 这些资源。
+**媒体播放** —— 受管 `Video` / `Audio` 组件会自动加载 `neony://…`
+源，因此本地媒体播放与进度拖动在 `file://` 子资源被拦截的环境下照常
+工作。原始 `<audio>` / `<video>` DOM 元素不适用此方式——请使用组件（见
+[`Video` / `Audio`](components.zh.md#video)）。播放期间整个文件驻留
+内存——适合语音条与音效，长视频需注意体积。
 
-## `Config`， `WindowConfig`， `WebViewConfig`
+## `Config`、`WindowConfig`、`WebViewConfig`
 
 Pydantic 配置模型。`WindowConfig` 负责几何与外观
-(`title`， `width`， `height`， `decorations`， `transparent`，
-`always_on_top`， `resizable`， `icon` …)。`WebViewConfig` 负责运行时
-(`devtools`， `incognito`， `user_agent`， `javascript` …)。
+（`title`、`width`、`height`、`decorations`、`transparent`、
+`always_on_top`、`resizable`、`icon` …）。`WebViewConfig` 负责运行时
+（`devtools`、`incognito`、`user_agent`、`javascript` …）。
 
-**`WindowConfig.icon`** — 文件路径(PNG、ICO …)或原始 RGBA 数据
+**`WindowConfig.icon`** — 文件路径（PNG、ICO …）或原始 RGBA 数据
 `(bytes, width, height)`，显示在*带系统装饰*窗口的 OS 窗口栏中。
 
 无边框窗口没有 OS 装饰——内联图标见 [`TitleBar`](layout-chrome.zh.md#titlebar) 的 `icon`
@@ -201,22 +197,22 @@ Pydantic 配置模型。`WindowConfig` 负责几何与外观
 
 ## `Page`
 
-顶层弹性列容器。两层结构:全屏背景层 + 限宽居中的内容列。
+顶层弹性列容器。两层结构：全屏背景层 + 限宽居中的内容列。
 
 ```python
 Page(gap="16px", padding="24px", max_width="720px")
 Page(fill=True, radius="12px")  # 装饰性布局
 ```
 
-**参数:** `direction`， `gap`， `padding`(默认 `"24px"`)， `align`，
-`justify`， `width`， `max_width`(默认 `"600px"`)， `glass`， `fill`，
+**参数：** `direction`、`gap`、`padding`（默认 `"24px"`）、`align`、
+`justify`、`width`、`max_width`（默认 `"600px"`）、`glass`、`fill`、
 `radius`
 
-`fill=True` 撑满窗口高度。`radius` 圆角窗口边框(用于透明无边框窗口)。
+`fill=True` 撑满窗口高度。`radius` 圆角窗口边框（用于透明无边框窗口）。
 
-**方法:** `add(child)`(链式)， `on_close(fn)`(链式 —— 见
-[生命周期](#生命周期))、`on_focus(fn)` / `on_blur(fn)`(链式)、
-`on_keydown(fn)` / `on_keyup(fn)`(链式)、`on_shortcut(combo, fn)`(链式)、
+**方法：** `add(child)`（链式）、`on_close(fn)`（链式 —— 见
+[生命周期](#生命周期)）、`on_focus(fn)` / `on_blur(fn)`（链式）、
+`on_keydown(fn)` / `on_keyup(fn)`（链式）、`on_shortcut(combo, fn)`（链式）、
 `build()` → DOMElement
 
 ## 生命周期
@@ -323,9 +319,8 @@ page.on_download_completed(lambda url, path, ok: print(f"下载完成 {path}"))
 
 ## `Tray` & `TrayItem` — 系统托盘（原生菜单）
 
-托盘图标 + 原生右键菜单，基于 lumiview .dev4（muda 菜单 + TrayIcon）。
-
-`run()` 前赋值 `app.tray`，应用启动后图标自动创建。
+托盘图标 + 原生右键菜单。`run()` 前赋值 `app.tray`，应用启动后图标
+自动创建。
 
 ```python
 from neony.application import Tray, TrayItem
@@ -344,9 +339,9 @@ app.tray = Tray(
 )
 ```
 
-- `TrayItem` — `text`，可选 `id`（激活回调携带）、`accelerator`（muda
-  语法；Windows 可能无法从键盘触发）、`on_activate`（同步或异步，在
-  asyncio 循环执行）、`checked=True` 渲染勾选项；
+- `TrayItem` — `text`，可选 `id`（激活回调携带）、`accelerator`（快捷
+  键语法；Windows 可能无法从键盘触发）、`on_activate`（同步或异步，
+  异步执行）、`checked=True` 渲染勾选项；
   `TrayItem.separator()` 为分隔线。
 - `close_to_tray=True` — 拦截所有窗口的关闭请求并隐藏整个应用
   （从菜单 / 托盘点击恢复；macOS 上 Dock 点击经 `ReopenEvent`）。

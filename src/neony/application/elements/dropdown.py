@@ -10,7 +10,6 @@ via the engine's synthetic ``outsideclick`` event.
 
 from __future__ import annotations
 
-import urllib.parse
 from collections.abc import Sequence
 
 from neony.application.theme import Theme, stub
@@ -19,6 +18,7 @@ from neony.dom import Button as _ButtonElem
 
 from .. import motion
 from .base import Component, ReactiveText, _mount_text
+from .icon import Icon
 
 _TRIGGER = Styles(
     display="flex",
@@ -44,15 +44,6 @@ _GLASS_TRIGGER = _TRIGGER.model_copy(
         "border": f"1px solid {Theme.glass_border('neutral')}",
     }
 )
-
-_CHEVRON_SVG = (
-    "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' "
-    "fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' "
-    "stroke-linejoin='round'><path d='M4 6l4 4 4-4'/></svg>"
-)
-_CHEVRON_UP_SVG = _CHEVRON_SVG.replace("M4 6l4 4 4-4", "M4 10l4-4 4 4")
-_CHEVRON = f'url("data:image/svg+xml,{urllib.parse.quote(_CHEVRON_SVG)}")'
-_CHEVRON_UP = f'url("data:image/svg+xml,{urllib.parse.quote(_CHEVRON_UP_SVG)}")'
 
 _WRAP = Styles(position="relative", display="inline-block")
 # A component-owned click-away layer replaces the unreliable document-level
@@ -152,7 +143,7 @@ class Dropdown(Component):
 
         self._label_span = Span(container=[])
         _mount_text(self._label_span, label)
-        self._chevron = Span(container=["▾"], styles=_CHEVRON_STYLE)
+        self._chevron = Span(container=[Icon._font("expand_more").render("14px")], styles=_CHEVRON_STYLE)
         self._trigger = Div(
             styles=(_GLASS_TRIGGER if glass else _TRIGGER).model_copy(
                 update={"width": width, "position": "relative", "z_index": 1100}

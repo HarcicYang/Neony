@@ -437,7 +437,7 @@ class Tree(Component):
 
     def _chevron_span(self, node: TreeNode) -> Span:
         return Span(
-            container=["▶"],
+            container=[Icon._font("chevron_right").render("14px")],
             styles=_CHEVRON_OPEN if node.expanded else _CHEVRON,
         )
 

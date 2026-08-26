@@ -2,8 +2,8 @@
 
 > [中文版本](reactive.zh.md) · [API index](README.en.md) · [Documentation home](../README.en.md)
 
-Import from `neony.dom`. The V-DOM diff engine reacts to whole-tree
-mutations; these primitives react to individual state changes.
+Import from `neony.dom`. These primitives track individual state
+changes and drive automatic UI updates.
 
 ## `Signal`
 
@@ -49,8 +49,8 @@ name.set("world")  # re-runs
 stop.dispose()  # unsubscribes everything
 ```
 
-Re-runs are coalesced: with a running event loop they are deferred to
-`loop.call_soon`; use `batch()` to coalesce synchronously.
+Re-runs are coalesced: multiple writes in one synchronous block produce
+a single re-run; use `batch()` to force that synchronously.
 
 ```python
 from neony.dom import batch, Signal
@@ -112,7 +112,7 @@ panel.bind_visible(count)  # display: none when falsy
 - `unbind()` — dispose every binding on the element
 
 All five are also available on `Component` (the first four proxy to the
-component's root element). A binding write marks the element dirty and
+component's root element). A binding write updates the element and
 schedules a render for its window, so a signal changed from anywhere —
 an event handler, a timer, another window — reaches the screen without
 an explicit `render()` call.
@@ -166,11 +166,8 @@ async def on_sync_change(event: DomEvent) -> None:
 switch.on_change(on_sync_change)
 ```
 
-## Dirty-subtree tracking
+## Automatic rendering
 
-Every mutation marks the element dirty and propagates up to the root.
-
-Rendering re-serializes only dirty elements; unchanged subtrees reuse
-their cached snapshots (which the diff engine sees as identical, so zero
-patches are emitted). This is automatic — `container.append()` and
-property assignment both participate.
+Element and attribute mutations automatically schedule a render for the
+affected window. `container.append()` and property assignment both
+participate, so no explicit refresh is required.

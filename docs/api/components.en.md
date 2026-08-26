@@ -82,7 +82,7 @@ Options are `str` (value == label) or `(value, label)` tuples. The
 popup is drawn by the component — a themed glass panel of rows — since
 WebKitGTK's native popup ignores option `background-color`. Keyboard:
 Enter/Space opens, ArrowDown/Up highlights, Enter picks, Escape/Tab
-closes; click-away closes via the engine's `outsideclick` event.
+closes; click-away closes.
 
 ### `ComboBox`
 
@@ -180,8 +180,8 @@ fade) on the tab strip — set `False` to suppress it.
 `selected_panel` binds the visible panel (the Component or its built
 root — matched by identity, never rebuilt); `selected_title` selects by
 title string and raises `ValueError` for unknown titles. `active`
-(index) and `active_key` are deprecated aliases — `active_key` returns
-the tab title (it used to return an opaque element id).
+(index) and `active_key` (tab title) are deprecated aliases for the
+`selected_*` properties.
 
 ### `Accordion` & `Collapsible`
 
@@ -202,7 +202,7 @@ hidden and visible; an `Accordion` stacks them in a single scroll flow.
 With `multiple=True` (the default) several sections can stay open; with
 `multiple=False` opening one closes the others. Only the `display`
 property switches — expanding replays the built-in `neony-rise-in`
-entrance animation, so no JS layer is involved.
+entrance animation.
 
 `Collapsible(title, *content, expanded=False, key=None)` builds a single
 section (also accepted positionally by `Accordion`); `key` defaults to
@@ -239,7 +239,7 @@ dlg.on_close(lambda d: print("closed"))  # called with the dialog
 
 A fixed full-page scrim (`--color-bg-overlay`, theme-following) with a
 centered panel. Close paths: scrim click, Escape (while focus is
-inside), or click-away (`outsideclick`). `closable=False` disables only
+inside), or click-away. `closable=False` disables only
 the scrim. `actions` render as a row of themed buttons — `DialogAction`
 takes a label (positional), a `variant` (`primary`/`ghost`/`danger`),
 an `on_click` callback (called with the dialog, sync or async) and
@@ -409,8 +409,8 @@ A themed frame around a single `<img>`. `src` is an **already-built URL**
 — pass it `file_url(path)` for a local file, `local_url(path)` to stream
 it over the built-in `neony://local` protocol (works where `file://` is
 blocked), `data_url(path)` to embed the
-bytes, or any `https://` URL; the component does no path conversion itself
-(keeping that boundary in the caller's hands). A rounded, overflow-hidden
+bytes, or any `https://` URL; the component expects a prebuilt URL and
+does not convert paths for you. A rounded, overflow-hidden
 frame wraps the image so `object-fit` can crop to the radius and a
 placeholder tint shows before the bytes arrive. `width`/`height` accept
 `str` (`"40%"`) or `int` (→ `"40px"`). `fit` is `object-fit`
@@ -433,10 +433,9 @@ playback runs through the built-in transport row (play/pause, position
 slider with scrubbing, time labels, mute, volume) built from regular
 Neony widgets and updated reactively from media events. Sources are
 owned by the component: pass `local_url(path)` to stream over the
-built-in `neony://local` protocol — the runtime hydrates it
-(fetch → Blob URL → load) because WebKitGTK's media pipeline cannot
-resolve custom schemes — or hand it any `https://`/`data:` URL for the
-native path; switching between the two at runtime is handled for you
+built-in `neony://local` protocol and the runtime loads it
+automatically, or pass any `https://`/`data:` URL for the native path;
+switching between the two at runtime is handled for you
 (`bind_src(signal)` keeps it declarative). For local MP4 files whose
 codec the webview cannot decode (HEVC `hvc1`/`hev1`), the runtime
 detects it and transparently transcodes to H.264 via `imageio-ffmpeg`,
@@ -456,13 +455,10 @@ song.on_ended(lambda event: playlist.advance())
 await song.toggle_muted()
 ```
 
-The same managed player engine as [`Video`](#video) as a compact control
-card. Playback runs through the WebAudio engine (`decodeAudioData` on a
-shared buffer/gain graph), which sidesteps WebKitGTK's shared
-HTMLMediaElement audio pipeline; without an `AudioContext` the runtime
-falls back to the native blob path. Same ownership model, transport row,
-commands, events, options (minus the picture surface) and HEVC transcode
-fallback; `width` sizes the card.
+The same managed player as [`Video`](#video), presented as a compact
+control card. The ownership model, transport row, commands, events, and
+options match — minus the picture surface — and HEVC transcode fallback
+applies too. `width` sizes the card.
 
 ### `Avatar`
 
@@ -552,7 +548,7 @@ other.on_change(lambda e: print(e.value))  # right-click menu selection
 other.on_action(lambda v: print(v))  # quick action click
 ```
 
-A single chat message in the QQ/Telegram style. `from_me` flips the
+A single chat message. `from_me` flips the
 row's alignment (self → right, others → left) and the bubble fill
 (self → accent with white text, others → raised surface); the corner
 toward the avatar is squared off. `avatar` is an optional `Avatar` on
@@ -598,9 +594,9 @@ segments = editor.content()  # [TextSegment, ImageSegment, ...]
 ```
 
 An inline `contenteditable` editor. Text and image segments coexist in
-the live DOM; the Python diff freezes this managed subtree so typing,
-IME composition and the caret survive Neony renders. Flat positions
-count one per text character and one per inline image.
+the live DOM, and the editor keeps typing, IME composition, and the
+caret stable across Neony renders. Flat positions count one per text
+character and one per inline image.
 
 - `content() -> list[TextSegment | ImageSegment]` — ordered content.
 - `set_content(segments)` — replace programmatically.
@@ -621,10 +617,9 @@ await area.scroll_to_top()
 await area.scroll_to(120, behavior="smooth")
 ```
 
-A scrollable vertical region. All DOM scrolling goes through internal
-`window.neony` commands — user code never writes JavaScript. Mount
-contract: definite-height flex parent (`flex_grow + flex_basis:0 +
-min_height:0` on the component).
+A scrollable vertical region with programmatic scrolling. Mount in a
+definite-height flex parent (`flex_grow + flex_basis:0 + min_height:0`
+on the component).
 
 ### `StickToBottom`
 
@@ -635,10 +630,9 @@ await stick.scroll_to_bottom(force=True)
 
 The chat-stream scroll container. It auto-pins while the user is near
 the bottom; scrolling up pauses the pin, and scrolling back near the
-bottom resumes it. The internal JS engine owns the behavior
-(`data-neony-autostick`); `scroll_to_bottom(force=True)` scrolls
-regardless of the current pin state. Mount contract: same as
-`ScrollArea`.
+bottom resumes it. `scroll_to_bottom(force=True)` scrolls regardless of
+the current pin state. The same mounting requirement as `ScrollArea`
+applies.
 
 
 ## Drag & reorder
@@ -646,7 +640,7 @@ regardless of the current pin state. Mount contract: same as
 ### `Reorder` component
 
 The ready-made way to reorder a collection is the `Reorder` board — a
-flex container of draggable cards that owns the reorder internally:
+flex container of draggable cards:
 
 `ReorderContent` is the accepted card-content type: a reactive string,
 `Component`, or raw `DOMElement`. It is exported from
@@ -669,12 +663,10 @@ board.on_drop(lambda e: e.value)  # ordered keys after a drag
 board.order  # current keys in render order
 ```
 
-- Cards are pre-marked draggable (the payload is declared up front — a
-  Python round-trip in `dragstart` would be too late) and `drop` reorders
-  the board itself; the diff engine emits a `ReorderPatch` for free.
-- Both axes work: the engine detects the container's `flex-direction` and
-  judges the insertion side by the cursor's half — `offset_x` for a `row`
-  (first half inserts before, second after), `offset_y` for a `column`.
+- Cards are pre-marked draggable, and `drop` reorders the board itself.
+- Both axes work: the board follows its `direction`, judging the
+  insertion side by the cursor's half — `offset_x` for a `row` (first
+  half inserts before, second after), `offset_y` for a `column`.
 
   A wrapping `row` board forms a grid, so a card can be dragged both
   horizontally (within a row) and vertically (into another row). The
@@ -687,7 +679,7 @@ board.order  # current keys in render order
   `Card`s, …) gets an auto-generated `reorder-card-N` key.
 - **Generic over card content** — `Reorder[T]` and `ReorderItem[T]` are
   typed by what the cards contain, so any component (or any other
-  content type) can stand in exactly where `ReorderItem` used to, and
+  content type) can be used anywhere `ReorderItem` is expected, and
   `items` yields `ReorderItem[T]`:
 
   ```python
@@ -704,5 +696,5 @@ board.order  # current keys in render order
 - `on_drop` fires with `event.value` = the ordered card keys of the
   board that received the drop.
 
-For the low-level drag primitive (`drag_payload`, `dataTransfer`),
-see the [DOM & CSS → Drag & reorder](dom-css.en.md) section.
+For the low-level drag primitive (`drag_payload`, drag lifecycle
+events), see the [DOM & CSS → Drag & reorder](dom-css.en.md) section.

@@ -22,6 +22,7 @@ import json
 from typing import Literal, Self
 
 from neony.application.elements.button import Button
+from neony.application.elements.icon import Icon
 from neony.application.elements.progress import Progress
 from neony.application.elements.slider import Slider
 from neony.application.elements.text import Text
@@ -50,6 +51,11 @@ _DIRECT_EVENTS = (
     "waiting",
     "error",
 )
+
+_PLAY_ICON = Icon._font("play_arrow")
+_PAUSE_ICON = Icon._font("pause")
+_VOLUME_UP_ICON = Icon._font("volume_up")
+_VOLUME_OFF_ICON = Icon._font("volume_off")
 
 
 def _fmt_time(seconds: float | None) -> str:
@@ -312,9 +318,9 @@ class _MediaBase(Component):
 
     def _transport_row(self) -> Div:
         """Themed control strip shared by both components."""
-        self._play_button = Button("▶", variant="ghost")
-        self._play_button.bind_text(Computed(lambda: "⏸" if self._playing() else "▶"))
+        self._play_button = Button("", variant="ghost", icon=_PLAY_ICON)
         self._play_button.on_click(lambda _event: self.pause() if self._playing() else self.play())
+        effect(lambda: setattr(self._play_button, "icon", _PAUSE_ICON if self._playing() else _PLAY_ICON))
 
         self._time_label = Text("0:00", role="secondary")
         self._time_label.bind_text(self._time_sig, fmt=_fmt_time)
@@ -344,9 +350,9 @@ class _MediaBase(Component):
         self._duration_label = Text("0:00", role="secondary")
         self._duration_label.bind_text(self._duration_sig, fmt=_fmt_time)
 
-        self._mute_button = Button("🔊", variant="ghost")
-        self._mute_button.bind_text(Computed(lambda: "🔇" if self._is_muted() else "🔊"))
+        self._mute_button = Button("", variant="ghost", icon=_VOLUME_UP_ICON)
         self._mute_button.on_click(lambda _event: self.toggle_muted())
+        effect(lambda: setattr(self._mute_button, "icon", _VOLUME_OFF_ICON if self._is_muted() else _VOLUME_UP_ICON))
 
         self._volume_slider = Slider("", min=0.0, max=1.0, step=0.05, value=1.0)
         self._volume_slider.on_input(self._on_volume_input)

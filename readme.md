@@ -24,8 +24,8 @@ Reactive desktop UI framework for Python, built on [LumiView](https://github.com
 > contributions are welcome.
 
 Neony renders a reactive DOM in a native window. You compose your UI from
-Python objects — components, layouts, styles — and Neony diff-updates the
-browser DOM automatically. Application code does not need to write HTML or
+Python objects — components, layouts, styles — and Neony updates the
+browser DOM incrementally. Application code does not need to write HTML or
 JavaScript.
 
 It builds on [LumiView](https://lumiview.dev), which uses the same Rust
@@ -33,10 +33,8 @@ It builds on [LumiView](https://lumiview.dev), which uses the same Rust
 
 - **Pure Python API** — components, layouts and events; no HTML or JavaScript in application code
 - **Fine-grained reactivity** — `Signal` / `Computed` / `Effect` primitives with declarative bindings
-- **Dirty-subtree diffing** — only changed elements re-serialize; unchanged subtrees reuse cached snapshots
-- **Style direct-patch** — pure style/attr changes (hover, focus, press) patch straight from the snapshot cache, skipping serialization and diff
 - **Same stack as Tauri** — Rust `tao`/`wry` webviews via LumiView
-- **10 theme presets** — Nightglow / Planet Plaza / Ember Zone / Cyberangel
+- **8 theme presets** — Nightglow / Planet Plaza / Ember Zone / Cyberangel
   families, each with light and dark material, via CSS custom properties
 - **(Optional) Frosted glass** — translucent surfaces with backdrop blur
 - **Colour-matched glow** — focus rings and hover glows tinted with each element's semantic colour
@@ -129,11 +127,11 @@ Import from `neony.application.elements`.
 | `Pane`                    | Selectable Sidebar entry + content panel — `key`, `icon`, `section`, `shortcut` |
 | `SidebarGroup`            | Titled section of a Sidebar — small uppercase label above its items          |
 | `Image`                   | Themed image in a rounded, overflow-hidden frame (`src` is any URL)            |
-| `Video` / `Audio`         | Managed themed media players — custom transport row, `neony://` sources auto-hydrated, WebAudio audio engine, HEVC transcode fallback |
+| `Video` / `Audio`         | Managed themed media players — custom transport row, local `neony://` sources, HEVC transcode fallback |
 | `Avatar`                  | User avatar — image, letter initial, or placeholder, optional corner `badge`   |
 | `Badge`                   | Status pill or corner count — variants, status dot, `99+` clamp, zero hides    |
 | `Card`                    | Titled content panel — actions, footer, optional frosted-glass `glass` surface |
-| `MessageBubble`           | QQ/Telegram-style chat message — from_me alignment/colors, optional avatar + name, built-in right-click menu, hover quick actions |
+| `MessageBubble`           | chat message — from_me alignment/colors, optional avatar + name, built-in right-click menu, hover quick actions |
 | `NoticeBubble`            | Centered system message pill for chat notices                                   |
 | `RichText`                | Inline contenteditable editor — text + images, caret/selection API, insert at caret, `content()` segments, IME-safe, paste image files |
 | `ScrollArea`              | Scrollable vertical region with `scroll_to_bottom()` / `scroll_to_top()` / `scroll_to()` |
@@ -188,20 +186,20 @@ All components share a fluent, chainable API — see the
 - **Native file dialogs** — `app.open_file()`, `app.open_files()`,
   `app.save_file()`, `app.select_folder()` shell out to the platform's
   own picker — zenity on Linux, `osascript` on macOS, PowerShell on
-  Windows, tkinter fallback — shown in an executor thread so the app
-  keeps running while they're up (`None` on cancel, `[]` for a
-  cancelled multi-select).
+  Windows, tkinter fallback — opened asynchronously so the app keeps
+  running while they're up (`None` on cancel, `[]` for a cancelled
+  multi-select).
 
 ---
 
 ## Theming
 
-Ten built-in presets across four visual families — Nightglow, Planet Plaza,
+Eight built-in presets across four visual families — Nightglow, Planet Plaza,
 Ember Zone, and Cyberangel, each with paired light and dark material —
 exposed as CSS custom properties on `:root`; the historical names `DARK`
 (default), `LIGHT`, and `DEEP_BLUE` remain as aliases. Switching themes
-replaces that variable block only — no DOM diff; the browser recolors
-every `var(--color-*)`. Scrollbars and interaction glows (focus rings,
+replaces the `:root` variable block, and the browser recolors every
+`var(--color-*)`. Scrollbars and interaction glows (focus rings,
 hover halos) reference the same tokens, so they follow theme switches
 too. See the [API reference](docs/api/platform-i18n.en.md) for switching
 and custom themes. Motion tokens work the same way: `Motion.DEFAULT`
@@ -242,20 +240,17 @@ lifecycle, components, animation, platform integration and verification.
 
 ---
 
-## Development
+## Running the demos from source
 
-This project uses [uv](https://docs.astral.sh/uv/) as the environment
-manager and runner.
+The demos in the repository root need the development environment
+described in [CONTRIBUTING.md](CONTRIBUTING.md), then:
 
 ```bash
-uv sync --group dev   # install dependencies (incl. dev tools)
-
-uv run gallery                       # run the component gallery
-uv run python scripts/check_all.py   # run the full check suite (ruff / pyrefly / pytest / vitest)
+uv run gallery
 ```
 
-`scripts/check_all.py` also runs the JavaScript tests (`vitest` + `jsdom`).
-It runs `npm ci` automatically when `node_modules/` is missing.
+Development, testing and documentation conventions live in the
+contributing guide.
 
 ---
 

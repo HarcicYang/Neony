@@ -24,6 +24,7 @@ from neony.dom import Button as _ButtonElem
 
 from .. import motion
 from .base import Component, ReactiveText, _mount_text
+from .icon import Icon
 
 
 class MenuBranch:
@@ -257,7 +258,7 @@ class Menu(Component):
         children = [label_span]
         branch_chevron: Span | None = None
         if branch is not None:
-            branch_chevron = Span(container=["▶"], styles=_BRANCH_CHEVRON)
+            branch_chevron = Span(container=[Icon._font("chevron_right").render("14px")], styles=_BRANCH_CHEVRON)
             children.append(branch_chevron)
         row = _ButtonElem(type="button", container=children, styles=_OPTION, args={"role": "menuitem"})
         row.bubble_events = True

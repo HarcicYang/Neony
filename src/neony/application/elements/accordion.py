@@ -19,6 +19,7 @@ from neony.application.theme import stub
 from neony.dom import Animation, Color, Div, DOMElement, DomEvent, Span, Styles, Transition
 
 from .base import Component
+from .icon import Icon
 
 # Accessibility / activation attributes for a collapsible header.  These
 # live on the internal header element (behind the component), never on the
@@ -122,7 +123,10 @@ class Collapsible(Component):
         # The accordion this belongs to (set on adoption). None = standalone.
         self._accordion: Accordion | None = None
 
-        self._chevron = Span(container=["▶"], styles=_CHEVRON_OPEN if expanded else _CHEVRON)
+        self._chevron = Span(
+            container=[Icon._font("chevron_right").render("14px")],
+            styles=_CHEVRON_OPEN if expanded else _CHEVRON,
+        )
         self._title_span = Span(container=[title], styles=Styles(font_size="14px"))
         self._header = Div(
             container=[self._title_span, Span(container=[self._chevron], styles=Styles(margin_left="auto"))],

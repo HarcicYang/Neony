@@ -15,7 +15,7 @@ Pull Request 都非常欢迎。本文档说明项目约定与贡献方式。
 
 用户永远不需要接触 HTML、JavaScript 或 CSS 字符串。布局、样式、事件、
 窗口控制全部以 Python 对象暴露。不要在公开 API 中暴露原始的 JS/HTML
-机制;内部实现(如 `data-window-action` 属性、JS 引擎)保持内部。
+机制;内部实现(如 `data-window-action`、浏览器侧管道)保持内部。
 
 ### 2. 状态在组件内部管理
 
@@ -87,7 +87,7 @@ uv run demo_multi_window.py         # 多窗口示例
 uv run python scripts/check_all.py  # 完整检查 — ruff / pyrefly / pytest / vitest
 ```
 
-JS 运行时（事件委托、diff 引擎、合成的 `outsideclick`）有自己的测试套件，
+浏览器侧运行时（事件委托、点击外部关闭处理）有自己的 JS 测试套件，
 位于 `tests/js/`，由 `scripts/check_all.py` 一并运行（jsdom 环境下的
 vitest）。干净 checkout 不包含被 Git 跟踪的 `node_modules/`；目录不存在时，
 检查脚本会自动执行 `npm ci`。新增 **Python** 组件通常不需要写 JS 测试——
@@ -126,7 +126,7 @@ vitest）。干净 checkout 不包含被 Git 跟踪的 `node_modules/`；目录�
 **欢迎:** bug 修复、遵循现有模式的新组件、文档改进、测试覆盖、
 体验打磨。
 
-**先讨论(开 issue):** 大规模 API 变更、架构变更(桥接、diff 引擎、
+**先讨论(开 issue):** 大规模 API 变更、架构变更(窗口桥接、渲染内部机制、
 主题)、许可证变更、新增运行时依赖。
 
 **平台说明:** 路线图目前将 Windows/WebView2 和 Linux Wayland 标记为已验证目标。

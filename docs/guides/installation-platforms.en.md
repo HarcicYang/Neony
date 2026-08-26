@@ -14,22 +14,8 @@ For an application installed from the package index:
 python -m pip install neony
 ```
 
-For a checkout of this repository:
-
-```bash
-uv sync --group dev
-```
-
-The repository's recommended commands use `uv run`, for example:
-
-```bash
-uv run gallery
-uv run python scripts/check_all.py
-```
-
-`package.json` is only for the JavaScript runtime tests. A clean checkout has
-no tracked `node_modules/`; `scripts/check_all.py` runs `npm ci` automatically
-when the directory is absent.
+To build or modify the repository itself, use the development setup
+documented in [Contributing](../../CONTRIBUTING.md).
 
 ## Linux
 
@@ -80,11 +66,6 @@ Arch Linux    : sudo pacman -S webkit2gtk-4.1
 openSUSE      : sudo zypper install libwebkit2gtk-4_1-0
 ```
 
-> Note for Arch users: the upstream packaging workflow previously documented
-> `webkit2gtk-6.0`, but that provides the GTK 4 / newer API and is **not** the
-> one this framework links. The framework targets the WebKitGTK 4.1 API, so
-> install `webkit2gtk-4.1`.
-
 ### Optional system tray dependency
 
 The native tray integration dynamically loads this library at runtime, so it is
@@ -100,15 +81,12 @@ openSUSE      : libayatana-appindicator3-1
 If it is unavailable, the windowed application still runs; tray creation is
 logged and skipped by the application layer.
 
-### Wayland, X11, and CI
+### Wayland and X11
 
-Wayland is the primary Linux desktop verification target. The Linux blur path
-uses the compositor's background-effect protocol where supported; positioning
-is also subject to Wayland restrictions.
-
-X11 is not a complete support target at this stage. CI uses `xvfb-run` for
-headless startup smoke tests, which proves that demos reach the event loop but
-does not prove every X11 desktop behavior or rendering result.
+Wayland is the primary Linux desktop target. The Linux blur path uses the
+compositor's background-effect protocol where supported; positioning is also
+subject to Wayland restrictions. X11 is not a complete support target at this
+stage.
 
 ## Windows
 
@@ -116,8 +94,8 @@ Windows uses the operating system's WebView2 runtime. Install or enable the
 WebView2 runtime before running an application. Native window materials such
 as Acrylic and Mica depend on the platform and window configuration.
 
-The project has Windows packaging support in the Nuitka workflow, but individual
-features should still be verified on the target Windows version before shipping.
+Individual features should still be verified on the target Windows version
+before shipping.
 
 ## macOS
 
@@ -126,8 +104,8 @@ transparent windows can request a native blur effect. WKWebView does not expose
 all filesystem metadata in a web drop event, so applications that depend on
 file paths should use the Neony native drop channel and test on the target OS.
 
-The macOS runtime and HiDPI/mixed-DPI behavior are not fully covered by the
-repository's Linux CI; treat those as platform-specific verification work.
+The macOS runtime and HiDPI/mixed-DPI behavior are platform-specific
+verification work.
 
 ## HEVC / codec fallback
 
@@ -149,7 +127,7 @@ destination = await app.save_file(default_name="output.txt")
 folder = await app.select_folder()
 ```
 
-The worker selects the platform implementation:
+The platform implementation is selected automatically:
 
 ```text
 Linux   → zenity when available, otherwise tkinter
@@ -158,8 +136,8 @@ Windows → PowerShell
 Other   → tkinter fallback
 ```
 
-The call runs in an executor thread, so the application's asyncio loop can keep
-serving other work while the picker is open. A cancelled single-selection call
+The picker opens asynchronously, so the application keeps responding
+while it is open. A cancelled single-selection call
 returns `None`; a cancelled multi-selection call returns `[]`. File filters are
 passed as `(label, pattern)` pairs, for example:
 
@@ -178,7 +156,6 @@ platform where the application will ship.
 | WebView fails to start on Linux | Confirm the WebKitGTK runtime and GTK libraries are installed; check the process stderr. |
 | Tray icon is missing | Install `libayatana-appindicator`; tray creation is optional and may be skipped. |
 | File picker does not appear | Check `zenity`/`osascript`/PowerShell or tkinter, plus the display/session environment. |
-| A demo exits immediately in CI | Run it under `xvfb-run`; use `tests/smoke_demos.py` rather than opening a real desktop window in a static check. |
 | A transparent window has no blur | Check compositor/platform support; blur failure is non-fatal and leaves the window usable. |
 
 For a first working application, return to

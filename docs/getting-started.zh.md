@@ -16,11 +16,8 @@ Neony 需要 Python 3.11 或更高版本，以及对应平台的原生 WebView �
 python -m pip install neony
 ```
 
-如果你是在本仓库中开发，则安装开发环境：
-
-```bash
-uv sync --group dev
-```
+如果你想构建或修改 Neony 本身，请改用[贡献指南](../CONTRIBUTING.zh.md)
+中描述的仓库环境。
 
 平台相关依赖见[安装与平台指南](guides/installation-platforms.zh.md)。
 
@@ -139,7 +136,7 @@ surface = Div(
 )
 ```
 
-四个视觉族共十套内置预设（`DARK`、`LIGHT`、`DEEP_BLUE` 保留为别名）。
+四个视觉族共八套内置预设（`DARK`、`LIGHT`、`DEEP_BLUE` 保留为别名）。
 需要自定义 token、运动、transition 或 keyframe 时，再阅读
 [主题与平台专题](api/platform-i18n.zh.md)。
 

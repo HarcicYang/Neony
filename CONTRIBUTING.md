@@ -17,8 +17,8 @@ sent back for revision.
 
 Users never touch HTML, JavaScript or CSS strings. Everything — layouts,
 styles, events, window control — is exposed as Python objects. Do not
-expose raw JS/HTML mechanisms in the public API; internals (like the
-`data-window-action` attribute or the JS engine) stay internal.
+expose raw JS/HTML mechanisms in the public API; internals (like
+`data-window-action` or browser-side plumbing) stay internal.
 
 ### 2. State is managed internally
 
@@ -100,12 +100,12 @@ uv run demo_multi_window.py         # multi-window demo
 uv run python scripts/check_all.py  # full check suite — ruff / pyrefly / pytest / vitest
 ```
 
-The JS runtime (event delegation, the patch engine, the synthetic
-`outsideclick`) has its own test suite under `tests/js/`, run by
-`scripts/check_all.py` (vitest in jsdom). A clean checkout has no tracked
-`node_modules/`; the check script runs `npm ci` automatically when the
- directory is absent. New **Python** components usually don't need JS tests —
-reach for them only when you change `src/neony/javascript/*`.
+The browser-side runtime (event delegation, click-away handling) has its
+own JS test suite under `tests/js/`, run by `scripts/check_all.py`
+(vitest in jsdom). A clean checkout has no tracked `node_modules/`; the
+check script runs `npm ci` automatically when the directory is absent.
+New **Python** components usually don't need JS tests — reach for them
+only when you change `src/neony/javascript/*`.
 
 ---
 
@@ -144,8 +144,8 @@ reach for them only when you change `src/neony/javascript/*`.
 documentation improvements, test coverage, UX polish.
 
 **Discuss first (open an issue):** large API changes, architecture
-changes (bridge, diff engine, theming), license changes, new runtime
-dependencies.
+changes (window bridge, renderer internals, theming), license changes,
+new runtime dependencies.
 
 **Note on platforms:** the roadmap currently marks Windows/WebView2 and Linux
 Wayland as verified targets. macOS/WKWebView and HiDPI/mixed-DPI behavior still

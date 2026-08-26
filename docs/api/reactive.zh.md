@@ -2,8 +2,7 @@
 
 > [English version](reactive.en.md) · [API 索引](README.zh.md) · [文档首页](../README.zh.md)
 
-从 `neony.dom` 导入。V-DOM diff 引擎响应整棵树的变更；这些原语响应
-单个状态的变化。
+从 `neony.dom` 导入。这些原语跟踪单个状态的变化，并驱动界面自动更新。
 
 ## `Signal`
 
@@ -49,7 +48,8 @@ name.set("world")  # 重新执行
 stop.dispose()  # 取消所有订阅
 ```
 
-重跑是合并的:有事件循环时延迟到 `loop.call_soon`；用 `batch()` 做同步合并。
+重跑是合并的:同一同步块内的多次写入只触发一次重跑；需要同步合并时，
+用 `batch()`。
 
 ```python
 from neony.dom import batch, Signal
@@ -109,9 +109,8 @@ panel.bind_visible(count)  # 假值时 display: none
 - `unbind()` — 释放元素上的所有绑定
 
 五个方法在 `Component` 上同样可用(前四个代理到组件的根元素)。绑定
-写入会把元素标记为 dirty 并为其窗口调度一次渲染 — 因此无论 Signal
-在哪里被修改(事件处理、定时器、其他窗口)，都无需显式调用 `render()`
-就能上屏。
+写入会更新元素并为其窗口调度一次渲染 — 因此无论 Signal 在哪里被修改
+(事件处理、定时器、其他窗口)，都无需显式调用 `render()` 就能上屏。
 
 ## `Component.bind_value` — 值双向绑定
 
@@ -157,9 +156,7 @@ async def on_sync_change(event: DomEvent) -> None:
 switch.on_change(on_sync_change)
 ```
 
-## 脏子树追踪
+## 自动渲染
 
-每次变更都会把元素标记为 dirty 并向上传播到根。渲染时只重新序列化
-dirty 元素；未变化的子树复用缓存快照(diff 引擎视其为相同，因此零补丁)。
-
-这是自动的 — `container.append()` 和属性赋值都会参与。
+元素与属性变更会自动为受影响的窗口调度渲染。`container.append()` 和
+属性赋值都会参与，无需显式刷新。

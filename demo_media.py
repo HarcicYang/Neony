@@ -12,7 +12,7 @@ import tempfile
 import wave
 from pathlib import Path
 
-from neony.application import Config, NeonApplication, Page, WindowConfig, local_files
+from neony.application import Config, NeonApplication, Page, WindowConfig, icons, local_files
 from neony.application.elements import (
     Audio,
     Button,
@@ -125,15 +125,15 @@ async def mute(_event: object) -> None:
     await _active().toggle_muted()
 
 
-pick_btn = Button("📂 Choose media file…")
+pick_btn = Button("Choose media file…", icon=icons.folder_open)
 pick_btn.on_click(pick)
-toggle_btn = Button("⏯ Play / Pause")
+toggle_btn = Button("Play / Pause", icon=icons.play_arrow)
 toggle_btn.on_click(toggle)
-back_btn = Button("« 5s")
+back_btn = Button("5s", icon=icons.chevron_left)
 back_btn.on_click(back)
-fwd_btn = Button("5s »")
+fwd_btn = Button("5s", icon=icons.chevron_right)
 fwd_btn.on_click(forward)
-mute_btn = Button("🔇 Mute")
+mute_btn = Button("Mute", icon=icons.volume_up)
 mute_btn.on_click(mute)
 
 page = Page(gap="16px").add(

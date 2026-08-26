@@ -313,8 +313,8 @@ class Sidebar(Component):
     alone — content switching stays the user's job::
 
         sidebar = Sidebar(
-            SidebarItem("Home", icon=Icon.glyph("🏠")),
-            SidebarItem("Settings", icon=Icon.glyph("⚙️")),
+            SidebarItem("Home", icon=Icon._font("home")),
+            SidebarItem("Settings", icon=Icon._font("settings")),
         )
         sidebar.on_change(lambda e: switch_content(e.value))  # key string
 
@@ -322,8 +322,8 @@ class Sidebar(Component):
     pressing its shortcut) swaps the visible pane internally::
 
         sidebar = Sidebar(
-            Pane("Home", panel=home_panel, icon=Icon.glyph("🏠"), shortcut="Ctrl+1"),
-            Pane("Settings", panel=settings_panel, icon=Icon.glyph("⚙️")),
+            Pane("Home", panel=home_panel, icon=Icon._font("home"), shortcut="Ctrl+1"),
+            Pane("Settings", panel=settings_panel, icon=Icon._font("settings")),
         )
         sidebar.on_change(lambda e: print(e.value))  # pane key
         sidebar.selected_key = "settings"  # programmatic, no callback

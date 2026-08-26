@@ -11,7 +11,7 @@ always follows the selection).
 
 Usage::
 
-    items = List("Alice", "Bob", ListItem("Carol", key="carol", icon=Icon.glyph("⭐")), active_key="Bob")
+    items = List("Alice", "Bob", ListItem("Carol", key="carol", icon=Icon._font("star")), active_key="Bob")
     items.on_change(lambda e: print(e.value))   # selected key
     items.selected_key = "carol"                 # programmatic, no callback
     items.children("Dave", "Eve")                # chainable append

@@ -99,14 +99,14 @@ stats_pane = GlassPanel(
 # pairs the Page wires below.
 
 sidebar = Sidebar(
-    Pane("Home", panel=home_pane, icon=Icon.glyph("🏠"), shortcut="Ctrl+1"),
+    Pane("Home", panel=home_pane, icon=Icon._font("home"), shortcut="Ctrl+1"),
     Pane(
         "Settings",
         panel=settings_pane,
-        icon=Icon.glyph("⚙️"),
+        icon=Icon._font("settings"),
         shortcut={"darwin": "Meta+2", "default": "Ctrl+2"},
     ),
-    Pane("Stats", panel=stats_pane, icon=Icon.glyph("📊"), shortcut="Ctrl+3"),
+    Pane("Stats", panel=stats_pane, icon=Icon._font("bar_chart"), shortcut="Ctrl+3"),
 )
 sidebar.on_change(lambda e: print(f"[sidebar] pane: {e.value}"))
 

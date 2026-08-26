@@ -41,15 +41,14 @@ left of the title (a fixed-size square that never stretches), the
 frameless counterpart of `WindowConfig.icon`, since a frameless window
 has no OS chrome to carry it.
 
-The bar is a drag region (double-click maximizes); control buttons carry
-internal `data-window-action` attributes routed through the
-WindowControls bridge — an implementation detail users never see.
+The bar is a drag region (double-click maximizes); the control buttons
+are wired to the window automatically.
 
 ## `Sidebar` & `SidebarItem`
 
 Vertical navigation, glass-matched to `TitleBar`. The sidebar can own
 its content panes — with `Pane` children, clicking an entry (or
-pressing its shortcut) swaps the visible pane internally.
+pressing its shortcut) switches the visible pane.
 
 ```python
 sidebar = Sidebar(
@@ -154,7 +153,7 @@ toggles the scroll indicator on the rail — set `False` to suppress.
 
 Rows mirror the `Accordion` header styling — rounded, transparent, no
 chrome around them — and the rail is bounded by the stage, scrolling
-internally instead of growing the page.
+inside the stage instead of growing the page.
 
 `TreeNode(label, key, icon, panel, expanded, children, shortcut)` — a
 node cannot carry both a `panel` and `children` (raises). Fluent
@@ -195,9 +194,9 @@ and a click selects. The accent focus ring appears during arrow
 navigation and clears on click. `edge_fade` toggles the scroll
 indicator.
 
-Mounting contract: mount in a *definite-height* flex parent (e.g.
-`VStack(..., grow=1)` or `GlassPanel(grow=True)`); the list scrolls its
-rows internally instead of growing the page.
+Mount in a *definite-height* flex parent (e.g. `VStack(..., grow=1)` or
+`GlassPanel(grow=True)`); the list scrolls its rows inside the parent
+instead of growing the page.
 
 ## `DataTable` & `Column`
 
@@ -256,14 +255,13 @@ Keyboard: single mode arrows move the selection (firing `change`);
 multi mode arrows move a focus ring and Space toggles it. Home/End
 jump; Enter/Space select or toggle.
 
-Mounting contract: mount in a *definite-height* flex parent; the table
-scrolls (both axes) internally. `edge_fade` toggles the scroll
-indicator.
+Mount in a *definite-height* flex parent; the table scrolls on both
+axes inside the parent. `edge_fade` toggles the scroll indicator.
 
 ## `Icon`
 
-Built-in UI icons use the Theme-style stub namespace. The catalog class is
-private and is not part of the public API:
+Built-in UI icons are exposed through the `icons` namespace; the catalog
+class is private and is not part of the public API:
 
 ```python
 from neony.application import icons
@@ -275,11 +273,9 @@ SidebarItem("Home", icon=icons.home)
 
 The built-in catalog uses one bundled Material Symbols Rounded font. Icons
 inherit the component's `color` token, use fixed square geometry, and keep the
-same weight/fill/grade/optical-size settings. This single-font policy is the
-visual consistency boundary; different third-party fonts are not mixed inside
-one semantic catalog.
+same weight/fill/grade/optical-size settings.
 
-`Icon.image(url_or_path)` remains for logos and native image resources, while
-`Icon.glyph(text)` remains for deliberate custom text or emoji content. Both
+`Icon.image(url_or_path)` is used for logos and native image resources, while
+`Icon.glyph(text)` is used for deliberate custom text or emoji content. Both
 return `Icon` values and are accepted by component `icon` parameters,
 including `Button.icon: Icon | None`.

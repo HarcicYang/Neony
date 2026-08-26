@@ -36,12 +36,12 @@ Styles(
 ```
 
 Properties needing browser prefixes (`backdrop-filter`, `user-select`) are
-emitted with their prefixed variants automatically — one Python field, all
-engine spellings.
+emitted with their prefixed variants automatically — one Python field,
+all variants.
 
 ## `DomEvent`
 
-Event payload forwarded from JavaScript:
+Event payload delivered to your handlers:
 
 ```python
 async def handler(event: DomEvent) -> None:
@@ -57,8 +57,8 @@ Rich fields ride along on the events that carry them: modifier keys
 (`movement_x` / `movement_y` / `pointer_type`), wheel deltas
 (`delta_x` / `delta_y` / `delta_mode`), scroll position
 (`scroll_top` / `scroll_left` — the scrolled element's position,
-dispatched to the nearest keyed ancestor, high-frequency so renders
-are deferred), clipboard data (`clipboard_text` / `clipboard_html`),
+dispatched to the nearest keyed ancestor), clipboard data
+(`clipboard_text` / `clipboard_html`),
 in-app drag payloads (`drag_payload`), and dropped files
 (`drop_files`).
 
@@ -66,7 +66,7 @@ in-app drag payloads (`drag_payload`), and dropped files
 
 Every HTML element is a class: `Div`, `Span`, `Body`, `H1`–`H6`,
 `Input`, `Button`, `Form`, `Table`, … They share the fluent event API
-and support `build()` (HTML string) and `to_node()` (reactive snapshot).
+and support `build()` (HTML string) and `to_node()` (a mountable node).
 
 ```python
 from neony.dom import Color, Div, Styles
@@ -79,13 +79,10 @@ card = Div(
 
 ## Drag & reorder
 
-Beneath the [`Reorder`](components.en.md#reorder-component) component, the
-engine delegates the full drag lifecycle — `dragstart` / `dragenter` /
-`dragover` / `dragleave` / `drop` / `dragend` — and a drop payload rides
-through `dataTransfer`. Set `drag_payload` on an element to make it
-draggable and declare the payload the engine hands to
-`dataTransfer.setData` on dragstart (it must be synchronous — a Python
-round-trip in `dragstart` would be too late):
+The low-level drag API works on any element. Set `drag_payload` to make
+an element draggable and give the drag a stable payload; it is delivered
+back to drop handlers through `DomEvent.drag_payload`, with
+`event.x` / `event.y` / `offset_x` / `offset_y` telling where it landed:
 
 ```python
 item = Div(key="row-1", drag_payload="row-1")  # draggable + declared payload
@@ -95,13 +92,10 @@ item.on_dragend(lambda e: print("drag finished"))
 drop_zone.on_drop(lambda e: reorder(e.drag_payload, e.key, e.offset_y))  # payload back
 ```
 
-- `drag_payload` serializes to `draggable="true"` + `data-neony-drag`; the
-  engine calls `setData("application/x-neony", payload)` in the dragstart
-  handler and reads it back into `DomEvent.drag_payload` on `drop`.
-- `dragover`/`drop` are already `preventDefault()`ed by the engine, so
-  every keyed element is a valid drop target (and the webview never
-  navigates to a dropped file).
-- While dragging, the engine shows a dashed landing slot at the insertion
-  point (cards shift position-only, FLIP-animated), and on drop everything
-  settles into the final order with a matching animation. Purely local in
-  the engine — no IPC, no resizing.
+- Drag lifecycle events are available on elements and components:
+  `dragstart` / `dragenter` / `dragover` / `dragleave` / `drop` /
+  `dragend`.
+- `dragover` / `drop` are handled so every keyed element is a valid drop
+  target, and dropping a file never navigates the webview away.
+- During an in-app drag, a dashed landing slot marks the insertion point;
+  cards shift and animate into the final order on drop.

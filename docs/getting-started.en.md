@@ -15,12 +15,8 @@ platform. For a normal application install the package with:
 python -m pip install neony
 ```
 
-If you are working from this repository, install the development environment
-with:
-
-```bash
-uv sync --group dev
-```
+If you want to build or change Neony itself, use the repository setup
+described in [Contributing](../CONTRIBUTING.md) instead.
 
 Platform-specific dependencies are covered in
 [Installation and platforms](guides/installation-platforms.en.md).
@@ -61,9 +57,9 @@ Run it from the directory containing the file:
 python hello.py
 ```
 
-The same example is maintained as
+The repository contains the same example at
 [`demo_hello.py`](../demo_hello.py); use that file when you want to compare the
-tutorial with the repository's tested example.
+tutorial with a tested runnable example.
 
 ## 3. Understand the tree
 
@@ -145,7 +141,7 @@ surface = Div(
 )
 ```
 
-Ten built-in presets span four visual families (`DARK`, `LIGHT`, and
+Eight built-in presets span four visual families (`DARK`, `LIGHT`, and
 `DEEP_BLUE` remain as aliases). See [Theming](api/platform-i18n.en.md)
 for custom tokens, motion, transitions, or keyframes.
 

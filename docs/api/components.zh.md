@@ -78,10 +78,8 @@ sel.value  # 选中的选项值（"m"）
 sel.on_change(lambda e: print(e.value))  # value = 选中的选项值
 ```
 
-选项为 `str`（值即标签）或 `(value, label)` 元组。弹出列表由组件自绘
-——主题化玻璃面板——因为 WebKitGTK 的原生弹出层忽略 option 的
-`background-color`。键盘：Enter/Space 打开，方向键高亮，Enter 选中，
-Escape/Tab 关闭；点击外部经引擎的 `outsideclick` 事件关闭。
+选项为 `str`（值即标签）或 `(value, label)` 元组。键盘：Enter/Space 打开，方向键高亮，Enter 选中，
+Escape/Tab 关闭；点击外部关闭。
 
 ### `ComboBox`
 
@@ -103,7 +101,7 @@ async def on_tag_change(event: DomEvent) -> None:
 box.on_change(on_tag_change)  # event.value 是提交后的文本
 ```
 
-可编辑文本框 + 主题化建议面板（原生 `<datalist>` 弹出层无法主题化）。
+改组件提供可编辑文本框 + 主题化建议面板。
 
 聚焦即弹出全部选项（单击即可见）；建议按输入前缀实时过滤；方向键
 高亮、**Tab 或 Enter 自动补全**高亮建议、**PageUp/PageDown 一键选中
@@ -120,11 +118,9 @@ sl.on_input(lambda e: print(e.value))  # float，拖动中持续触发
 sl.on_change(lambda e: print(e.value))  # float，松开时触发
 ```
 
-轨道、accent 填充和滑块由组件自绘（顶层的原生 range 输入不可见，
-负责拖动与键盘）。拖动时填充实时跟随滑块，程序化设置时 0.2s 平滑
-过渡。`step="any"` 可达任意浮点值。PageUp/PageDown 按页步进（10×
-step，无级时为范围 10%）——组件纠正了原生 range 反向的页方向
-（WebKit 规范怪癖）。
+推动轨道。拖动时填充实时跟随滑块，程序化设置时 0.2s 平滑
+过渡。`step="any"` 时可达任意浮点值。PageUp/PageDown 按页步进（10×
+step，无级时为范围 10%）。
 
 ### `Progress`
 
@@ -166,7 +162,7 @@ tabs.on_change(lambda e: print(e.value))  # value = 标签标题
 
 `edge_fade` 切换标签条上的滚动指示器（浮动滑块 + 动态边缘渐变）——设 `False` 关闭。
 
-`selected_panel` 按身份绑定可见面板（组件或其已构建的根元素，绝不重复构建）；`selected_title` 按标题字符串选择，未知标题抛 `ValueError`。`active`（下标）与 `active_key` 为已弃用别名 —— `active_key` 现在返回标签标题（此前返回不透明的元素 id）。
+`selected_panel` 按身份绑定可见面板；`selected_title` 按标题字符串选择，未知标题抛 `ValueError`。`active`（下标）与 `active_key`（标签标题）是 `selected_*` 的弃用别名。
 
 ### `Accordion` & `Collapsible`
 
@@ -181,7 +177,7 @@ accordion.expanded_keys = ["输入与表单"]  # 编程展开 —— 不触发�
 accordion.expanded_keys  # list[str]，当前展开的分组
 ```
 
-`Collapsible` 是一个带标题、可在隐藏/可见之间切换的内容面板；`Accordion` 把若干折叠项堆叠在同一个滚动流里。`multiple=True`（默认）允许同时展开多个分组；`multiple=False` 为互斥模式——展开一个会收起其余的。切换仅改 `display`——展开时重放内置的 `neony-rise-in` 入场动画，因此不涉及 JS 层。
+`Collapsible` 是一个带标题、可在隐藏/可见之间切换的内容面板；`Accordion` 把若干折叠项堆叠在同一个滚动流里。`multiple=True`（默认）允许同时展开多个分组；`multiple=False` 为互斥模式——展开一个会收起其余的。展开时重放内置的 `neony-rise-in` 入场动画。
 
 `Collapsible(title, *content, expanded=False, key=None)` 构造单个折叠项（也可作为位置参数直接传给 `Accordion`）；`key` 默认取标题的小写形式，用于 `change` 事件载荷。`.section(title, *content, ...)` 是流畅写法，一步构建并挂载一个 `Collapsible`。
 
@@ -208,8 +204,8 @@ dlg.on_close(lambda d: print("closed"))  # 回调接收对话框自身
 
 固定全屏 scrim 层（`--color-bg-overlay`，跟随主题）+ 居中面板。
 
-关闭途径：scrim 点击、Escape（焦点在对话框内时）、点击外部
-（`outsideclick`）。`closable=False` 仅禁用 scrim。`actions` 渲染为
+关闭途径：scrim 点击、Escape（焦点在对话框内时）、点击外部。
+`closable=False` 仅禁用 scrim。`actions` 渲染为
 底部一排主题按钮 —— `DialogAction` 接受标签（位置参数）、
 `variant`（`primary`/`ghost`/`danger`）、`on_click` 回调（收对话框
 自身，同步或异步）与 `close_on_click`（默认 True）。注意：任何
@@ -363,7 +359,7 @@ img.src = data_url("other.svg")  # 任意 URL 字符串
 包裹单个 `<img>` 的主题化框架。`src` 是**已拼好的 URL**——本地文件传
 `file_url(path)`，经内置 `neony://local` 协议流式加载传 `local_url(path)`
 （`file://` 被拦截时可用），嵌入字节传 `data_url(path)`，或任意 `https://` URL；
-组件自身不做任何路径转换（这个边界交给调用方）。圆角、overflow-hidden
+组件只接受已拼好的 URL，不做路径转换。圆角、overflow-hidden
 的框架包裹图片，让 `object-fit` 能裁切到圆角，字节到达前显示占位色。
 
 `width`/`height` 接受 `str`（`"40%"`）或 `int`（→ `"40px"`）。`fit` 即
@@ -384,10 +380,9 @@ await clip.set_volume(0.4)
 全托管的主题化视频播放器。原生控件永不显示——播放完全由内置传输条驱动
 （播放/暂停、可拖动进度条、时间标签、静音、音量），传输条由常规 Neony
 组件构成，并从媒体事件响应式更新。源由组件全权管理：本地文件传
-`local_url(path)` 走内置 `neony://local` 协议——运行时自动水合
-（fetch → Blob URL → load），因为 WebKitGTK 的媒体管线无法解析自定义
-scheme；或传任意 `https://`/`data:` URL 走原生路径；两者在运行期切换也
-已处理妥当（`bind_src(signal)` 声明式跟随）。命令：`play()`、`pause()`、
+`local_url(path)` 走内置 `neony://local` 协议，由运行时自动加载；或传任意
+`https://`/`data:` URL 走原生路径；两者在运行期切换也已处理妥当
+（`bind_src(signal)` 声明式跟随）。命令：`play()`、`pause()`、
 `seek(seconds)`、`set_muted(bool)`、`toggle_muted()`、`set_volume(0..1)`。
 事件：`on_play`、`on_pause`、`on_ended`、`on_timeupdate`、`on_error`。
 响应式读取：`playing`、`position`、`duration`、`muted`、`volume`。
@@ -404,11 +399,9 @@ song.on_ended(lambda event: playlist.advance())
 await song.toggle_muted()
 ```
 
-与 [`Video`](#video) 同一套托管播放引擎的紧凑控制卡片形态。所有权模型、
-传输条、命令、事件与选项完全一致（少了画面区域）。播放走 WebAudio 引擎
-（共享 buffer/gain 图上的 `decodeAudioData`），绕开 WebKitGTK 共享的
-HTMLMediaElement 音频管线；没有 `AudioContext` 时运行时回退到原生
-blob 路径。HEVC 转码回退同样适用；`width` 控制卡片宽度。
+与 [`Video`](#video) 同一套托管播放器的紧凑控制卡片形态。所有权模型、
+传输条、命令、事件与选项完全一致（少了画面区域），HEVC 转码回退同样适用；
+`width` 控制卡片宽度。
 
 ### `Avatar`
 
@@ -487,7 +480,7 @@ other.on_change(lambda e: print(e.value))  # 右键菜单选择
 other.on_action(lambda v: print(v))  # 快捷操作点击
 ```
 
-单条聊天消息，QQ/Telegram 风格。`from_me` 切换行对齐（自己 → 右侧，
+单条聊天消息。`from_me` 切换行对齐（自己 → 右侧，
 他人 → 左侧）与气泡填充色（自己 → accent 白字，他人 → 抬升面）；
 朝向头像一侧的圆角做方角处理。`avatar` 是可选的 `Avatar`，放在消息
 自身一侧（构造时 build 一次）；`name` 是气泡上方的可选发送者名。
@@ -526,9 +519,9 @@ editor.on_submit(lambda e: send())  # Enter（IME 安全）
 segments = editor.content()  # [TextSegment, ImageSegment, ...]
 ```
 
-行内 `contenteditable` 编辑器。文字与图片分段共存于实时 DOM；Python
-diff 冻结这个受管子树的差异更新，因此输入、输入法组合与光标都能在
-Neony 渲染中保持稳定。扁平位置按一个文字字符记 1、一张行内图片记 1。
+行内 `contenteditable` 编辑器。文字与图片分段共存于实时 DOM；编辑器
+会在 Neony 渲染中保持输入、输入法组合与光标稳定。扁平位置按
+一个文字字符记 1、一张行内图片记 1。
 
 - `content() -> list[TextSegment | ImageSegment]` — 有序内容。
 - `set_content(segments)` — 编程式替换。
@@ -549,8 +542,7 @@ await area.scroll_to_top()
 await area.scroll_to(120, behavior="smooth")
 ```
 
-可滚动的垂直区域。所有 DOM 滚动都通过内部 `window.neony` 命令完成——
-用户代码无需编写 JavaScript。挂载契约：必须挂在确定高度的 flex 父级
+可滚动的垂直区域，提供编程滚动。须挂在确定高度的 flex 父级
 （组件使用 `flex_grow + flex_basis:0 + min_height:0`）。
 
 ### `StickToBottom`
@@ -561,9 +553,8 @@ await stick.scroll_to_bottom(force=True)
 ```
 
 聊天流滚动容器。用户接近底部时自动贴底；向上滚动暂停贴底，回到接近
-底部时恢复。该行为由内部 JS 引擎负责（`data-neony-autostick`）；
-`scroll_to_bottom(force=True)` 忽略当前贴底状态强制滚到底部。
-挂载契约与 `ScrollArea` 相同。
+底部时恢复。`scroll_to_bottom(force=True)` 忽略当前贴底状态强制滚到底部。
+挂载要求与 `ScrollArea` 相同。
 
 
 ## 拖拽与重排
@@ -571,7 +562,7 @@ await stick.scroll_to_bottom(force=True)
 ### `Reorder` 组件
 
 重排集合的现成方式是 `Reorder` 面板——一个由可拖拽卡片组成的 flex
-容器，重排逻辑内聚在组件内部：
+容器：
 
 `ReorderContent` 是卡片可接受的内容类型别名：响应式字符串、
 `Component` 或原始 `DOMElement`。它从 `neony.application.elements`
@@ -593,9 +584,8 @@ board.on_drop(lambda e: e.value)  # 拖拽后的有序 key
 board.order  # 当前按渲染顺序的 key
 ```
 
-- 卡片预置为可拖拽（载荷提前声明——dragstart 里 Python 往返来不及），
-  `drop` 由组件自身重排；diff 引擎自动发出 `ReorderPatch`。
-- **纵横双向都支持**：引擎自动检测容器的 `flex-direction`，按光标所在
+- 卡片预置为可拖拽，`drop` 由组件自身重排。
+- **纵横双向都支持**：面板按 `direction` 自动判定方向，按光标所在
   半区判定插入侧——`row` 用 `offset_x`（前半插其前、后半插其后）、
   `column` 用 `offset_y`。`row` + wrap 会形成网格，卡片既能横向拖（行内）
   也能纵向拖（跨行）。网格在面板宽度处换行——用 `max_width` 固定宽度即可
@@ -605,8 +595,8 @@ board.order  # 当前按渲染顺序的 key
   包装也不需要显式 key**：纯字符串用标签当 key、带 key 的 DOM 元素保留
   自己的 key，其余一切（一摞 `Card` 等）自动获得 `reorder-card-N` key。
 - **按卡片内容泛型化**——`Reorder[T]` 与 `ReorderItem[T]` 以卡片内容为类型
-  参数，因此任意组件（或任何内容类型）可以直接站在原本 `ReorderItem` 的
-  位置上，`items` 产出 `ReorderItem[T]`：
+  参数，因此任意组件（或任何内容类型）都可以用在需要 `ReorderItem` 的位置，
+  `items` 产出 `ReorderItem[T]`：
 
   ```python
   from neony.application.elements import Card, Text
@@ -619,5 +609,5 @@ board.order  # 当前按渲染顺序的 key
   目标面板）。允许交换的面板之间，卡片 key 必须全局唯一。
 - `on_drop` 触发时 `event.value` = 接收 drop 的面板重排后的卡片 key 列表。
 
-底层拖拽原语（`drag_payload`、`dataTransfer`）见
+底层拖拽原语（`drag_payload`、拖拽生命周期事件）见
 [DOM 与 CSS → 拖拽与重排](dom-css.zh.md#拖拽与重排)。

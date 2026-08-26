@@ -54,9 +54,7 @@ app.set_language(Language.ZH) / app.language  # app 级便捷方法
   `ok`、`cancel`、`close`）。
 - **`tr`** —— 链式代理。`tr.<key>` 与 `tr.<group>.<key>` 各返回一个
   响应式 `Computed[str]`；传给任何接受响应式文本的组件（`Text`、
-  `Button`——共享的 `_mount_text` helper 让任意组件都能接入）。
-
-  `tr.<key>.get()` 读当前值。
+  `Button`）。`tr.<key>.get()` 读当前值。
 - **`tr_now(tr.xx.xxx)`** —— 不订阅地读当前值；用于组件默认文案与
   菜单的展示时解析。在 effect 内安全（不漏建依赖）。
 - **保留 key 名** —— 与 `Computed` 方法重名（`get`、`format`）或以 `_`
@@ -66,7 +64,7 @@ app.set_language(Language.ZH) / app.language  # app 级便捷方法
 
 ## 主题
 
-四个视觉族共十套内置预设 — Nightglow、Planet Plaza、Ember Zone、
+四个视觉族共八套内置预设 — Nightglow、Planet Plaza、Ember Zone、
 Cyberangel，每族 light / dark 成对 — 以 CSS 自定义属性暴露。历史名称
 `DARK`（默认）、`LIGHT`、`DEEP_BLUE` 保留为 `NIGHTGLOW_DARK`、
 `NIGHTGLOW_LIGHT`、`PLANET_PLAZA_DARK` 的别名。每个预设都是
@@ -79,21 +77,18 @@ app.theme  # 当前激活的预设（默认 DARK → NIGHTGLOW_DARK）
 Theme.get("nightglow-light")  # 按 mode 名单次查询已注册预设
 app.theme.next()  # 切换顺序里紧接当前预设的下一个
 Theme.modes()  # 已注册 mode 名，按预设构造顺序排列
-Theme.mode_label("nightglow-dark")  # "Nightglow Light mode" — 下一个 mode 的标签
+Theme.mode_label("nightglow-dark")  # "Nightglow Light mode" — 该 mode 的展示标签
 await app.set_theme(NIGHTGLOW_LIGHT)  # 切换当前预设并重新注入变量
 ```
 
-`Theme.set_mode` / `Theme.toggle` 已移除 —— 切换改为经
-`NeonApplication.set_theme` 换引用，而非就地改实例。
-
-令牌族: `--color-bg`， `--color-surface`，
-`--color-text-primary` / `--color-text-secondary`， `--color-accent`，
-`--color-on-accent` / `--color-on-danger`（饱和 accent / danger 填充上的文字色），
-`--color-danger`， `--color-success`， `--color-border`， `--color-shadow`，
-`--color-*-glass*`(磨砂变体)。
+令牌族：`--color-bg`、`--color-surface`、
+`--color-text-primary` / `--color-text-secondary`、`--color-accent`、
+`--color-on-accent` / `--color-on-danger`（饱和 accent / danger 填充上的文字色）、
+`--color-danger`、`--color-success`、`--color-border`、`--color-shadow`、
+`--color-*-glass*`（磨砂变体）。
 
 组件通过 `Color(var="--color-*")` 引用令牌。切换主题只替换 `:root`
-变量块，不走 DOM diff；浏览器按新的 `var(--color-*)` 重上色。
+变量块，浏览器按新的 `var(--color-*)` 重上色。
 
 自定义主题:
 
@@ -136,9 +131,7 @@ Theme.get("sepia") is my_theme  # True
 ## 运动令牌
 
 弹出层、过渡与组件动画背后的时长和缓动曲线，与主题采用平行的令牌体系。
-`Motion` 是不可变、按名称注册的预设；目前只有内置 `DEFAULT`。组件引用
-`motion.stub` 变量，因此未来新增预设时只需重新注入 `--motion-*`，
-无需改动组件代码。
+`Motion` 是不可变、按名称注册的预设；内置预设为 `DEFAULT`。
 
 ```python
 from neony.application.motion import Motion, popup_animation, stub, transition
@@ -171,7 +164,7 @@ blur/acrylic/mica 效果（`apply_blur`、`apply_acrylic`、`apply_mica`、
 ### 原生文件对话框
 
 公开的 async 方法为 `open_file`、`open_files`、`save_file` 与
-`select_folder`（签名见 [`NeonApplication`](core.zh.md#neonapplication)）。worker 按平台选择实现：
+`select_folder`（签名见 [`NeonApplication`](core.zh.md#neonapplication)）。平台实现自动选择：
 
 ```text
 Linux   → 优先 zenity，否则 tkinter
@@ -180,7 +173,7 @@ Windows → PowerShell
 其他    → tkinter fallback
 ```
 
-调用在 executor 线程中运行，对话框打开时 asyncio 事件循环仍可处理其他任务。
+对话框异步打开，应用在此期间仍可继续响应。
 
 单选取消返回 `None`，多选取消返回 `[]`。文件过滤器使用 `(label, pattern)`
 列表，例如 `[("PNG images", "*.png"), ("All files", "*.*")]`。平台命令或

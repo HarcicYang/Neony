@@ -48,7 +48,7 @@ layout_panel = _leaf_panel("Layout", "HStack / VStack / Flex / Separator.")
 type_panel = _leaf_panel("Type", "Headings and text roles.")
 
 tree = Tree(width="200px").children(
-    TreeNode("Home", key="home", icon=Icon.glyph("🏠")).panel(home_panel),
+    TreeNode("Home", key="home", icon=Icon._font("home")).panel(home_panel),
     TreeNode("Forms", key="forms", expanded=True).children(
         TreeNode("Inputs", key="inputs", shortcut="Ctrl+1").panel(inputs_panel),
         TreeNode("Checks", key="checks", shortcut="Ctrl+2").panel(checks_panel),

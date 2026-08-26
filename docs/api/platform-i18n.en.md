@@ -56,9 +56,8 @@ app.set_language(Language.ZH) / app.language  # app-level convenience
   framework-owned labels (`copy_text`, `delete`, `ok`, `cancel`, `close`).
 - **`tr`** — a chainable proxy. `tr.<key>` and `tr.<group>.<key>` each
   return a reactive `Computed[str]`; pass them to any component that
-  accepts reactive text (`Text`, `Button` — and the shared
-  `_mount_text` helper lets any component adopt it). `tr.<key>.get()`
-  reads the current value.
+  accepts reactive text (`Text`, `Button`). `tr.<key>.get()` reads the
+  current value.
 - **`tr_now(tr.xx.xxx)`** — the current value without subscribing; for
   component defaults and menus resolved at display time. Safe inside
   effects (no dependency leak).
@@ -70,7 +69,7 @@ app.set_language(Language.ZH) / app.language  # app-level convenience
 
 ## Theming
 
-Ten built-in presets across four visual families — Nightglow, Planet
+Eight built-in presets across four visual families — Nightglow, Planet
 Plaza, Ember Zone, and Cyberangel — each with paired light and dark
 material. They are exposed as CSS custom properties; the historical
 names `DARK` (default), `LIGHT`, and `DEEP_BLUE` remain as aliases for
@@ -85,12 +84,9 @@ app.theme  # the active preset (defaults to DARK → NIGHTGLOW_DARK)
 Theme.get("nightglow-light")  # single-shot lookup of a registered preset by mode name
 app.theme.next()  # the preset that follows the active one in toggle order
 Theme.modes()  # registered mode names, in preset-construction order
-Theme.mode_label("nightglow-dark")  # "Nightglow Light mode" — the label of the next mode
+Theme.mode_label("nightglow-dark")  # "Nightglow Light mode" — the display label for this mode
 await app.set_theme(NIGHTGLOW_LIGHT)  # swap the active preset and re-inject variables
 ```
-
-`Theme.set_mode` / `Theme.toggle` were removed — switching swaps the active
-reference via `NeonApplication.set_theme` rather than mutating an instance in place.
 
 Token families: `--color-bg`, `--color-surface`,
 `--color-text-primary` / `--color-text-secondary`, `--color-accent`,
@@ -99,8 +95,8 @@ danger fill), `--color-danger`, `--color-success`, `--color-border`,
 `--color-shadow`, `--color-*-glass*` (frosted variants).
 
 Components reference tokens via `Color(var="--color-*")` so a theme
-switch only replaces the `:root` variable block — no DOM diff; the
-browser recolors every `var(--color-*)`.
+switch only replaces the `:root` variable block, and the browser
+recolors every `var(--color-*)`.
 
 Custom themes:
 
@@ -144,9 +140,7 @@ Theme.get("sepia") is my_theme  # True
 
 Durations and easing behind popups, transitions, and component
 animations are tokenized in parallel with themes. `Motion` is an
-immutable, registered preset; `DEFAULT` is currently the only built-in
-one. Components reference `motion.stub` variables, so a future preset
-can re-inject `--motion-*` without changing component code.
+immutable, registered preset; `DEFAULT` is the built-in preset.
 
 ```python
 from neony.application.motion import Motion, popup_animation, stub, transition
@@ -182,7 +176,7 @@ mica are Windows 11. Every window-control method takes an optional
 
 The public async methods are `open_file`, `open_files`, `save_file`, and
 `select_folder` (see [`NeonApplication`](core.en.md#neonapplication) for
-signatures). The worker selects the platform implementation:
+signatures). The platform implementation is selected automatically:
 
 ```text
 Linux   → zenity when available, otherwise tkinter
@@ -191,8 +185,8 @@ Windows → PowerShell
 Other   → tkinter fallback
 ```
 
-The call runs in an executor thread, so the application's asyncio loop can
-keep serving other work while the picker is open. A cancelled
+The picker opens asynchronously, so the app keeps responding while it is
+up. A cancelled
 single-selection call returns `None`; a cancelled multi-selection call
 returns `[]`. File filters are passed as `(label, pattern)` pairs, for
 example `[("PNG images", "*.png"), ("All files", "*.*")]`. If a platform

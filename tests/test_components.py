@@ -2614,9 +2614,9 @@ class TestDropdownEvents:
     def test_chevron_rotates_without_replacing_glyph(self):
         dd = Dropdown(items=["a"])
 
-        assert dd._chevron.container == ["▾"]
+        assert dd._chevron.container[0].container == ["expand_more"]
         dd._open_popup()
-        assert dd._chevron.container == ["▾"]
+        assert dd._chevron.container[0].container == ["expand_more"]
         assert dd._chevron.styles.transform == "rotate(180deg)"
         dd._close()
         assert dd._chevron.styles.transform is None
@@ -2690,7 +2690,7 @@ class TestMenuBuild:
         assert node.children[0].attrs["data-neony-cascade-row"] == "true"
         assert node.children[0].children[0].attrs["role"] == "menuitem"
         chevron = menu._branch_chevrons[next(iter(menu._branches))]
-        assert chevron.container == ["▶"]
+        assert chevron.container[0].container == ["chevron_right"]
         assert chevron.styles.transform is None
 
 
@@ -2858,7 +2858,7 @@ class TestCascadingDropdown:
         assert isinstance(animation, Animation)
         assert animation.name == "neony-drop-in"
         assert animation.duration == "var(--motion-normal)"
-        assert picker._chevron.container == ["▾"]
+        assert picker._chevron.container[0].container == ["expand_more"]
         assert picker._chevron.styles.transform == "rotate(180deg)"
 
     def test_cascading_dropdown_outsideclick_closes_all_branches(self):
@@ -4750,9 +4750,9 @@ class TestDataTableSort:
     def test_glyph_marks_active_sort(self):
         dt = DataTable(columns=[Column("Name", sortable=True)], rows=[{"name": "a"}])
         glyph = dt._glyphs["name"]
-        assert glyph.container == ["↕"]
+        assert glyph.container[0].container == ["unfold_more"]
         dt.sort_by = ("name", "desc")
-        assert glyph.container == ["↓"]
+        assert glyph.container[0].container == ["arrow_downward"]
 
 
 class TestDataTableSelection:

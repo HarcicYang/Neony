@@ -21,7 +21,11 @@ from .icon import Icon
 
 # WindowControls bridge commands exposed by ``window.lumiview.window.*``.
 _ACTIONS = {"minimize": "minimize", "maximize": "toggleMaximize", "close": "close"}
-_ICONS = {"minimize": "—", "maximize": "□", "close": "✕"}
+_ICONS = {
+    "minimize": Icon._font("minimize").render("14px"),
+    "maximize": Icon._font("maximize").render("14px"),
+    "close": Icon._font("close").render("14px"),
+}
 
 
 class TitleBar(Component):

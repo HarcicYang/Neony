@@ -13,6 +13,7 @@ from neony.dom.css import Border, BoxShadow, Shadow
 from .. import motion
 from .base import ReactiveText, _mount_text
 from .dropdown import _PANEL, _PANEL_OPEN, Dropdown
+from .icon import Icon
 from .menu import MenuBranch, MenuItem
 
 # A selector popup must allow child panels to extend sideways.  In contrast,
@@ -125,7 +126,7 @@ class CascadingDropdown(Dropdown):
     def _add_branch(self, branch: MenuBranch, parent: Div, parent_branch: str | None) -> None:
         label_span = Span(container=[])
         _mount_text(label_span, branch.label)
-        chevron = Span(container=["▶"], styles=_BRANCH_CHEVRON)
+        chevron = Span(container=[Icon._font("chevron_right").render("14px")], styles=_BRANCH_CHEVRON)
         row = _ButtonElem(
             type="button",
             container=[label_span, chevron],

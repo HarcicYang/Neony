@@ -31,18 +31,17 @@ titlebar.on_close(lambda e: print("bye"))  # 附加回调
 titlebar.override_close(confirm_close)  # 完全接管关闭
 ```
 
-**参数:** `title`， `icon`， `show_minimize`， `show_maximize`，
-`show_close`， `height`
+**参数：** `title`、`icon`、`show_minimize`、`show_maximize`、
+`show_close`、`height`
 
 `icon` 为 `Icon` 对象——`Icon.image(url_or_path)` 在标题左侧绘制一个小图标（固定尺寸方形，绝不拉伸）——无边框模式下
 `WindowConfig.icon` 的对应物，因为无边框窗口没有 OS 装饰来承载它。
 
-标题栏即拖拽区域(双击最大化);控制按钮带内部 `data-window-action`
-属性,经 WindowControls 桥接自动路由 — 用户无需感知的实现细节。
+标题栏即拖拽区域（双击最大化）；控制按钮自动接线到窗口。
 
 ## `Sidebar` & `SidebarItem`
 
-垂直导航，与 `TitleBar` 同款玻璃。Sidebar 可以拥有内容面板——传入 `Pane` 子项时，点击条目（或按快捷键）在内部切换可见面板。
+垂直导航，与 `TitleBar` 同款玻璃。Sidebar 可以拥有内容面板——传入 `Pane` 子项时，点击条目（或按快捷键）切换可见面板。
 
 ```python
 sidebar = Sidebar(
@@ -114,7 +113,7 @@ for combo, fn in tree.shortcuts():
     page.on_shortcut(combo, fn)  # 叶子快捷键，同 Sidebar
 ```
 
-**参数:** `Tree(*nodes, width, expanded_branches, active_key, edge_fade=True)` — `width` 为轨道宽度（宿主自适应其余空间）；`expanded_branches=True` 让顶层分支默认展开。`edge_fade` 切换轨道上的滚动指示器——设 `False` 关闭。行样式复用 `Accordion` 表头——圆角、透明、无外围包裹；轨道高度受舞台约束，内部滚动而非撑破页面。
+**参数:** `Tree(*nodes, width, expanded_branches, active_key, edge_fade=True)` — `width` 为轨道宽度（宿主自适应其余空间）；`expanded_branches=True` 让顶层分支默认展开。`edge_fade` 切换轨道上的滚动指示器——设 `False` 关闭。行样式复用 `Accordion` 表头——圆角、透明、无外围包裹；轨道高度受舞台约束，在舞台内滚动而非撑破页面。
 
 `TreeNode(label, key, icon, panel, expanded, children, shortcut)` — 节点不能同时带 `panel` 与 `children`（否则抛错）。流畅建造器：`.panel(panel)` 挂叶子内容、`.children(*nodes)` 挂分支子节点、`.key_(key)` 设 key——全部可链式。
 
@@ -139,7 +138,7 @@ fruits.bind_selected(signal)  # 双向响应式选中
 
 **参数:** `List(*items, active_key=None, edge_fade=True)` — `items` 为字符串或 `ListItem(label, key=None, icon=None)`。字符串条目的 key 即其标签；标签冲突时须显式传 `key`（重复 key 抛错）。行是 `role="option"`，容器 `role="listbox"`；键盘：↑/↓ 移动选中（端点钳制，每次移动触发 `change`）、Home/End 跳到首尾、Enter/空格选中、点击选中。方向键导航时出现强调色焦点环，点击后清除。`edge_fade` 切换滚动指示器。
 
-挂载契约：须挂在**确定高度**的 flex 父级（如 `VStack(..., grow=1)` 或 `GlassPanel(grow=True)`）；列表内部滚动行，而不是撑破页面。
+须挂在**确定高度**的 flex 父级（如 `VStack(..., grow=1)` 或 `GlassPanel(grow=True)`）；列表在父级内滚动行，而不是撑破页面。
 
 ## `DataTable` & `Column`
 
@@ -176,11 +175,11 @@ people.bind_selected(signal)  # 双向响应式选中
 
 键盘：单选模式下方向键移动选中（触发 `change`）；多选模式下方向键移动焦点环、空格切换。Home/End 跳首尾；Enter/空格选中或切换。
 
-挂载契约：须挂在**确定高度**的 flex 父级；表格内部双轴滚动。`edge_fade` 切换滚动指示器。
+须挂在**确定高度**的 flex 父级；表格在父级内双轴滚动。`edge_fade` 切换滚动指示器。
 
 ## `Icon`
 
-内置 UI 图标使用 Theme 风格的 stub 命名空间。图标目录实现类保持私有，不属于公开 API：
+内置 UI 图标经 `icons` 命名空间暴露；图标目录实现类保持私有，不属于公开 API：
 
 ```python
 from neony.application import icons
@@ -190,6 +189,6 @@ Button("保存", icon=icons.check)
 SidebarItem("首页", icon=icons.home)
 ```
 
-内置目录只使用一套随包分发的 Material Symbols Rounded 字体。图标继承组件的 `color` 主题令牌，采用固定方形几何，并统一 weight/fill/grade/optical-size 设置。这个单字体约束是观感一致性的边界；语义目录中不混用不同第三方字体。
+内置目录只使用一套随包分发的 Material Symbols Rounded 字体。图标继承组件的 `color` 主题令牌，采用固定方形几何，并统一 weight/fill/grade/optical-size 设置。
 
-`Icon.image(url_or_path)` 继续用于 Logo 与原生图片资源，`Icon.glyph(text)` 继续用于明确的自定义文本或 emoji 内容。两者都会返回 `Icon`，可传给各组件的 `icon` 参数，包括 `Button.icon: Icon | None`。
+`Icon.image(url_or_path)` 用于 Logo 与原生图片资源，`Icon.glyph(text)` 用于明确的自定义文本或 emoji 内容。两者都会返回 `Icon`，可传给各组件的 `icon` 参数，包括 `Button.icon: Icon | None`。

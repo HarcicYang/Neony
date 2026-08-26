@@ -12,7 +12,7 @@ import wave
 from collections.abc import Callable
 from pathlib import Path
 
-from neony.application import Page
+from neony.application import Page, icons
 from neony.application.elements import (
     Audio,
     Button,
@@ -137,15 +137,15 @@ async def _toggle_mute(_event: object) -> None:
     await _active().toggle_muted()
 
 
-_pick_button = Button("📂 " + tr_now(tr.media.pick))
+_pick_button = Button(tr_now(tr.media.pick), icon=icons.folder_open)
 _pick_button.on_click(_pick_media)
-_toggle_button = Button("⏯ Play / Pause")
+_toggle_button = Button("Play / Pause", icon=icons.play_arrow)
 _toggle_button.on_click(_toggle_play)
-_back_button = Button("« 10s")
+_back_button = Button("10s", icon=icons.chevron_left)
 _back_button.on_click(_seek_back)
-_fwd_button = Button("10s »")
+_fwd_button = Button("10s", icon=icons.chevron_right)
 _fwd_button.on_click(_seek_forward)
-_mute_button = Button("🔇 Mute")
+_mute_button = Button("Mute", icon=icons.volume_up)
 _mute_button.on_click(_toggle_mute)
 
 PANELS["media"] = Section(

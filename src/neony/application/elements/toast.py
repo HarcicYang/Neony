@@ -41,6 +41,7 @@ from neony.dom import (
 from neony.dom import Button as _ButtonElem
 
 from .base import Component
+from .icon import Icon
 
 _Placement = Literal[
     "top-left",
@@ -262,7 +263,7 @@ class Toast(Component):
     def _build_card(self, text: str, type: _Type, on_click: Callable[[], Any] | None = None) -> tuple[Div, _ButtonElem]:
         dot = Span(styles=_DOT.model_copy(update={"background_color": _TYPE_COLORS[type]}))
         label = Span(container=[text], styles=_TEXT)
-        close = _ButtonElem(type="button", container=["✕"], styles=_CLOSE)
+        close = _ButtonElem(type="button", container=[Icon._font("close").render("12px")], styles=_CLOSE)
         self._bind(close, "click")
         card_styles = _CARD.model_copy(update={"animation": self._enter_animation()})
         if on_click is not None:

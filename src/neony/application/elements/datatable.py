@@ -51,6 +51,7 @@ from neony.dom import Border, Color, Div, DOMElement, DomEvent, Signal, Span, St
 from neony.dom.reactive import Computed
 
 from .base import Component, ReactiveText, _mount_text
+from .icon import Icon
 
 # ---- shared row / cell recipes ----
 
@@ -380,7 +381,7 @@ class DataTable(Component):
         _mount_text(title_span, col.title)
         parts: list[DOMElement | str] = [title_span]
         if col.sortable:
-            glyph = Span(container=["↕"], styles=_GLYPH)
+            glyph = Span(container=[Icon._font("unfold_more").render("10px")], styles=_GLYPH)
             self._glyphs[col.resolved_key] = glyph
             parts.append(glyph)
         return parts
@@ -408,10 +409,12 @@ class DataTable(Component):
         active_dir = self._sort[1] if self._sort is not None else None
         for col_key, glyph in self._glyphs.items():
             if col_key == active_col:
-                glyph.container = ["↑" if active_dir == "asc" else "↓"]
+                glyph.container = [
+                    Icon._font("arrow_upward" if active_dir == "asc" else "arrow_downward").render("10px")
+                ]
                 glyph.styles = _GLYPH_ACTIVE
             else:
-                glyph.container = ["↕"]
+                glyph.container = [Icon._font("unfold_more").render("10px")]
                 glyph.styles = _GLYPH
 
     # ---- internals: rows ----
