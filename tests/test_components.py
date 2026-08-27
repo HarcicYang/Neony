@@ -2576,6 +2576,23 @@ class TestDropdownEvents:
         self._click_trigger(dd)
         assert dd._open
 
+    def test_opening_sibling_dropdown_closes_previous_and_raises_active_layer(self):
+        from neony.dom import Div
+
+        first = Dropdown(items=["a"])
+        second = Dropdown("second", items=["b"])
+        Div(container=[first._root, second._root])
+
+        self._click_trigger(first)
+        assert first._open
+        assert first._wrapper.styles.z_index == 1200
+
+        self._click_trigger(second)
+        assert not first._open
+        assert first._wrapper.styles.z_index is None
+        assert second._open
+        assert second._wrapper.styles.z_index == 1200
+
     def test_row_click_selects_and_fires(self):
         import asyncio
 
@@ -2917,6 +2934,22 @@ class TestCascadingDropdown:
         assert picker._open
         assert picker._popup.styles.position == "absolute"
         assert context_menu._open
+
+    def test_opening_sibling_cascading_dropdown_closes_previous(self):
+        from neony.dom import Div
+
+        first = CascadingDropdown("first", items=["dark"])
+        second = CascadingDropdown("second", items=["light"])
+        Div(container=[first._root, second._root])
+
+        first._open_popup()
+        assert first._open
+
+        second._open_popup()
+        assert not first._open
+        assert first._wrapper.styles.z_index is None
+        assert second._open
+        assert second._wrapper.styles.z_index == 1200
 
     def test_sibling_branches_are_mutually_exclusive(self):
         picker = CascadingDropdown(

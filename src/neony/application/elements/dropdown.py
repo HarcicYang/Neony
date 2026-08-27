@@ -10,6 +10,7 @@ via the engine's synthetic ``outsideclick`` event.
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Sequence
 
 from neony.application.theme import Theme, stub
@@ -101,6 +102,11 @@ _CHEVRON_STYLE = Styles(
     transition=motion.transition("transform", duration=motion.stub.fast),
 )
 _CHEVRON_OPEN_STYLE = _CHEVRON_STYLE.model_copy(update={"transform": "rotate(180deg)"})
+
+# Sibling dropdown triggers are equal-z stacking contexts; without ownership,
+# the later mounted control can cover an already-open popup.  One Dropdown
+# owns the popup layer per mounted tree, like cursor menus.
+_ACTIVE_DROPDOWNS: dict[int, tuple[weakref.ReferenceType, weakref.ReferenceType]] = {}
 
 
 class Dropdown(Component):
@@ -258,9 +264,36 @@ class Dropdown(Component):
         else:
             row.styles = _OPTION
 
+    def _popup_scope(self) -> object:
+        """Return this dropdown's mounted tree root (one scope per window/page)."""
+        node = self._root
+        while node._parent is not None:
+            node = node._parent
+        return node
+
+    def _activate_popup(self) -> None:
+        """Make this control the sole open Dropdown in its mounted tree."""
+        scope = self._popup_scope()
+        entry = _ACTIVE_DROPDOWNS.get(id(scope))
+        previous = entry[1]() if entry is not None and entry[0]() is scope else None
+        if previous is not None and previous is not self:
+            previous._close()
+        _ACTIVE_DROPDOWNS[id(scope)] = weakref.ref(scope), weakref.ref(self)
+        # A later-mounted trigger creates an equal-z sibling stacking context.
+        # Raise only the active wrapper, so the newest popup stays on top.
+        self._wrapper.styles = _WRAP.model_copy(update={"z_index": 1200})
+
+    def _deactivate_popup(self) -> None:
+        scope = self._popup_scope()
+        entry = _ACTIVE_DROPDOWNS.get(id(scope))
+        if entry is not None and entry[0]() is scope and entry[1]() is self:
+            del _ACTIVE_DROPDOWNS[id(scope)]
+        self._wrapper.styles = _WRAP
+
     def _open_popup(self) -> None:
         if self._open or not self._rows:
             return
+        self._activate_popup()
         self._open = True
         if self._active_index < 0:
             # Pre-highlight the first option on open.
@@ -276,6 +309,7 @@ class Dropdown(Component):
         if not self._open:
             return
         self._open = False
+        self._deactivate_popup()
         self._popup.styles = _PANEL
         self._click_away.styles = _CLICK_AWAY
         self._chevron.styles = _CHEVRON_STYLE

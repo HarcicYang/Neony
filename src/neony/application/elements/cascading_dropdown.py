@@ -171,6 +171,7 @@ class CascadingDropdown(Dropdown):
     def _open_popup(self) -> None:
         if self._open:
             return
+        self._activate_popup()
         self._open = True
         self._popup.styles = _CASCADE_PANEL_OPEN
         self._click_away.styles = self._click_away.styles.model_copy(update={"display": "block"})
