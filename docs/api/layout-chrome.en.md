@@ -31,10 +31,12 @@ Custom window chrome for frameless windows. Requires
 titlebar = TitleBar("My App")
 titlebar.on_close(lambda e: print("bye"))  # extra callback
 titlebar.override_close(confirm_close)  # take over close
+titlebar.leading_slot.container.append(custom_element)
 ```
 
 **Options:** `title`, `icon`, `show_minimize`, `show_maximize`,
-`show_close`, `height`
+`icon_size`, `icon_styles`, `leading`, `trailing`, `show_minimize`,
+`show_maximize`, `show_close`, `height`
 
 `icon` is an `Icon` — `Icon.image(url_or_path)` paints a small image
 left of the title (a fixed-size square that never stretches), the
@@ -43,6 +45,9 @@ has no OS chrome to carry it.
 
 The bar is a drag region (double-click maximizes); the control buttons
 are wired to the window automatically.
+`leading_slot` / `trailing_slot` are read-only slots: the former holds
+the icon, leading content, and title; the latter holds trailing content
+and window controls.
 
 ## `Sidebar` & `SidebarItem`
 

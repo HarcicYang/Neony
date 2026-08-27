@@ -54,15 +54,26 @@ class Button(Component):
         # the label span (a raw string child can't subscribe), and
         # ``bubble_events`` lets clicks/hovers on those spans reach the
         # button's own handlers.
+        # An empty string is a real icon-only layout state; a reactive
+        # source that currently emits "" must keep its mount point so a
+        # later non-empty value can appear without replacing the subtree.
+        self._label_is_reactive = not isinstance(self._label, str)
+        self._has_label_text = isinstance(self._label, str) and bool(self._label)
         self._icon_span: Span | None = icon.render("16px") if icon is not None else None
         self._label_span = Span(container=[])
         _mount_text(self._label_span, label)
+
+        if self._icon_span is not None:
+            # Icon glyphs stay hit-testable; opt them into Neony's synthetic
+            # event bubble so the accessible button root receives the action.
+            self._icon_span.bubble_events = True
 
         self._btn = _ButtonElem(
             type="button",
             container=self._text_content(),
             styles=self._variant_styles(variant, glass),
             disabled=disabled,
+            args={"data-neony-event-scope": ""},
         )
         self._btn.bubble_events = True
 
@@ -87,7 +98,8 @@ class Button(Component):
         parts: list[DOMElement | str] = []
         if self._icon_span is not None:
             parts.append(self._icon_span)
-        parts.append(self._label_span)
+        if self._has_label_text or self._label_is_reactive or self._icon_span is None:
+            parts.append(self._label_span)
         return parts
 
     @staticmethod
@@ -195,7 +207,10 @@ class Button(Component):
     @label.setter
     def label(self, value: str) -> None:
         self._label = value
+        self._label_is_reactive = False
+        self._has_label_text = bool(value)
         self._label_span.container = [value]
+        self._btn.container = self._text_content()
 
     @property
     def icon(self) -> Icon | None:
@@ -210,6 +225,7 @@ class Button(Component):
                 self._btn.container = self._text_content()
             return
         self._icon_span = value.render("16px")
+        self._icon_span.bubble_events = True
         self._btn.container = self._text_content()
 
     @property

@@ -9,11 +9,11 @@ full takeover.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, Self
 
 from neony.application.theme import stub
-from neony.dom import Border, Color, Div, DomEvent, Filter, Span, Styles, calc
+from neony.dom import Border, Color, Div, DOMElement, DomEvent, Filter, Span, Styles, calc
 from neony.dom import Button as _ButtonElem
 
 from .base import Component, ReactiveText, _mount_text
@@ -21,9 +21,12 @@ from .icon import Icon
 
 # WindowControls bridge commands exposed by ``window.lumiview.window.*``.
 _ACTIONS = {"minimize": "minimize", "maximize": "toggleMaximize", "close": "close"}
+# Bundled subset reliably provides these neutral window glyphs.  The
+# original ligatures either render below the optical centre or fall back
+# to text on some WebKitGTK builds.
 _ICONS = {
-    "minimize": Icon._font("minimize"),
-    "maximize": Icon._font("maximize"),
+    "minimize": Icon._font("remove"),
+    "maximize": Icon._font("crop_square"),
     "close": Icon._font("close"),
 }
 
@@ -44,6 +47,10 @@ class TitleBar(Component):
         title: ReactiveText = "",
         *,
         icon: Icon | None = None,
+        icon_size: str = "18px",
+        icon_styles: Styles | None = None,
+        leading: Sequence[Component | DOMElement] | None = None,
+        trailing: Sequence[Component | DOMElement] | None = None,
         show_minimize: bool = True,
         show_maximize: bool = True,
         show_close: bool = True,
@@ -83,9 +90,42 @@ class TitleBar(Component):
 
         # Optional inline icon for frameless windows: a fixed-size square
         # painted with the image, so it never stretches with the title.
-        self._icon_el: Span | None = icon.render("18px") if icon is not None else None
+        self._icon_el: Span | None = icon.render(icon_size) if icon is not None else None
+        if self._icon_el is not None and icon_styles is not None:
+            overrides = {key: getattr(icon_styles, key) for key in icon_styles.model_fields_set}
+            self._icon_el.styles = self._icon_el.styles.model_copy(update=overrides)
+
+        leading_children: list[DOMElement] = []
+        for child in leading or ():
+            mounted = child.build() if isinstance(child, Component) else child
+            leading_children.append(mounted)
+        trailing_children: list[DOMElement] = []
+        for child in trailing or ():
+            mounted = child.build() if isinstance(child, Component) else child
+            trailing_children.append(mounted)
 
         # Root: full-width drag region with aggressive frosted glass.
+        self._left_side = Div(
+            styles=Styles(
+                display="flex",
+                align_items="center",
+                gap="6px",
+                flex_grow="1",
+                overflow="hidden",
+            ),
+            container=[self._icon_el, *leading_children, self._title_span]
+            if self._icon_el is not None
+            else [*leading_children, self._title_span],
+        )
+        self._right_side = Div(
+            styles=Styles(
+                display="flex",
+                align_items="center",
+                gap="4px",
+                flex_shrink="0",
+            ),
+            container=[*trailing_children, self._btn_min, self._btn_max, self._btn_close],
+        )
         self._root = Div(
             styles=Styles(
                 display="flex",
@@ -98,27 +138,7 @@ class TitleBar(Component):
                 border_bottom=Border(width="1px", color=stub.border_glass),
                 flex_shrink="0",
             ),
-            container=[
-                Div(
-                    styles=Styles(
-                        display="flex",
-                        align_items="center",
-                        gap="6px",
-                        flex_grow="1",
-                        overflow="hidden",
-                    ),
-                    container=[self._icon_el, self._title_span] if self._icon_el else [self._title_span],
-                ),
-                Div(
-                    styles=Styles(
-                        display="flex",
-                        align_items="center",
-                        gap="4px",
-                        flex_shrink="0",
-                    ),
-                    container=[self._btn_min, self._btn_max, self._btn_close],
-                ),
-            ],
+            container=[self._left_side, self._right_side],
             args={"data-lumiview-drag-region": ""},
         )
 
@@ -154,12 +174,18 @@ class TitleBar(Component):
         args: dict[str, str] = {"data-lumiview-no-drag": ""}
         if visible:
             args["data-window-action"] = _ACTIONS[kind]
-        return _ButtonElem(
+        args["data-neony-event-scope"] = ""
+        icon = _ICONS[kind].render("14px")
+        # The scoped click resolver above owns descendants, including this
+        # hit-testable glyph.
+        button = _ButtonElem(
             type="button",
-            container=[_ICONS[kind].render("14px")],
+            container=[icon],
             styles=styles,
             args=args,
         )
+        button.bubble_events = True
+        return button
 
     def _apply_hover(self) -> None:
         """Recompute control-button hover styles.
@@ -201,6 +227,16 @@ class TitleBar(Component):
     def title(self, value: str) -> None:
         self._title = value
         self._title_span.container = [value]
+
+    @property
+    def leading_slot(self) -> DOMElement:
+        """The leading side container (icon + custom content + title)."""
+        return self._left_side
+
+    @property
+    def trailing_slot(self) -> DOMElement:
+        """The trailing container for custom content and window buttons."""
+        return self._right_side
 
     # ---- events ----
 

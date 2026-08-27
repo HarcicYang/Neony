@@ -9,7 +9,7 @@ import pytest
 
 from neony.application.elements.media import Audio, Video
 from neony.dom import Audio as DomAudio
-from neony.dom import Signal
+from neony.dom import Signal, Styles
 from neony.dom import Video as DomVideo
 from neony.dom.base import DOMElement
 
@@ -63,6 +63,30 @@ class TestStructure:
 
         assert type(root.container[0]).__name__ == "Audio"
         assert len(transport.container) >= 5  # play/time/seek/duration/mute/volume
+
+    def test_audio_public_media_styles(self) -> None:
+        component = Audio(
+            "neony://local/song.mp3",
+            media_styles=Styles(display="block", width="100%", align_self="stretch"),
+        )
+        media = _audio_inner(component)
+        assert isinstance(media, DomAudio)
+        assert media.styles.display == "block"
+        assert media.styles.width == "100%"
+        assert media.styles.align_self == "stretch"
+
+    def test_transport_buttons_are_compact_icon_targets(self) -> None:
+        component = Audio("https://example.com/song.mp3")
+        component.build()
+
+        for button in (component._play_button, component._mute_button):
+            assert button._root.styles.width == "32px"
+            assert button._root.styles.height == "28px"
+            assert button._root.styles.padding == "0"
+            assert button._icon_span is not None
+            assert button._icon_span.bubble_events is True
+            assert button._root.to_node().styles["color"] == "var(--color-text-primary)"
+            assert button._root.to_node().attrs["data-neony-event-scope"] == ""
 
 
 class TestSourceSwitching:

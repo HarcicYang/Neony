@@ -417,6 +417,11 @@ class DOMElement(BaseModel):
         ``data-neony-outside`` marker (see the JS engine)."""
         return self.on("outsideclick", fn)
 
+    def set_outside_click(self, enable: bool = True) -> Self:
+        """Enable or disable synthetic ``outsideclick`` delivery."""
+        self._set_attr("data-neony-outside", "true" if enable else None)
+        return self
+
     def on_dblclick(self, fn: Callable[..., Any]) -> DOMElement:
         return self.on("dblclick", fn)
 

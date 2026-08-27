@@ -5,6 +5,9 @@
 All inherit `Component` — fluent `on_*` chaining, state properties,
 source-aware events. Import from `neony.application.elements`.
 
+Overlay roots can call `set_outside_click(True / False)` to enable or
+disable the marker for synthetic ``outsideclick`` delivery.
+
 ## Form controls
 
 ### `Button`
@@ -458,7 +461,8 @@ await song.toggle_muted()
 The same managed player as [`Video`](#video), presented as a compact
 control card. The ownership model, transport row, commands, events, and
 options match — minus the picture surface — and HEVC transcode fallback
-applies too. `width` sizes the card.
+applies too. `width` sizes the card; `media_styles` overrides only the
+inner native media element's styles.
 
 ### `Avatar`
 
@@ -568,6 +572,12 @@ cursor menu.
 NOTE: the menu is a `position: fixed` element inside the bubble; keep
 chat panes away from `backdrop-filter` / `transform` ancestors.
 
+Quick actions also support `actions_placement="below" | "beside"`,
+`action_size`, `name_badge`, and `white_space`. Public state APIs include
+`content` / `set_content()`, `actions_visible` / `show_actions()` /
+`hide_actions()`, `action_elements()` / `action_values()`, and
+`overlay_slot` for attaching a bubble-local overlay.
+
 ### `NoticeBubble`
 
 ```python
@@ -626,13 +636,14 @@ on the component).
 ```python
 stick = StickToBottom(message_list)
 await stick.scroll_to_bottom(force=True)
+await stick.scroll_to(240)
 ```
 
 The chat-stream scroll container. It auto-pins while the user is near
 the bottom; scrolling up pauses the pin, and scrolling back near the
 bottom resumes it. `scroll_to_bottom(force=True)` scrolls regardless of
-the current pin state. The same mounting requirement as `ScrollArea`
-applies.
+the current pin state; `scroll_to(top)` restores a pixel offset. The
+same mounting requirement as `ScrollArea` applies.
 
 
 ## Drag & reorder

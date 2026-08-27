@@ -15,7 +15,7 @@ from wryview import DragDropEvent
 
 from neony.application import Config, NeonApplication
 from neony.application._helpers import _Entry
-from neony.application.elements import Button, Input, Text, VStack
+from neony.application.elements import Button, Icon, Input, Text, VStack
 from neony.dom import Div, DOMElement, DomEvent
 from neony.dom.bridge import Neony, Patch
 
@@ -726,6 +726,21 @@ class TestEventBubbling:
         _setup_entry(app, btn.build(), fake)
 
         asyncio.run(_fire(app, btn._label_span.key, "click"))
+        assert calls == ["clicked"]
+
+    def test_button_icon_span_click_reaches_button(self):
+        """Regression: a font/glyph child must forward the action through
+        the button root instead of swallowing it as a handler-less target."""
+        app = NeonApplication(Config(auto_render=True))
+        fake = FakeWindow()
+        btn = Button("Save", icon=Icon.glyph("★"))
+        calls: list[str] = []
+        icon_span = btn._icon_span
+        assert icon_span is not None
+        btn.on_click(lambda _event: calls.append("clicked"))
+        _setup_entry(app, btn.build(), fake)
+
+        asyncio.run(_fire(app, icon_span.key, "click"))
         assert calls == ["clicked"]
 
     def test_dropdown_label_span_mousedown_opens_popup(self):

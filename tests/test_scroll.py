@@ -47,3 +47,8 @@ def test_stick_to_bottom_force_scroll_is_awaitable():
     stick = StickToBottom()
     assert asyncio.run(stick.scroll_to_bottom(force=True)) is stick
     assert asyncio.run(stick.scroll_to_bottom(force=False)) is stick
+
+
+def test_stick_to_bottom_scroll_to_pixel_offset_is_awaitable():
+    stick = StickToBottom()
+    assert asyncio.run(stick.scroll_to(240, behavior="smooth")) is stick

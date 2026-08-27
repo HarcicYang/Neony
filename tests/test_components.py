@@ -148,6 +148,21 @@ class TestComponentBuild:
         node = Button("Cancel", variant="ghost").build().to_node()
         assert node.styles["color"] == "var(--color-text-primary)"
 
+    def test_icon_only_button_has_no_empty_flex_item(self):
+        btn = Button("", icon=Icon.glyph("+"))
+        node = btn.build().to_node()
+
+        assert len(node.children) == 1
+        assert node.styles["justify-content"] == "center"
+
+    def test_button_icon_supports_event_bubbling(self):
+        btn = Button("Save", icon=Icon.glyph("+"))
+
+        assert btn._icon_span is not None
+        assert btn._btn.bubble_events is True
+        assert btn._icon_span.bubble_events is True
+        assert btn._btn.args["data-neony-event-scope"] == ""
+
     def test_checkbox_build(self):
         cb = Checkbox("Pizza")
         node = cb.build().to_node()
@@ -5516,6 +5531,70 @@ class TestMessageBubbleBuild:
         btn = b._actions.container[0]
         assert isinstance(btn, DOMElement)
         assert b._action_by_key[btn.key] == "😊"
+
+    def test_content_and_set_content_public_access(self):
+        old_content = Div(key="old", container=["old"])
+        bubble = MessageBubble(content=old_content)
+        assert bubble.content is old_content
+
+        new_content = Div(key="new", container=["new"])
+        bubble.set_content(new_content)
+        assert bubble.content is new_content
+        assert new_content._parent is bubble._bubble
+        assert old_content._parent is None
+
+    def test_action_public_layout_api(self):
+        bubble = MessageBubble(
+            "hi",
+            from_me=True,
+            white_space="pre-wrap",
+            actions_placement="beside",
+            action_size="28px",
+            actions=[Icon.glyph("😊")],
+        )
+        button = bubble.action_elements()[0]
+        assert bubble._actions.styles.top == "50%"
+        assert bubble._actions.styles.right == "calc(100% + 6px)"
+        assert bubble._actions.styles.transform == "translateY(-50%)"
+        assert bubble._bubble.styles.white_space == "pre-wrap"
+        assert button.styles.width == "28px"
+        assert button.styles.height == "28px"
+        assert button.styles.padding == "0"
+        assert bubble.action_values() == ("😊",)
+        icon = button.container[0]
+        assert isinstance(icon, DOMElement)
+        assert icon.styles.pointer_events == "none"
+
+    def test_name_badge_survives_name_updates(self):
+        badge = Badge("OP", variant="accent")
+        bubble = MessageBubble("hi", name="Ada", name_badge=badge)
+        badge_el = bubble._name_span.container[1]
+        assert isinstance(bubble._name_span.container[0], DOMElement)
+        assert bubble._name_span.container[0].container == ["Ada"]
+        assert bubble._name_span.container == [bubble._name_span.container[0], badge_el]
+        assert bubble._name_span.styles.gap == "4px"
+
+        bubble.name = "Grace"
+        assert bubble._name_span.container == [bubble._name_span.container[0], badge_el]
+        assert bubble._name_span.container[0].container == ["Grace"]
+
+    def test_name_badge_has_element_only_reactive_children(self):
+        bubble = MessageBubble("hi", name="Ada", name_badge=Badge("OP"))
+        node = bubble.build().to_node()
+        name_node = next(item for item in _walk(node) if item.key == bubble._name_span.key)
+        assert all(isinstance(child, str) is False for child in name_node.children)
+
+    def test_actions_visibility_and_overlay_slot(self):
+        bubble = MessageBubble("hi", actions=[("reply", "Reply")])
+        overlay = Div(key="overlay")
+        bubble.overlay_slot.container.append(overlay)
+
+        assert not bubble.actions_visible
+        bubble.show_actions()
+        assert bubble.actions_visible
+        bubble.hide_actions()
+        assert not bubble.actions_visible
+        assert overlay._parent is bubble.overlay_slot
 
 
 class TestMessageBubbleEvents:

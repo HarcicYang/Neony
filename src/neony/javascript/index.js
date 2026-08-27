@@ -1464,7 +1464,13 @@
             closeSupersededContextMenus(null);
         }
         coordinateMessageActions(event);
-        var el = event.target.closest ? event.target.closest("[data-neony-key]") : null;
+        // Interactive scopes own their decorated descendants.  Font/glyph
+        // icons often receive the physical hit; resolving them straight to
+        // the enclosing button keeps click/hover/press semantics at the
+        // accessible control instead of depending on per-child Python
+        // bubbling workarounds.
+        var eventScope = event.target.closest ? event.target.closest("[data-neony-event-scope]") : null;
+        var el = eventScope || (event.target.closest ? event.target.closest("[data-neony-key]") : null);
         // Keys typed while no element is focused land on <body> — no
         // data-neony-key ancestor to trace to.  Window-level key
         // listeners (Page.on_keydown / on_keyup, shortcuts) must still

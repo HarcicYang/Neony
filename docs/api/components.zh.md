@@ -3,6 +3,8 @@
 > [English version](components.en.md) · [API 索引](README.zh.md) · [文档首页](../README.zh.md)
 
 所有组件继承 `Component` — 链式 `on_*` 方法、状态属性、源感知事件。
+对浮层类根节点可调用 `set_outside_click(True / False)`，显式启用或关闭
+`outsideclick` 事件标记。
 
 从 `neony.application.elements` 导入。
 
@@ -401,7 +403,7 @@ await song.toggle_muted()
 
 与 [`Video`](#video) 同一套托管播放器的紧凑控制卡片形态。所有权模型、
 传输条、命令、事件与选项完全一致（少了画面区域），HEVC 转码回退同样适用；
-`width` 控制卡片宽度。
+`width` 控制卡片宽度，`media_styles` 只覆写内部原生 media 元素样式。
 
 ### `Avatar`
 
@@ -495,6 +497,12 @@ other.on_action(lambda v: print(v))  # 快捷操作点击
 的 `position: fixed` 元素；聊天容器请避开 `backdrop-filter` /
 `transform` 祖先。
 
+快捷动作还支持 `actions_placement="below" | "beside"`、
+`action_size`、`name_badge` 与 `white_space`。公开状态接口包括
+`content` / `set_content()`、`actions_visible` / `show_actions()` /
+`hide_actions()`、`action_elements()` / `action_values()`，以及用于
+挂载气泡局部浮层的 `overlay_slot`。
+
 ### `NoticeBubble`
 
 ```python
@@ -550,11 +558,12 @@ await area.scroll_to(120, behavior="smooth")
 ```python
 stick = StickToBottom(message_list)
 await stick.scroll_to_bottom(force=True)
+await stick.scroll_to(240)
 ```
 
 聊天流滚动容器。用户接近底部时自动贴底；向上滚动暂停贴底，回到接近
 底部时恢复。`scroll_to_bottom(force=True)` 忽略当前贴底状态强制滚到底部。
-挂载要求与 `ScrollArea` 相同。
+`scroll_to(top)` 恢复指定像素位置。挂载要求与 `ScrollArea` 相同。
 
 
 ## 拖拽与重排

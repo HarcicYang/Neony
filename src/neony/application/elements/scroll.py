@@ -108,3 +108,10 @@ class StickToBottom(Component):
             if coro is not None:
                 await coro
         return self
+
+    async def scroll_to(self, top: float, *, behavior: Behavior = "auto") -> Self:
+        """Scroll the region to a pixel offset."""
+        coro = self._call_js(f"window.neony.scrollTo({self._key()}, {top}, {json.dumps(behavior)})")
+        if coro is not None:
+            await coro
+        return self

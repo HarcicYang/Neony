@@ -377,6 +377,11 @@ class Component:
         ``data-neony-outside`` marker (see the JS engine)."""
         return self.on("outsideclick", fn)
 
+    def set_outside_click(self, enable: bool = True) -> Self:
+        """Enable or disable synthetic ``outsideclick`` on this component."""
+        self._root.set_outside_click(enable)
+        return self
+
     def on_dblclick(self, fn: Callable[..., Any]) -> Self:
         return self.on("dblclick", fn)
 

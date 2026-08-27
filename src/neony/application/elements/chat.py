@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 import weakref
 from collections.abc import Sequence
-from typing import Self
+from typing import Literal, Self
 
 from neony.application.theme import stub
 from neony.dom import (
@@ -39,6 +39,7 @@ from neony.dom.reactive import Computed, Signal
 
 from ..i18n import tr
 from .avatar import Avatar
+from .badge import Badge
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 from .menu import Menu
@@ -176,12 +177,19 @@ class MessageBubble(Component):
         content: Component | DOMElement | None = None,
         actions: Sequence[ReactiveText | tuple[str, ReactiveText] | Icon] = (),
         menu_items: Sequence[ReactiveText | tuple[str, ReactiveText]] | None = None,
+        actions_placement: Literal["below", "beside"] = "below",
+        action_size: str = "24px",
+        name_badge: Badge | None = None,
+        white_space: str = "normal",
     ) -> None:
         super().__init__()
         self._text = text
         self._name = name
         self._content = content
         self._from_me = from_me
+        self._placement = actions_placement
+        self._action_size = action_size
+        self._white_space = white_space
         self._action_by_key: dict[str, str] = {}
         self._actions_shown = False
         self._actions_hide_task: asyncio.Task | None = None
@@ -198,7 +206,17 @@ class MessageBubble(Component):
         else:
             self._avatar_el = None
 
-        self._name_span = Span(container=[name or ""], styles=_NAME if name else _NAME_HIDDEN)
+        self._name_badge_el: DOMElement | None = name_badge.build() if name_badge is not None else None
+        name_styles = _NAME if name else _NAME_HIDDEN
+        name_children: list[DOMElement | str]
+        if self._name_badge_el is not None:
+            # Reactive mode forbids mixing strings and elements inside one
+            # node; the label therefore gets its own element beside the badge.
+            name_children = [Span(container=[name or ""]), self._name_badge_el]
+            name_styles = name_styles.model_copy(update={"gap": "4px"})
+        else:
+            name_children = [name or ""]
+        self._name_span = Span(container=name_children, styles=name_styles)
         self._bubble = Div(styles=_BUBBLE, container=[])
         # Reactive text (Signal/Computed, e.g. ``tr.chat.other_msg``) binds
         # live; a plain str is mounted directly into the bubble.
@@ -254,8 +272,15 @@ class MessageBubble(Component):
     @name.setter
     def name(self, value: str | None) -> None:
         self._name = value
-        self._name_span.container = [value or ""]
+        if self._name_badge_el is not None:
+            self._name_span.container.clear()
+            self._name_span.container.extend([Span(container=[value or ""]), self._name_badge_el])
+        else:
+            self._name_span.container.clear()
+            self._name_span.container.append(value or "")
         self._name_span.styles = _NAME if value else _NAME_HIDDEN
+        if self._name_badge_el is not None:
+            self._name_span.styles = self._name_span.styles.model_copy(update={"gap": "4px"})
 
     @property
     def from_me(self) -> bool:
@@ -275,6 +300,47 @@ class MessageBubble(Component):
         """Register a callback fired when a quick-action button is
         clicked (called with the action's value)."""
         return self.on("action", fn)
+
+    @property
+    def content(self) -> DOMElement | None:
+        """The current custom content element, or ``None`` for text."""
+        child = self._bubble.container[0] if self._bubble.container else None
+        return child if isinstance(child, DOMElement) else None
+
+    def set_content(self, child: Component | DOMElement) -> Self:
+        """Replace the bubble's custom content element."""
+        self._content = child
+        self._bubble.container.clear()
+        self._bubble.container.append(child.build() if isinstance(child, Component) else child)
+        return self
+
+    @property
+    def actions_visible(self) -> bool:
+        """True while this bubble's quick actions are shown."""
+        return self._actions_shown
+
+    def show_actions(self) -> Self:
+        """Reveal the quick actions, claiming this row's action owner."""
+        self._claim_actions()
+        return self
+
+    def hide_actions(self) -> Self:
+        """Hide the quick actions immediately when this bubble owns them."""
+        self._finish_actions_release()
+        return self
+
+    def action_elements(self) -> tuple[DOMElement, ...]:
+        """The mounted quick-action buttons, in display order."""
+        return tuple(el for el in self._actions.container if isinstance(el, DOMElement))
+
+    def action_values(self) -> tuple[str, ...]:
+        """The quick-action values, in display order."""
+        return tuple(self._action_by_key[el.key] for el in self.action_elements())
+
+    @property
+    def overlay_slot(self) -> DOMElement:
+        """The bubble's positioned column for anchoring overlays above it."""
+        return self._col
 
     # ---- internals ----
 
@@ -301,15 +367,27 @@ class MessageBubble(Component):
         self._col.styles = self._col.styles.model_copy(update={"align_items": end})
         side = _BUBBLE_ME if self._from_me else _BUBBLE_OTHER
         self._bubble.styles = _merge(_BUBBLE, side)
+        if self._white_space != "normal":
+            self._bubble.styles = self._bubble.styles.model_copy(update={"white_space": self._white_space})
         # The hover action row anchors to the side of the bubble it hangs
         # below: right edge for self-messages, left edge for others.
-        self._actions.styles = self._actions.styles.model_copy(
-            update={
-                "justify_content": end,
-                "left": "0" if not self._from_me else None,
-                "right": "0" if self._from_me else None,
-            }
-        )
+        action_update: dict[str, object] = {
+            "justify_content": end,
+            "left": "0" if not self._from_me else None,
+            "right": "0" if self._from_me else None,
+        }
+        if self._placement == "beside":
+            action_update.update(
+                {
+                    "top": "50%",
+                    "transform": "translateY(-50%)",
+                    "left": "calc(100% + 6px)" if not self._from_me else None,
+                    "right": "calc(100% + 6px)" if self._from_me else None,
+                }
+            )
+        else:
+            action_update.update({"top": "calc(100% + 2px)", "transform": None})
+        self._actions.styles = self._actions.styles.model_copy(update=action_update)
 
     def _add_action(self, entry: ReactiveText | tuple[str, ReactiveText] | Icon) -> None:
         if isinstance(entry, Icon):
@@ -325,16 +403,30 @@ class MessageBubble(Component):
             btn_content = label
         else:
             raise ValueError("MessageBubble.actions: a reactive label needs a (value, label) tuple")
+        action_styles = _ACTION
+        if self._action_size:
+            action_styles = action_styles.model_copy(
+                update={
+                    "width": self._action_size,
+                    "height": self._action_size,
+                    "padding": "0",
+                    "appearance": "none",
+                    "line_height": "1",
+                }
+            )
         # A reactive label (a ``tr`` ref) rides a child span so it can
         # re-render on language switch; an Icon or a plain str mounts
         # directly into the button.
         if isinstance(btn_content, (Signal, Computed)):
             label_span = Span(container=[])
+            label_span.styles = label_span.styles.model_copy(update={"pointer_events": "none"})
             _mount_text(label_span, btn_content)
-            btn = _ButtonElem(type="button", container=[label_span], styles=_ACTION)
+            btn = _ButtonElem(type="button", container=[label_span], styles=action_styles)
             label_span.bubble_events = True  # label-span clicks reach the row
         else:
-            btn = _ButtonElem(type="button", container=[btn_content], styles=_ACTION)
+            if isinstance(btn_content, DOMElement):
+                btn_content.styles = btn_content.styles.model_copy(update={"pointer_events": "none"})
+            btn = _ButtonElem(type="button", container=[btn_content], styles=action_styles)
         self._action_by_key[btn.key] = value
         self._bind(btn, "click")
         self._actions.container.append(btn)

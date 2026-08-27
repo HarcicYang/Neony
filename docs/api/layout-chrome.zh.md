@@ -29,15 +29,19 @@ GlassPanel(Heading("磨砂"), background=url, grow=True)  # 磨砂舞台
 titlebar = TitleBar("My App")  # 零配置,拖动/最小化/最大化/关闭
 titlebar.on_close(lambda e: print("bye"))  # 附加回调
 titlebar.override_close(confirm_close)  # 完全接管关闭
+titlebar.leading_slot.container.append(custom_element)
 ```
 
 **参数：** `title`、`icon`、`show_minimize`、`show_maximize`、
-`show_close`、`height`
+`icon_size`、`icon_styles`、`leading`、`trailing`、`show_minimize`、
+`show_maximize`、`show_close`、`height`
 
 `icon` 为 `Icon` 对象——`Icon.image(url_or_path)` 在标题左侧绘制一个小图标（固定尺寸方形，绝不拉伸）——无边框模式下
 `WindowConfig.icon` 的对应物，因为无边框窗口没有 OS 装饰来承载它。
 
 标题栏即拖拽区域（双击最大化）；控制按钮自动接线到窗口。
+`leading_slot` / `trailing_slot` 是只读插槽：前者包含图标、前置内容与
+标题，后者包含后置内容和窗口控制按钮。
 
 ## `Sidebar` & `SidebarItem`
 

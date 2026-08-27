@@ -580,6 +580,21 @@ describe("event delegation", () => {
     );
   });
 
+  it("resolves descendants of an interactive event scope to the scoped control", () => {
+    mountTree({
+      key: "btn",
+      tag: "button",
+      attrs: { "data-neony-event-scope": "" },
+      children: [{ key: "icon", tag: "span", text: "+", styles: {} }],
+    });
+    const icon = document.querySelector("[data-neony-key='icon']");
+    icon.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    expect(invoke).toHaveBeenCalledWith(
+      "neony.event",
+      expect.objectContaining({ key: "btn", event_type: "click" })
+    );
+  });
+
   it("ignores events on elements without a key", () => {
     const plain = document.createElement("div");
     document.body.appendChild(plain);

@@ -56,6 +56,20 @@ _PLAY_ICON = Icon._font("play_arrow")
 _PAUSE_ICON = Icon._font("pause")
 _VOLUME_UP_ICON = Icon._font("volume_up")
 _VOLUME_OFF_ICON = Icon._font("volume_off")
+_MEDIA_BUTTON = Styles(
+    display="flex",
+    align_items="center",
+    justify_content="center",
+    width="32px",
+    height="28px",
+    padding="0",
+    border="none",
+    border_radius="8px",
+    background_color=stub.surface,
+    # reset_styles() replaces Button's variant palette; keep an explicit
+    # themed foreground so the inherited-font icons follow dark/light.
+    color=stub.text_primary,
+)
 
 
 def _fmt_time(seconds: float | None) -> str:
@@ -82,6 +96,11 @@ def _dim(value: str | int | None) -> str | None:
 def _mount(child: Component | DOMElement) -> DOMElement:
     """Materialize a component child for a raw DOM container."""
     return child.build() if isinstance(child, Component) else child
+
+
+def _merge_styles(base: Styles, overrides: Styles) -> Styles:
+    """Apply the overrides' explicitly-set fields while retaining nested values."""
+    return base.model_copy(update={key: getattr(overrides, key) for key in overrides.model_fields_set})
 
 
 class _MediaBase(Component):
@@ -319,6 +338,7 @@ class _MediaBase(Component):
     def _transport_row(self) -> Div:
         """Themed control strip shared by both components."""
         self._play_button = Button("", variant="ghost", icon=_PLAY_ICON)
+        self._play_button.reset_styles(_MEDIA_BUTTON)
         self._play_button.on_click(lambda _event: self.pause() if self._playing() else self.play())
         effect(lambda: setattr(self._play_button, "icon", _PAUSE_ICON if self._playing() else _PLAY_ICON))
 
@@ -351,6 +371,7 @@ class _MediaBase(Component):
         self._duration_label.bind_text(self._duration_sig, fmt=_fmt_time)
 
         self._mute_button = Button("", variant="ghost", icon=_VOLUME_UP_ICON)
+        self._mute_button.reset_styles(_MEDIA_BUTTON)
         self._mute_button.on_click(lambda _event: self.toggle_muted())
         effect(lambda: setattr(self._mute_button, "icon", _VOLUME_OFF_ICON if self._is_muted() else _VOLUME_UP_ICON))
 
@@ -488,6 +509,7 @@ class Audio(_MediaBase):
         *,
         width: str | int | None = None,
         radius: str = "10px",
+        media_styles: Styles | None = None,
         autoplay: bool = False,
         loop: bool = False,
         muted: bool = False,
@@ -511,7 +533,9 @@ class Audio(_MediaBase):
             "muted": muted,
         }
 
-        self._media = DomAudio(args=data_attrs, **native_kwargs)
+        self._media = DomAudio(args=data_attrs, styles=Styles(), **native_kwargs)
+        if media_styles is not None:
+            self._media.styles = _merge_styles(self._media.styles, media_styles)
         self._bind_direct_events()
         self._root = Div(
             styles=Styles(
