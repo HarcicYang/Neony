@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neony"
-version = "0.3.0.post1"
+version = "0.3.1"
 description = "Reactive desktop UI framework for Python — built on LumiView, a pythonic webview desktop app framework"
 readme = "readme.md"
 license = "Apache-2.0"
