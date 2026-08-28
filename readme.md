@@ -122,6 +122,7 @@ Import from `neony.application.elements`.
 | `Spacer`                  | Flexible empty space that absorbs leftover room                                |
 | `Separator`               | Subtle divider — horizontal (default) or vertical                              |
 | `GlassPanel`              | Frosted-glass container with optional background image                         |
+| `GridView`                | Responsive grid with typed column tracks and uniform row sizing                |
 | `TitleBar`                | Custom window chrome for frameless windows — drag, minimize / maximize / close |
 | `Sidebar` / `SidebarItem` | Vertical navigation owning its content panes — `Pane`, `SidebarGroup` sections, per-pane shortcuts; glass-matched to the TitleBar |
 | `Pane`                    | Selectable Sidebar entry + content panel — `key`, `icon`, `section`, `shortcut` |

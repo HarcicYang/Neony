@@ -16,9 +16,9 @@ stay in English in both language versions so code can be copied directly.
   & feedback, content components, cascading `Menu` / `MenuBranch` /
   `CascadingDropdown`, and the `Reorder` drag-and-reorder component.
 - [Layout & chrome](layout-chrome.en.md) — `VStack` / `HStack` / `Flex` /
-  `Separator` / `GlassPanel`, `TitleBar`, `Sidebar` / `Pane` /
+  `Separator` / `GlassPanel` / `GridView`, `TitleBar`, `Sidebar` / `Pane` /
   `SidebarGroup`, `Tree`, `List`, `DataTable`, `Icon`.
-- [DOM & CSS](dom-css.en.md) — `Color`, `Styles`, `DomEvent`, raw HTML
+- [DOM & CSS](dom-css.en.md) — `Color`, `Columns`, `Styles`, `DomEvent`, raw HTML
   elements, and the low-level drag primitive.
 - [Reactivity](reactive.en.md) — `Signal`, `Computed`, `effect` / `Effect`,
   `untrack`, `SharedSignal`, declarative bindings, `bind_value`,

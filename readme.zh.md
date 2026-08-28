@@ -115,6 +115,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Spacer`                    | 弹性空白，吸收剩余空间                                                                                                    |
 | `Separator`                 | 细分隔线 — 水平（默认）或垂直                                                                                             |
 | `GlassPanel`                | 毛玻璃容器，可选背景图                                                                                                    |
+| `GridView`                  | 响应式网格容器，类型化列定义，同行等高                                                                                    |
 | `TitleBar`                  | 无边框窗口的自定义标题栏 — 拖动、最小化 / 最大化 / 关闭                                                                   |
 | `Sidebar` / `SidebarItem`   | 拥有内容面板的垂直导航 — `Pane`、`SidebarGroup` 分组小节、每面板快捷键；与 TitleBar 同款玻璃风格                          |
 | `Pane`                      | 可选的 Sidebar 条目 + 内容面板 — `key`、`icon`、`section`、`shortcut`                                                     |

@@ -15,6 +15,19 @@ Color(rgba=(255, 107, 107, 0.5))
 Color(var="--color-accent")  # 主题令牌
 ```
 
+## `Columns`
+
+类型化的列轨道定义，供 `GridView` 和 `Styles.grid_template_columns` 使用：
+
+```python
+Columns.fixed(3)  # repeat(3, 1fr) — 3 等分列
+Columns.responsive(120)  # 按容器宽度自动排 120px 列
+Columns.responsive("116px", fit=True)  # 内容少时拉伸铺满整行
+Columns(tracks=("80px", "1fr", "2fr"))  # 显式轨道
+```
+
+三种定义互斥，`fit` 只能与 `min_width` 搭配。纯数字自动补 `px`。
+
 ## `Styles`
 
 类型化 CSS 属性模型 — 颜色、尺寸、弹性布局、间距、排版、边框(含单角圆角)、

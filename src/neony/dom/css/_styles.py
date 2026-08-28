@@ -13,7 +13,7 @@ from pydantic import BaseModel, PrivateAttr
 from pydantic.fields import Field
 
 from ._animation import Animation, Transition
-from ._values import Border, BoxShadow, Color, Filter, Shadow, Transform
+from ._values import Border, BoxShadow, Color, Columns, Filter, Shadow, Transform
 
 if TYPE_CHECKING:
     from neony.dom.base import DOMElement
@@ -172,9 +172,10 @@ class Styles(BaseModel):
     gap: str | None = Field(default=None)
 
     # --- Grid ---
-    # CSS grid-template-columns value, e.g. "1fr 1fr" / "80px 1fr" — the
-    # column tracks a display:grid container lays its items into.
-    grid_template_columns: str | None = Field(default=None)
+    # Column tracks a display:grid container lays its items into — a typed
+    # :class:`Columns` definition (the normal path) or a raw ``str``
+    # escape hatch, e.g. "1fr 1fr" / "80px 1fr".
+    grid_template_columns: Columns | str | None = Field(default=None)
 
     # --- Spacing ---
     padding: str | None = Field(default=None)

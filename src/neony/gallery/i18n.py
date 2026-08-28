@@ -175,6 +175,8 @@ class Layout(BaseModel):
     edit: TrRef[None] = TrRef("Edit")
     item_fmt: TrRef[dict[str, object]] = TrRef("Item {i}")
     frosted: TrRef[None] = TrRef("Frosted")
+    grid_uniform_note: TrRef[None] = TrRef("uniform=True — every tile stretches to the tallest one in its row.")
+    grid_natural_note: TrRef[None] = TrRef("uniform=False — tiles keep their natural height, top-aligned.")
     type_title: TrRef[None] = TrRef("Typography")
     type_blurb: TrRef[None] = TrRef(
         "Six heading levels plus semantic text roles that follow the theme. "
@@ -837,6 +839,8 @@ register_catalog(
             edit="编辑",
             item_fmt="条目 {i}",
             frosted="毛玻璃",
+            grid_uniform_note="uniform=True——同行内所有卡片拉伸到最高的那块。",
+            grid_natural_note="uniform=False——卡片保持自身高度，顶部对齐。",
             type_title="排版",
             type_blurb=(
                 "六个标题级别加上跟随主题的语义文本角色。user_select 控制文本是否可选中："

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from neony.application.elements import Button, Flex, Heading, HStack, Spacer, Text
-from neony.dom import Div, Styles
+from neony.application.elements import Button, Card, Flex, GridView, Heading, HStack, Spacer, Text, VStack
+from neony.dom import Columns, Div, Styles
 
 from ..core import Section
 from ..i18n import tr
@@ -26,16 +26,40 @@ wrap_example = Flex(
     gap="8px",
 )
 
+
+# GridView: some tiles carry an extra line so the two sizing modes read
+# clearly — uniform shares the row height, natural keeps content height.
+def _grid_cell(i: int, tall: bool) -> Card:
+    lines = [Text(tr.layout.item_fmt.format(i=i), weight="600")]
+    if tall:
+        lines.append(Text(tr.layout.item_fmt.format(i=i), role="secondary"))
+    return Card(VStack(*lines, gap="4px"), padding="10px")
+
+
+def _grid_cells() -> list[Card]:
+    # Fresh instances per grid — a Component's build() is single-shot.
+    return [_grid_cell(i, tall=i in (2, 5)) for i in range(1, 7)]
+
+
+uniform_grid = GridView(*_grid_cells(), columns=Columns.responsive(96))
+natural_grid = GridView(*_grid_cells(), columns=Columns.responsive(96), uniform=False)
+
 layout_panel = Section(
     tr.layout.layout_title,
     tr.layout.layout_blurb,
     """HStack(Text("Title"), Spacer(), Button("Edit"), gap="8px")
 Flex(*items, direction="row", wrap="wrap", gap="8px")
 VStack(a, b, gap="12px")
+GridView(cards, columns=Columns.responsive(120))  # uniform rows
+GridView(cards, uniform=False, columns=Columns.fixed(3))
 Separator()
 GlassPanel("Frosted", role="accent")""",
     row_example,
     wrap_example,
+    Text(tr.layout.grid_uniform_note, role="secondary"),
+    uniform_grid,
+    Text(tr.layout.grid_natural_note, role="secondary"),
+    natural_grid,
 )
 
 # ── tab: typography ──────────────────────────────────────────────

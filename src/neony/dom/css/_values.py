@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Literal, cast
 
-from pydantic import BaseModel, model_serializer
+from pydantic import BaseModel, model_serializer, model_validator
 from pydantic.fields import Field
 
 
@@ -232,6 +232,71 @@ class Transform(BaseModel):
     @model_serializer
     def to_css(self) -> str:
         return " ".join(self.funcs)
+
+    def __str__(self) -> str:
+        return cast(str, self.model_dump())
+
+    def __repr__(self) -> str:
+        return cast(str, self.model_dump())
+
+
+class Columns(BaseModel):
+    """Typed ``grid-template-columns`` — column tracks for a CSS grid.
+
+    Exactly one of ``repeat`` (``repeat(N, 1fr)``), ``min_width``
+    (``repeat(auto-fill|auto-fit, minmax(..., 1fr))``) or ``tracks`` (an
+    explicit track listing) may be set; ``fit`` only applies together
+    with ``min_width``.  Bare numbers for ``min_width`` become ``px``.
+    Convenience constructors: :meth:`fixed` and :meth:`responsive` —
+    explicit track listings go through the ``tracks`` field directly.
+
+    There is deliberately no raw-CSS escape hatch: grid layout goes
+    through this model so column definitions stay inspectable and
+    comparable.
+
+    Note: the ``repeat`` field name is load-bearing — pydantic serialises
+    union members duck-typed, and a field named ``count`` would silently
+    resolve to ``str.count`` when a plain string rides a
+    ``Columns | str`` style field.
+    """
+
+    repeat: int | None = None
+    min_width: int | float | str | None = None
+    fit: bool = False
+    tracks: tuple[str, ...] | None = None
+
+    @classmethod
+    def fixed(cls, n: int) -> Columns:
+        """``repeat(n, 1fr)`` — exactly *n* evenly split columns."""
+        return cls(repeat=n)
+
+    @classmethod
+    def responsive(cls, min_width: int | float | str, *, fit: bool = False) -> Columns:
+        """``repeat(auto-fill|auto-fit, minmax(min_width, 1fr))`` — as many
+        columns as fit the container, each at least *min_width* wide.
+
+        ``fit=True`` selects ``auto-fit``: empty tracks collapse so few
+        items stretch across the full row (``auto-fill`` keeps them
+        reserved)."""
+        return cls(min_width=min_width, fit=fit)
+
+    @model_validator(mode="after")
+    def _check_exclusive(self) -> Columns:
+        set_fields = [name for name in ("repeat", "min_width", "tracks") if getattr(self, name) is not None]
+        if len(set_fields) != 1:
+            raise ValueError("Columns takes exactly one of repeat=, min_width=, or tracks=")
+        if self.fit and self.min_width is None:
+            raise ValueError("Columns(fit=True) requires min_width=")
+        return self
+
+    @model_serializer
+    def to_css(self) -> str:
+        if self.repeat is not None:
+            return f"repeat({self.repeat}, 1fr)"
+        if self.min_width is not None:
+            mode = "auto-fit" if self.fit else "auto-fill"
+            return f"repeat({mode}, minmax({px(self.min_width)}, 1fr))"
+        return " ".join(self.tracks or ())
 
     def __str__(self) -> str:
         return cast(str, self.model_dump())

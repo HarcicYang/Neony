@@ -21,6 +21,25 @@ GlassPanel(Heading("磨砂"), background=url, grow=True)  # 磨砂舞台
   `grow=True` 撑满父区域;`radius` 覆盖默认 12px 圆角;`width` / `height`
   把面板固定为确定尺寸（配合默认非 `grow` 模式）。
 
+## 网格容器
+
+```python
+from neony.dom import Columns  # CSS 值类型在 neony.dom 里
+
+GridView(cards, columns=Columns.responsive(120))  # 随窗口重排的卡片墙
+GridView(cards, columns=Columns.fixed(3), gap="12px")
+GridView(cards, uniform=False)  # 卡片保持自身高度
+```
+
+- `columns` 决定列布局：`Columns.fixed(n)` 均分 `n` 列；
+  `Columns.responsive(min_width)` 按容器宽度自动排列（加 `fit=True`
+  让内容较少的行拉伸铺满）；`Columns(tracks=...)` 显式指定列宽。
+  完整 `Columns` 用法见 [DOM 与 CSS](dom-css.zh.md)。
+- `uniform=True`（默认）让同行内所有卡片等高于最高的那块——图片网格
+  整齐划一；`uniform=False` 保持各自内容高度，顶部对齐。
+- 长标签在卡片内自动换行而不会撑破布局，窗口缩放时行列自动重排，
+  无需额外样式。
+
 ## `TitleBar`
 
 无边框窗口的自定义标题栏。需 `WindowConfig(decorations=False)`。

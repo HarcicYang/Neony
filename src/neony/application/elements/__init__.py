@@ -17,6 +17,7 @@ from neony.application.elements.combobox import ComboBox
 from neony.application.elements.datatable import Column, DataTable
 from neony.application.elements.dialog import Dialog, DialogAction
 from neony.application.elements.dropdown import Dropdown
+from neony.application.elements.grid_view import GridView
 from neony.application.elements.heading import Heading
 from neony.application.elements.icon import Icon
 from neony.application.elements.image import Image
@@ -61,6 +62,7 @@ __all__ = [
     "Dropdown",
     "Flex",
     "GlassPanel",
+    "GridView",
     "HStack",
     "Heading",
     "Icon",

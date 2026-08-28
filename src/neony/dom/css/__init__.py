@@ -23,13 +23,14 @@ from __future__ import annotations
 
 from ._animation import Animation, KeyFrame, KeyFrameStop, Props, Transition
 from ._styles import Styles
-from ._values import Border, BoxShadow, Color, Filter, Shadow, Transform, calc, pct, px
+from ._values import Border, BoxShadow, Color, Columns, Filter, Shadow, Transform, calc, pct, px
 
 __all__ = [
     "Animation",
     "Border",
     "BoxShadow",
     "Color",
+    "Columns",
     "Filter",
     "KeyFrame",
     "KeyFrameStop",

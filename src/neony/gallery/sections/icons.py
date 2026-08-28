@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from neony.application import icons
-from neony.application.elements import Card, Icon, Text, VStack
-from neony.dom import Div, DOMElement, Styles
+from neony.application.elements import Card, GridView, Icon, Text, VStack
+from neony.dom import Columns
 
 from ..core import Section
 from ..i18n import tr
@@ -34,16 +34,13 @@ def _tile(name: str) -> Card:
     )
 
 
-def _icon_grid(names: tuple[str, ...]) -> DOMElement:
-    """Responsive GridView-style catalog built from every public stub entry."""
-    return Div(
-        styles=Styles(
-            display="grid",
-            grid_template_columns="repeat(auto-fit, minmax(116px, 1fr))",
-            gap="8px",
-            width="100%",
-        ),
-        container=[_tile(name).build() for name in names],
+def _icon_grid(names: tuple[str, ...]) -> GridView:
+    """Responsive catalog built from every public stub entry — uniform
+    rows and wrapping labels come from GridView itself."""
+    return GridView(
+        *[_tile(name) for name in names],
+        columns=Columns.responsive("116px", fit=True),
+        gap="8px",
     )
 
 

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- **`GridView`** — a responsive CSS-grid container for card walls and
+  catalogs. Columns are defined with the typed `Columns` model
+  (`Columns.fixed(n)`, `Columns.responsive(min_width, fit=)`,
+  `Columns(tracks=...)`) — no raw CSS strings. `uniform=True` (default)
+  keeps every tile in a row as tall as its tallest neighbour;
+  `uniform=False` keeps natural heights, top-aligned. Long labels wrap
+  inside their tile instead of overflowing. The gallery's icon catalog
+  now uses it; both sizing modes are demoed on the Layout tab.
+
 ### Dependencies
 
 - Upgraded `lumiview` from `0.1.0.dev5` to `0.1.0` (stable). The only

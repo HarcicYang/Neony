@@ -16,6 +16,20 @@ Color(rgba=(255, 107, 107, 0.5))
 Color(var="--color-accent")  # theme token
 ```
 
+## `Columns`
+
+Typed column tracks for `GridView` and `Styles.grid_template_columns`:
+
+```python
+Columns.fixed(3)  # repeat(3, 1fr) — 3 even columns
+Columns.responsive(120)  # as many 120px columns as fit
+Columns.responsive("116px", fit=True)  # few items stretch across the row
+Columns(tracks=("80px", "1fr", "2fr"))  # explicit tracks
+```
+
+The three definitions are mutually exclusive, and `fit` only applies
+together with `min_width`. Bare numbers become `px`.
+
 ## `Styles`
 
 Typed CSS properties — colors, dimensions, flexbox, spacing, typography,

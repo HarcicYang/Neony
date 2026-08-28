@@ -15,9 +15,9 @@
   内容组件、`Menu` / `MenuBranch` / `CascadingDropdown` 级联菜单，
   以及 `Reorder` 拖拽重排组件。
 - [布局与窗口装饰](layout-chrome.zh.md) — `VStack` / `HStack` / `Flex` /
-  `Separator` / `GlassPanel`、`TitleBar`、`Sidebar` / `Pane` /
+  `Separator` / `GlassPanel` / `GridView`、`TitleBar`、`Sidebar` / `Pane` /
   `SidebarGroup`、`Tree`、`List`、`DataTable`、`Icon`。
-- [DOM 与 CSS](dom-css.zh.md) — `Color`、`Styles`、`DomEvent`、原始 HTML
+- [DOM 与 CSS](dom-css.zh.md) — `Color`、`Columns`、`Styles`、`DomEvent`、原始 HTML
   元素与底层拖拽原语。
 - [响应式](reactive.zh.md) — `Signal`、`Computed`、`effect` / `Effect`、
   `untrack`、`SharedSignal`、声明式绑定、`bind_value`、自动渲染。

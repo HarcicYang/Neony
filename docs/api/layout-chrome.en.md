@@ -22,6 +22,27 @@ GlassPanel(Heading("Frosted"), background=url, grow=True)  # frosted stage
   overrides the default 12px corner radius; `width` / `height` fix the
   panel to a definite size (pair with the default non-`grow` mode).
 
+## Grid container
+
+```python
+from neony.dom import Columns  # CSS value types live in neony.dom
+
+GridView(cards, columns=Columns.responsive(120))  # card wall that reflows
+GridView(cards, columns=Columns.fixed(3), gap="12px")
+GridView(cards, uniform=False)  # tiles keep their own height
+```
+
+- `columns` picks the column layout: `Columns.fixed(n)` for `n` even
+  columns, `Columns.responsive(min_width)` for as many columns as fit
+  (add `fit=True` so a short last row stretches wide), or
+  `Columns(tracks=...)` for explicit widths. See
+  [DOM & CSS](dom-css.en.md) for the full `Columns` reference.
+- `uniform=True` (default) makes every tile in a row as tall as the
+  tallest one — picture grids stay flush. `uniform=False` keeps each
+  tile at its natural height, top-aligned.
+- Long labels wrap inside their tile instead of overflowing, and rows
+  reflow as the window resizes — no extra styling needed.
+
 ## `TitleBar`
 
 Custom window chrome for frameless windows. Requires
