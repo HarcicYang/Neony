@@ -393,23 +393,20 @@ def _media_bridge(monkeypatch, handler_response: Response) -> Any:
     """A Neony bridge with protocol handlers wired and lumiview scheduling
     stubbed out (handler runs inline)."""
     import importlib
-    from types import SimpleNamespace
 
     from neony.dom.bridge import Neony
 
-    # lumiview.__init__ re-exports ``task``/``app`` attributes, shadowing
-    # the submodules — resolve the real modules explicitly.
-    lv_app = importlib.import_module("lumiview.app")
+    # lumiview.__init__ re-exports the ``task`` attribute, shadowing the
+    # submodule — resolve the real module explicitly.
     lv_task = importlib.import_module("lumiview.task")
 
-    async def fake_run_async(fn, request, pool=None):
+    async def fake_run_async(fn, request, **kwargs):
         result = fn(request)
         if asyncio.iscoroutine(result):
             return await result
         return result
 
     monkeypatch.setattr(lv_task, "run_async", fake_run_async)
-    monkeypatch.setattr(lv_app.App, "get", classmethod(lambda cls: SimpleNamespace(_threadpool=None)))
 
     bridge = Neony(name="neony")
     bridge._protocol_handlers = {"local": lambda request: handler_response}
@@ -465,7 +462,6 @@ def test_media_read_upstream_error_propagates(monkeypatch):
 def test_media_read_ranged_slice_reports_total(monkeypatch, tmp_path):
     """offset/chunk → Range 请求 → local_files 206 分片 + Content-Range 总长。"""
     import importlib
-    from types import SimpleNamespace
 
     from neony.application import local_files
     from neony.dom.bridge import Neony
@@ -473,15 +469,13 @@ def test_media_read_ranged_slice_reports_total(monkeypatch, tmp_path):
     media = tmp_path / "big.mp4"
     media.write_bytes(b"0123456789ABCDEF")
 
-    # lumiview.__init__ 遮蔽了 task/app 子模块属性 —— 用 importlib 取真身
+    # lumiview.__init__ 遮蔽了 task 子模块属性 —— 用 importlib 取真身
     lv_task = importlib.import_module("lumiview.task")
-    lv_app = importlib.import_module("lumiview.app")
 
-    async def fake_run_async(fn, request, pool=None):
+    async def fake_run_async(fn, request, **kwargs):
         return fn(request)
 
     monkeypatch.setattr(lv_task, "run_async", fake_run_async)
-    monkeypatch.setattr(lv_app.App, "get", classmethod(lambda cls: SimpleNamespace(_threadpool=None)))
 
     bridge = Neony(name="neony")
     bridge._protocol_handlers = {"local": local_files}

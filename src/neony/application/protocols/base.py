@@ -16,7 +16,6 @@ before it reaches the handler as :attr:`Request.path`.
 
 from __future__ import annotations
 
-import asyncio
 import functools
 import inspect
 import json
@@ -262,18 +261,11 @@ class NeonyProtocolDispatch(Serve):
         respond: Callable[[int, list[tuple[str, str]], bytes], None],
     ) -> None:
         """Schedule *handler* off the webview callback thread."""
-        from lumiview.app import App
-        from lumiview.task import run_async
-
-        app = App.get()
-        loop = app._async_loop
-        if loop is None:
-            respond(500, [("Content-Type", "text/plain")], b"App not running")
-            return
+        from lumiview.task import run_async, task
 
         async def _run() -> None:
             try:
-                result = await run_async(handler, request, pool=app._threadpool)
+                result = await run_async(handler, request)
                 headers = dict(result.headers)
                 # A page loaded from the in-memory document has an opaque
                 # origin.  Allow it to fetch protocol resources so the JS
@@ -285,4 +277,15 @@ class NeonyProtocolDispatch(Serve):
                 log.exception("Protocol handler %r raised", request.key)
                 respond(500, [("Content-Type", "text/plain")], b"Internal Server Error")
 
-        asyncio.run_coroutine_threadsafe(_run(), loop)
+        handle = task(_run)
+
+        def _scheduling_failed(fut: Any) -> None:
+            # task() fails the handle without ever running _run() when the
+            # app is not running or is shutting down — answer 500 rather
+            # than leaving the webview's request hanging.  _run() never
+            # lets a handler error escape, so a failed handle here can
+            # only be a scheduling failure.
+            if not fut.cancelled() and fut.exception() is not None:
+                respond(500, [("Content-Type", "text/plain")], b"App not running")
+
+        handle.add_done_callback(_scheduling_failed)

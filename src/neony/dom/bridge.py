@@ -674,12 +674,9 @@ class Neony(Plugin):
             headers=headers,
         )
 
-        # Same scheduling contract as NeonyProtocolDispatch._dispatch:
-        # sync handlers on the app thread pool, async on the loop.
-        from lumiview.app import App
-
-        app = App.get()
-        result = await run_async(handler, request, pool=app._threadpool)
+        # run_async keeps the shared scheduling contract: sync handlers on
+        # the app thread pool, async handlers awaited on the loop.
+        result = await run_async(handler, request)
         if result.status >= 400:
             raise BridgeError("upstream_error", f"Protocol {key!r} answered {result.status}")
 
