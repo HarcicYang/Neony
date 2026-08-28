@@ -191,6 +191,10 @@ Pydantic 配置模型。`WindowConfig` 负责几何与外观
 无边框窗口没有 OS 装饰——内联图标见 [`TitleBar`](layout-chrome.zh.md#titlebar) 的 `icon`
 参数，运行时更换见 [`NeonApplication.set_icon()`](#neonapplication)。
 
+**`WindowConfig.sync_visibility`** — 默认开启：窗口隐藏或最小化时，
+底层 webview 一同隐藏，平台得以节流并降低 CPU 占用。托盘类应用需要
+在窗口隐藏期间继续渲染时设为 `False`。
+
 **`WebViewConfig.default_context_menus`** — 默认关闭：应用自绘菜单
 （`Menu` 组件、`contextmenu` 事件），webview 的原生右键菜单会盖住
 它们。需要平台默认菜单时设为 `True`。

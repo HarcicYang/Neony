@@ -27,6 +27,21 @@
   item, so <kbd>Cmd+W</kbd> closes the focused window (routed through
   the normal `CloseRequested` chain — close-to-tray apps keep their
   behavior). To be confirmed on macOS hardware.
+- Upgraded `lumiview` from `0.1.0` to `0.1.1`. The release adds a
+  `sync_visibility` window option — the webview is hidden alongside a
+  minimized / hidden window so the platform can throttle it — and is
+  now exposed as **`WindowConfig.sync_visibility`** (default `True`;
+  set `False` if a tray-style app must keep rendering while hidden).
+  No breaking upstream changes.
+- Protocol requests and `media_read` no longer touch LumiView private
+  internals (`App._async_loop` / `App._threadpool`): scheduling now goes
+  through the public `lumiview.task.task()` / `run_async()` APIs. As a
+  side effect, a protocol request arriving while the app is shutting
+  down now answers `500` immediately instead of potentially hanging.
+- On macOS, the default application menu now includes a Close Window
+  item, so <kbd>Cmd+W</kbd> closes the focused window (routed through
+  the normal `CloseRequested` chain — close-to-tray apps keep their
+  behavior). To be confirmed on macOS hardware.
 
 ## 0.3.0 — 2026-08-25
 

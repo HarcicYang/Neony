@@ -200,6 +200,11 @@ windows. Frameless windows have no OS chrome — see the
 [`TitleBar`](layout-chrome.en.md#titlebar) `icon` parameter for inline icons, and
 [`NeonApplication.set_icon()`](#neonapplication) to swap at runtime.
 
+**`WindowConfig.sync_visibility`** — on by default: when the window is
+hidden or minimized, the underlying webview is hidden too, letting the
+platform throttle it and save CPU. Set `False` for tray-style apps that
+must keep rendering while the window is hidden.
+
 **`WebViewConfig.default_context_menus`** — off by default: the app
 draws its own menus (the `Menu` component, `contextmenu` events) and
 the webview's native right-click menu would cover them. Set `True` for

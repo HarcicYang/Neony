@@ -26,6 +26,10 @@ class WindowConfig(BaseModel):
     min_size: tuple[float, float] | None = None
     max_size: tuple[float, float] | None = None
     visible: bool = True
+    # When the window hides / minimizes, also hide the underlying webview
+    # so the platform can throttle it (lumiview's default).  Turn off for
+    # tray-style apps that must keep rendering while hidden.
+    sync_visibility: bool = True
     decorations: bool = True
     resizable: bool = True
     transparent: bool = False
