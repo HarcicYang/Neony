@@ -2,6 +2,7 @@
 
 from neony.dom import NodeDescriptor
 from neony.dom.bridge import (
+    AppendTextPatch,
     CreatePatch,
     DiffEngine,
     MovePatch,
@@ -82,6 +83,51 @@ class TestTextChanges:
         assert has_patch(patches, SetTextPatch)
         op = next(p for p in patches if isinstance(p, SetTextPatch))
         assert op.text == ""
+
+
+class TestTextAppends:
+    def test_pure_extension_ships_only_delta(self):
+        old = nd("t", "span", text="hello")
+        new = nd("t", "span", text="hello world")
+        patches = DiffEngine.diff(old, new)
+        assert len(patches) == 1
+        assert isinstance(patches[0], AppendTextPatch)
+        assert patches[0].key == "t"
+        assert patches[0].text == " world"
+
+    def test_append_from_empty_text(self):
+        old = nd("t", "span", text="")
+        new = nd("t", "span", text="hello")
+        patches = DiffEngine.diff(old, new)
+        assert len(patches) == 1
+        assert isinstance(patches[0], AppendTextPatch)
+        assert patches[0].text == "hello"
+
+    def test_diverged_text_falls_back_to_full_set(self):
+        old = nd("t", "span", text="hello")
+        new = nd("t", "span", text="help")
+        patches = DiffEngine.diff(old, new)
+        assert len(patches) == 1
+        assert isinstance(patches[0], SetTextPatch)
+        assert patches[0].text == "help"
+
+    def test_text_from_none_is_not_an_append(self):
+        old = nd("t", "span", text=None)
+        new = nd("t", "span", text="hello")
+        patches = DiffEngine.diff(old, new)
+        assert has_patch(patches, SetTextPatch)
+        assert not has_patch(patches, AppendTextPatch)
+
+    def test_identical_text_still_produces_no_patch(self):
+        tree = nd("t", "span", text="same")
+        assert DiffEngine.diff(tree, tree) == []
+
+    def test_append_with_other_patches(self):
+        old = nd("t", "span", text="a", styles={"color": "red"})
+        new = nd("t", "span", text="ab", styles={"color": "blue"})
+        patches = DiffEngine.diff(old, new)
+        assert has_patch(patches, AppendTextPatch)
+        assert has_patch(patches, UpdateStylesPatch)
 
 
 class TestStyleChanges:

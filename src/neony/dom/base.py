@@ -199,6 +199,10 @@ class DOMElement(BaseModel):
     # (SidebarItem's icon/label spans; layout containers keep strict routing).
     _bubble_events: bool = PrivateAttr(default=False)
 
+    # The effect created by bind_text — disposed alone by _unbind_text so
+    # switching a text binding to imperative writes keeps other bindings.
+    _text_binding: Effect | None = PrivateAttr(default=None)
+
     @property
     def bubble_events(self) -> bool:
         """Public access to opt-in event bubbling.
@@ -241,6 +245,11 @@ class DOMElement(BaseModel):
     # Python diff.  ``to_node`` always reuses the cached snapshot for a
     # managed root, so its children never generate patches.
     _managed_content: bool = PrivateAttr(default=False)
+    # Optional current-content provider for a managed root: when set, the
+    # FIRST snapshot (mount, or a resync re-mount after the snapshot cache
+    # is dropped) serializes the provider's text instead of the container,
+    # so a rebuild always carries the live content (Markdown's source).
+    _managed_source: Callable[[], str] | None = PrivateAttr(default=None)
     # The display value bind_visible restores when the signal turns true.
     _visible_display: Literal["block", "flex", "grid", "inline", "inline-block", "inline-flex", "none"] | None = (
         PrivateAttr(default=None)
@@ -254,6 +263,7 @@ class DOMElement(BaseModel):
         # to avoid pydantic's per-instance default-factory introspection.
         self._handlers = {}
         self._bindings = []
+        self._text_binding = None
         self._dirty_elements = {}
         # object.__setattr__: the swap itself is not a mutation.
         object.__setattr__(self, "container", _Children(self, self.container))
@@ -330,7 +340,8 @@ class DOMElement(BaseModel):
     def bind_text(self, signal: Signal[Any] | Computed[Any], fmt: Callable[[Any], str] = str) -> Self:
         """Bind *signal* to this element's text: ``fmt(signal())`` now and
         on every change, replacing the children with a single string."""
-        self._bind(lambda: self._set_text(fmt(signal())))
+        self._unbind_text()
+        self._text_binding = self._bind(lambda: self._set_text(fmt(signal())))
         return self
 
     def bind_style(
@@ -374,12 +385,50 @@ class DOMElement(BaseModel):
         for eff in self._bindings:
             eff.dispose()
         self._bindings.clear()
+        self._text_binding = None
         return self
+
+    def _unbind_text(self) -> None:
+        """Dispose only the :meth:`bind_text` effect — other bindings
+        (bind_style, bind_attr, ...) on this element stay alive."""
+        eff = self._text_binding
+        if eff is None:
+            return
+        self._text_binding = None
+        if eff._disposed:
+            return
+        eff.dispose()
+        if eff in self._bindings:
+            self._bindings.remove(eff)
 
     # ---- binding internals ----
 
     def _set_text(self, text: str) -> None:
         self.container = [text]
+
+    def _append_text(self, text: str) -> None:
+        """Append a text chunk to a text-only element (streaming path).
+
+        Appending a string child instead of replacing the container lets
+        the diff emit an :class:`~neony.dom.AppendTextPatch` when the
+        browser already shows the previous text — only the chunk travels
+        the bridge.  Structural-dirty, like any container change; the
+        explicit dirty marking also covers containers that were replaced
+        with a plain list by a ``container = [...]`` assignment (in-place
+        mutation of a plain list bypasses ``_Children`` tracking).
+        """
+        if self._void:
+            raise TypeError(f"Void element <{self._tag}> cannot hold text")
+        if any(isinstance(item, DOMElement) for item in self.container):
+            raise ValueError(
+                f"Element {self.key!r} ({self._tag}): cannot append text to "
+                f"element children — containers must stay text-only or "
+                f"element-only."
+            )
+        self.container.append(text)
+        self._dirty_type |= self._DIRTY_STRUCTURAL
+        self._invalidate_attrs_cache()
+        self._mark_dirty()
 
     def _set_style(self, prop: str, value: Any) -> None:
         setattr(self.styles, prop, value if value is not None else None)
@@ -745,6 +794,11 @@ class DOMElement(BaseModel):
 
         if self._void:
             pass
+        elif self._managed_content and self._managed_source is not None:
+            # First snapshot of a managed root with a live-content
+            # provider: ship the provider's text so a mount or resync
+            # re-mount always carries the current content.
+            text = self._managed_source()
         elif has_strings:
             text = "".join(str(item) for item in self.container)
         else:

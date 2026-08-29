@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import re
+import webbrowser
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
@@ -90,6 +93,18 @@ class SetTextPatch(BaseModel):
     text: str
 
 
+class AppendTextPatch(BaseModel):
+    """Append a text chunk to an element's existing text content.
+
+    Emitted when new text is a pure extension of the old text — a
+    streaming append only ships the delta instead of the whole string.
+    """
+
+    op: Literal["append_text"] = "append_text"
+    key: str
+    text: str
+
+
 # ---- discriminated union ----
 
 
@@ -103,6 +118,7 @@ Patch = Annotated[
         | UpdateAttrsPatch
         | UpdateStylesPatch
         | SetTextPatch
+        | AppendTextPatch
     ),
     Field(discriminator="op"),
 ]
@@ -199,7 +215,13 @@ class DiffEngine:
             return patches
 
         if old.text != new.text:
-            patches.append(SetTextPatch(key=new.key, text=new.text or ""))
+            # Pure extension of the previous text (the old state was
+            # text-only, so appending is equivalent to replacing) — ship
+            # only the delta so streaming appends stay O(chunk).
+            if old.text is not None and new.text and new.text.startswith(old.text):
+                patches.append(AppendTextPatch(key=new.key, text=new.text[len(old.text) :]))
+            else:
+                patches.append(SetTextPatch(key=new.key, text=new.text or ""))
 
         attr_patch = DiffEngine._diff_dict(old.attrs, new.attrs)
         if attr_patch:
@@ -386,6 +408,7 @@ class Neony(Plugin):
         self.command(self._on_ready_ack, name="ready")
         self.command(self._on_paste_files, name="paste_files")
         self.command(self._on_media_read, name="media_read")
+        self.command(self._on_open_external, name="open_external")
 
     # ---- Plugin lifecycle hooks ----
 
@@ -715,6 +738,16 @@ class Neony(Plugin):
     async def _on_ready_ack(self, ctx: BridgeContext, rev: int) -> None:
         """JS engine has mounted and is ready."""
         pass
+
+    async def _on_open_external(self, ctx: BridgeContext, url: str) -> None:
+        """Open a link (markdown content) in the system browser.  The
+        webview's navigation policy denies in-page navigation by default,
+        so in-app content routes external links here.  Scheme-allowlisted:
+        anything else (``file:``, custom handlers) is dropped."""
+        if not re.match(r"^https?://|^mailto:", url):
+            logging.getLogger("neony.bridge").warning("open_external: blocked %r", url)
+            return
+        await asyncio.to_thread(webbrowser.open, url)
 
     # ---- public API ----
 

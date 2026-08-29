@@ -162,7 +162,7 @@ class TestDiffIntegration:
         assert DiffEngine.diff(n1, n2) == []
 
     def test_partial_change_produces_minimal_patches(self):
-        from neony.dom.bridge import DiffEngine, SetTextPatch
+        from neony.dom.bridge import AppendTextPatch, DiffEngine, SetTextPatch
 
         root, _a, b, _c = build_tree()
         cache = _cache()
@@ -170,11 +170,13 @@ class TestDiffIntegration:
         b.container = ["B2"]
         n2 = root.to_node(snapshot_cache=cache)
         patches = DiffEngine.diff(n1, n2)
-        # exactly one real change: b's text
-        text_patches = [p for p in patches if isinstance(p, SetTextPatch)]
+        # exactly one real change: b's text — "B" → "B2" is a pure
+        # extension, so only the delta ships (an append, not a set).
+        text_patches = [p for p in patches if isinstance(p, (SetTextPatch, AppendTextPatch))]
         assert len(text_patches) == 1
+        assert isinstance(text_patches[0], AppendTextPatch)
         assert text_patches[0].key == "b"
-        assert text_patches[0].text == "B2"
+        assert text_patches[0].text == "2"
 
     def test_style_change_on_component_propagates(self):
         from neony.application.elements import Button

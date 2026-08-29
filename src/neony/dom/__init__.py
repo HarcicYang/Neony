@@ -22,6 +22,7 @@ Example::
 
 from .base import DOMElement
 from .bridge import (
+    AppendTextPatch,
     CreatePatch,
     DiffEngine,
     MovePatch,
@@ -147,6 +148,7 @@ __all__ = [
     "H6",
     "Anchor",
     "Animation",
+    "AppendTextPatch",
     "Article",
     "Aside",
     "Audio",
