@@ -131,6 +131,45 @@ _BUILTIN_KEYFRAMES += [
     for pos, (dx, dy) in _TOAST_ENTRY_OFFSETS.items()
 ]
 
+# Streaming-effect keyframes: the blinking caret that trails growing
+# text, the fade-in for each appended chunk, and the soft glow pulsing
+# on a streaming message bubble.  The matching rules (what carries
+# ``data-neony-streaming`` etc.) live in STREAMING_CSS below; both are
+# injected by ``_inject_keyframes``.
+_BUILTIN_KEYFRAMES += [
+    KeyFrame("neony-caret-blink")
+    .set("0%", Props(opacity=1))
+    .set("50%", Props(opacity=0))
+    .set("100%", Props(opacity=1)),
+    KeyFrame("neony-stream-chunk-in").set("0%", Props(opacity=0)).set("100%", Props(opacity=1)),
+    KeyFrame("neony-stream-glow")
+    .set("0%", Props(box_shadow="0 0 0 0 transparent"))
+    .set("50%", Props(box_shadow="0 0 18px 1px var(--color-accent-glass)"))
+    .set("100%", Props(box_shadow="0 0 0 0 transparent")),
+]
+
+# Streaming-effect rules (see STREAMING keyframes above).  While a text
+# stream runs, the JS runtime marks the growing element with
+# ``data-neony-streaming`` — a pseudo-element caret trails the content
+# and each appended chunk fades in as ``.neony-stream-chunk`` — and
+# message bubbles add ``data-neony-stream-glow`` for a soft accent
+# pulse.  Both attributes live outside the Python diff (set directly by
+# the JS runtime), so patches never touch them.
+STREAMING_CSS = """
+[data-neony-streaming]::after {
+  content: "\\258D";
+  color: var(--color-accent);
+  margin-left: 1px;
+  animation: neony-caret-blink 1.1s ease-in-out infinite;
+}
+.neony-stream-chunk {
+  animation: neony-stream-chunk-in 0.2s var(--motion-ease-enter, ease-out) both;
+}
+[data-neony-stream-glow] {
+  animation: neony-stream-glow 1.8s ease-in-out infinite;
+}
+""".strip()
+
 
 def _file_info(path: str) -> dict[str, Any]:
     """One ``drop_files`` entry from a real path: name from the basename,

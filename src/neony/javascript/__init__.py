@@ -1,12 +1,21 @@
 """Neony JavaScript runtime — loaded and injected into every LumiView page.
 
-The JS source files are concatenated in dependency order
-(builder → engine → index → editor) and exposed as :data:`ENGINE_SOURCE`.
+The JS source files are concatenated in dependency order (vendored
+markdown/highlight libraries → builder → engine → index → markdown glue →
+editor) and exposed as :data:`ENGINE_SOURCE`.
 """
 
 from pathlib import Path
 
-_JS_FILES = ("builder.js", "engine.js", "index.js", "editor.js")
+_JS_FILES = (
+    "vendor/markdown-it.min.js",
+    "vendor/highlight.min.js",
+    "builder.js",
+    "engine.js",
+    "index.js",
+    "markdown.js",
+    "editor.js",
+)
 _DIR = Path(__file__).resolve().parent
 
 

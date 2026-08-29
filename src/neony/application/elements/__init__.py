@@ -24,6 +24,7 @@ from neony.application.elements.image import Image
 from neony.application.elements.input import Input
 from neony.application.elements.layout import Flex, GlassPanel, HStack, Separator, Spacer, VStack
 from neony.application.elements.list import List, ListItem
+from neony.application.elements.markdown import Markdown
 from neony.application.elements.media import Audio, Video
 from neony.application.elements.menu import Menu, MenuBranch
 from neony.application.elements.progress import Progress
@@ -71,6 +72,7 @@ __all__ = [
     "Input",
     "List",
     "ListItem",
+    "Markdown",
     "Menu",
     "MenuBranch",
     "MessageBubble",

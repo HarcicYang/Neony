@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import weakref
-from collections.abc import Sequence
+from collections.abc import AsyncIterable, Iterable, Sequence
 from typing import Literal, Self
 
 from neony.application.theme import stub
@@ -42,6 +42,7 @@ from .avatar import Avatar
 from .badge import Badge
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
+from .markdown import Markdown
 from .menu import Menu
 
 _ROW = Styles(display="flex", align_items="flex-end", gap="10px", width="100%")
@@ -74,13 +75,36 @@ _BUBBLE = Styles(
 # the classic chat-bubble tail substitute.
 _BUBBLE_ME = Styles(
     background_color=stub.accent,
-    color=Color(name="white"),
+    color=stub.on_accent,
     border_radius="16px 16px 4px 16px",
 )
 _BUBBLE_OTHER = Styles(
     background_color=stub.surface_raised,
     color=stub.text_primary,
     border_radius="16px 16px 16px 4px",
+)
+
+# Markdown on the accent fill: the markdown stylesheet reads --md-*
+# custom properties (defaulting to page tokens); a from_me bubble sits
+# on the accent fill, so its markdown host re-points text at
+# ``on_accent`` and hands the code well to ``accent_secondary`` — the
+# accent hue pre-shifted toward ``on_accent``.  Links, rules and the
+# table bands ride the same secondary hue.  Every value is a token or
+# a token mix — no literal colours.
+_ACCENT_MD_STYLE = (
+    "--md-text: var(--color-on-accent); "
+    "--md-muted: color-mix(in srgb, var(--color-on-accent) 72%, transparent); "
+    "--md-chip: var(--color-accent-secondary); "
+    "--md-link: var(--color-accent-secondary); "
+    "--md-link-decoration: underline; "
+    "--md-line: color-mix(in srgb, var(--color-accent-secondary) 60%, transparent); "
+    "--md-well-bg: var(--color-accent-secondary); "
+    "--md-th-chip: color-mix(in srgb, var(--color-accent-secondary) 45%, transparent); "
+    "--md-zebra: color-mix(in srgb, var(--color-accent-secondary) 22%, transparent); "
+    # Accent-family highlight tokens would blend into the same-hue well —
+    # keep keywords in page ink there.
+    "--md-hi-keyword: var(--color-text-primary); "
+    "--md-hi-dim: var(--color-text-primary);"
 )
 
 # Hover-revealed quick actions, positioned just below the bubble.  Out of
@@ -154,6 +178,10 @@ class MessageBubble(Component):
 
     - ``from_me`` — self-messages sit right with an accent fill; other
       people's sit left on the raised surface
+    - ``markdown`` — render the bubble text as Markdown in the webview
+      (headings, code blocks with highlighting, tables, links open in
+      the system browser); ``text`` / :meth:`append_text` /
+      :meth:`stream` carry the raw source and stay cheap while streaming
     - ``avatar`` — an optional :class:`Avatar` on the message's own side
       (built on construction)
     - ``name`` — optional sender label above the bubble
@@ -175,6 +203,7 @@ class MessageBubble(Component):
         name: str | None = None,
         avatar: Avatar | None = None,
         content: Component | DOMElement | None = None,
+        markdown: bool = False,
         actions: Sequence[ReactiveText | tuple[str, ReactiveText] | Icon] = (),
         menu_items: Sequence[ReactiveText | tuple[str, ReactiveText]] | None = None,
         actions_placement: Literal["below", "beside"] = "below",
@@ -186,6 +215,7 @@ class MessageBubble(Component):
         self._text = text
         self._name = name
         self._content = content
+        self._markdown = markdown
         self._from_me = from_me
         self._placement = actions_placement
         self._action_size = action_size
@@ -218,10 +248,19 @@ class MessageBubble(Component):
             name_children = [name or ""]
         self._name_span = Span(container=name_children, styles=name_styles)
         self._bubble = Div(styles=_BUBBLE, container=[])
+        self._markdown_host: Markdown | None = None
         # Reactive text (Signal/Computed, e.g. ``tr.chat.other_msg``) binds
-        # live; a plain str is mounted directly into the bubble.
+        # live; a plain str is mounted directly into the bubble.  With
+        # ``markdown=True`` a managed Markdown component renders instead.
         if content is None:
-            _mount_text(self._bubble, text)
+            if markdown:
+                self._markdown_host = Markdown(text)
+                if from_me:
+                    host = self._markdown_host.root_element
+                    host.args = {**host.args, "style": _ACCENT_MD_STYLE}
+                self._bubble.container.append(self._markdown_host.build())
+            else:
+                _mount_text(self._bubble, text)
         else:
             content_el: DOMElement = content.build() if isinstance(content, Component) else content
             # Plain-list assignment bypasses _Children and leaves the
@@ -256,14 +295,58 @@ class MessageBubble(Component):
 
     @property
     def text(self) -> str:
+        if self._markdown_host is not None:
+            return self._markdown_host.text
         return self._text() if isinstance(self._text, (Signal, Computed)) else self._text
 
     @text.setter
     def text(self, value: ReactiveText) -> None:
         self._text = value
+        if self._markdown_host is not None:
+            self._markdown_host.text = value
+            return
         if self._content is None:
+            # A plain string takes over from a reactive binding — dispose it
+            # first, or a stale effect would overwrite future writes.
+            if not isinstance(value, (Signal, Computed)):
+                self._bubble._unbind_text()
             self._bubble.container = []
             _mount_text(self._bubble, value)
+
+    def append_text(self, text: str) -> Self:
+        """Append *text* to the bubble content (chainable).
+
+        Streams efficiently: the diff ships only the appended chunk when
+        the browser already shows the previous text (markdown mode
+        re-renders in the webview instead).  A reactive binding
+        (Signal/Computed) is disposed and the bubble switches to
+        imperative ownership.
+        """
+        if self._markdown_host is not None:
+            self._markdown_host.append_text(text)
+            return self
+        if self._content is not None:
+            raise ValueError("MessageBubble holds custom content — append_text requires text mode.")
+        current = self.text
+        if isinstance(self._text, (Signal, Computed)):
+            self._bubble._unbind_text()
+        self._text = current + text
+        self._bubble._append_text(text)
+        return self
+
+    def stream(self, chunks: AsyncIterable[str] | Iterable[str]) -> asyncio.Task[None]:
+        """Consume *chunks* (sync iterable or async iterator) into the
+        bubble at frame cadence (~60fps); returns the running task —
+        cancel it (or call :meth:`stop_stream`) to stop mid-stream.
+        While the stream runs the bubble glows, a caret trails the text
+        and each chunk fades in.  Requires a running event loop (the app
+        provides one).
+        """
+        if self._markdown_host is not None:
+            return self._markdown_host.stream(chunks)
+        if self._content is not None:
+            raise ValueError("MessageBubble holds custom content — stream requires text mode.")
+        return self._start_stream(self.append_text, chunks, target=self._bubble, glow=True)
 
     @property
     def name(self) -> str | None:
@@ -559,6 +642,30 @@ class NoticeBubble(Component):
 
     @text.setter
     def text(self, value: str) -> None:
+        if self._content is None:
+            # A plain string takes over from a reactive binding — dispose it
+            # first, or a stale effect would overwrite future writes.
+            self._root._unbind_text()
         self._text = value
         if self._content is None:
             self._root.container = [value]
+
+    def append_text(self, text: str) -> Self:
+        """Append *text* to the notice content (chainable); a reactive
+        binding is disposed and the notice switches to imperative
+        ownership (see :meth:`MessageBubble.append_text`)."""
+        if self._content is not None:
+            raise ValueError("NoticeBubble holds custom content — append_text requires text mode.")
+        current = self.text
+        if isinstance(self._text, (Signal, Computed)):
+            self._root._unbind_text()
+        self._text = current + text
+        self._root._append_text(text)
+        return self
+
+    def stream(self, chunks: AsyncIterable[str] | Iterable[str]) -> asyncio.Task[None]:
+        """Consume *chunks* into the notice at frame cadence (see
+        :meth:`MessageBubble.stream`)."""
+        if self._content is not None:
+            raise ValueError("NoticeBubble holds custom content — stream requires text mode.")
+        return self._start_stream(self.append_text, chunks, target=self._root)

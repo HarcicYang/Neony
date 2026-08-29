@@ -19,6 +19,7 @@ from neony.application._helpers import (
     _DEFERRED_EVENTS,
     _INITIAL_HTML,
     _TRANSPARENT_EFFECTS,
+    STREAMING_CSS,
     _Entry,
     _file_info,
     _js_result_value,
@@ -26,6 +27,7 @@ from neony.application._helpers import (
 )
 from neony.application.config import Config
 from neony.application.icon_font import css as icon_font_css
+from neony.application.markdown_css import MARKDOWN_CSS
 from neony.application.motion import DEFAULT as DEFAULT_MOTION
 from neony.application.page import Page
 from neony.application.protocols.base import NeonyProtocolDispatch, collect_protocol_handlers
@@ -171,6 +173,7 @@ class NeonApplication(Generic[_S]):
             await asyncio.wait_for(page_loaded.wait(), timeout=5.0)
         await self._inject_icon_font(entry)
         await self._inject_theme(entry)
+        await self._inject_markdown_css(entry)
         await self._inject_keyframes(entry)
         await self._apply_transparent_effect(entry.window)
         await self._wire_close_hook(entry, entry.window)
@@ -398,6 +401,17 @@ class NeonApplication(Generic[_S]):
         )
         await entry.window.eval_js(js)
 
+    async def _inject_markdown_css(self, entry: _Entry) -> None:
+        """Inject the scoped Markdown stylesheet once into one window."""
+        assert entry.window is not None
+        css = MARKDOWN_CSS
+        js = (
+            "(() => { const el = document.getElementById('neony-markdown-css'); "
+            f"if (el) el.textContent = {css!r}; else {{ const s = document.createElement('style'); "
+            f"s.id = 'neony-markdown-css'; s.textContent = {css!r}; document.head.appendChild(s); }} }})()"
+        )
+        await entry.window.eval_js(js)
+
     async def _inject_theme(self, entry: _Entry) -> None:
         """Inject theme CSS variables into one window's page."""
         assert entry.window is not None
@@ -462,13 +476,13 @@ class NeonApplication(Generic[_S]):
     async def _inject_keyframes(self, entry: _Entry) -> None:
         """Inject all ``@keyframes`` CSS into one window's page, creating
         or updating ``<style id="neony-keyframes">``.  Built-ins first,
-        then user-registered keyframes (later-wins on name collision)."""
+        then user-registered keyframes (later-wins on name collision).
+        The streaming-effect rules ride along in the same block."""
         css_blocks: dict[str, str] = {}
         for kf in _BUILTIN_KEYFRAMES:
             css_blocks[kf.name] = kf.to_css()
         css_blocks.update(self._keyframes)
-        if not css_blocks:
-            return
+        css_blocks["neony-streaming"] = STREAMING_CSS
         assert entry.window is not None
         css = "\n".join(css_blocks.values())
         js = (

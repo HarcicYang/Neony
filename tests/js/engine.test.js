@@ -355,6 +355,86 @@ describe("patch ops", () => {
     expect(engine.registry.get("a").textContent).toBe("changed");
   });
 
+  it("append_text: appends to the existing text node", () => {
+    const engine = baseEngine();
+    engine.applyOps([{ op: "append_text", key: "a", text: "ppend" }]);
+    const a = engine.registry.get("a");
+    expect(a.textContent).toBe("Append");
+    // Reuses the original text node instead of replacing content.
+    expect(a.childNodes.length).toBe(1);
+  });
+
+  it("append_text: creates a text node when none exists", () => {
+    const engine = baseEngine();
+    engine.applyOps([{ op: "set_text", key: "a", text: "" }]); // clears children
+    engine.applyOps([{ op: "append_text", key: "a", text: "fresh" }]);
+    expect(engine.registry.get("a").textContent).toBe("fresh");
+  });
+
+  it("streamBegin holds markers for elements the mount creates later", () => {
+    const engine = new rt.NeonyEngine();
+    expect(engine.streamBegin("late", true)).toBe(false);
+    mountEngine(engine, 1, {
+      key: "root",
+      tag: "div",
+      children: [{ key: "late", tag: "span" }],
+    });
+    const el = engine.registry.get("late");
+    expect(el.getAttribute("data-neony-streaming")).toBe("true");
+    expect(el.getAttribute("data-neony-stream-glow")).toBe("true");
+  });
+
+  it("streamBegin holds markers for later-created patches", () => {
+    const engine = baseEngine();
+    expect(engine.streamBegin("new", false)).toBe(false);
+    engine.applyOps([{ op: "create", key: "new", parent: "root", node: { key: "new", tag: "em", text: "x" } }]);
+    const el = engine.registry.get("new");
+    expect(el.getAttribute("data-neony-streaming")).toBe("true");
+    expect(el.hasAttribute("data-neony-stream-glow")).toBe(false);
+  });
+
+  it("streamEnd drops pending markers", () => {
+    const engine = baseEngine();
+    engine.streamBegin("gone", true);
+    engine.streamEnd("gone");
+    engine.applyOps([{ op: "create", key: "gone", parent: "root", node: { key: "gone", tag: "b" } }]);
+    expect(engine.registry.get("gone").hasAttribute("data-neony-streaming")).toBe(false);
+  });
+
+  it("append_text: wraps chunks in fading spans while streaming", () => {
+    const engine = baseEngine();
+    engine.registry.get("a").setAttribute("data-neony-streaming", "true");
+    engine.applyOps([{ op: "append_text", key: "a", text: "one" }]);
+    engine.applyOps([{ op: "append_text", key: "a", text: "two" }]);
+    const a = engine.registry.get("a");
+    const chunks = a.querySelectorAll("span.neony-stream-chunk");
+    expect(chunks.length).toBe(2);
+    expect(chunks[0].textContent).toBe("one");
+    expect(chunks[1].textContent).toBe("two");
+    expect(a.textContent).toBe("Aonetwo");
+  });
+
+  it("append_text: returns to plain text nodes after the stream ends", () => {
+    const engine = baseEngine();
+    const a = engine.registry.get("a");
+    a.setAttribute("data-neony-streaming", "true");
+    engine.applyOps([{ op: "append_text", key: "a", text: "streamed" }]);
+    a.removeAttribute("data-neony-streaming");
+    engine.applyOps([{ op: "append_text", key: "a", text: "!" }]);
+    expect(a.textContent).toBe("Astreamed!");
+  });
+
+  it("append_text: mixes with other patch types in one batch", () => {
+    const engine = baseEngine();
+    engine.applyOps([
+      { op: "update_styles", key: "a", set: { color: "red" }, remove: [] },
+      { op: "append_text", key: "a", text: "!" },
+    ]);
+    const a = engine.registry.get("a");
+    expect(a.textContent).toBe("A!");
+    expect(a.style.getPropertyValue("color")).toBe("red");
+  });
+
   it("move: relocates an element to another parent", () => {
     const engine = mountEngine(new rt.NeonyEngine(), 1, {
       key: "root",

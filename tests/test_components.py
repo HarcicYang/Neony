@@ -48,6 +48,7 @@ from neony.application.elements import (
     TreeNode,
     VStack,
 )
+from neony.application.theme import secondary_accent
 from neony.dom import Animation, BoxShadow, Color, Div, DOMElement, DomEvent, NodeDescriptor, Shadow
 
 
@@ -875,6 +876,7 @@ class TestPageAndTheme:
             text_secondary=Color(hex="#8080a0"),
             accent=Color(hex="#4a90d9"),
             accent_dim=Color(hex="#3a7bc8"),
+            accent_secondary=secondary_accent(Color(hex="#4a90d9"), Color(hex="#1a1a2e")),
             danger=Color(hex="#ff6b6b"),
             success=Color(hex="#4ecdc4"),
             border=Color(rgba=(255, 255, 255, 0.06)),
@@ -5503,7 +5505,7 @@ class TestMessageBubbleBuild:
         assert me._root.styles.justify_content == "flex-end"
         assert me._col.styles.align_items == "flex-end"
         assert me._bubble.styles.background_color == stub.accent
-        assert me._bubble.styles.color == Color(name="white")
+        assert me._bubble.styles.color == stub.on_accent
         assert me._bubble.styles.border_radius == "16px 16px 4px 16px"
 
     def test_from_other_style(self):

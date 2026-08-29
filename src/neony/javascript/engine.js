@@ -14,6 +14,8 @@ class NeonyEngine {
         this.lastRev = 0;
         /** @type {object|null} buffered multi-chunk patch batch */
         this.pendingBatch = null;
+        /** @type {Map<string, boolean>} stream markers awaiting their element (key → glow) */
+        this.pendingStreams = new Map();
     }
 
     /**
@@ -37,6 +39,11 @@ class NeonyEngine {
         this.root = buildNode(createOp.node, this.registry);
         this.container.appendChild(this.root);
         this.lastRev = msg.rev;
+        this._applyPendingStreams(this.root);
+
+        // Managed markdown roots ship their raw source as text content —
+        // convert it to rendered HTML (resync re-mounts land here too).
+        if (window.neony && window.neony.renderMarkdown) window.neony.renderMarkdown(this.root);
 
         // Notify Python that the engine is ready
         if (window.lumiview && window.lumiview.invoke) {
@@ -73,6 +80,9 @@ class NeonyEngine {
                     break;
                 case "set_text":
                     this._setText(op);
+                    break;
+                case "append_text":
+                    this._appendText(op);
                     break;
                 case "move":
                     this._move(op);
@@ -178,6 +188,8 @@ class NeonyEngine {
                 }
             }
         }
+        this._applyPendingStreams(newNode);
+        if (window.neony && window.neony.renderMarkdown) window.neony.renderMarkdown(newNode);
     }
 
     _remove(op) {
@@ -198,6 +210,8 @@ class NeonyEngine {
         if (oldEl.parentNode) {
             oldEl.parentNode.replaceChild(newEl, oldEl);
         }
+        this._applyPendingStreams(newEl);
+        if (window.neony && window.neony.renderMarkdown) window.neony.renderMarkdown(newEl);
     }
 
     _reorder(op) {
@@ -310,6 +324,82 @@ class NeonyEngine {
         if (el) {
             el.textContent = op.text;
         }
+    }
+
+    /**
+     * Append a text chunk to an element's existing text (append_text op).
+     * While a stream runs on this element (data-neony-streaming), each
+     * chunk lands in its own fading span — the per-chunk entrance
+     * effect.  Otherwise reuses the trailing text node so autostick's
+     * characterData observer still fires; falls back to creating one
+     * when the element has no text node yet (e.g. textContent was set
+     * to "" — that leaves no child node).
+     * @param {object} op - {key: string, text: string}
+     */
+    _appendText(op) {
+        const el = this.registry.get(op.key);
+        if (!el) return;
+        if (el.hasAttribute("data-neony-streaming")) {
+            const chunk = document.createElement("span");
+            chunk.className = "neony-stream-chunk";
+            chunk.textContent = op.text;
+            el.appendChild(chunk);
+            return;
+        }
+        const last = el.lastChild;
+        if (last && last.nodeType === 3) {
+            last.appendData(op.text);
+        } else {
+            el.appendChild(document.createTextNode(op.text));
+        }
+    }
+
+    /**
+     * Streaming markers (Python text streams).  A begin command can
+     * arrive before the element's create patch registers it (the marker
+     * is scheduled the moment a stream starts, the element mounts with
+     * the next render) — pending keys are held here and applied the
+     * moment the element appears.
+     * @param {string} key
+     * @param {boolean} glow
+     */
+    streamBegin(key, glow) {
+        const el = this.registry.get(key);
+        if (!el) {
+            this.pendingStreams.set(key, glow === true);
+            return false;
+        }
+        this._applyStreamMarkers(el, glow === true);
+        return true;
+    }
+
+    streamEnd(key) {
+        this.pendingStreams.delete(key);
+        const el = this.registry.get(key);
+        if (!el) return false;
+        el.removeAttribute("data-neony-streaming");
+        el.removeAttribute("data-neony-stream-glow");
+        return true;
+    }
+
+    _applyStreamMarkers(el, glow) {
+        el.setAttribute("data-neony-streaming", "true");
+        if (glow) el.setAttribute("data-neony-stream-glow", "true");
+    }
+
+    /** Apply any pending stream markers to a freshly built subtree. */
+    _applyPendingStreams(root) {
+        if (!this.pendingStreams.size || !root) return;
+        const engine = this;
+        const check = (el) => {
+            const key = el.getAttribute("data-neony-key");
+            if (key && engine.pendingStreams.has(key)) {
+                engine._applyStreamMarkers(el, engine.pendingStreams.get(key));
+                engine.pendingStreams.delete(key);
+            }
+        };
+        check(root);
+        if (root.querySelectorAll) root.querySelectorAll("[data-neony-key]").forEach(check);
     }
 
     _move(op) {

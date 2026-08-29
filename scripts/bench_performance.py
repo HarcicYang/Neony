@@ -91,6 +91,43 @@ async def _bridge_probe(size: int, repeats: int) -> tuple[dict[str, float | int]
     }
 
 
+async def _stream_probe(chunks: int, chunk_bytes: int) -> dict[str, Any]:
+    """Compare the wire cost of streaming *chunks* appends of *chunk_bytes*
+    through divergent (non-prefix) text replacement versus append patches.
+    The replacement baseline models the pre-streaming wire cost; today's
+    diff only emits a full set when the new text is not an extension."""
+
+    async def measure(append_mode: bool) -> int:
+        root = Div(key="root", container=[Span(key="stream", container=[""])])
+        text = root.container[0]
+        assert isinstance(text, Span)
+        bridge = Neony(name="benchmark", mount_selector="body")
+        window = _Window()
+        bridge._win = window  # type: ignore[assignment]
+        await bridge.render(root)
+        window.patches.clear()
+        for i in range(chunks):
+            chunk = chr(ord("a") + i % 26) * chunk_bytes
+            if append_mode:
+                text._append_text(chunk)
+            else:
+                # A rotating first letter makes each new text diverge from
+                # the previous one, forcing a full-content patch.
+                current = text.container[-1]
+                assert isinstance(current, str)
+                prefix = chr(ord("A") + i % 26)
+                text.container = [prefix + current + chunk]
+            await bridge.render(root)
+        return sum(len(json.dumps(patch, separators=(",", ":"))) for patch in window.patches)
+
+    return {
+        "chunks": chunks,
+        "chunk_bytes": chunk_bytes,
+        "full_replacement_bytes": await measure(False),
+        "append_patch_bytes": await measure(True),
+    }
+
+
 async def run(size: int, repeats: int) -> dict[str, Any]:
     first = _measure(lambda: _tree(size).to_node({}), repeats)
 
@@ -109,6 +146,7 @@ async def run(size: int, repeats: int) -> dict[str, Any]:
 
     dirty = _measure(mutate_and_serialize, repeats)
     direct, bridge_metrics = await _bridge_probe(size, repeats)
+    stream = await _stream_probe(chunks=100, chunk_bytes=16)
 
     rows = [{"name": f"row-{i}", "value": i} for i in range(size)]
     table = DataTable(columns=[Column("Name"), Column("Value")], rows=rows, row_key=lambda row: row["name"])
@@ -122,6 +160,7 @@ async def run(size: int, repeats: int) -> dict[str, Any]:
         "size": size,
         "tree": {"first_render": first, "dirty_leaf": dirty, "bridge_direct_style": direct},
         "selection": {"list": list_select, "datatable": table_select},
+        "streaming": stream,
         "metrics": {
             **bridge_metrics,
             "list_logical_items": len(listing.items),

@@ -43,6 +43,32 @@ describe("bootstrap", () => {
   });
 });
 
+describe("stream markers (caret / glow)", () => {
+  it("begin and end toggle the streaming attributes", () => {
+    const engine = mountTree({ key: "s", tag: "span" });
+    const el = engine.registry.get("s");
+
+    expect(neony.stream.begin("s", true)).toBe(true);
+    expect(el.getAttribute("data-neony-streaming")).toBe("true");
+    expect(el.getAttribute("data-neony-stream-glow")).toBe("true");
+
+    expect(neony.stream.end("s")).toBe(true);
+    expect(el.hasAttribute("data-neony-streaming")).toBe(false);
+    expect(el.hasAttribute("data-neony-stream-glow")).toBe(false);
+  });
+
+  it("begin without glow leaves the glow attribute off; unknown keys are no-ops", () => {
+    const engine = mountTree({ key: "s2", tag: "span" });
+    const el = engine.registry.get("s2");
+
+    expect(neony.stream.begin("s2", false)).toBe(true);
+    expect(el.hasAttribute("data-neony-stream-glow")).toBe(false);
+
+    expect(neony.stream.begin("ghost", true)).toBe(false);
+    expect(neony.stream.end("ghost")).toBe(false);
+  });
+});
+
 describe("custom-scheme media hydration", () => {
   let fetchMock;
   let createObjectURL;

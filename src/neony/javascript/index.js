@@ -596,6 +596,14 @@
             }
             return true;
         },
+        // Streaming-effect markers (Python text streams) — delegated to
+        // the engine, which holds pending markers for elements that have
+        // not been created by a patch yet, and drives the caret /
+        // chunk-fade / glow rules from the keyframes style block.
+        stream: {
+            begin: (key, glow) => engine.streamBegin(key, glow),
+            end: (key) => engine.streamEnd(key),
+        },
     };
 
     // Require the LumiView bridge for Python communication

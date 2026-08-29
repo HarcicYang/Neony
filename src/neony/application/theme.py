@@ -53,6 +53,10 @@ class Theme(BaseModel):
     text_secondary: Color
     accent: Color
     accent_dim: Color
+    #: The accent hue shifted toward ``bg`` (see
+    #: :func:`secondary_accent`) — the family color a step away from
+    #: the accent, for secondary emphasis on accent surfaces.
+    accent_secondary: Color
     danger: Color
     success: Color
     border: Color
@@ -186,6 +190,32 @@ class Theme(BaseModel):
         return f"<style>{self.to_css()}</style>"
 
 
+def _shift(hex_color: str, toward: str, t: float = 0.25) -> str:
+    """Blend *hex_color* toward *toward* by *t* (linear RGB)."""
+    base = (int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16))
+    target = (int(toward[1:3], 16), int(toward[3:5], 16), int(toward[5:7], 16))
+    blended = tuple(round(bc + (tc - bc) * t) for bc, tc in zip(base, target, strict=True))
+    return "#{:02x}{:02x}{:02x}".format(*blended)
+
+
+def secondary_accent(accent: Color, bg: Color, t: float = 0.25) -> Color:
+    """Derive a theme's secondary accent: *accent* shifted toward *bg*
+    by *t*.
+
+    The family hue stays intact while the tone moves away from the
+    accent itself — deepened on dark presets, lifted on light ones —
+    so surfaces tinted with it (a ``from_me`` bubble's code well,
+    table bands) always read next to the accent.  Custom presets can
+    build their ``accent_secondary`` with this instead of picking a
+    second color.
+    """
+    a = accent.hex or ""
+    o = bg.hex or ""
+    if len(a) != 7 or len(o) != 7:
+        raise ValueError("secondary_accent expects hex Colors (#rrggbb)")
+    return Color(hex=_shift(a, o, t))
+
+
 def _theme(
     mode: str,
     *,
@@ -224,6 +254,10 @@ def _theme(
         text_secondary=Color(hex=muted),
         accent=Color(hex=accent),
         accent_dim=Color(hex=accent_dim),
+        # Derived, not chosen: the accent hue shifted toward the page
+        # background — deepened on dark presets, lifted on light ones —
+        # so it always reads next to the accent itself.
+        accent_secondary=Color(hex=_shift(accent, bg)),
         danger=Color(hex=danger),
         success=Color(hex=success),
         border=Color(rgba=border),
@@ -258,7 +292,7 @@ NIGHTGLOW_DARK = _theme(
     success="#70c99a",
     border=(232, 240, 244, 0.11),
     shadow=(0, 24, 70, (0, 0, 0, 0.42)),
-    on_accent="#102125",
+    on_accent="#ffffff",
     bg_overlay=(23, 25, 28, 0.72),
     glass=(31, 35, 39, 0.78),
     raised_glass=(45, 51, 57, 0.84),
@@ -284,7 +318,7 @@ NIGHTGLOW_LIGHT = _theme(
     success="#27875f",
     border=(23, 36, 38, 0.14),
     shadow=(0, 20, 56, (29, 57, 58, 0.16)),
-    on_accent="#f4ffff",
+    on_accent="#ffffff",
     bg_overlay=(237, 241, 241, 0.74),
     glass=(248, 251, 250, 0.82),
     raised_glass=(255, 255, 255, 0.9),
@@ -310,7 +344,7 @@ PLANET_PLAZA_DARK = _theme(
     success="#82d9ad",
     border=(184, 215, 255, 0.16),
     shadow=(0, 28, 90, (0, 0, 0, 0.46)),
-    on_accent="#08241f",
+    on_accent="#ffffff",
     bg_overlay=(17, 24, 39, 0.74),
     glass=(31, 49, 76, 0.62),
     raised_glass=(45, 66, 96, 0.78),
@@ -362,7 +396,7 @@ EMBER_ZONE_DARK = _theme(
     success="#68b98c",
     border=(185, 215, 178, 0.12),
     shadow=(0, 30, 76, (0, 0, 0, 0.62)),
-    on_accent="#1a1205",
+    on_accent="#ffffff",
     bg_overlay=(8, 10, 9, 0.78),
     glass=(12, 17, 13, 0.86),
     raised_glass=(27, 36, 27, 0.92),
@@ -388,7 +422,7 @@ EMBER_ZONE_LIGHT = _theme(
     success="#377b59",
     border=(62, 52, 34, 0.16),
     shadow=(0, 20, 54, (70, 57, 32, 0.18)),
-    on_accent="#fff9e9",
+    on_accent="#ffffff",
     bg_overlay=(232, 229, 220, 0.74),
     glass=(245, 241, 232, 0.82),
     raised_glass=(252, 248, 238, 0.92),
@@ -490,6 +524,10 @@ class _ThemeStub(Theme):
     text_secondary: ClassVar[Color] = Color(var="--color-text-secondary")
     accent: ClassVar[Color] = Color(var="--color-accent")
     accent_dim: ClassVar[Color] = Color(var="--color-accent-dim")
+    #: The accent hue shifted toward the page background — secondary
+    #: emphasis (markdown code well, links, rules, table bands on
+    #: ``from_me`` bubbles) that always reads next to the accent.
+    accent_secondary: ClassVar[Color] = Color(var="--color-accent-secondary")
     danger: ClassVar[Color] = Color(var="--color-danger")
     success: ClassVar[Color] = Color(var="--color-success")
     border: ClassVar[Color] = Color(var="--color-border")
