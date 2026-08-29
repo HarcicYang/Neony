@@ -149,6 +149,31 @@ Text("错误", role="danger")  # 危险文字
 Text("成功", role="success")  # 成功文字
 ```
 
+### 流式文本
+
+组件的 `text` 参数接受 `str`、`Signal[str]` 或 `Computed[str]`。当绑定值以纯追加方式增长——即流式场景——diff 只传输新增文本块（`append_text` 补丁）而非完整字符串，逐 token 更新在桥上的开销始终是 O(块大小)。
+
+```python
+t = Text("")
+t.append_text("你好，")  # 链式命令式追加
+t.append_text("世界")
+t.text = "重置"  # 整体替换
+
+async for token in llm.reply(prompt):
+    t.append_text(token)  # 或: task = t.stream(tokens())
+
+task = t.stream(tokens_aiter)  # 按帧合并消费（约 60fps），
+task.cancel()  #   或 t.stop_stream()
+```
+
+`MessageBubble`、`NoticeBubble` 和 `Markdown` 暴露同样的
+`append_text()` / `stream()` / `stop_stream()` API。对以 Signal/Computed
+创建的组件调用追加会先释放该绑定，组件转为命令式持有。
+
+每次 `stream()` 都自带完整动效：闪烁光标跟随增长的文本、每一次追加
+都独立渐显（Markdown 流每次更新渐显最新的块）、消息气泡在流式期间
+持续泛光——停止或结束后全部移除。命令式 `append_text()` 不带动画。
+
 ### `Tabs`
 
 ```python
@@ -405,6 +430,32 @@ await song.toggle_muted()
 传输条、命令、事件与选项完全一致（少了画面区域），HEVC 转码回退同样适用；
 `width` 控制卡片宽度，`media_styles` 只覆写内部原生 media 元素样式。
 
+### `Markdown`
+
+```python
+from neony.application.elements import Markdown
+
+doc = Markdown("# 发布说明\n\n- **加粗** 与 `代码`\n\n```python\nprint(1)\n```\n")
+doc.append_text("\n\n后续文本在这里流式追加。")  # 逐 token 友好
+await doc.stream(md_tokens)  # 按帧合并的流式消费
+```
+
+在 WebView 内渲染 Markdown——解析、HTML 渲染与代码高亮都在浏览器端完成
+（markdown-it + highlight.js 随运行时打包；Python 侧零依赖）。Python
+只持有原始*源文本*：更新通过内部命令把源文本推送到前端，元素就地重渲染，
+因此无论渲染结果多大，流式追加始终保持低开销。
+
+源文本中的原始 HTML 会被转义，不可信内容保持惰性。表格、删除线与
+链接识别遵循 GFM 风格默认值；链接在系统浏览器中打开。
+
+渲染结果完全跟随主题：颜色全部取自主题令牌，八套预设与明暗切换都会
+自动重上色。围栏代码块坐在统一的纯色底板上——深色模式一个纯净的深色、
+浅色模式一个纯净的浅色（页面背景令牌），不掺任何主题色，配细边框。
+行内代码是安静的小色块，标题带分隔线，表格有斑马纹，语法高亮使用主题
+自己的色相。在彩色表面上配色还会自适应：accent 填充的 `from_me` 气泡里，
+代码井与行内代码小色块会换成主题次要强调色，链接、分隔线与表格色带
+也跟随它——即气泡自身色相的可读色调。
+
 ### `Avatar`
 
 ```python
@@ -502,6 +553,18 @@ other.on_action(lambda v: print(v))  # 快捷操作点击
 `content` / `set_content()`、`actions_visible` / `show_actions()` /
 `hide_actions()`、`action_elements()` / `action_values()`，以及用于
 挂载气泡局部浮层的 `overlay_slot`。
+
+气泡文本天然适合流式：`append_text(chunk)` 在浏览器已显示前文时只传输
+新增块；`stream(chunks)` 以帧节奏消费同步可迭代对象或异步迭代器
+（`stop_stream()` 可中途取消）。`markdown=True` 时气泡内部改用
+`Markdown` 组件承载内容——`text` / `append_text()` / `stream()` 携带
+原始源文本，由 WebView 就地渲染（见 [`Markdown`](#markdown)）：
+
+```python
+reply = MessageBubble("", name="助手", markdown=True)
+async for token in llm.reply(prompt):
+    reply.append_text(token)
+```
 
 ### `NoticeBubble`
 

@@ -163,6 +163,38 @@ Text("Error", role="danger")  # danger
 Text("OK", role="success")  # success
 ```
 
+### Streaming text
+
+Reactive text accepts `str`, `Signal[str]`, or `Computed[str]` anywhere a
+component takes `text`. When a bound value grows by pure extension — the
+streaming case — the diff ships only the appended chunk
+(`append_text` patch) instead of the full string, so token-by-token
+updates stay O(chunk) on the bridge.
+
+```python
+t = Text("")
+t.append_text("Hello, ")  # chainable imperative append
+t.append_text("world")
+t.text = "reset"  # plain replacement
+
+async for token in llm.reply(prompt):
+    t.append_text(token)  # or: task = t.stream(tokens())
+
+task = t.stream(tokens_aiter)  # frame-batched consumption (~60fps),
+task.cancel()  #   or t.stop_stream()
+```
+
+`MessageBubble`, `NoticeBubble` and `Markdown` expose the same
+`append_text()` / `stream()` / `stop_stream()` API. Appending to a
+component that was created with a Signal/Computed disposes that binding
+and switches the component to imperative ownership.
+
+Every `stream()` runs with full effects: a blinking caret trails the
+growing text, every append fades in on its own (Markdown streams fade
+their newest block on each update), and a message bubble glows softly
+until the stream ends (a stop or finish removes all of it).
+Imperative `append_text()` calls stay animation-free.
+
 ### `Tabs`
 
 ```python
@@ -464,6 +496,39 @@ options match — minus the picture surface — and HEVC transcode fallback
 applies too. `width` sizes the card; `media_styles` overrides only the
 inner native media element's styles.
 
+### `Markdown`
+
+```python
+from neony.application.elements import Markdown
+
+doc = Markdown("# Release notes\n\n- **bold** and `code`\n\n```python\nprint(1)\n```\n")
+doc.append_text("\n\nMore text streams here.")  # token-by-token friendly
+await doc.stream(md_tokens)  # frame-batched streaming
+```
+
+Renders Markdown in the webview — parsing, HTML rendering and code
+highlighting run in the browser (markdown-it + highlight.js, bundled
+with the runtime; no Python-side dependency). Python owns the raw
+*source*: updates push the source text through an internal command and
+the element re-renders in place, so streaming appends stay cheap no
+matter how large the rendered structure grows.
+
+Raw HTML inside the source is escaped, so untrusted input stays
+inert. Tables, strikethrough and linkification follow the GFM-ish
+defaults, and links open in the system browser.
+
+Everything you see is themed: colors come from the theme tokens, so all
+eight presets — and live theme switches — restyle the whole document.
+Fenced code blocks sit on one uniform code surface — the page
+background token: a single clean dark in dark mode, a single clean
+light in light mode, no theme hue blended in — with a subtle border.
+Inline code keeps a quiet chip, headings carry a rule, tables
+zebra-stripe, and code highlighting uses the theme's own hues. On a
+colored surface the palette adapts: inside an accent-filled `from_me`
+bubble, the code well and inline code chips take the theme's secondary
+accent, and links, rules and table bands follow it — the bubble's own
+hue at a readable tone.
+
 ### `Avatar`
 
 ```python
@@ -577,6 +642,20 @@ Quick actions also support `actions_placement="below" | "beside"`,
 `content` / `set_content()`, `actions_visible` / `show_actions()` /
 `hide_actions()`, `action_elements()` / `action_values()`, and
 `overlay_slot` for attaching a bubble-local overlay.
+
+A bubble's text streams well: `append_text(chunk)` ships only the
+chunk when the browser already shows the previous text, and
+`stream(chunks)` consumes a sync iterable or async iterator at frame
+cadence (`stop_stream()` cancels mid-stream). With `markdown=True` the
+bubble hosts a `Markdown` component instead — `text` / `append_text()` /
+`stream()` carry the raw source and the webview renders it in place
+(see [`Markdown`](#markdown)):
+
+```python
+reply = MessageBubble("", name="Assistant", markdown=True)
+async for token in llm.reply(prompt):
+    reply.append_text(token)
+```
 
 ### `NoticeBubble`
 

@@ -117,6 +117,13 @@ schedules a render for its window, so a signal changed from anywhere —
 an event handler, a timer, another window — reaches the screen without
 an explicit `render()` call.
 
+Streaming note: when a bound text grows by pure extension (each new
+value starts with the previous one), the diff ships only the appended
+chunk — an `append_text` patch — instead of the full string. Token
+streams like `sig.update(lambda s: s + token)` therefore stay O(chunk)
+on the bridge. For imperative appends see the
+["Streaming text"](components.en.md#streaming-text) section.
+
 ## `Component.bind_value` — two-way value binding
 
 `bind_value(signal)` binds a signal to a component's *value*, both

@@ -4,6 +4,48 @@
 
 ### Added
 
+- **Streaming text support** — token-by-token text updates no longer ship
+  the whole accumulated string. The diff detects a pure text extension
+  and emits a new `append_text` patch carrying only the delta; the JS
+  engine appends to the existing text node. New imperative APIs on
+  `Text`, `MessageBubble`, `NoticeBubble` and `Markdown`:
+  `append_text(chunk)` (chainable), `stream(chunks)` (consumes a sync
+  iterable or async iterator at frame cadence, ~60fps, coalescing
+  bursts) and `stop_stream()`. Appending to a component created with a
+  Signal/Computed disposes that binding; setting `text` to a plain
+  string on `Text` / `MessageBubble` / `Heading` / `NoticeBubble` now
+  also disposes a stale reactive binding instead of leaving it firing.
+  Streams run with full effects: a blinking caret trails the growing
+  text, each appended chunk fades in, and a streaming message bubble
+  pulses with a soft accent glow until the stream ends.  A new
+  `demo_streaming.py` shows an LLM-style token stream into plain and
+  Markdown chat bubbles, and the gallery chat tab gained a streaming
+  section.
+- **`Markdown` component & `MessageBubble(markdown=True)`** — rendered
+  Markdown (headings, lists, tables, fenced code with syntax
+  highlighting) produced **entirely in the webview**: the vendored
+  `markdown-it` + `highlight.js` bundles ship with the runtime and
+  Python-side parsing/highlighting is zero-dependency. Python owns the
+  raw source and pushes it through an internal JS command; the element
+  re-renders in place, so streaming stays cheap regardless of the
+  rendered structure. Raw HTML in the source is escaped, the scoped
+  stylesheet is `--color-*` token-driven (all themes apply), and links
+  open in the system browser via the new `open_external` bridge
+  command (scheme-allowlisted to http/https/mailto). Resync re-mounts
+  restore the current source instead of the initial one via a managed
+  content provider. Markdown styling now follows the theme completely:
+  fenced code blocks sit on a pure, uniform code surface (the page
+  background token — one clean dark in dark presets, one clean light in
+  light presets) with a token border, the highlight.js palette maps onto
+  theme hue tokens, and a new **`--color-accent-secondary`** token —
+  each preset's accent hue shifted toward its on-accent color
+  (derivable for custom themes with `secondary_accent(accent,
+  on_accent)`; exposed as `stub.accent_secondary`) — becomes the code
+  well and inline-code chips on accent fills, with links, rules and
+  table bands following it:
+  `MessageBubble(markdown=True, from_me=True)` picks it up
+  automatically. From-me bubble text now follows `stub.on_accent`
+  (previously hardcoded white).
 - **`GridView`** — a responsive CSS-grid container for card walls and
   catalogs. Columns are defined with the typed `Columns` model
   (`Columns.fixed(n)`, `Columns.responsive(min_width, fit=)`,

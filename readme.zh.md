@@ -107,6 +107,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Tree` / `TreeNode`         | 可折叠导航树 + 内容宿主 — 任意深度、流畅建造器写法、点叶子在右侧显示其面板                                                |
 | `List` / `ListItem`         | 可滚动单选数据列表 — listbox 模型、方向键移动选中、`selected_key` / `bind_selected`                                       |
 | `DataTable` / `Column`      | 列配置 + 数据行 — 固定表头、点击排序、单选 / 多选行                                                                       |
+| `Markdown`                  | 在 WebView 内渲染的 Markdown — 流式友好的源文本推送、代码高亮、主题令牌样式                                               |
 | `Reorder` / `ReorderItem`   | 拖拽重排面板 — 任意组件/DOM 元素都可作为卡片；`direction` + `wrap` 可作网格纵横双向重排，多个面板可交换卡片               |
 | `ReorderContent`            | 可重排容器内容 — 不带面板边框/背景的拖拽重排                                                                              |
 | `Icon`                      | 统一图标 — `Icon.image(url_or_path)` 固定方形图片或 `Icon.glyph(text)` 字形，TitleBar / Sidebar / Tabs / Tree 共用        |
@@ -195,6 +196,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `demo_builder.py`                | 居中 `Page`，组件与原始样式 `Div` 混用     |
 | `demo_media.py`                  | 受管 `Video` / `Audio` 播放器与媒体事件    |
 | `demo_protocols.py`              | `neony://` 自定义协议：本地媒体 + 动态响应 |
+| `demo_streaming.py`              | 逐 token 流式输出到普通与 Markdown 聊天气泡，自动贴底 |
 
 ```bash
 uv run gallery

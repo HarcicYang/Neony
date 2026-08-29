@@ -112,6 +112,11 @@ panel.bind_visible(count)  # 假值时 display: none
 写入会更新元素并为其窗口调度一次渲染 — 因此无论 Signal 在哪里被修改
 (事件处理、定时器、其他窗口)，都无需显式调用 `render()` 就能上屏。
 
+流式说明:当绑定的文本以纯追加方式增长(每个新值都以旧值为前缀)时，
+diff 只传输新增文本块——一个 `append_text` 补丁——而非完整字符串。类似
+`sig.update(lambda s: s + token)` 的 token 流在桥上的开销始终是
+O(块大小)。命令式追加参见 ["流式文本"](components.zh.md#流式文本) 一节。
+
 ## `Component.bind_value` — 值双向绑定
 
 `bind_value(signal)` 把 Signal 绑定到组件的**值**上，双向同步。它适合

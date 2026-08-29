@@ -90,9 +90,11 @@ await app.set_theme(NIGHTGLOW_LIGHT)  # swap the active preset and re-inject var
 
 Token families: `--color-bg`, `--color-surface`,
 `--color-text-primary` / `--color-text-secondary`, `--color-accent`,
-`--color-on-accent` / `--color-on-danger` (text colour on a saturated accent /
-danger fill), `--color-danger`, `--color-success`, `--color-border`,
-`--color-shadow`, `--color-*-glass*` (frosted variants).
+`--color-accent-secondary` (the accent hue shifted toward
+`--color-on-accent` — readymade for emphasis on accent fills),
+`--color-on-accent` / `--color-on-danger` (text colour on a saturated
+accent / danger fill), `--color-danger`, `--color-success`,
+`--color-border`, `--color-shadow`, `--color-*-glass*` (frosted variants).
 
 Components reference tokens via `Color(var="--color-*")` so a theme
 switch only replaces the `:root` variable block, and the browser

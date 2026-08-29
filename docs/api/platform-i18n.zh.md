@@ -83,6 +83,8 @@ await app.set_theme(NIGHTGLOW_LIGHT)  # 切换当前预设并重新注入变量
 
 令牌族：`--color-bg`、`--color-surface`、
 `--color-text-primary` / `--color-text-secondary`、`--color-accent`、
+`--color-accent-secondary`（由 accent 向 on-accent 偏移派生，开箱即用于
+accent 填充上的强调）、
 `--color-on-accent` / `--color-on-danger`（饱和 accent / danger 填充上的文字色）、
 `--color-danger`、`--color-success`、`--color-border`、`--color-shadow`、
 `--color-*-glass*`（磨砂变体）。

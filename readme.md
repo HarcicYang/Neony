@@ -114,6 +114,7 @@ Import from `neony.application.elements`.
 | `Tree` / `TreeNode`       | Collapsible navigation tree + content host — arbitrary depth, fluent builders, leaf selection shows its panel on the right |
 | `List` / `ListItem`       | Scrollable single-select data list — listbox model, arrow keys move selection, `selected_key` / `bind_selected` |
 | `DataTable` / `Column`    | Column config + data rows — sticky header, click-to-sort, single / multi row selection |
+| `Markdown`                | Markdown rendered in the webview — streaming-friendly source pushes, code highlighting, token-driven styling |
 | `Reorder` / `ReorderItem` | Drag-reorder board — any component/DOM element can be a card; `direction` + `wrap` makes a grid reorderable on both axes, multiple boards exchange cards |
 | `ReorderContent`          | Reorderable container content — drag reorder without a board border/background |
 | `Icon`                    | One icon — `Icon.image(url_or_path)` fixed-size square or `Icon.glyph(text)`, shared by TitleBar / Sidebar / Tabs / Tree |
@@ -227,6 +228,7 @@ Run from the repository root:
 | `demo_builder.py`             | Centered `Page` mixing components with a raw styled `Div`        |
 | `demo_media.py`               | Managed `Video` / `Audio` players with media events              |
 | `demo_protocols.py`           | `neony://` custom protocols: local media + dynamic responses      |
+| `demo_streaming.py`           | Token streaming into plain & Markdown chat bubbles with auto-pin  |
 
 ```bash
 uv run gallery
