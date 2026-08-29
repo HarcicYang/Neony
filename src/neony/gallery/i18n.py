@@ -504,6 +504,18 @@ class Chat(BaseModel):
         "auto-pins while the user is near the bottom; scrolling up pauses "
         "the pin and scrolling back resumes it."
     )
+    streaming_title: TrRef[None] = TrRef("Streaming text")
+    streaming_blurb: TrRef[None] = TrRef(
+        "Token-by-token streaming into a chat bubble. append_text() ships "
+        "only the new chunk (the diff detects a pure text extension); with "
+        "markdown=True the raw source streams into the webview, which "
+        "renders headings, code highlighting and tables in place. Both "
+        "bubbles live in a StickToBottom container, so the view follows "
+        "the text while it grows."
+    )
+    stream_start: TrRef[None] = TrRef("Stream")
+    stream_stop: TrRef[None] = TrRef("Stop")
+    streaming_hint: TrRef[None] = TrRef("Press Stream — a plain bubble and a Markdown bubble fill up token by token.")
 
 
 class System(BaseModel):
@@ -1126,6 +1138,16 @@ register_catalog(
                 "纯 Python 滚动 API 的可滚动区域。StickToBottom 在用户接近底部时自动贴底；"
                 "向上滚动暂停贴底，回到接近底部时恢复。"
             ),
+            streaming_title="流式文本",
+            streaming_blurb=(
+                "逐 token 流式输出到消息气泡。append_text() 只传输新增文本块"
+                "（diff 会识别纯文本追加）；markdown=True 时原始 Markdown 源文本直接流入 "
+                "WebView，由前端渲染标题、代码高亮与表格。两个气泡都放在 StickToBottom "
+                "容器中，视图会随内容增长自动跟随。"
+            ),
+            stream_start="开始流式",
+            stream_stop="停止",
+            streaming_hint="点击“开始流式”——普通气泡与 Markdown 气泡将逐 token 填充。",
         ),
         system=System(
             animations_title="动画",

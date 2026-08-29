@@ -5,6 +5,7 @@ Exports ``PAGE_HOOKS`` to mount the Toast overlay layer at the page root.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -205,7 +206,91 @@ await stick.scroll_to_bottom(force=True)      # force regardless of pin""",
     ),
 )
 
-chat_panel = VStack(chat_section, rich_text_section, scroll_section, gap="24px", align="stretch")
+# ── Streaming text into bubbles ──────────────────────────────────
+
+_STREAM_PLAIN = (
+    "Streaming is incremental: each token arrives, the text grows, and only "
+    "the new chunk crosses the bridge — the diff detects a pure extension of "
+    "the text the browser already shows and sends an append patch. "
+)
+
+_STREAM_MD = (
+    "## Streaming Markdown\n\n"
+    "Rendered **in the webview** while the source streams from Python.\n\n"
+    "- headings, lists and tables\n"
+    "- `inline code` and fenced blocks\n\n"
+    "```python\n"
+    "async for token in llm.reply(prompt):\n"
+    "    bubble.append_text(token)\n"
+    "```\n\n"
+    "| path | ships |\n| --- | --- |\n| plain | the chunk |\n| markdown | the source |\n"
+)
+
+
+async def stream_tokens(text: str, *, size: int = 4, delay: float = 0.03):
+    """Slice *text* into small chunks with a token-like cadence."""
+    for start in range(0, len(text), size):
+        yield text[start : start + size]
+        await asyncio.sleep(delay)
+
+
+stream_bubbles = VStack(gap="10px", align="stretch")
+stream_status = Text("", role="secondary")
+stream_tasks: list[asyncio.Task[None]] = []
+
+# The bubbles live in a definite-height scroll host; without a scrolling
+# container the growing stream overflows the fixed box and paints over
+# the sections below.  StickToBottom also keeps the newest text in view
+# while the user is near the bottom.
+stream_host = Div(
+    styles=Styles(height="280px", display="flex", flex_direction="column"),
+    container=[StickToBottom(stream_bubbles).build()],
+)
+
+
+def _stop_stream_tasks() -> None:
+    for task in stream_tasks:
+        task.cancel()
+    stream_tasks.clear()
+
+
+async def start_chat_stream(_event: DomEvent | None = None) -> None:
+    _stop_stream_tasks()
+    stream_bubbles._root.container.clear()
+    stream_status.text = ""
+    question = MessageBubble(tr_now(tr.chat.streaming_hint), from_me=True)
+    stream_bubbles._root.container.append(question.build())
+
+    async def run(plain: bool) -> None:
+        bubble = MessageBubble("", name="markdown" if not plain else "plain", markdown=not plain)
+        stream_bubbles._root.container.append(bubble.build())
+        await bubble.stream(stream_tokens(_STREAM_PLAIN if plain else _STREAM_MD))
+        stream_status.text = "done"
+
+    stream_tasks[:] = [asyncio.create_task(run(True)), asyncio.create_task(run(False))]
+
+
+stream_start_btn = Button(tr.chat.stream_start)
+stream_start_btn.on_click(start_chat_stream)
+stream_stop_btn = Button(tr.chat.stream_stop, variant="danger")
+stream_stop_btn.on_click(lambda _e: _stop_stream_tasks())
+
+stream_section = Section(
+    tr.chat.streaming_title,
+    tr.chat.streaming_blurb,
+    """bubble = MessageBubble("", markdown=True)
+async for token in llm.reply(prompt):
+    bubble.append_text(token)    # or: await bubble.stream(tokens)
+bubble.stop_stream()             # cancel mid-stream""",
+    VStack(
+        HStack(stream_start_btn, stream_stop_btn, stream_status, gap="8px"),
+        stream_host,
+        gap="10px",
+        align="stretch",
+    ),
+)
+
+chat_panel = VStack(chat_section, stream_section, rich_text_section, scroll_section, gap="24px", align="stretch")
 
 PANELS = {"notifications": notifications_panel, "chat": chat_panel}
 
