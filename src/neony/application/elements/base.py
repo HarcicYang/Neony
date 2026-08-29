@@ -11,7 +11,8 @@ lifecycle pseudo-events (:meth:`_dispatch_pseudo`, e.g. Dialog's
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Coroutine, Iterator
+import json
+from collections.abc import AsyncIterable, AsyncIterator, Callable, Coroutine, Iterable, Iterator
 from typing import Any, Self
 
 from neony.dom import DOMElement, DomEvent, Signal, Styles
@@ -92,6 +93,79 @@ def _mount_text(root: DOMElement, value: ReactiveText) -> None:
         root.container = [value]
 
 
+#: Cadence at which :func:`_pump_text_stream` commits buffered chunks —
+#: one DOM mutation per frame at 60fps, aligned with the bridge's render
+#: debounce (``Neony._render_debounce``).
+_STREAM_FLUSH_INTERVAL = 0.016
+
+
+async def _pump_text_stream(
+    append: Callable[[str], Any],
+    chunks: AsyncIterable[str] | Iterable[str],
+    interval: float = _STREAM_FLUSH_INTERVAL,
+) -> None:
+    """Consume *chunks* (sync iterable or async iterator) into *append*,
+    coalescing bursts so appends land at most once per *interval*.
+
+    The first chunk after an idle period flushes immediately (low
+    latency for isolated tokens); chunks arriving within the window
+    buffer and commit together on the frame boundary.  Cancellation
+    keeps the already-consumed buffer — the text stops growing but
+    stays complete up to the cancel point.
+    """
+    if not isinstance(chunks, AsyncIterable):
+        source = chunks
+
+        async def _wrap() -> AsyncIterator[str]:
+            for chunk in source:
+                yield chunk
+
+        chunks = _wrap()
+
+    loop = asyncio.get_running_loop()
+    buffer: list[str] = []
+    last_flush = -interval  # first chunk flushes immediately
+    pending: asyncio.Task[None] | None = None
+
+    try:
+        aiter = chunks.__aiter__()
+        while True:
+            try:
+                chunk = await aiter.__anext__()
+            except StopAsyncIteration:
+                break
+            buffer.append(chunk)
+            now = loop.time()
+            if now - last_flush >= interval:
+                if pending is not None:
+                    pending.cancel()
+                    pending = None
+                append("".join(buffer))
+                buffer.clear()
+                last_flush = now
+            elif pending is None:
+                delay = interval - (now - last_flush)
+
+                async def _delayed(delay: float = delay) -> None:
+                    nonlocal last_flush, pending
+                    await asyncio.sleep(delay)
+                    pending = None
+                    if buffer:
+                        append("".join(buffer))
+                        buffer.clear()
+                    last_flush = loop.time()
+
+                pending = asyncio.create_task(_delayed())
+    finally:
+        # Stop a scheduled flush and commit whatever was consumed — on
+        # cancellation the text stays complete up to the cancel point.
+        if pending is not None:
+            pending.cancel()
+        if buffer:
+            append("".join(buffer))
+            buffer.clear()
+
+
 class Component:
     """Base class for all Neony UI components.  Subclasses build their
     internal DOMElement tree in ``__init__`` (stored as ``self._root``),
@@ -136,6 +210,8 @@ class Component:
         self._pseudo_tasks: set[Any] = set()
         # Internal JS command tasks kept alive for fire-and-forget calls.
         self._js_tasks: set[Any] = set()
+        # Running text stream (set by stream(), cleared on completion).
+        self._stream_task: asyncio.Task[None] | None = None
         # bind_value state — disposed/removed by unbind().
         self._value_effect: Effect | None = None
         self._value_writers: dict[str, Callable[[DomEvent], Any]] = {}
@@ -181,6 +257,51 @@ class Component:
             )
         self._built = True
         return self._root
+
+    # ---- text streaming ----
+
+    def _start_stream(
+        self,
+        append: Callable[[str], Any],
+        chunks: AsyncIterable[str] | Iterable[str],
+        *,
+        target: DOMElement | None = None,
+        glow: bool = False,
+    ) -> asyncio.Task[None]:
+        """Start :func:`_pump_text_stream` for this component; one stream
+        at a time — cancel the previously returned task first.
+
+        *target* (the element the text grows in) receives the streaming
+        markers — ``window.neony.stream.begin`` before the first chunk,
+        ``window.neony.stream.end`` on completion or cancellation.  The
+        blinking caret, per-chunk fade-in and (for bubbles) the glow
+        pulse all key off those attributes.
+        """
+        if self._stream_task is not None and not self._stream_task.done():
+            raise RuntimeError(f"{type(self).__name__}.stream() is already running — cancel the returned task first.")
+        key = json.dumps(target.key) if target is not None else None
+
+        async def run() -> None:
+            if key is not None:
+                self._schedule_js(f"window.neony.stream.begin({key}, {json.dumps(glow)})")
+            try:
+                await _pump_text_stream(append, chunks)
+            finally:
+                if key is not None:
+                    self._schedule_js(f"window.neony.stream.end({key})")
+
+        self._stream_task = asyncio.create_task(run())
+        # Keep a reference so the task isn't GC'd mid-run (cleared on exit).
+        self._stream_task.add_done_callback(lambda _task: setattr(self, "_stream_task", None))
+        return self._stream_task
+
+    def stop_stream(self) -> bool:
+        """Cancel a running :meth:`stream` task (text keeps everything
+        consumed up to the cancel point).  ``True`` if a task was running."""
+        if self._stream_task is not None and not self._stream_task.done():
+            self._stream_task.cancel()
+            return True
+        return False
 
     # ---- styling ----
 

@@ -48,5 +48,8 @@ class Heading(Component):
 
     @text.setter
     def text(self, value: str) -> None:
+        # A plain string takes over from any reactive binding — dispose it
+        # or a stale effect would overwrite future writes on signal change.
+        self._text_span._unbind_text()
         self._text = value
         self._text_span.container = [value]

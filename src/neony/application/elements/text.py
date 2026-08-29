@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterable, Iterable
+from typing import Self
+
 from neony.application.theme import stub
-from neony.dom import Color, Span, Styles
+from neony.dom import Color, Computed, Signal, Span, Styles
 
 from .base import Component, ReactiveText, _mount_text
 
@@ -59,5 +63,32 @@ class Text(Component):
 
     @text.setter
     def text(self, value: str) -> None:
+        # A plain string takes over from any reactive binding — dispose it
+        # or a stale effect would overwrite future writes on signal change.
+        self._root._unbind_text()
         self._text = value
         self._root.container = [value]
+
+    def append_text(self, text: str) -> Self:
+        """Append *text* to the current content (chainable).
+
+        Streams efficiently: the diff ships only the appended chunk when
+        the browser already shows the previous text.  If this Text was
+        created with a Signal/Computed, the reactive binding is disposed
+        and the component switches to imperative ownership.
+        """
+        current = self.text
+        if isinstance(self._text, (Signal, Computed)):
+            self._root._unbind_text()
+        self._text = current + text
+        self._root._append_text(text)
+        return self
+
+    def stream(self, chunks: AsyncIterable[str] | Iterable[str]) -> asyncio.Task[None]:
+        """Consume *chunks* (sync iterable or async iterator) into this
+        Text at frame cadence (~60fps); returns the running task — cancel
+        it (or call :meth:`stop_stream`) to stop mid-stream.  Requires a
+        running event loop (the app provides one).  While the stream
+        runs, a blinking caret trails the text and each chunk fades in.
+        """
+        return self._start_stream(self.append_text, chunks, target=self._root)
