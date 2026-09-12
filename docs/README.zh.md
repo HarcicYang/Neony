@@ -5,10 +5,14 @@
 Neony 是一个 pre-beta 阶段的 Python 响应式桌面 UI 框架。新用户从入门教程
 开始，平台与应用功能查阅指南，需要精确签名时再查 API 参考。
 
+![带模态浮层的 Neony 组件画廊](assets/screenshots/gallery-overlays.png)
+
 ## 从这里开始
 
 - [入门教程](getting-started.zh.md) —— 从安装 Neony 开始，逐步构建一个小型
   响应式窗口。
+- [截图展示](showcase.zh.md) —— 真实 Gallery 窗口，覆盖反馈组件、虚拟化数据、
+  浮层与媒体播放器。
 - [安装与平台](guides/installation-platforms.zh.md) —— 系统依赖、平台边界、
   原生对话框和故障排查。
 - [示例索引](../readme.zh.md#示例) —— 仓库根目录中的可运行示例。

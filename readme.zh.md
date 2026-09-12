@@ -9,12 +9,18 @@
 > 📖 **文档（最新发布）：** [简体中文](https://harcic.me/neony/zh) · [English](https://harcic.me/neony)
 >
 > 托管文档指向 **最新tag**。需要 **最新 commit** 的文档（仓库内
-> `docs/`），见 [`docs/`](../../tree/HEAD/docs/) —
-> [`docs/README.zh.md`](../../blob/HEAD/docs/README.zh.md)、
-> [`入门教程`](../../blob/HEAD/docs/getting-started.zh.md)、
-> [`api/ 章节`](../../tree/HEAD/docs/api)。
+> `docs/`），见 [`docs/`](docs/) —
+> [`docs/README.zh.md`](docs/README.zh.md)、
+> [`入门教程`](docs/getting-started.zh.md)、
+> [`API 章节`](docs/api/)。
 
 > [English README](readme.md) · [贡献指南](CONTRIBUTING.zh.md)
+
+---
+
+![带模态浮层的 Neony 组件画廊](docs/assets/screenshots/gallery-overlays.png)
+
+*Cyberangel Dark。真实运行的 Neony 窗口：组件画廊中的 Python 模态框、主题化控件，以及应用使用的同一套窗口装饰。*
 
 ---
 
@@ -37,6 +43,28 @@ HTML 或 JavaScript。
 - **滚动指示器** — 原生滚动条被隐藏；滚动表面获得随主题的浮动滑块（静止时淡显、滚动/悬停时增强、可拖拽、点击轨道翻页），以及只在内容真正溢出的方向显示的动态边缘渐变
 - **自定义窗口装饰** — 无边框、透明窗口、自定义标题栏
 - **(仅支持平台)原生窗口效果** — blur / acrylic / mica 材质
+
+## 画廊
+
+完整截图见[展示页](docs/showcase.zh.md)，包括 DataTable、反馈控件与受管媒体播放器。
+
+### 反馈与表单
+
+![Neony 反馈组件](docs/assets/screenshots/gallery-feedback.png)
+
+*Ember Zone Light。*
+
+### 数据视图
+
+![Neony 虚拟化 DataTable](docs/assets/screenshots/gallery-datatable.png)
+
+*Nightglow Dark。*
+
+### 媒体
+
+![Neony 音频与视频播放器](docs/assets/screenshots/gallery-media.png)
+
+*Planet Plaza Light。*
 
 ---
 

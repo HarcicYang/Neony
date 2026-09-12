@@ -9,12 +9,20 @@ Reactive desktop UI framework for Python, built on [LumiView](https://github.com
 > 📖 **Docs (latest release):** https://harcic.me/neony · [中文](https://harcic.me/neony/zh)
 >
 > These hosted docs point to the **latest tag**. For the **latest commit**
-> (in-repo `docs/`), see [`docs/`](../../tree/HEAD/docs/) —
-> [`docs/README.en.md`](../../blob/HEAD/docs/README.en.md),
-> [`getting-started`](../../blob/HEAD/docs/getting-started.en.md),
-> [`api/ chapters`](../../tree/HEAD/docs/api).
+> (in-repo `docs/`), see [`docs/`](docs/) —
+> [`docs/README.en.md`](docs/README.en.md),
+> [`getting-started`](docs/getting-started.en.md),
+> [`API chapters`](docs/api/).
 
 > [中文文档](readme.zh.md) · [Contributing](CONTRIBUTING.md)
+
+---
+
+![Neony Component Gallery with a modal overlay](docs/assets/screenshots/gallery-overlays.png)
+
+*Cyberangel Dark. A real Neony window running the component gallery: a
+Python-composed modal, themed controls, and the same window chrome used by an
+application.*
 
 ---
 
@@ -41,6 +49,29 @@ It builds on [LumiView](https://lumiview.dev), which uses the same Rust
 - **Scroll indicator** — native scrollbars are hidden; scroll surfaces get a theme-matched floating thumb (faint at rest, strengthens on scroll/hover, draggable, click-to-page) plus a dynamic edge fade that only shows where content actually overflows
 - **Custom window chrome** — frameless, transparent, custom TitleBar
 - **(Supported platform only) Native window effects** — blur / acrylic / mica materials
+
+## Gallery
+
+[See the full screenshot showcase](docs/showcase.en.md), including DataTable,
+feedback controls, and managed media players.
+
+### Feedback and forms
+
+![Neony feedback components](docs/assets/screenshots/gallery-feedback.png)
+
+*Ember Zone Light.*
+
+### Data views
+
+![Neony virtualized DataTable](docs/assets/screenshots/gallery-datatable.png)
+
+*Nightglow Dark.*
+
+### Media
+
+![Neony audio and video players](docs/assets/screenshots/gallery-media.png)
+
+*Planet Plaza Light.*
 
 ---
 

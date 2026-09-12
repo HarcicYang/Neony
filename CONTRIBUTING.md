@@ -70,6 +70,20 @@ The component gallery is the exception — it lives in the `neony.gallery`
 package (`uv run gallery`).  New components should ship with a demo, and the
 demo should be added to `.zed/tasks.json`.
 
+### 6. Screenshot assets
+
+README and documentation screenshots are captured from the real Gallery, not
+from mockups. After changing Gallery layout or themes, regenerate all assets
+from the repository root:
+
+```bash
+xvfb-run --auto-servernum --server-args="-screen 0 2200x1400x24" \
+  bash scripts/capture_screenshots.sh
+```
+
+The script requires `xdotool`, ImageMagick, and the project virtualenv. It
+updates `docs/assets/screenshots/` in place.
+
 ---
 
 ## Development setup

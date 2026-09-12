@@ -6,10 +6,14 @@ Neony is a pre-beta reactive desktop UI framework for Python. Start with the
 tutorial, use the guides for platform and application features, and consult
 the API reference when you need an exact signature.
 
+![Neony Component Gallery with a modal overlay](assets/screenshots/gallery-overlays.png)
+
 ## Start here
 
 - [Getting started](getting-started.en.md) — install Neony and build a small
   reactive window step by step.
+- [Screenshot showcase](showcase.en.md) — real Gallery windows covering
+  feedback components, virtualized data, overlays, and media.
 - [Installation and platforms](guides/installation-platforms.en.md) — system
   dependencies, platform limits, native dialogs, and troubleshooting.
 - [Examples index](../readme.md#demos) — the runnable demos in the repository

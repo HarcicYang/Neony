@@ -58,6 +58,19 @@ Pull Request 都非常欢迎。本文档说明项目约定与贡献方式。
 组件画廊是例外——它位于 `neony.gallery` 包中(`uv run gallery`)。
 新组件应附带示例，并把示例加入 `.zed/tasks.json`。
 
+### 6. 截图素材
+
+README 与文档中的截图必须来自真实 Gallery，而不是概念图。修改 Gallery
+布局或主题后，在仓库根目录重新生成全部素材：
+
+```bash
+xvfb-run --auto-servernum --server-args="-screen 0 2200x1400x24" \
+  bash scripts/capture_screenshots.sh
+```
+
+脚本需要 `xdotool`、ImageMagick 和项目虚拟环境，会直接更新
+`docs/assets/screenshots/`。
+
 ---
 
 ## 开发环境
