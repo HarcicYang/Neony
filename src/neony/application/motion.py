@@ -7,7 +7,7 @@ or the public component API.
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -98,8 +98,11 @@ def transition(*properties: str, duration: str | None = None, timing: str | None
     )
 
 
-def popup_animation() -> Animation:
-    return Animation(name=DEFAULT.popup_animation, duration=stub.normal, timing=stub.ease_enter)
+def popup_animation(*, fill_mode: Literal["none", "forwards", "backwards", "both"] | None = None) -> Animation:
+    animation = Animation(name=DEFAULT.popup_animation, duration=stub.normal, timing=stub.ease_enter)
+    if fill_mode is not None:
+        animation = animation.model_copy(update={"fill_mode": fill_mode})
+    return animation
 
 
 def submenu_animation() -> Animation:

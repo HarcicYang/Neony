@@ -24,6 +24,7 @@ from neony.application.theme import stub
 from neony.dom import Color, Span, Styles
 from neony.dom.reactive import Computed, Signal
 
+from ..layers import LocalLayer
 from .base import Component, ReactiveText, _mount_text
 
 _Variant = Literal["accent", "danger", "success", "neutral"]
@@ -207,7 +208,7 @@ class Badge(Component):
             styles = styles.model_copy(
                 update={
                     "position": "absolute",
-                    "z_index": 10,
+                    "z_index": LocalLayer.DECORATION,
                     "padding": "0 6px",
                     "min_width": "18px",
                     "height": "18px",

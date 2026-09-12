@@ -346,10 +346,31 @@ class Interaction(BaseModel):
         "click-away close); Tooltip wraps its anchor with placement "
         "offsets and a hover delay; Dropdown reuses the popup pattern "
         "(outsideclick close, full keyboard nav); Menu is fixed at the "
-        "cursor via open_at() — right-click the button."
+        "cursor via open_at() — right-click the button. A second dialog "
+        "shows Dropdown, Select, ComboBox and Tooltip mounted inside modal "
+        "content, including nested outside-click routing."
     )
     dialog_title: TrRef[None] = TrRef("Confirm")
     dialog_label: TrRef[None] = TrRef("Dialog")
+    nested_dialog_label: TrRef[None] = TrRef("Nested overlays")
+    nested_dialog_open_btn: TrRef[None] = TrRef("Open nested dialog")
+    nested_dialog_title: TrRef[None] = TrRef("Overlay inside overlay")
+    nested_dialog_body: TrRef[None] = TrRef(
+        "These controls own popup surfaces inside the dialog. Opening one "
+        "puts it above the modal logically, while its z-index still stays "
+        "in the popup band. Clicking inside the dialog but outside the open "
+        "popup dismisses only the popup."
+    )
+    nested_theme_label: TrRef[None] = TrRef("Nested theme")
+    nested_size_label: TrRef[None] = TrRef("Nested size")
+    nested_tag_label: TrRef[None] = TrRef("Nested tag")
+    nested_tag_placeholder: TrRef[None] = TrRef("Type or pick a tag…")
+    nested_tooltip: TrRef[None] = TrRef("This tooltip is mounted inside the dialog panel.")
+    nested_tooltip_anchor: TrRef[None] = TrRef("Hover inside dialog")
+    nested_menu_hint: TrRef[None] = TrRef("Open a page-root Menu from inside this dialog.")
+    nested_menu_btn: TrRef[None] = TrRef("Right-click for menu")
+    nested_menu_fmt: TrRef[dict[str, object]] = TrRef("menu: {value}")
+    nested_summary_fmt: TrRef[dict[str, object]] = TrRef("theme={theme}  size={size}  tag={tag}")
     prompt_label: TrRef[None] = TrRef("PromptDialog")
     dropdown_label: TrRef[None] = TrRef("Dropdown")
     dialog_body: TrRef[None] = TrRef("Try the scrim, Escape, click-away, or the buttons below.")
@@ -460,7 +481,8 @@ class Chat(BaseModel):
     notifications_title: TrRef[None] = TrRef("Notifications")
     notifications_blurb: TrRef[None] = TrRef(
         "Transient in-app notifications stacked at a screen edge. The host "
-        "sits at the page root as a full-viewport layer (z-index 1100, "
+        "sits at the page root as a full-viewport layer in the framework-managed "
+        "notification band "
         "pointer-events none); cards enter and leave with an animation "
         "tied to their placement — top ones drop in, bottom ones rise up, "
         "corners slide diagonally — and auto-dismiss after `duration`. "
@@ -998,10 +1020,29 @@ register_catalog(
                 "四层定位——全部 CSS 锚定，零测量。Dialog 用主题遮罩压暗整个页面并居中一块"
                 "带可配置操作按钮的面板（遮罩 / Escape / 点击外部关闭）；Tooltip 包裹锚点并"
                 "带位置偏移和悬停延迟；Dropdown 复用弹出模式（点击外部关闭、完整键盘导航）；"
-                "Menu 通过 open_at() 固定在光标处——右键点击按钮。"
+                "Menu 通过 open_at() 固定在光标处——右键点击按钮。第二个对话框展示 Dropdown、"
+                "Select、ComboBox 与 Tooltip 嵌套在模态内容中，以及嵌套的点击外部分流。"
             ),
             dialog_title="确认",
             dialog_label="对话框",
+            nested_dialog_label="嵌套浮层",
+            nested_dialog_open_btn="打开嵌套对话框",
+            nested_dialog_title="浮层中的浮层",
+            nested_dialog_body=(
+                "这些控件在对话框内部拥有自己的弹出面板。打开后，它在逻辑层栈中位于模态层之上，"
+                "但 z-index 仍停留在 popup 层带。点击对话框内部但在已打开弹出层之外时，只会关闭"
+                "该弹出层，不会关闭对话框。"
+            ),
+            nested_theme_label="嵌套主题",
+            nested_size_label="嵌套尺寸",
+            nested_tag_label="嵌套标签",
+            nested_tag_placeholder="输入或选择标签…",
+            nested_tooltip="这个提示气泡挂载在对话框面板内部。",
+            nested_tooltip_anchor="在对话框内悬停",
+            nested_menu_hint="从对话框内部打开一个挂载在页面根的 Menu。",
+            nested_menu_btn="右键打开菜单",
+            nested_menu_fmt="菜单：{value}",
+            nested_summary_fmt="theme={theme}  size={size}  tag={tag}",
             prompt_label="输入对话框",
             dropdown_label="下拉框",
             dialog_body="试试遮罩、Escape、点击外部，或下面的按钮。",
@@ -1101,7 +1142,7 @@ register_catalog(
             notifications_title="通知",
             notifications_blurb=(
                 "堆叠在屏幕边缘的瞬时应用内通知。宿主位于页面根部，是一个全视口图层"
-                "（z-index 1100，pointer-events none）；卡片进入和离开时按各自位置播放动画——"
+                "（框架全局层级中的通知层，pointer-events none）；卡片进入和离开时按各自位置播放动画——"
                 "顶部下落、底部上升、角落对角滑动——并在 `duration` 后自动消失。传入 `on_click` "
                 "时卡片可点击（✕ 永不触发它）。"
             ),

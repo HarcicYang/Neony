@@ -1711,6 +1711,64 @@ describe("outsideclick", () => {
     expect(outsidePayloads()).toEqual([{ key: "dd", event_type: "outsideclick", value: null }]);
   });
 
+  it("routes outsideclick only to the highest open layer", () => {
+    mountTree({
+      key: "root",
+      tag: "div",
+      children: [
+        {
+          key: "lower",
+          tag: "div",
+          attrs: {
+            "data-neony-outside": "true",
+            "data-neony-layer-order": "2000",
+          },
+        },
+        {
+          key: "higher",
+          tag: "div",
+          attrs: {
+            "data-neony-outside": "true",
+            "data-neony-layer-order": "4000",
+          },
+        },
+      ],
+    });
+    document.body.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+    expect(outsidePayloads()).toEqual([{ key: "higher", event_type: "outsideclick", value: null }]);
+  });
+
+  it("does not close a lower layer for a click inside the highest layer", () => {
+    mountTree({
+      key: "root",
+      tag: "div",
+      children: [
+        {
+          key: "lower",
+          tag: "div",
+          attrs: {
+            "data-neony-outside": "true",
+            "data-neony-layer-order": "2000",
+          },
+        },
+        {
+          key: "higher",
+          tag: "div",
+          attrs: {
+            "data-neony-outside": "true",
+            "data-neony-layer-order": "4000",
+          },
+          children: [{ key: "inside-higher", tag: "button", text: "inside" }],
+        },
+      ],
+    });
+    const inside = document.querySelector("[data-neony-key='inside-higher']");
+    inside.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+    expect(outsidePayloads()).toEqual([]);
+  });
+
   it("ignores overlays without the marker", () => {
     mountTree({ key: "dd", tag: "div" });
     document.body.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));

@@ -38,6 +38,7 @@ from neony.dom import Button as _ButtonElem
 from neony.dom.reactive import Computed, Signal
 
 from ..i18n import tr
+from ..layers import LocalLayer
 from .avatar import Avatar
 from .badge import Badge
 from .base import Component, ReactiveText, _mount_text
@@ -119,7 +120,7 @@ _ACTIONS = Styles(
     top="calc(100% + 2px)",
     display="none",
     gap="4px",
-    z_index="10",
+    z_index=LocalLayer.DECORATION,
 )
 _ACTION = Styles(
     display="flex",

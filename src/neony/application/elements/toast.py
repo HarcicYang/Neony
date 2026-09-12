@@ -9,12 +9,12 @@ directional animation — sliding in from the edge/corner it sits at
 diagonally) — and leaves by replaying the same keyframe reversed,
 sliding back toward that edge/corner.
 
-NOTE: the host is a full-viewport ``position: fixed`` notification layer at
-``z-index: 1200`` (above Dialog and dropdown/cascade popups) with ``pointer-events: none``, so
-clicks pass through to the page except on the cards themselves.  Mount
-it at the page root — any ``backdrop-filter`` / ``transform`` ancestor
-would become the containing block for ``position: fixed`` in WebKit
-(Dialog precedent).
+NOTE: the host is a full-viewport ``position: fixed`` notification layer
+in :attr:`Layer.TOAST` (above Dialog and dropdown/cascade popups) with
+``pointer-events: none``, so clicks pass through to the page except on the
+cards themselves.  Mount it at the page root — any ``backdrop-filter`` /
+``transform`` ancestor would become the containing block for
+``position: fixed`` in WebKit (Dialog precedent).
 """
 
 from __future__ import annotations
@@ -40,6 +40,7 @@ from neony.dom import (
 )
 from neony.dom import Button as _ButtonElem
 
+from ..layers import Layer
 from .base import Component
 from .icon import Icon
 
@@ -71,7 +72,7 @@ _ROOT = Styles(
     left="0",
     right="0",
     bottom="0",
-    z_index="1200",
+    z_index=Layer.TOAST,
     pointer_events="none",
     display="flex",
     flex_direction="column",

@@ -1,7 +1,7 @@
 """Dialog component — a modal overlay with a themed scrim and a
 centered panel.
 
-The root is a fixed, full-viewport layer (``z-index: 1000``) that shows
+The root is a fixed, full-viewport, manager-owned modal layer that shows
 /hides as a whole — the scrim is a keyed child, so clicks inside the
 panel resolve to panel-descendant keys and never hit the scrim's close
 handler.  Close paths: scrim click (unless ``closable=False``), Escape
@@ -29,6 +29,7 @@ from pydantic import BaseModel, ConfigDict
 from neony.application.theme import stub
 from neony.dom import Animation, Border, BoxShadow, Div, DOMElement, DomEvent, Filter, Shadow, Span, Styles, Transition
 
+from ..layers import Layer, LayerHandle, LocalLayer, layer_manager
 from .base import Component, ReactiveText, _mount_text
 from .button import Button
 
@@ -71,7 +72,6 @@ _ROOT = Styles(
     left="0",
     right="0",
     bottom="0",
-    z_index="1000",
     display="none",
     align_items="center",
     justify_content="center",
@@ -98,7 +98,7 @@ _SCRIM_OPEN = _SCRIM.model_copy(update={"opacity": 1.0})
 
 _GLASS_PANEL = Styles(
     position="relative",
-    z_index="1",
+    z_index=LocalLayer.CONTENT,
     max_width="90%",
     max_height="90%",
     # Popups such as Dropdown must escape the panel's content box.
@@ -176,6 +176,7 @@ class Dialog(Component):
         self._closable = closable
         self._actions = list(actions)
         self._close_task: asyncio.Task | None = None
+        self._layer_handle: LayerHandle | None = None
 
         self._scrim = Div(styles=_SCRIM)
         # The title rides a child span so a reactive ``tr`` binding can
@@ -221,7 +222,16 @@ class Dialog(Component):
             self._scrim.styles = _SCRIM_OPEN
             self._panel.styles = self._panel_restore
             self._root.args = {**self._root.args, "data-neony-outside": "true"}
+            self._layer_handle = layer_manager(self._root).open(
+                self._root,
+                kind=Layer.MODAL,
+                group="modal",
+                on_close=self._close_from_layer,
+            )
         else:
+            if self._layer_handle is not None:
+                self._layer_handle.close()
+                self._layer_handle = None
             self._root.styles = _ROOT_OPEN
             self._scrim.styles = _SCRIM
             self._panel.styles = self._panel_restore.model_copy(update={"animation": _PANEL_EXIT_ANIMATION})
@@ -234,6 +244,10 @@ class Dialog(Component):
             else:
                 self._close_task = asyncio.create_task(self._finish_close())
         self._dispatch_pseudo("open" if value else "close", self)
+
+    def _close_from_layer(self) -> None:
+        """Synchronize component state when the layer manager closes it."""
+        self.open = False
 
     async def _finish_close(self) -> None:
         """Fallback when CSS ``animationend`` is suppressed or interrupted."""

@@ -12,15 +12,16 @@ synthetic ``outsideclick`` event (``data-neony-outside`` marker).
 
 from __future__ import annotations
 
-import urllib.parse
 from collections.abc import Sequence
 
 from neony.application.theme import Theme, stub
-from neony.dom import Animation, Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, Span, Styles, Transition
+from neony.dom import Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, Span, Styles, Transition
 from neony.dom import Button as _ButtonElem
-from neony.dom import Label as _LabelElem
 
+from .. import motion
+from ..layers import Layer, LayerHandle, layer_manager
 from .base import Component, ReactiveText, _mount_text
+from .icon import Icon
 
 _ROW = Styles(
     display="flex",
@@ -31,18 +32,13 @@ _ROW = Styles(
     color=stub.text_primary,
 )
 
-_CHEVRON_SVG = (
-    "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' "
-    "fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' "
-    "stroke-linejoin='round'><path d='M4 6l4 4 4-4'/></svg>"
-)
-_CHEVRON_UP_SVG = _CHEVRON_SVG.replace("M4 6l4 4 4-4", "M4 10l4-4 4 4")
-_CHEVRON = f'url("data:image/svg+xml,{urllib.parse.quote(_CHEVRON_SVG)}")'
-_CHEVRON_UP = f'url("data:image/svg+xml,{urllib.parse.quote(_CHEVRON_UP_SVG)}")'
-
 _TRIGGER = Styles(
+    display="flex",
+    align_items="center",
+    justify_content="space-between",
+    gap="8px",
     flex_grow="1",
-    padding="10px 34px 10px 14px",  # right padding leaves room for the chevron
+    padding="10px 14px",
     border_radius="8px",
     border=Border(width="1px", color=stub.border),
     background_color=stub.surface,
@@ -51,10 +47,6 @@ _TRIGGER = Styles(
     cursor="pointer",
     user_select="none",
     outline="none",
-    background_image=_CHEVRON,
-    background_size="16px 16px",
-    background_position="right 12px center",
-    background_repeat="no-repeat",
     transition=Transition(property="border-color", duration="0.15s", timing="ease"),
 )
 
@@ -67,6 +59,13 @@ _GLASS_TRIGGER = _TRIGGER.model_copy(
 )
 
 _PLACEHOLDER_TEXT = Styles(color=stub.text_secondary)
+_CHEVRON = Styles(
+    color=stub.text_secondary,
+    font_size="11px",
+    line_height="1",
+    transition=motion.transition("transform", duration=motion.stub.fast),
+)
+_CHEVRON_OPEN = _CHEVRON.model_copy(update={"transform": "rotate(180deg)"})
 
 _WRAP = Styles(position="relative", flex_grow="1")
 
@@ -75,7 +74,6 @@ _PANEL = Styles(
     top="calc(100% + 6px)",
     left="0",
     right="0",
-    z_index="500",
     display="none",
     flex_direction="column",
     padding="6px",
@@ -93,7 +91,7 @@ _PANEL = Styles(
 _PANEL_OPEN = _PANEL.model_copy(
     update={
         "display": "flex",
-        "animation": Animation(name="neony-drop-in", duration="0.2s", timing="ease-out"),
+        "animation": motion.popup_animation(fill_mode="both"),
     }
 )
 
@@ -157,12 +155,23 @@ class Select(Component):
         self._placeholder = placeholder
         self._focused = False
         self._open = False
+        self._layer_handle: LayerHandle | None = None
 
         self._selected_span = Span(container=[])
+        self._chevron = Span(container=[Icon._font("expand_more").render("14px")], styles=_CHEVRON)
+        self._label_span = Span(container=[])
+        self._label_span.id_ = self._label_span.key
+        _mount_text(self._label_span, label)
         self._trigger = Div(
             styles=_GLASS_TRIGGER if glass else _TRIGGER,
-            args={"tabindex": "0", "role": "combobox", "aria-haspopup": "listbox", "aria-expanded": "false"},
-            container=[self._selected_span],
+            args={
+                "tabindex": "0",
+                "role": "combobox",
+                "aria-haspopup": "listbox",
+                "aria-expanded": "false",
+                "aria-labelledby": self._label_span.key,
+            },
+            container=[self._selected_span, self._chevron],
         )
         self._popup = Div(styles=_PANEL, container=[])
         self._wrapper = Div(styles=_WRAP, container=[self._trigger, self._popup])
@@ -171,9 +180,7 @@ class Select(Component):
         # the wrapper.
         self._trigger.bubble_events = True
         self._wrapper.bubble_events = True
-        self._label_span = Span(container=[])
-        _mount_text(self._label_span, label)
-        self._root = _LabelElem(styles=_ROW, container=[self._wrapper, self._label_span])
+        self._root = Div(styles=_ROW, container=[self._wrapper, self._label_span])
 
         self._build_placeholder()
         for entry in options:
@@ -305,8 +312,15 @@ class Select(Component):
         if self._open or self._disabled or not self._rows:
             return
         self._open = True
+        self._layer_handle = layer_manager(self._wrapper).open(
+            self._wrapper,
+            kind=Layer.POPOVER,
+            group="popup",
+            exclusive=True,
+            on_close=self._close,
+        )
         self._popup.styles = _PANEL_OPEN
-        self._trigger.styles = self._trigger.styles.model_copy(update={"background_image": _CHEVRON_UP})
+        self._chevron.styles = _CHEVRON_OPEN
         self._trigger.args = {**self._trigger.args, "aria-expanded": "true"}
         self._wrapper.args = {**self._wrapper.args, "data-neony-outside": "true"}
 
@@ -314,8 +328,11 @@ class Select(Component):
         if not self._open:
             return
         self._open = False
+        if self._layer_handle is not None:
+            self._layer_handle.close()
+            self._layer_handle = None
         self._popup.styles = _PANEL
-        self._trigger.styles = self._trigger.styles.model_copy(update={"background_image": _CHEVRON})
+        self._chevron.styles = _CHEVRON
         self._trigger.args = {**self._trigger.args, "aria-expanded": "false"}
         self._wrapper.args = {k: v for k, v in self._wrapper.args.items() if k != "data-neony-outside"}
 

@@ -27,6 +27,7 @@ from neony.application._helpers import (
 )
 from neony.application.config import Config
 from neony.application.icon_font import css as icon_font_css
+from neony.application.layers import layers_css
 from neony.application.markdown_css import MARKDOWN_CSS
 from neony.application.motion import DEFAULT as DEFAULT_MOTION
 from neony.application.page import Page
@@ -415,7 +416,7 @@ class NeonApplication(Generic[_S]):
     async def _inject_theme(self, entry: _Entry) -> None:
         """Inject theme CSS variables into one window's page."""
         assert entry.window is not None
-        css = self.theme.to_css() + " " + DEFAULT_MOTION.to_css()
+        css = self.theme.to_css() + " " + DEFAULT_MOTION.to_css() + " " + layers_css()
         # NOTE: ``})()`` closes the IIFE — a stray brace makes the whole
         # script a SyntaxError.
         # Transparent windows keep the body transparent so the native
@@ -539,8 +540,9 @@ class NeonApplication(Generic[_S]):
     def _background_js(self) -> str:
         """JS painting the background image under a theme-coloured tint.
 
-        Two fixed layers: the image on ``#neony-bg`` (z-index -2) and a
-        ``var(--color-bg)`` tint on ``#neony-bg-tint`` (z-index -1), so
+        Two fixed layers: the image on ``#neony-bg`` and a
+        ``var(--color-bg)`` tint on ``#neony-bg-tint``, both in the reserved
+        background bands, so
         the tint follows theme switches via the CSS variable.  Layers sit
         on elements, not ``<body>`` (transparent windows skip
         body-background painting).  The image layer is only re-styled,
@@ -558,11 +560,11 @@ class NeonApplication(Generic[_S]):
             "if (!document.getElementById('neony-bg-tint')) {"
             "const tint = document.createElement('div'); tint.id = 'neony-bg-tint';"
             "tint.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;"
-            "z-index:-1;background-color:var(--color-bg);opacity:0.55;';"
+            "z-index:var(--neony-layer-background-tint);background-color:var(--color-bg);opacity:0.55;';"
             "document.body.insertBefore(tint, document.body.firstChild);"
             "}"
             f"img.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;"
-            f"z-index:-2;background-image:url({url});background-size:cover;"
+            f"z-index:var(--neony-layer-background);background-image:url({url});background-size:cover;"
             "background-position:center center;background-repeat:no-repeat;';"
             "})()"
         )

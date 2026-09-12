@@ -29,13 +29,13 @@ from typing import Literal
 from neony.application.theme import stub
 from neony.dom import Border, BoxShadow, Div, DOMElement, DomEvent, Shadow, Span, Styles, Transform, Transition
 
+from ..layers import Layer, LayerHandle, layer_manager
 from .base import Component, ReactiveText, _mount_text
 
 _WRAP = Styles(position="relative", display="inline-flex")
 
 _BUBBLE = Styles(
     position="absolute",
-    z_index="300",
     display="none",
     white_space="nowrap",
     padding="6px 10px",
@@ -84,6 +84,7 @@ class Tooltip(Component):
         super().__init__()
         self._delay = delay
         self._task: asyncio.Task | None = None
+        self._layer_handle: LayerHandle | None = None
 
         if anchor is None:
             anchor_el: DOMElement | str = Span(container=[""])
@@ -143,6 +144,9 @@ class Tooltip(Component):
 
     def _hide(self) -> None:
         self._cancel_task()
+        if self._layer_handle is not None:
+            self._layer_handle.close()
+            self._layer_handle = None
         self._bubble.styles = self._bubble.styles.model_copy(update={"display": "none"})
 
     def _cancel_task(self) -> None:
@@ -153,6 +157,13 @@ class Tooltip(Component):
     async def _show_after_delay(self) -> None:
         try:
             await asyncio.sleep(self._delay)
+            self._layer_handle = layer_manager(self._bubble).open(
+                self._bubble,
+                kind=Layer.TOOLTIP,
+                group="tooltip",
+                exclusive=True,
+                on_close=self._hide,
+            )
             self._bubble.styles = self._bubble.styles.model_copy(update={"display": "block"})
         except asyncio.CancelledError:
             return

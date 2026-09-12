@@ -924,7 +924,7 @@
         src.style.width = rect.width + "px";
         src.style.height = rect.height + "px";
         src.style.margin = "0";
-        src.style.zIndex = "2147483647";
+        src.style.zIndex = "var(--neony-layer-drag-ghost)";
         src.style.pointerEvents = "none";
         src.style.transition = "none";
         src.style.boxShadow = "0 10px 28px rgba(0,0,0,0.35)";
@@ -1811,13 +1811,23 @@
     // leaves an open popup stranded.
     function dispatchOutsideClick(event) {
         var roots = document.querySelectorAll('[data-neony-outside="true"]');
+        var topmost = null;
+        var topmostOrder = -Infinity;
         for (var i = 0; i < roots.length; i++) {
             var root = roots[i];
-            if (root.contains(event.target)) continue;
             var key = root.getAttribute("data-neony-key");
             if (!key) continue;
+            var order = parseFloat(root.getAttribute("data-neony-layer-order"));
+            if (!Number.isFinite(order)) order = 0;
+            if (order >= topmostOrder) {
+                topmost = root;
+                topmostOrder = order;
+            }
+        }
+        if (topmost && !topmost.contains(event.target)) {
+            var topKey = topmost.getAttribute("data-neony-key");
             window.lumiview
-                .invoke("neony.event", { key: key, event_type: "outsideclick", value: null })
+                .invoke("neony.event", { key: topKey, event_type: "outsideclick", value: null })
                 .catch(function () {
                     // Fire-and-forget — ignore delivery failures
                 });
@@ -2045,7 +2055,7 @@
         var overlay = document.createElement("div");
         Object.assign(overlay.style, {
             position: "absolute",
-            zIndex: "5",
+            zIndex: "var(--neony-layer-local-indicator)",
             // Default pass-through so the overlay never blocks wheel/
             // clicks on content; the track + thumb re-enable pointer
             // events on themselves.

@@ -17,11 +17,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from neony.application.theme import Theme, stub
-from neony.dom import Animation, Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, Span, Styles, Transition
+from neony.dom import Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, Span, Styles, Transition
 from neony.dom import Button as _ButtonElem
 from neony.dom import Input as _InputElem
-from neony.dom import Label as _LabelElem
 
+from .. import motion
+from ..layers import Layer, LayerHandle, layer_manager
 from .base import Component, ReactiveText, _mount_text
 
 _ROW = Styles(
@@ -60,7 +61,6 @@ _PANEL = Styles(
     top="calc(100% + 6px)",
     left="0",
     right="0",
-    z_index="500",
     display="none",
     flex_direction="column",
     padding="6px",
@@ -78,7 +78,7 @@ _PANEL = Styles(
 _PANEL_OPEN = _PANEL.model_copy(
     update={
         "display": "flex",
-        "animation": Animation(name="neony-drop-in", duration="0.2s", timing="ease-out"),
+        "animation": motion.popup_animation(fill_mode="both"),
     }
 )
 
@@ -140,6 +140,10 @@ class ComboBox(Component):
         self._rows: list[_ButtonElem] = []
         self._row_by_key: dict[str, str] = {}
         self._open = False
+        self._layer_handle: LayerHandle | None = None
+        self._label_span = Span(container=[])
+        self._label_span.id_ = self._label_span.key
+        _mount_text(self._label_span, label)
 
         self._input = _InputElem(
             type="text",
@@ -147,6 +151,7 @@ class ComboBox(Component):
             value=value,
             disabled=disabled,
             styles=_GLASS_FIELD if glass else _FIELD,
+            args={"aria-labelledby": self._label_span.key},
         )
         # placeholder is an HTML attribute — a reactive placeholder (e.g.
         # a ``tr`` binding) binds to it.
@@ -156,9 +161,7 @@ class ComboBox(Component):
         self._wrapper = Div(styles=_WRAP, container=[self._input, self._popup])
         # Keydowns from the input bubble up here.
         self._wrapper.bubble_events = True
-        self._label_span = Span(container=[])
-        _mount_text(self._label_span, label)
-        self._root = _LabelElem(styles=_ROW, container=[self._wrapper, self._label_span])
+        self._root = Div(styles=_ROW, container=[self._wrapper, self._label_span])
 
         self._bind(self._input, "input")
         self._bind(self._input, "change")
@@ -245,6 +248,13 @@ class ComboBox(Component):
         if self._open or self._disabled or not self._rows:
             return
         self._open = True
+        self._layer_handle = layer_manager(self._wrapper).open(
+            self._wrapper,
+            kind=Layer.POPOVER,
+            group="popup",
+            exclusive=True,
+            on_close=self._close,
+        )
         self._popup.styles = _PANEL_OPEN
         self._wrapper.args = {**self._wrapper.args, "data-neony-outside": "true"}
 
@@ -252,6 +262,9 @@ class ComboBox(Component):
         if not self._open:
             return
         self._open = False
+        if self._layer_handle is not None:
+            self._layer_handle.close()
+            self._layer_handle = None
         self._popup.styles = _PANEL
         self._wrapper.args = {k: v for k, v in self._wrapper.args.items() if k != "data-neony-outside"}
 

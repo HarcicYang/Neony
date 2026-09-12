@@ -283,6 +283,13 @@ an `on_click` callback (called with the dialog, sync or async) and
 `position: fixed` — mount the dialog at the page root or in a
 non-filtered container.
 
+Dialog content may contain components with their own popups, such as
+Dropdown, Select, ComboBox and Tooltip. An opened child joins the same
+window-level logical layer stack: its numeric band remains `popup`, but
+its stack order follows the modal. A click inside the dialog but outside
+the child popup closes only the child, not the Dialog. The Gallery's
+Overlays page contains a runnable example.
+
 ### `PromptDialog`
 
 ```python
@@ -386,13 +393,17 @@ menu = Menu(
     ),
 )
 btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y))  # cursor position
+# From inside a Dialog, pass owner so the Menu follows and closes with it:
+btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y, owner=dialog))
 menu.on_change(lambda e: print(e.value))
 ```
 
 A fixed popup positioned with `open_at(x, y)` — typically a
 `contextmenu` event's viewport coordinates, so no measurement is
 needed. Same keyboard nav as `Dropdown`; closes on selection, Escape,
-or click-away. The panel pops upward — its bottom edge anchors 8px
+or click-away. Optional `owner=` accepts the Component or DOMElement that
+opened it; when that owner is an open Dialog or other layer, the Menu
+follows its logical layer and closes with it. The panel pops upward — its bottom edge anchors 8px
 above the cursor — and clamps to the viewport via `calc()` max
 width/height, so it never overflows an edge. `MenuBranch(label, items)`
 adds a cascading branch: `ArrowRight` / `Enter` opens the child menu,
@@ -425,7 +436,8 @@ height); bottom placements always hug the window edge. Each card enters
 with a placement-specific directional animation (top placements drop
 in, bottom ones rise up, corners slide diagonally) and leaves by
 replaying the same keyframe reversed toward that edge. The host is a
-full-viewport `position: fixed` layer at z-index 1100 with
+full-viewport `position: fixed` layer in the framework-managed
+notification band with
 `pointer-events: none` (clicks pass through to the page) — mount it at
 the page root, away from `backdrop-filter` / `transform` ancestors.
 

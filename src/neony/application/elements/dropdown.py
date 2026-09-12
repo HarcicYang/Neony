@@ -10,7 +10,6 @@ via the engine's synthetic ``outsideclick`` event.
 
 from __future__ import annotations
 
-import weakref
 from collections.abc import Sequence
 
 from neony.application.theme import Theme, stub
@@ -18,6 +17,7 @@ from neony.dom import Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, S
 from neony.dom import Button as _ButtonElem
 
 from .. import motion
+from ..layers import Layer, LayerHandle, layer_manager
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
@@ -48,16 +48,15 @@ _GLASS_TRIGGER = _TRIGGER.model_copy(
 
 _WRAP = Styles(position="relative", display="inline-block")
 # A component-owned click-away layer replaces the unreliable document-level
-# synthetic outsideclick route on WebKitGTK. It stays below the trigger/panel.
-_CLICK_AWAY = Styles(position="fixed", top="0", right="0", bottom="0", left="0", z_index=1099, display="none")
+# synthetic outsideclick route on WebKitGTK. It stays below the trigger/panel;
+# DOM order provides that local order, so it needs no global z-index.
+_CLICK_AWAY = Styles(position="fixed", top="0", right="0", bottom="0", left="0", display="none")
 _CLICK_AWAY_OPEN = _CLICK_AWAY.model_copy(update={"display": "block"})
 
 _PANEL = Styles(
     position="absolute",
     top="calc(100% + 6px)",
     left="0",
-    # Must sit above Dialog's panel content when mounted inside PromptDialog.
-    z_index="1100",
     display="none",
     flex_direction="column",
     padding="6px",
@@ -75,7 +74,7 @@ _PANEL = Styles(
 _PANEL_OPEN = _PANEL.model_copy(
     update={
         "display": "flex",
-        "animation": motion.popup_animation(),
+        "animation": motion.popup_animation(fill_mode="both"),
     }
 )
 
@@ -102,11 +101,6 @@ _CHEVRON_STYLE = Styles(
     transition=motion.transition("transform", duration=motion.stub.fast),
 )
 _CHEVRON_OPEN_STYLE = _CHEVRON_STYLE.model_copy(update={"transform": "rotate(180deg)"})
-
-# Sibling dropdown triggers are equal-z stacking contexts; without ownership,
-# the later mounted control can cover an already-open popup.  One Dropdown
-# owns the popup layer per mounted tree, like cursor menus.
-_ACTIVE_DROPDOWNS: dict[int, tuple[weakref.ReferenceType, weakref.ReferenceType]] = {}
 
 
 class Dropdown(Component):
@@ -146,14 +140,13 @@ class Dropdown(Component):
         self._value: str | None = None
         self._open = False
         self._focused = False
+        self._layer_handle: LayerHandle | None = None
 
         self._label_span = Span(container=[])
         _mount_text(self._label_span, label)
         self._chevron = Span(container=[Icon._font("expand_more").render("14px")], styles=_CHEVRON_STYLE)
         self._trigger = Div(
-            styles=(_GLASS_TRIGGER if glass else _TRIGGER).model_copy(
-                update={"width": width, "position": "relative", "z_index": 1100}
-            ),
+            styles=(_GLASS_TRIGGER if glass else _TRIGGER).model_copy(update={"width": width, "position": "relative"}),
             args={"tabindex": "0", "role": "combobox", "aria-haspopup": "listbox", "aria-expanded": "false"},
             container=[self._label_span, self._chevron],
         )
@@ -264,31 +257,15 @@ class Dropdown(Component):
         else:
             row.styles = _OPTION
 
-    def _popup_scope(self) -> object:
-        """Return this dropdown's mounted tree root (one scope per window/page)."""
-        node = self._root
-        while node._parent is not None:
-            node = node._parent
-        return node
-
     def _activate_popup(self) -> None:
-        """Make this control the sole open Dropdown in its mounted tree."""
-        scope = self._popup_scope()
-        entry = _ACTIVE_DROPDOWNS.get(id(scope))
-        previous = entry[1]() if entry is not None and entry[0]() is scope else None
-        if previous is not None and previous is not self:
-            previous._close()
-        _ACTIVE_DROPDOWNS[id(scope)] = weakref.ref(scope), weakref.ref(self)
-        # A later-mounted trigger creates an equal-z sibling stacking context.
-        # Raise only the active wrapper, so the newest popup stays on top.
-        self._wrapper.styles = _WRAP.model_copy(update={"z_index": 1200})
-
-    def _deactivate_popup(self) -> None:
-        scope = self._popup_scope()
-        entry = _ACTIVE_DROPDOWNS.get(id(scope))
-        if entry is not None and entry[0]() is scope and entry[1]() is self:
-            del _ACTIVE_DROPDOWNS[id(scope)]
-        self._wrapper.styles = _WRAP
+        """Register the open popup with the window's global layer manager."""
+        self._layer_handle = layer_manager(self._wrapper).open(
+            self._wrapper,
+            kind=Layer.POPOVER,
+            group="popup",
+            exclusive=True,
+            on_close=self._close,
+        )
 
     def _open_popup(self) -> None:
         if self._open or not self._rows:
@@ -309,7 +286,9 @@ class Dropdown(Component):
         if not self._open:
             return
         self._open = False
-        self._deactivate_popup()
+        if self._layer_handle is not None:
+            self._layer_handle.close()
+            self._layer_handle = None
         self._popup.styles = _PANEL
         self._click_away.styles = _CLICK_AWAY
         self._chevron.styles = _CHEVRON_STYLE

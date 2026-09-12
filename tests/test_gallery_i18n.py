@@ -66,6 +66,7 @@ class TestEnKeysResolve:
             (tr.layout.type_title, "Typography"),
             (tr.glass.glass_title, "Frosted Glass"),
             (tr.interaction.dialog_title, "Confirm"),
+            (tr.interaction.nested_dialog_title, "Overlay inside overlay"),
             (tr.data.list_title, "List"),
             (tr.chat.you_joined, "You joined the group"),
             (tr.system.reactive_title, "Reactive"),

@@ -4,6 +4,20 @@
 
 ### Added
 
+- **Global floating-layer management** — overlays no longer compete with
+  component-specific `z-index` constants. A per-window `LayerManager`
+  assigns semantic layer bands, brings reopened layers to the front,
+  closes exclusive popup/menu groups through component callbacks, and
+  stacks modal layers in open order. Dropdown, Select, ComboBox,
+  CascadingDropdown, Menu, Tooltip and Dialog now register with it;
+  Toast and the drag ghost use reserved top-level bands. Outside-click
+  routing now targets only the highest open layer instead of notifying
+  every overlay at once. A logical stack order is tracked separately
+  from the numeric band, so a Dropdown opened inside a Dialog outranks
+  its modal parent for outside-click routing while retaining its local
+  popup z-index. `Menu.open_at()` accepts an optional `owner=` so a
+  page-root menu opened from inside a Dialog follows the modal's layer
+  and closes with it.
 - **Streaming text support** — token-by-token text updates no longer ship
   the whole accumulated string. The diff detects a pure text extension
   and emits a new `append_text` patch carrying only the delta; the JS
@@ -54,6 +68,16 @@
   `uniform=False` keeps natural heights, top-aligned. Long labels wrap
   inside their tile instead of overflowing. The gallery's icon catalog
   now uses it; both sizing modes are demoed on the Layout tab.
+
+### Fixed
+
+- **Select popup persistence and chevron theming** — Select and ComboBox
+  no longer use a `<label>` root around interactive popup buttons, which
+  could implicitly activate the first option and close the popup just
+  after it opened. Their visual labels now connect through
+  `aria-labelledby`. Select also uses the same retained popup entrance
+  animation and themed icon-font chevron as Dropdown, keeping the arrow
+  colour correct in light and dark themes.
 
 ### Dependencies
 

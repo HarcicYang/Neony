@@ -50,6 +50,7 @@ from neony.application.theme import stub
 from neony.dom import Border, Color, Div, DOMElement, DomEvent, Signal, Span, Styles, Transition
 from neony.dom.reactive import Computed
 
+from ..layers import LocalLayer
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
@@ -99,7 +100,7 @@ _HEADER = Styles(
     align_items="center",
     position="sticky",
     top="0",
-    z_index="1",
+    z_index=LocalLayer.STICKY,
     background_color=stub.surface_raised,
     border_bottom=Border(width="1px", color=stub.border),
 )

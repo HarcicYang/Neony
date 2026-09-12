@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import weakref
 from collections.abc import Sequence
 
 from neony.application.theme import stub
@@ -12,6 +11,7 @@ from neony.dom import (
     BoxShadow,
     Color,
     Div,
+    DOMElement,
     DomEvent,
     Filter,
     Shadow,
@@ -23,6 +23,7 @@ from neony.dom import (
 from neony.dom import Button as _ButtonElem
 
 from .. import motion
+from ..layers import Layer, LayerHandle, LocalLayer, layer_manager
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
@@ -39,7 +40,6 @@ MenuItem = ReactiveText | tuple[str, ReactiveText] | MenuBranch
 
 _PANEL = Styles(
     position="fixed",
-    z_index="600",
     display="none",
     flex_direction="column",
     padding="6px",
@@ -64,7 +64,7 @@ _SUBMENU = _PANEL.model_copy(
         "position": "absolute",
         "left": "calc(100% + 4px)",
         "top": "0",
-        "z_index": 700,
+        "z_index": LocalLayer.NESTED_POPUP,
         "overflow": "visible",
     }
 )
@@ -103,13 +103,6 @@ _BRANCH_CHEVRON = Styles(
 _BRANCH_CHEVRON_OPEN = _BRANCH_CHEVRON.model_copy(update={"transform": "rotate(90deg)"})
 
 
-# One top-level cursor menu may be active in each mounted DOM tree.  Weak
-# keys keep pages/windows independent and let an unmounted tree disappear
-# without a process-global lifetime leak.  CascadingDropdown never calls
-# ``open_at`` so its embedded Menu does not enter this registry.
-_CONTEXT_MENUS: dict[int, tuple[weakref.ReferenceType, weakref.ReferenceType]] = {}
-
-
 class Menu(Component):
     """A cursor-positioned context menu with optional cascading branches.
 
@@ -132,6 +125,7 @@ class Menu(Component):
         self._active_index = -1
         self._open = False
         self._submenu = _parent is not None
+        self._layer_handle: LayerHandle | None = None
 
         self._root = Div(styles=_SUBMENU if self._submenu else _PANEL, container=[])
         self._root.bubble_events = True
@@ -140,53 +134,19 @@ class Menu(Component):
         for entry in items:
             self._add_option(entry)
 
-    def _context_scope(self) -> object:
-        """Return this menu's mounted tree root (one scope per window/page)."""
-        node = self._root
-        while node._parent is not None:
-            node = node._parent
-        return node
-
-    def _context_entry(self) -> tuple[object, weakref.ReferenceType[Menu] | None]:
-        """Return this tree's live scope and any active cursor menu.
-
-        DOMElement instances are intentionally unhashable, so the registry is
-        keyed by ``id(scope)`` and validates its weakly-held scope before use.
-        """
-        scope = self._context_scope()
-        entry = _CONTEXT_MENUS.get(id(scope))
-        if entry is None or entry[0]() is not scope:
-            return scope, None
-        return scope, entry[1]
-
-    def _activate_context_menu(self) -> None:
-        """Make this top-level cursor menu the sole owner in its tree."""
-        if self._submenu:
-            return
-        scope, previous_ref = self._context_entry()
-        previous = previous_ref() if previous_ref is not None else None
-        if previous is not None and previous is not self:
-            previous.close()
-        _CONTEXT_MENUS[id(scope)] = (weakref.ref(scope), weakref.ref(self))
-
-    def _deactivate_context_menu(self) -> None:
-        if self._submenu:
-            return
-        scope, current_ref = self._context_entry()
-        if current_ref is not None and current_ref() is self:
-            del _CONTEXT_MENUS[id(scope)]
-
-    def open_at(self, x: float, y: float) -> None:
+    def open_at(self, x: float, y: float, *, owner: Component | DOMElement | None = None) -> None:
         """Show the root context menu at viewport coordinates.
 
         Cursor-positioned top-level menus are exclusive within their mounted
         DOM tree.  Embedded menus (for example CascadingDropdown) never use
         this entry point and retain their independent popup semantics.
+        Pass *owner* when the menu is opened from inside another overlay:
+        its layer then follows that owner and closes with it.
         """
         if self._submenu:
             self._open_submenu()
             return
-        self._activate_context_menu()
+        owner_el = owner._root if isinstance(owner, Component) else owner
         if self._active_index < 0 and self._rows:
             self._active_index = 0
             self._apply_option_styles(0)
@@ -205,13 +165,23 @@ class Menu(Component):
             "data-neony-overlay-group": "context-menu",
             "data-neony-overlay-open": "true",
         }
+        self._layer_handle = layer_manager(self._root).open(
+            self._root,
+            kind=Layer.MENU,
+            group="menu",
+            exclusive=True,
+            owner=owner_el,
+            on_close=self.close,
+        )
         self._open = True
 
     def close(self) -> None:
         """Close this menu level and every descendant level idempotently."""
         for child in self._branches.values():
             child.close()
-        self._deactivate_context_menu()
+        if self._layer_handle is not None:
+            self._layer_handle.close()
+            self._layer_handle = None
         if self._parent is not None:
             self._parent._set_branch_chevron(self, False)
         self._open = False

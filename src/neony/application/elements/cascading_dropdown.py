@@ -11,6 +11,7 @@ from neony.dom import Color, Div, DomEvent, Filter, Span, Styles
 from neony.dom.css import Border, BoxShadow, Shadow
 
 from .. import motion
+from ..layers import LocalLayer
 from .base import ReactiveText, _mount_text
 from .dropdown import _PANEL, _PANEL_OPEN, Dropdown
 from .icon import Icon
@@ -24,7 +25,7 @@ _BRANCH_PANEL = Styles(
     position="absolute",
     top="0",
     left="calc(100% + 4px)",
-    z_index=1101,
+    z_index=LocalLayer.NESTED_POPUP,
     display="none",
     flex_direction="column",
     padding="6px",
@@ -38,7 +39,9 @@ _BRANCH_PANEL = Styles(
     backdrop_filter=Filter(blur="20px", saturate=1.2),
     box_shadow=BoxShadow(layers=[Shadow(x=0, y=8, blur=32, color=stub.shadow)]),
 )
-_BRANCH_PANEL_OPEN = _BRANCH_PANEL.model_copy(update={"display": "flex", "animation": motion.popup_animation()})
+_BRANCH_PANEL_OPEN = _BRANCH_PANEL.model_copy(
+    update={"display": "flex", "animation": motion.popup_animation(fill_mode="both")}
+)
 _ROW_WRAP = Styles(position="relative", display="flex", width="100%")
 _OPTION = Styles(
     display="flex",

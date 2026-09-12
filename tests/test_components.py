@@ -48,6 +48,7 @@ from neony.application.elements import (
     TreeNode,
     VStack,
 )
+from neony.application.layers import Layer, LocalLayer
 from neony.application.theme import secondary_accent
 from neony.dom import Animation, BoxShadow, Color, Div, DOMElement, DomEvent, NodeDescriptor, Shadow
 
@@ -1181,16 +1182,18 @@ class TestSelectBuild:
     def test_select_build(self):
         sel = Select("Color", options=[("r", "Red"), ("g", "Green")])
         node = sel.build().to_node()
-        assert node.tag == "label"
+        assert node.tag == "div"  # not <label>: popup rows must not be implicitly activated
         trigger = _find_by_key(node, sel._trigger.key)
         popup = _find_by_key(node, sel._popup.key)
         assert trigger is not None and popup is not None
         assert trigger.attrs["tabindex"] == "0"
         assert trigger.attrs["role"] == "combobox"
-        assert trigger.styles["background-image"].startswith('url("data:image/svg+xml')
+        assert trigger.attrs["aria-labelledby"] == sel._label_span.key
+        assert len(trigger.children) == 2  # selected label + themed glyph chevron
+        assert "background-image" not in trigger.styles
         assert popup.styles["display"] == "none"  # closed
         assert popup.styles["background-color"] == "var(--color-surface-glass-bg)"
-        assert popup.styles["z-index"] == "500"
+        assert "z-index" not in popup.styles
         assert [row.attrs["role"] for row in popup.children] == ["option", "option"]
         assert [_subtree_text(row) for row in popup.children] == ["Red", "Green"]
 
@@ -1371,7 +1374,20 @@ class TestSelectEvents:
         node = sel.build().to_node()
         popup = _find_by_key(node, sel._popup.key)
         assert popup is not None
-        assert popup.styles["animation"] == "neony-drop-in 0.2s ease-out"
+        assert popup.styles["animation"] == "neony-drop-in var(--motion-normal) var(--motion-ease-enter) both"
+
+    def test_chevron_rotates_and_keeps_the_themed_glyph(self):
+        sel = Select(options=["a"])
+        glyph = sel._chevron.container[0]
+        assert isinstance(glyph, DOMElement)
+        self._user_click_trigger(sel)
+        assert isinstance(glyph, DOMElement)
+        assert glyph.container == ["expand_more"]
+        assert sel._chevron.styles.transform == "rotate(180deg)"
+        self._user_click_trigger(sel)
+        assert isinstance(glyph, DOMElement)
+        assert glyph.container == ["expand_more"]
+        assert sel._chevron.styles.transform is None
 
 
 class TestComboBoxBuild:
@@ -1380,10 +1396,12 @@ class TestComboBoxBuild:
     def test_combobox_build(self):
         cb = ComboBox("Tag", options=["a", "b"])
         node = cb.build().to_node()
+        assert node.tag == "div"  # not <label>: suggestion rows must not be implicitly activated
         input_node = _find_by_key(node, cb._input.key)
         popup = _find_by_key(node, cb._popup.key)
         assert input_node is not None and popup is not None
         assert input_node.attrs["type"] == "text"
+        assert input_node.attrs["aria-labelledby"] == cb._label_span.key
         assert popup.styles["display"] == "none"  # closed
         assert popup.styles["background-color"] == "var(--color-surface-glass-bg)"
 
@@ -1603,7 +1621,7 @@ class TestComboBoxEvents:
         node = cb.build().to_node()
         popup = _find_by_key(node, cb._popup.key)
         assert popup is not None
-        assert popup.styles["animation"] == "neony-drop-in 0.2s ease-out"
+        assert popup.styles["animation"] == "neony-drop-in var(--motion-normal) var(--motion-ease-enter) both"
 
 
 class TestSliderBuild:
@@ -2165,7 +2183,7 @@ class TestDialogBuild:
         dlg = Dialog(title="T", content=Text("body"))
         node = dlg.build().to_node()
         assert node.styles["position"] == "fixed"
-        assert node.styles["z-index"] == "1000"
+        assert "z-index" not in node.styles  # only managed while open
         assert node.styles["display"] == "none"  # closed by default
         scrim = _find_by_key(node, dlg._scrim.key)
         panel = _find_by_key(node, dlg._panel.key)
@@ -2181,6 +2199,8 @@ class TestDialogBuild:
             dlg.open = True
             assert dlg._root.styles.display == "flex"
             assert dlg._root.args.get("data-neony-outside") == "true"
+            assert dlg._root.styles.z_index == Layer.MODAL
+            assert dlg._root.args["data-neony-layer"] == "modal"
             assert dlg._scrim.styles.opacity == 1.0  # scrim fades in
             dlg.open = False
             # Two-phase close: the panel reverses its entrance keyframe
@@ -2439,7 +2459,7 @@ class TestTooltipBuild:
         assert bubble is not None
         assert bubble.styles["display"] == "none"
         assert bubble.styles["position"] == "absolute"
-        assert bubble.styles["z-index"] == "300"
+        assert "z-index" not in bubble.styles  # only managed while shown
         assert _subtree_text(bubble) == "hint"
 
     def test_placement_offsets(self):
@@ -2536,7 +2556,7 @@ class TestDropdownBuild:
         assert trigger.attrs["tabindex"] == "0"
         assert trigger.attrs["role"] == "combobox"
         assert popup.styles["display"] == "none"
-        assert popup.styles["z-index"] == "1100"
+        assert "z-index" not in popup.styles
         assert [_subtree_text(row) for row in popup.children] == ["Small", "Medium"]
         assert [row.attrs["role"] for row in popup.children] == ["option", "option"]
 
@@ -2587,13 +2607,14 @@ class TestDropdownEvents:
 
         self._click_trigger(first)
         assert first._open
-        assert first._wrapper.styles.z_index == 1200
+        assert first._wrapper.styles.z_index == Layer.POPOVER
+        assert first._wrapper.args["data-neony-layer"] == "popover"
 
         self._click_trigger(second)
         assert not first._open
         assert first._wrapper.styles.z_index is None
         assert second._open
-        assert second._wrapper.styles.z_index == 1200
+        assert second._wrapper.styles.z_index == Layer.POPOVER
 
     def test_row_click_selects_and_fires(self):
         import asyncio
@@ -2710,7 +2731,7 @@ class TestMenuBuild:
         menu = Menu(("a", "Action A"), ("b", "Action B"))
         node = menu.build().to_node()
         assert node.styles["position"] == "fixed"
-        assert node.styles["z-index"] == "600"
+        assert "z-index" not in node.styles  # only managed while open
         assert node.styles["display"] == "none"
         assert [_subtree_text(row) for row in node.children] == ["Action A", "Action B"]
         assert node.children[0].attrs["role"] == "menuitem"
@@ -2722,7 +2743,7 @@ class TestMenuBuild:
         branch = next(iter(menu._branches.values()))
         assert branch._parent is menu
         assert branch._root.styles.position == "absolute"
-        assert branch._root.styles.z_index == 700
+        assert branch._root.styles.z_index == LocalLayer.NESTED_POPUP
         assert branch._root.styles.overflow == "visible"
         assert node.children[0].attrs["data-neony-cascade-row"] == "true"
         assert node.children[0].children[0].attrs["role"] == "menuitem"
@@ -2886,7 +2907,7 @@ class TestCascadingDropdown:
         assert node.children[1].attrs["role"] == "combobox"
         assert node.children[1].attrs["aria-haspopup"] == "menu"
         assert picker._popup.styles.position == "absolute"
-        assert picker._popup.styles.z_index == 1100
+        assert picker._popup.styles.z_index is None
         assert picker._popup.styles.overflow == "visible"
         assert len(picker._branches) == 1
         picker._open_popup()
@@ -2951,7 +2972,7 @@ class TestCascadingDropdown:
         assert not first._open
         assert first._wrapper.styles.z_index is None
         assert second._open
-        assert second._wrapper.styles.z_index == 1200
+        assert second._wrapper.styles.z_index == Layer.POPOVER
 
     def test_sibling_branches_are_mutually_exclusive(self):
         picker = CascadingDropdown(
@@ -3085,7 +3106,7 @@ class TestBadgeBuild:
         assert b.styles["position"] == "absolute"
         assert b.styles["top"] == "-6px"
         assert b.styles["right"] == "-6px"
-        assert b.styles["z-index"] == "10"
+        assert b.styles["z-index"] == str(int(LocalLayer.DECORATION))
         assert b.styles["box-shadow"] == "0 0 0 2px var(--color-bg)"
 
     def test_corner_overlap_pushes_further(self):
@@ -5190,7 +5211,7 @@ class TestToastBuild:
         toast = Toast()
         assert toast._root.styles.position == "fixed"
         assert toast._root.styles.pointer_events == "none"
-        assert toast._root.styles.z_index == 1200
+        assert toast._root.styles.z_index == Layer.TOAST
         assert toast._root.styles.display == "flex"
         assert toast._root.styles.flex_direction == "column"
 

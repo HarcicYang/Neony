@@ -239,6 +239,11 @@ dlg.on_close(lambda d: print("closed"))  # 回调接收对话框自身
 `backdrop-filter` / `transform` 祖先会成为 `position: fixed` 的
 containing block —— Dialog 应挂页面根或非过滤容器。
 
+Dialog 内容可以继续包含 Dropdown、Select、ComboBox、Tooltip 等拥有
+浮层的组件。子浮层打开后会进入同一窗口的逻辑层栈：它在数值上仍属于
+popup 层带，但会排在模态层之后；点击对话框内部、子浮层外部的区域只
+关闭子浮层，不会误关 Dialog。Gallery 的 Overlays 页面包含可运行示例。
+
 ### `PromptDialog`
 
 ```python
@@ -336,12 +341,16 @@ menu = Menu(
     ),
 )
 btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y))  # 光标位置
+# 从 Dialog 内部打开时声明 owner，让 Menu 跟随模态层并随其关闭：
+btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y, owner=dialog))
 menu.on_change(lambda e: print(e.value))
 ```
 
 `open_at(x, y)` 定位的 fixed 弹出面板 —— 通常用 `contextmenu` 事件的
 视口坐标，无需测量。键盘导航与 `Dropdown` 相同；选中、Escape 或
-点击外部关闭。面板**向上弹出**——底边锚在光标上方 8px——并通过
+点击外部关闭。可选的 `owner=` 接受触发它的 Component 或 DOMElement；
+当 owner 是已打开的 Dialog 等浮层时，Menu 会跟随其逻辑层号，并在 owner
+关闭时一起关闭。面板**向上弹出**——底边锚在光标上方 8px——并通过
 `calc()` 的 max-width/height 钳制在视口内，靠近屏幕边缘也不会溢出。
 `MenuBranch(label, items)` 添加级联分支：`ArrowRight` / `Enter` 打开
 子菜单，`ArrowLeft` 回到父级，Escape 在关闭整棵菜单树前逐层关闭。
@@ -368,7 +377,8 @@ toast.clear()  # 全部移除
 顶部往下偏移——留出 `TitleBar` 的高度；bottom 组始终贴窗边。每张
 卡片的**入场动画与方位方向绑定**（top 组从上方落下、bottom 组从
 下方升起、角位对角滑入），出场反向重放同一 keyframe 滑向该方位
-角/边。宿主是 `position: fixed` 全视口层，z-index 1100、
+角/边。宿主是 `position: fixed` 全视口层，由框架的全局层级管理器
+固定为通知层、
 `pointer-events: none`（点击穿透到页面）——挂载在页根，避开
 `backdrop-filter` / `transform` 祖先。
 

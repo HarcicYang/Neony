@@ -2,7 +2,7 @@
 
 Exports ``PAGE_HOOKS`` for the page-level wiring these sections own:
 window-level modifier-key handlers, in-app shortcuts, and the overlays
-(Dialog / Menu / Prompt) mounted at the page root.
+(Dialog / nested Dialog / Menu / Prompt) mounted at the page root.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from neony.application.elements import (
     Button,
+    ComboBox,
     Dialog,
     DialogAction,
     Dropdown,
@@ -20,6 +21,7 @@ from neony.application.elements import (
     Input,
     Menu,
     PromptDialog,
+    Select,
     Separator,
     Spacer,
     Text,
@@ -27,7 +29,7 @@ from neony.application.elements import (
     VStack,
 )
 from neony.application.theme import stub
-from neony.dom import Div, DomEvent, Signal, Styles
+from neony.dom import Computed, Div, DomEvent, Signal, Styles
 
 from ..core import Mono, Section, StatusChip, app, set_dot
 from ..i18n import tr, tr_now
@@ -475,6 +477,108 @@ def on_dialog_closed(_dialog: Dialog) -> None:
 dialog.on_open(on_dialog_opened)
 dialog.on_close(on_dialog_closed)
 
+# Nested overlays: components with their own floating panels live inside
+# a modal's content. The global layer manager gives each newly opened
+# child a later logical stack order, even though its numeric band is
+# lower than the modal's. A click inside the dialog but outside the
+# child popup therefore closes only the child.
+nested_theme = Signal("dark")
+nested_size = Signal("m")
+nested_tag = Signal("")
+
+nested_theme_dd = Dropdown(
+    tr.interaction.nested_theme_label,
+    items=[("dark", tr.interaction.dark), ("light", tr.interaction.light), ("deep-blue", tr.interaction.deep_blue)],
+    width="150px",
+)
+nested_theme_dd.bind_value(nested_theme)
+
+nested_size_select = Select(
+    tr.interaction.nested_size_label,
+    options=[("s", tr.forms.small), ("m", tr.forms.medium), ("l", tr.forms.large)],
+    value="m",
+)
+nested_size_select.bind_value(nested_size)
+
+nested_tag_box = ComboBox(
+    tr.interaction.nested_tag_label,
+    options=["work", "personal", "travel"],
+    placeholder=tr.interaction.nested_tag_placeholder,
+)
+nested_tag_box.bind_value(nested_tag)
+
+nested_summary = Text("", role="secondary")
+nested_summary.bind_text(
+    Computed(
+        lambda: tr.interaction.nested_summary_fmt.format(
+            theme=nested_theme() or "-",
+            size=nested_size() or "-",
+            tag=nested_tag() or "-",
+        ).get()
+    )
+)
+
+nested_tip = Tooltip(
+    tr.interaction.nested_tooltip,
+    anchor=Button(tr.interaction.nested_tooltip_anchor, variant="ghost"),
+    placement="bottom",
+    delay=0.3,
+)
+
+nested_menu = Menu(
+    ("rename", tr.interaction.rename),
+    ("duplicate", tr.interaction.duplicate),
+    ("delete", tr.interaction.delete),
+)
+nested_menu_value = Signal("")
+nested_menu_echo = Text("", role="secondary")
+nested_menu_echo.bind_text(
+    nested_menu_value,
+    fmt=lambda value: tr.interaction.nested_menu_fmt.format(value=value or "-").get(),
+)
+nested_menu_btn = Button(tr.interaction.nested_menu_btn, variant="ghost")
+
+nested_dialog = Dialog(
+    title=tr.interaction.nested_dialog_title,
+    content=VStack(
+        Text(tr.interaction.nested_dialog_body, role="secondary"),
+        HStack(nested_theme_dd, nested_size_select, gap="12px", align="flex-end"),
+        nested_tag_box,
+        nested_tip,
+        HStack(Text(tr.interaction.nested_menu_hint, role="secondary"), Spacer(), nested_menu_btn, gap="8px"),
+        nested_menu_echo,
+        nested_summary,
+        gap="14px",
+    ),
+    width="520px",
+    actions=[DialogAction(tr.interaction.dialog_close, variant="ghost")],
+)
+nested_dialog_state = Signal("closed")
+nested_dialog_status = Text("", role="secondary")
+nested_dialog_status.bind_text(nested_dialog_state)
+nested_dialog_open_btn = Button(tr.interaction.nested_dialog_open_btn, variant="ghost")
+
+
+async def on_nested_dialog_open(_event: DomEvent) -> None:
+    nested_dialog.open = True
+
+
+nested_dialog_open_btn.on_click(on_nested_dialog_open)
+nested_dialog.on_open(lambda _dialog: nested_dialog_state.set(tr_now(tr.interaction.dialog_open_state)))
+nested_dialog.on_close(lambda _dialog: nested_dialog_state.set(tr_now(tr.interaction.dialog_dismiss)))
+
+
+async def on_nested_menu_contextmenu(event: DomEvent) -> None:
+    nested_menu.open_at(event.x or 0, event.y or 0, owner=nested_dialog)
+
+
+def on_nested_menu_change(event: DomEvent) -> None:
+    nested_menu_value.set(str(event.value or ""))
+
+
+nested_menu_btn.on_contextmenu(on_nested_menu_contextmenu)
+nested_menu.on_change(on_nested_menu_change)
+
 # Tooltip: anchor-relative bubble, placement offsets, hover delay.
 tip_top = Tooltip(tr.interaction.tooltip_top, anchor=Button(tr.interaction.hover_top), placement="top", delay=1)
 tip_bottom = Tooltip(
@@ -568,9 +672,29 @@ dd.on_change(lambda e: print(e.value))    # selected value
 
 menu = Menu(("rename", "Rename"), ("delete", "Delete"))
 btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y))  # cursor position
-menu.on_change(lambda e: print(e.value))""",
+menu.on_change(lambda e: print(e.value))
+
+# Overlays can be nested: popup components inside a modal keep their
+# own outside-click/keyboard behavior, and the topmost logical layer
+# receives every click-away event.
+nested_menu = Menu(("rename", "Rename"), ("delete", "Delete"))
+nested_btn = Button("Right-click for menu")
+nested = Dialog(
+    title="Nested overlays",
+    content=VStack(
+        Dropdown("Theme", items=[("dark", "Dark"), ("light", "Light")]),
+        Select("Size", options=[("s", "Small"), ("m", "Medium")]),
+        Tooltip("Inside the dialog", anchor=Button("Hover me")),
+        nested_btn,
+    ),
+)
+nested_btn.on_contextmenu(lambda e: nested_menu.open_at(e.x, e.y, owner=nested))
+nested.open = True""",
     HStack(Text(tr.interaction.dialog_label, weight="600"), Spacer(), dialog_open_btn, gap="8px"),
     dialog_status,
+    Separator(),
+    HStack(Text(tr.interaction.nested_dialog_label, weight="600"), Spacer(), nested_dialog_open_btn, gap="8px"),
+    nested_dialog_status,
     Separator(),
     HStack(Text(tr.interaction.prompt_label, weight="600"), Spacer(), prompt_open_btn, gap="8px"),
     prompt_status,
@@ -614,9 +738,9 @@ def _wire_shortcuts(page: Page) -> None:
 
 
 def _wire_overlays(page: Page) -> None:
-    # Dialog / Menu / Prompt mount at the page root — a transform or
-    # backdrop-filter ancestor would hijack `position: fixed` in WebKit.
-    page.add(dialog, ctx_menu, prompt)
+    # Dialog / nested Dialog / Menu / Prompt mount at the page root — a
+    # transform or backdrop-filter ancestor would hijack `position: fixed`.
+    page.add(dialog, nested_dialog, ctx_menu, nested_menu, prompt)
 
 
 PAGE_HOOKS: list[Callable[[Page], None]] = [_wire_modifier_keys, _wire_shortcuts, _wire_overlays]
