@@ -36,6 +36,46 @@ inp = Input(placeholder="你的名字…", type="text")  # text | password | ema
 inp.on_input(lambda e: print(e.value))  # 实时值
 ```
 
+### `Textarea`
+
+```python
+notes = Textarea("备注", value="", rows=6, resize="vertical")
+notes.value = "草稿"  # 编程写入 —— 不触发回调
+notes.bind_value(draft)  # Signal[str] ↔ 多行文本值
+notes.on_input(on_preview)  # 编辑时实时触发
+notes.on_change(on_save)  # 编辑后失焦
+```
+
+**参数:** `Textarea(placeholder="", *, value="", rows=4,
+resize="vertical", glass=False, disabled=False, maxlength=None)`。
+`resize` 为 `"none"`、`"both"`、`"horizontal"` 或 `"vertical"`。
+`bind_value` 使用 `input` 通道写回；`change` 是独立的事件通道。
+
+### `FormField`
+
+```python
+email = FormField(
+    "邮箱",
+    Input(type="email"),
+    help="不会公开。",
+    required=True,
+)
+email.invalid = True
+email.error = "邮箱格式无效"
+```
+
+**参数:** `FormField(label, control, *, help=None, required=False,
+invalid=False, error=None)`。
+
+`FormField` 可包装任意组件或 DOM 节点，用 `aria-labelledby` 连接可见
+标签，用 `aria-describedby` 连接帮助与错误文本，并把 `required` /
+`invalid` 同步到 `aria-required` / `aria-invalid`。根节点是 `div`，
+因此包含按钮的复合控件不会被标签隐式激活。
+
+`required` 与 `invalid` 只负责视觉和辅助功能状态：`FormField` 不会
+验证输入，也不会判断何时显示 `error`。这些逻辑由调用方负责，并应在
+控件状态变化时更新对应属性。
+
 ### `Radio` & `RadioGroup`
 
 ```python
@@ -211,6 +251,69 @@ accordion.expanded_keys  # list[str]，当前展开的分组
 用 `on_change` 监听（`event.value` 为刚被用户切换的分组 key），用 `expanded_keys` 读取完整的展开集合。`Accordion` **不**实现 `selected_key` / `bind_selected`——其选择是多值的，不适用单值选择协议。
 
 ## 浮层与反馈
+
+### `Alert`
+
+```python
+undo = Button("撤销")
+
+alert = Alert(
+    "已保存",
+    description="所有更改已同步。",
+    variant="success",  # accent | success | danger | neutral
+    dismissible=True,
+    actions=[undo],
+)
+
+
+def undo_changes(_event):
+    revert_changes()
+    alert.dismiss()
+
+
+undo.on_click(undo_changes)
+alert.on_dismiss(lambda _alert: update_status())
+alert.dismiss()
+alert.dismissed = False  # 恢复；不会触发 on_dismiss
+```
+
+**参数:** `Alert(title="", *, description="", variant="neutral",
+dismissible=False, dismiss_label="Dismiss", actions=())`。`actions`
+可接受组件或 DOM 节点；Alert 不会替操作按钮决定行为，因此需要为按钮
+注册自己的事件处理器。
+
+`dismiss()` 与 `dismissed = True` 是按生命周期设计的伪事件：两者都会
+隐藏提示并触发 `on_dismiss(alert)`，编程式写入也不例外；关闭按钮走同一
+路径。`title`、`description` 与 `variant` 均可更新。操作按钮彼此独立：
+示例中的撤销先执行应用逻辑，再关闭提示；`X` 只负责关闭。
+
+### `Spinner`、`Skeleton` 与 `EmptyState`
+
+```python
+loading = Spinner("正在加载项目", size="24px", role="accent")
+loading.label = "保存中……"
+
+skeleton = Skeleton(variant="text", lines=3, width="70%")
+skeleton.animation = False
+
+empty = EmptyState(
+    "暂无项目",
+    description="创建一个项目即可开始。",
+    icon=icons.star,
+    actions=[Button("新建项目")],
+)
+empty.description = "试试其他筛选条件。"
+```
+
+**参数:** `Spinner(label="", *, size="20px", role="accent")`；
+`Skeleton(variant="text", *, lines=1, width=None, height=None,
+radius=None, animation=True)`；`EmptyState(title, *, description="",
+icon=None, actions=())`。
+
+Spinner 暴露 `label`、`size` 与 `role`（`accent`、`success`、
+`danger`、`neutral`）。Skeleton 支持 `text`、`rect`、`circle`
+变体；`animation=False` 保持静态。EmptyState 的 `actions` 可接受任意
+组件或 DOM 节点。
 
 ### `Dialog`
 

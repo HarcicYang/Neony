@@ -92,6 +92,13 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `ComboBox`                  | 可编辑文本 + 主题化建议面板                                                                                               |
 | `Slider`                    | 动画填充滑块 — 有级或无级（`step="any"`）                                                                                 |
 | `Progress`                  | 动画填充进度条 — 确定值或滑动 `indeterminate`                                                                             |
+| `Input`                     | 单行输入框 — text / password / email / number…                                                                            |
+| `Textarea`                  | 多行输入框 — 双向值绑定、input / change 事件、原生尺寸调整                                                                |
+| `FormField`                 | 任意控件的标签 + 帮助 / 错误包装 — required 与 invalid ARIA 状态                                                          |
+| `Alert`                     | 语义化内联提示 — 操作区、dismiss / restore 生命周期、四种变体                                                             |
+| `Spinner`                   | 动态加载环，带实时标签与语义角色                                                                                          |
+| `Skeleton`                  | 动画或静态加载占位 — text / rect / circle                                                                                 |
+| `EmptyState`                | 居中的空内容提示，可带图标与操作                                                                                          |
 | `Dialog`                    | 固定 scrim + 居中玻璃面板 — scrim / Escape / ✕ / 点击外部关闭                                                            |
 | `PromptDialog`              | 基于 `Dialog` 的单行文本提示 — 确认 / 取消，Enter / Escape                                                                |
 | `Tooltip`                   | 包裹 anchor 的悬停气泡，placement 偏移 + 悬停延迟                                                                         |
@@ -99,14 +106,13 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Menu` / `MenuBranch`       | 光标定位的固定弹出菜单（`open_at(x, y)` 来自 contextmenu），支持级联分支                                                  |
 | `CascadingDropdown`         | 多级触发式下拉 — 嵌套分支在父项旁展开                                                                                     |
 | `Toast`                     | 屏幕边缘的瞬时通知 — 6 方位、success/info/error、与方位绑定的方向性动画                                                   |
-| `Input`                     | 单行输入框 — text / password / email / number…                                                                            |
 | `Heading`                   | 主题标题(h1–h6)，自动字号                                                                                                 |
 | `Text`                      | 内联文本，支持语义角色(primary / secondary / danger / success)                                                            |
 | `Tabs`                      | 选项卡栏 + 面板，同时只显示一个 — 构造器子项、`selected_panel` / `selected_title` / `selected_key`                        |
 | `Accordion` / `Collapsible` | 单列滚动流中的可展开分组 — 流畅 `.section()`、默认可多组同时展开（`multiple=False` 为互斥）、`expanded_keys`、`on_change` |
 | `Tree` / `TreeNode`         | 可折叠导航树 + 内容宿主 — 任意深度、流畅建造器写法、点叶子在右侧显示其面板                                                |
 | `List` / `ListItem`         | 可滚动单选数据列表 — listbox 模型、方向键移动选中、`selected_key` / `bind_selected`                                       |
-| `DataTable` / `Column`      | 列配置 + 数据行 — 固定表头、点击排序、单选 / 多选行                                                                       |
+| `DataTable` / `Column`      | 列配置 + 数据行 — 固定表头、点击排序、单选 / 多选行、有界虚拟行                                                            |
 | `Markdown`                  | 在 WebView 内渲染的 Markdown — 流式友好的源文本推送、代码高亮、主题令牌样式                                               |
 | `Reorder` / `ReorderItem`   | 拖拽重排面板 — 任意组件/DOM 元素都可作为卡片；`direction` + `wrap` 可作网格纵横双向重排，多个面板可交换卡片               |
 | `ReorderContent`            | 可重排容器内容 — 不带面板边框/背景的拖拽重排                                                                              |
@@ -197,6 +203,7 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `demo_media.py`                  | 受管 `Video` / `Audio` 播放器与媒体事件    |
 | `demo_protocols.py`              | `neony://` 自定义协议：本地媒体 + 动态响应 |
 | `demo_streaming.py`              | 逐 token 流式输出到普通与 Markdown 聊天气泡，自动贴底 |
+| `demo_feedback_forms.py`        | 表单与反馈示例：Textarea、FormField、Alert、Spinner、Skeleton、EmptyState |
 
 ```bash
 uv run gallery

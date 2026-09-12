@@ -36,6 +36,48 @@ inp = Input(placeholder="Your name…", type="text")  # text | password | email 
 inp.on_input(lambda e: print(e.value))  # live value
 ```
 
+### `Textarea`
+
+```python
+notes = Textarea("Notes", value="", rows=6, resize="vertical")
+notes.value = "Draft"  # programmatic — no callback
+notes.bind_value(draft)  # Signal[str] ↔ textarea value
+notes.on_input(on_preview)  # live value while typing
+notes.on_change(on_save)  # blur after an edit
+```
+
+**Options:** `Textarea(placeholder="", *, value="", rows=4,
+resize="vertical", glass=False, disabled=False, maxlength=None)`.
+`resize` is `"none"`, `"both"`, `"horizontal"` or `"vertical"`.
+`bind_value` writes on `input`; `change` is a separate callback channel.
+
+### `FormField`
+
+```python
+email = FormField(
+    "Email",
+    Input(type="email"),
+    help="Never shared.",
+    required=True,
+)
+email.invalid = True
+email.error = "Invalid email"
+```
+
+**Options:** `FormField(label, control, *, help=None, required=False,
+invalid=False, error=None)`.
+
+`FormField` accepts any component or DOM node, connects the visible
+label with `aria-labelledby`, connects visible help/error text with
+`aria-describedby`, and mirrors `required` / `invalid` into
+`aria-required` / `aria-invalid`. The root is a `div`, so a compound
+control containing buttons is never implicitly activated by a label.
+
+`required` and `invalid` are presentation and accessibility state only:
+`FormField` does not validate input or decide when `error` should appear.
+The caller owns that logic and should update these properties as the
+control changes.
+
 ### `Radio` & `RadioGroup`
 
 ```python
@@ -254,6 +296,71 @@ its selection is multi-valued, which does not fit the single-value
 selection protocol.
 
 ## Overlays & feedback
+
+### `Alert`
+
+```python
+undo = Button("Undo")
+
+alert = Alert(
+    "Saved",
+    description="All changes synced.",
+    variant="success",  # accent | success | danger | neutral
+    dismissible=True,
+    actions=[undo],
+)
+
+
+def undo_changes(_event):
+    revert_changes()
+    alert.dismiss()
+
+
+undo.on_click(undo_changes)
+alert.on_dismiss(lambda _alert: update_status())
+alert.dismiss()
+alert.dismissed = False  # restore without firing on_dismiss
+```
+
+**Options:** `Alert(title="", *, description="", variant="neutral",
+dismissible=False, dismiss_label="Dismiss", actions=())`. `actions`
+accepts components or DOM nodes; the alert does not invent action
+behavior, so wire the action's own event handler.
+
+`dismiss()` and `dismissed = True` are lifecycle pseudo-events: both
+hide the alert and fire `on_dismiss(alert)`, including programmatic
+writes. A close-button click uses the same path. `title`,
+`description` and `variant` are settable. Action buttons are independent:
+the example's Undo performs an application action and then dismisses,
+while `X` only dismisses.
+
+### `Spinner`, `Skeleton` & `EmptyState`
+
+```python
+loading = Spinner("Loading projects", size="24px", role="accent")
+loading.label = "Saving..."
+
+skeleton = Skeleton(variant="text", lines=3, width="70%")
+skeleton.animation = False
+
+empty = EmptyState(
+    "No projects",
+    description="Create one to start.",
+    icon=icons.star,
+    actions=[Button("New project")],
+)
+empty.description = "Try another filter."
+```
+
+**Options:** `Spinner(label="", *, size="20px", role="accent")`;
+`Skeleton(variant="text", *, lines=1, width=None, height=None,
+radius=None, animation=True)`; `EmptyState(title, *, description="",
+icon=None, actions=())`.
+
+Spinner exposes `label`, `size` and `role` (`accent`, `success`,
+`danger`, `neutral`). Skeleton supports `text`, `rect` and `circle`
+variants; `animation=False` keeps the placeholder static. EmptyState
+accepts arbitrary components or DOM nodes in `actions`.
 
 ### `Dialog`
 

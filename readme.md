@@ -99,6 +99,13 @@ Import from `neony.application.elements`.
 | `ComboBox`                | Editable text with a themed suggestion popup                                   |
 | `Slider`                  | Slider with animated accent fill — stepped or stepless (`step="any"`)          |
 | `Progress`                | Progress bar with animated fill — determinate or sliding `indeterminate`      |
+| `Input`                   | Single-line text field — text / password / email / number…                     |
+| `Textarea`                | Multiline text field — value binding, input / change events, native resize      |
+| `FormField`               | Label + help / error wrapper for any control — required and invalid ARIA state |
+| `Alert`                   | Semantic inline message — actions, dismiss / restore lifecycle, four variants   |
+| `Spinner`                 | Animated activity ring with live label and semantic role                        |
+| `Skeleton`                | Animated or static loading placeholder — text / rect / circle                   |
+| `EmptyState`              | Centered zero-content message with icon and actions                             |
 | `Dialog`                  | Fixed scrim + centered glass panel — scrim / Escape / ✕ / click-away close    |
 | `PromptDialog`            | Single-field text prompt on top of `Dialog` — confirm / cancel, Enter / Escape |
 | `Tooltip`                 | Hover bubble wrapped around an anchor, placement offsets, hover delay        |
@@ -106,14 +113,13 @@ Import from `neony.application.elements`.
 | `Menu` / `MenuBranch`     | Fixed popup at the cursor (`open_at(x, y)` from contextmenu) with cascading branches |
 | `CascadingDropdown`       | Multi-level trigger dropdown — nested branches open beside their parent item |
 | `Toast`                   | Transient notifications at a screen edge — 6 placements, success/info/error, placement-tied directional animations |
-| `Input`                   | Single-line text field — text / password / email / number…                     |
 | `Heading`                 | Themed heading (h1–h6) with automatic sizing                                   |
 | `Text`                    | Inline body copy with semantic roles (primary / secondary / danger / success)  |
 | `Tabs`                    | Tab bar + panels, exactly one visible at a time — constructor children, `selected_panel` / `selected_title` / `selected_key` |
 | `Accordion` / `Collapsible` | Expandable sections in one scroll flow — fluent `.section()`, `multiple` (default; `multiple=False` is exclusive), `expanded_keys`, `on_change` |
 | `Tree` / `TreeNode`       | Collapsible navigation tree + content host — arbitrary depth, fluent builders, leaf selection shows its panel on the right |
 | `List` / `ListItem`       | Scrollable single-select data list — listbox model, arrow keys move selection, `selected_key` / `bind_selected` |
-| `DataTable` / `Column`    | Column config + data rows — sticky header, click-to-sort, single / multi row selection |
+| `DataTable` / `Column`    | Column config + data rows — sticky header, click-to-sort, single / multi row selection, bounded virtual rows |
 | `Markdown`                | Markdown rendered in the webview — streaming-friendly source pushes, code highlighting, token-driven styling |
 | `Reorder` / `ReorderItem` | Drag-reorder board — any component/DOM element can be a card; `direction` + `wrap` makes a grid reorderable on both axes, multiple boards exchange cards |
 | `ReorderContent`          | Reorderable container content — drag reorder without a board border/background |
@@ -229,6 +235,7 @@ Run from the repository root:
 | `demo_media.py`               | Managed `Video` / `Audio` players with media events              |
 | `demo_protocols.py`           | `neony://` custom protocols: local media + dynamic responses      |
 | `demo_streaming.py`           | Token streaming into plain & Markdown chat bubbles with auto-pin  |
+| `demo_feedback_forms.py`      | Forms & feedback: Textarea, FormField, Alert, Spinner, Skeleton, EmptyState |
 
 ```bash
 uv run gallery

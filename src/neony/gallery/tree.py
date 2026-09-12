@@ -16,6 +16,7 @@ gallery_tree = Tree(width="220px").children(
         TreeNode(tr.nav.inputs, key="inputs", shortcut="Ctrl+2").panel(PANELS["inputs"]),
         TreeNode(tr.nav.checks, key="checks", shortcut="Ctrl+3").panel(PANELS["checks"]),
         TreeNode(tr.nav.forms, key="forms", shortcut="Ctrl+4").panel(PANELS["forms"]),
+        TreeNode(tr.nav.feedback, key="feedback").panel(PANELS["feedback"]),
     ),
     TreeNode(tr.nav.layout_type, key="layout-type").children(
         TreeNode(tr.nav.layout, key="layout").panel(PANELS["layout"]),

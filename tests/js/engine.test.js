@@ -312,6 +312,20 @@ describe("patch ops", () => {
     expect(inp.value).toBe("new");
   });
 
+  it("_setText: updates a textarea through its value property", () => {
+    const engine = mountEngine(new rt.NeonyEngine(), 1, {
+      key: "root",
+      tag: "div",
+      children: [{ key: "notes", tag: "textarea", text: "initial" }],
+    });
+    const notes = engine.registry.get("notes");
+    notes.value = "edited by user";
+
+    engine.applyOps([{ op: "set_text", key: "notes", text: "programmatic" }]);
+
+    expect(notes.value).toBe("programmatic");
+  });
+
   it("update_styles: sets and removes CSS properties", () => {
     const engine = baseEngine();
     engine.applyOps([{ op: "update_styles", key: "a", set: { color: "red" }, remove: [] }]);

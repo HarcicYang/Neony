@@ -341,7 +341,11 @@ class Menu(Component):
             if self._parent is not None:
                 self.close()
             else:
-                self.close()
+                # Top-level menus participate in the same logical stack as
+                # dialogs and popups: Escape dismisses the newest layer
+                # contained by this menu tree.
+                if not layer_manager(self._root).handle_escape(self._root):
+                    self.close()
 
     async def _select_active(self, event: DomEvent) -> None:
         if 0 <= self._active_index < len(self._rows):

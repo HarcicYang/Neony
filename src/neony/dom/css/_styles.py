@@ -105,6 +105,9 @@ class Styles(BaseModel):
     min_height: str | None = Field(default=None)
     max_width: str | None = Field(default=None)
     max_height: str | None = Field(default=None)
+    box_sizing: Literal["content-box", "border-box"] | None = Field(default=None)
+    # User-driven native resizing for textareas and similar controls.
+    resize: Literal["none", "both", "horizontal", "vertical"] | None = Field(default=None)
     # How a replaced element's content (e.g. an <img>) fits its box.
     object_fit: Literal["cover", "contain", "fill", "none", "scale-down"] | None = Field(default=None)
 

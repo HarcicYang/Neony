@@ -6,7 +6,7 @@ import ast
 import asyncio
 from pathlib import Path
 
-from neony.application.elements import Dialog, Dropdown, Menu, VStack
+from neony.application.elements import Dialog, Dropdown, Menu, Toast, VStack
 from neony.application.layers import Layer, LocalLayer, layer_manager, layers_css
 from neony.dom import Div, DomEvent
 
@@ -178,6 +178,22 @@ def test_dialog_containing_dropdown_routes_outsideclick_to_the_dropdown() -> Non
     assert dialog.open
 
 
+def test_dialog_escape_closes_nested_popup_before_the_modal() -> None:
+    dropdown = Dropdown(items=["one", "two"])
+    dialog = Dialog(content=VStack(dropdown), open=True)
+    dropdown._open_popup()
+
+    event = DomEvent(key=dialog._root.key, type="keydown", value="Escape")
+    asyncio.run(dialog._root._handlers["keydown"][0](event))
+
+    assert not dropdown._open
+    assert dialog.open
+
+    asyncio.run(dialog._root._handlers["keydown"][0](event))
+
+    assert not dialog.open
+
+
 def test_owner_aware_menu_follows_modal_layer_and_closes_with_it() -> None:
     dialog = Dialog(content=Div())
     menu = Menu("action")
@@ -192,6 +208,149 @@ def test_owner_aware_menu_follows_modal_layer_and_closes_with_it() -> None:
 
     dialog.open = False
     assert not menu._open
+
+
+def test_dialog_popup_menu_and_toast_share_one_logical_stack() -> None:
+    dialog = Dialog(content=Div())
+    toast = Toast()
+    menu = Menu("action")
+    scope = Div(container=[dialog._root, toast._root, menu._root])
+    dropdown = Dropdown(items=["one", "two"])
+    dialog._panel.container.append(dropdown._wrapper)
+    dialog.open = True
+    dropdown._open_popup()
+    menu.open_at(10, 10, owner=dialog)
+    manager = layer_manager(dialog._root)
+    manager.open(toast._root, kind=Layer.TOAST, group="toast")
+
+    top = manager.topmost()
+    assert scope.container
+    assert top is not None
+    assert top.kind == Layer.TOAST
+    assert manager.handle_escape(dialog._root) is False
+    assert manager.handle_escape() is True
+    assert manager.handle_escape(dialog._root) is True
+    assert not menu._open
+    assert manager.handle_escape(dialog._root) is True
+    assert not dropdown._open
+    assert manager.handle_escape(dialog._root) is True
+    assert not dialog.open
+
+
+def test_escape_closes_only_the_topmost_layer_in_scope() -> None:
+    scope = Div()
+    modal = Div()
+    popup = Div()
+    scope.container.extend([modal, popup])
+    closed: list[str] = []
+    manager = layer_manager(modal)
+    manager.open(modal, kind=Layer.MODAL, group="modal", on_close=lambda: closed.append("modal"))
+    manager.open(
+        popup,
+        kind=Layer.POPOVER,
+        group="popup",
+        owner=modal,
+        on_close=lambda: closed.append("popup"),
+    )
+
+    assert manager.handle_escape(modal) is True
+    assert closed == ["popup"]
+    assert manager.handle_escape(modal) is True
+    assert closed == ["popup", "modal"]
+    assert manager.handle_escape(modal) is False
+
+
+def test_escape_does_not_close_an_unrelated_layer() -> None:
+    scope = Div()
+    first = Div()
+    second = Div()
+    scope.container.extend([first, second])
+    closed: list[str] = []
+    manager = layer_manager(first)
+    manager.open(first, kind=Layer.MODAL, group="modal", on_close=lambda: closed.append("first"))
+    manager.open(second, kind=Layer.TOAST, group="toast", on_close=lambda: closed.append("second"))
+
+    assert manager.handle_escape(first) is False
+    assert closed == []
+
+
+def test_focus_is_captured_and_restored_around_layer_lifetime() -> None:
+    scope = Div()
+    panel = Div()
+    scope.container.append(panel)
+    scripts: list[str] = []
+
+    async def eval_js(script: str) -> None:
+        scripts.append(script)
+
+    scope._eval_js_request = eval_js
+
+    async def exercise() -> None:
+        handle = layer_manager(scope).open(panel, kind=Layer.POPOVER, group="popup")
+        await asyncio.sleep(0)
+        handle.close()
+        await asyncio.sleep(0)
+
+    asyncio.run(exercise())
+
+    assert len(scripts) == 2
+    assert "__neonyLayerFocus" in scripts[0]
+    assert panel.key in scripts[0]
+    assert "__neonyLayerFocus" in scripts[1]
+    assert "target.focus" in scripts[1]
+
+
+def test_exclusive_replacement_does_not_restore_the_previous_trigger() -> None:
+    scope = Div()
+    first = Div()
+    second = Div()
+    scope.container.extend([first, second])
+    scripts: list[str] = []
+
+    async def eval_js(script: str) -> None:
+        scripts.append(script)
+
+    scope._eval_js_request = eval_js
+
+    async def exercise() -> None:
+        manager = layer_manager(scope)
+        manager.open(first, kind=Layer.POPOVER, group="popup", exclusive=True)
+        await asyncio.sleep(0)
+        manager.open(second, kind=Layer.POPOVER, group="popup", exclusive=True)
+        await asyncio.sleep(0)
+
+    asyncio.run(exercise())
+
+    assert len(scripts) == 2
+    assert all("target.focus" not in script for script in scripts)
+
+
+def test_owner_cascade_restores_only_the_parent_focus() -> None:
+    scope = Div()
+    modal = Div()
+    popup = Div()
+    scope.container.extend([modal, popup])
+    scripts: list[str] = []
+
+    async def eval_js(script: str) -> None:
+        scripts.append(script)
+
+    scope._eval_js_request = eval_js
+
+    async def exercise() -> None:
+        manager = layer_manager(scope)
+        parent = manager.open(modal, kind=Layer.MODAL, group="modal")
+        await asyncio.sleep(0)
+        manager.open(popup, kind=Layer.POPOVER, group="popup", owner=modal)
+        await asyncio.sleep(0)
+        parent.close()
+        await asyncio.sleep(0)
+
+    asyncio.run(exercise())
+
+    assert len(scripts) == 3
+    assert scripts[0] != scripts[1]
+    assert "target.focus" in scripts[2]
 
 
 def test_layers_css_exposes_js_runtime_values() -> None:

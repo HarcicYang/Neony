@@ -1,5 +1,7 @@
 """Test the component library: build, state, events, theming."""
 
+from typing import Any
+
 import pytest
 from pydantic import ValidationError
 
@@ -5034,6 +5036,134 @@ class TestDataTableKeyboard:
         asyncio.run(row._handlers["keydown"][0](DomEvent(key=row.key, type="keydown", value=" ")))
         assert dt.selected_keys == frozenset({"a"})
         assert fired == ["a"]
+
+
+class TestDataTableVirtualization:
+    """Large tables mount a bounded row window without changing the model."""
+
+    def test_auto_materializes_bounded_window(self):
+        rows = [{"name": f"row-{i}", "value": i} for i in range(1000)]
+        table = DataTable(
+            columns=[Column("Name"), Column("Value")],
+            rows=rows,
+            row_key=lambda row: row["name"],
+        )
+
+        assert table.virtualize == "auto"
+        assert table._virtualized is True
+        assert len(table.rows) == 1000
+        assert len(table._row_by_key) <= 26
+        assert len(table._body.container) == len(table._row_by_key) + 2
+        hidden = len(table._row_keys) - table._virtual_end
+        assert table._bottom_spacer.styles.height == f"{hidden * table._row_height:g}px"
+
+    def test_small_table_keeps_full_dom(self):
+        rows = [{"name": f"row-{i}"} for i in range(200)]
+        table = DataTable(columns=[Column("Name")], rows=rows)
+
+        assert table._virtualized is False
+        assert len(table._row_by_key) == 200
+        assert len(table._body.container) == 200
+
+    def test_force_disable_keeps_full_dom(self):
+        rows = [{"name": f"row-{i}"} for i in range(250)]
+        table = DataTable(columns=[Column("Name")], rows=rows, virtualize=False)
+
+        assert table._virtualized is False
+        assert len(table._row_by_key) == 250
+
+    def test_force_enable_virtualizes_small_table(self):
+        table = DataTable(columns=[Column("Name")], rows=[{"name": "a"}], virtualize=True)
+
+        assert table._virtualized is True
+        assert len(table._row_by_key) == 1
+        assert len(table._body.container) == 3
+
+    def test_scroll_replaces_window(self):
+        rows = [{"name": f"row-{i}"} for i in range(1000)]
+        table = DataTable(columns=[Column("Name")], rows=rows, row_key=lambda row: row["name"])
+        first_rows = set(table._row_by_key)
+
+        target = 500
+        table._handle_scroll(
+            DomEvent(
+                key=table._root.key,
+                type="scroll",
+                scroll_top=target * table._row_height,
+                client_height=500,
+            )
+        )
+
+        assert table._virtual_start == target - table._overscan
+        assert "row-500" in table._row_by_key
+        assert not first_rows.intersection(table._row_by_key)
+
+    def test_offscreen_selection_and_sort_survive(self):
+        rows = [{"name": f"row-{i}", "value": i} for i in range(1000)]
+        table = DataTable(
+            columns=[Column("Name"), Column("Value", sortable=True)],
+            rows=rows,
+            row_key=lambda row: row["name"],
+        )
+
+        table.selected_key = "row-900"
+        table.sort_by = ("value", "desc")
+
+        assert table.selected_key == "row-900"
+        assert "row-900" not in table._row_by_key
+        table._ensure_materialized("row-900")
+        assert "row-900" in table._row_by_key
+        assert table._row_by_key["row-900"].args["aria-selected"] == "true"
+
+    def test_keyboard_end_materializes_target(self):
+        import asyncio
+
+        rows = [{"name": f"row-{i}"} for i in range(1000)]
+        table = DataTable(
+            columns=[Column("Name")],
+            rows=rows,
+            row_key=lambda row: row["name"],
+        )
+        event = DomEvent(key="row:row-0", type="keydown", value="End")
+
+        asyncio.run(table._make_keydown_handler("row-0")(event))
+
+        assert table.selected_key == "row-999"
+        assert "row-999" in table._row_by_key
+        assert table._focus_key == "row-999"
+
+    def test_reactive_cells_dispose_effects_when_scrolled_out(self):
+        from neony.dom import Signal
+
+        signals = [Signal(f"row-{i}") for i in range(250)]
+        rows = [{"name": signal, "key": f"row-{i}"} for i, signal in enumerate(signals)]
+        table = DataTable(
+            columns=[Column("Name")],
+            rows=rows,
+            row_key=lambda row: row["key"],
+        )
+        assert signals[0]._subs
+
+        table._handle_scroll(
+            DomEvent(
+                key=table._root.key,
+                type="scroll",
+                scroll_top=210 * table._row_height,
+                client_height=500,
+            )
+        )
+
+        assert signals[0]._subs == set()
+        assert signals[210]._subs
+
+    def test_invalid_configuration_raises(self):
+        bad_virtualize: Any = "sometimes"
+        with pytest.raises(ValueError):
+            DataTable(virtualize=bad_virtualize)
+        with pytest.raises(ValueError):
+            DataTable(row_height=0)
+        with pytest.raises(ValueError):
+            DataTable(overscan=-1)
 
 
 class TestProgrammaticMirrorToSignal:

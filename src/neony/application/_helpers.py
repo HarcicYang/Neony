@@ -103,6 +103,16 @@ _BUILTIN_KEYFRAMES: list[KeyFrame] = [
     .set("0%", Props(opacity=0, transform=Transform.translate(y=8)))
     .set("100%", Props(opacity=1, transform=Transform.translate(y=0))),
     KeyFrame("neony-fade-in").set("0%", Props(opacity=0)).set("100%", Props(opacity=1)),
+    # Standalone Spinner rotation and Skeleton opacity pulse.  Both are
+    # built in so the Python components never require app-level keyframe
+    # registration before first render.
+    KeyFrame("neony-spin")
+    .set("0%", Props(transform=Transform.rotate(0)))
+    .set("100%", Props(transform=Transform.rotate(360))),
+    KeyFrame("neony-skeleton-pulse")
+    .set("0%", Props(opacity=0.45))
+    .set("50%", Props(opacity=1.0))
+    .set("100%", Props(opacity=0.45)),
     # Sweep for indeterminate progress: a 40%-wide fill translates
     # past the track's overflow-hidden edges (-100% → 300% of its own
     # width) for a left-to-right indeterminate slide.

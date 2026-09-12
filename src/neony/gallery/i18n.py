@@ -44,6 +44,7 @@ class Nav(BaseModel):
     inputs: TrRef[None] = TrRef("Inputs")
     checks: TrRef[None] = TrRef("Checks")
     forms: TrRef[None] = TrRef("Forms")
+    feedback: TrRef[None] = TrRef("Feedback")
     layout_type: TrRef[None] = TrRef("Layout & Type")
     layout: TrRef[None] = TrRef("Layout")
     type: TrRef[None] = TrRef("Type")
@@ -161,6 +162,32 @@ class Forms(BaseModel):
     scanning: TrRef[None] = TrRef("Scanning…")
     advance: TrRef[None] = TrRef("+15%")
     shared_heat_fmt: TrRef[dict[str, object]] = TrRef("shared heat signal (from the Reactive tab): {n}%")
+
+
+class Feedback(BaseModel):
+    model_config = _CFG
+    title: TrRef[None] = TrRef("Feedback & validation")
+    blurb: TrRef[None] = TrRef(
+        "Textarea handles multiline input; FormField pairs a control with a visible "
+        "label, help text and validation messages; Alert presents status information "
+        "with optional actions. Spinner, Skeleton and EmptyState cover loading and "
+        "zero-content states."
+    )
+    notes_placeholder: TrRef[None] = TrRef("Notes…")
+    notes_echo_fmt: TrRef[dict[str, object]] = TrRef("Notes length: {n}")
+    email_label: TrRef[None] = TrRef("Email")
+    email_placeholder: TrRef[None] = TrRef("name@example.com")
+    email_help: TrRef[None] = TrRef("Used only for account notifications.")
+    email_error: TrRef[None] = TrRef("Enter a valid email address.")
+    alert_title: TrRef[None] = TrRef("Changes saved")
+    alert_body: TrRef[None] = TrRef("Your preferences are up to date.")
+    alert_action: TrRef[None] = TrRef("Undo")
+    alert_dismissed: TrRef[None] = TrRef("Alert dismissed.")
+    alert_restore: TrRef[None] = TrRef("Restore alert")
+    spinner_label: TrRef[None] = TrRef("Loading projects")
+    empty_title: TrRef[None] = TrRef("No projects yet")
+    empty_description: TrRef[None] = TrRef("Create one to start.")
+    empty_action: TrRef[None] = TrRef("New project")
 
 
 class Layout(BaseModel):
@@ -454,6 +481,9 @@ class Data(BaseModel):
         "body scrolls, and sorting is numeric-aware (or via a per-column "
         "sort_key). Selection is single by default or multi at construction."
     )
+    virtual_note: TrRef[None] = TrRef(
+        "500 rows with virtualize=True: only the visible window plus overscan is mounted."
+    )
     name: TrRef[None] = TrRef("Name")
     role: TrRef[None] = TrRef("Role")
     age: TrRef[None] = TrRef("Age")
@@ -718,6 +748,7 @@ class GalleryCatalog(Catalog):
     home: Home = Home()
     buttons: Buttons = Buttons()
     forms: Forms = Forms()
+    feedback: Feedback = Feedback()
     layout: Layout = Layout()
     icons: Icons = Icons()
     glass: Glass = Glass()
@@ -760,6 +791,7 @@ register_catalog(
             inputs="输入框",
             checks="复选框",
             forms="表单",
+            feedback="反馈",
             layout_type="布局与排版",
             layout="布局",
             type="排版",
@@ -862,6 +894,29 @@ register_catalog(
             scanning="扫描中…",
             advance="+15%",
             shared_heat_fmt="共享 heat 信号（来自响应式标签页）：{n}%",
+        ),
+        feedback=Feedback(
+            title="反馈与校验",
+            blurb=(
+                "Textarea 用于多行输入；FormField 为任意控件提供可见标签、帮助文本与"
+                "校验提示；Alert 用于展示可带操作按钮的状态信息。Spinner、Skeleton "
+                "与 EmptyState 覆盖加载中和空内容场景。"
+            ),
+            notes_placeholder="备注…",
+            notes_echo_fmt="备注长度：{n}",
+            email_label="邮箱",
+            email_placeholder="name@example.com",
+            email_help="仅用于账户通知。",
+            email_error="请输入有效的邮箱地址。",
+            alert_title="更改已保存",
+            alert_body="你的偏好设置已是最新状态。",
+            alert_action="撤销",
+            alert_dismissed="提示已关闭。",
+            alert_restore="恢复提示",
+            spinner_label="正在加载项目",
+            empty_title="暂无项目",
+            empty_description="创建一个项目即可开始。",
+            empty_action="新建项目",
         ),
         layout=Layout(
             layout_title="布局",
@@ -1117,6 +1172,7 @@ register_catalog(
                 "（像 '2fr' / '80px' 这样的宽度轨道），表头吸顶而表体滚动，排序对数字感知"
                 "（或通过每列的 sort_key）。选择默认单选，构造时可选多选。"
             ),
+            virtual_note="500 行并使用 virtualize=True：只挂载可视窗口和 overscan 行。",
             name="姓名",
             role="角色",
             age="年龄",

@@ -12,6 +12,8 @@ with ``Layer`` values.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import weakref
 from collections.abc import Callable
 from enum import IntEnum
@@ -62,12 +64,15 @@ class LayerHandle:
     __slots__ = (
         "_element_ref",
         "_manager",
+        "_suppress_restore",
         "active",
+        "focus_token",
         "group",
         "kind",
         "on_close",
         "order",
         "parent",
+        "restore_focus",
         "stack_order",
     )
 
@@ -82,15 +87,19 @@ class LayerHandle:
         stack_order: int,
         parent: LayerHandle | None,
         on_close: Callable[[], None] | None,
+        restore_focus: bool,
     ) -> None:
         self._manager = manager
         self._element_ref = weakref.ref(element)
+        self._suppress_restore = False
         self.kind = kind
         self.group = group
         self.order = order
         self.stack_order = stack_order
         self.parent = parent
         self.on_close = on_close
+        self.restore_focus = restore_focus
+        self.focus_token = element.key
         self.active = True
 
     @property
@@ -117,6 +126,7 @@ class LayerManager:
         self._handles: list[LayerHandle] = []
         self._orders: dict[Layer, int] = {}
         self._stack_order = 0
+        self._js_tasks: set[asyncio.Task[object]] = set()
 
     def open(
         self,
@@ -127,6 +137,7 @@ class LayerManager:
         exclusive: bool = False,
         owner: DOMElement | None = None,
         on_close: Callable[[], None] | None = None,
+        restore_focus: bool = True,
     ) -> LayerHandle:
         """Register *element* as open and return its managed handle.
 
@@ -139,14 +150,15 @@ class LayerManager:
             if handle.active and handle.element is element:
                 if on_close is not None:
                     handle.on_close = on_close
+                handle.restore_focus = restore_focus
                 return self.bring_to_front(handle)
 
         if kind == Layer.MODAL:
-            self._close_lower(kind)
+            self._close_lower(kind, restore_focus=False)
         if exclusive:
             for handle in tuple(self._handles):
                 if handle.active and handle.group == group:
-                    self._close_through_callback(handle)
+                    self._close_through_callback(handle, restore_focus=False)
 
         parent = self._containing_handle(owner) if owner is not None else None
         order = self._orders.get(kind, 0)
@@ -161,9 +173,12 @@ class LayerManager:
             stack_order=self._stack_order,
             parent=parent,
             on_close=on_close,
+            restore_focus=restore_focus,
         )
         self._handles.append(handle)
         self._apply(handle)
+        if restore_focus:
+            self._capture_focus(handle)
         return handle
 
     def bring_to_front(self, handle: LayerHandle) -> LayerHandle:
@@ -178,16 +193,19 @@ class LayerManager:
         self._apply(handle)
         return handle
 
-    def close(self, handle: LayerHandle) -> None:
+    def close(self, handle: LayerHandle, *, restore_focus: bool = True) -> None:
         """Remove *handle* without invoking its close callback."""
         if not handle.active or handle not in self._handles:
             return
         for child in tuple(self._handles):
             if child.active and child.parent is handle:
-                self._close_through_callback(child)
+                self._close_through_callback(child, restore_focus=False)
+        should_restore = restore_focus and handle.restore_focus and not handle._suppress_restore
         handle.active = False
         self._handles.remove(handle)
         self._clear(handle)
+        if should_restore:
+            self._restore_focus(handle)
         if not any(candidate.kind == handle.kind for candidate in self._handles):
             self._orders[handle.kind] = 0
         if not self._handles:
@@ -204,16 +222,42 @@ class LayerManager:
             if handle.active and handle.group == group:
                 self._close_through_callback(handle)
 
-    def _close_lower(self, kind: Layer) -> None:
+    def handle_escape(self, element: DOMElement | None = None) -> bool:
+        """Close the logical topmost layer, optionally scoped to *element*.
+
+        A component routes Escape here instead of closing itself so an
+        overlay nested inside it gets the first chance to dismiss.  When
+        *element* is supplied, the topmost layer must be that element or
+        one of its descendants; unrelated layers are left alone.
+        """
+        top = self.topmost()
+        if top is None:
+            return False
+        if element is not None:
+            scope = next(
+                (handle for handle in self._handles if handle.active and handle.element is element),
+                None,
+            )
+            allowed = self._contains(element, top.element) or (scope is not None and self._handle_contains(scope, top))
+            if not allowed:
+                return False
+        self._close_through_callback(top)
+        return True
+
+    def _close_lower(self, kind: Layer, *, restore_focus: bool = True) -> None:
         for handle in tuple(self._handles):
             if handle.active and handle.kind < kind:
-                self._close_through_callback(handle)
+                self._close_through_callback(handle, restore_focus=restore_focus)
 
-    def _close_through_callback(self, handle: LayerHandle) -> None:
-        if handle.on_close is not None:
-            handle.on_close()
-        if handle.active:
-            self.close(handle)
+    def _close_through_callback(self, handle: LayerHandle, *, restore_focus: bool = True) -> None:
+        handle._suppress_restore = not restore_focus
+        try:
+            if handle.on_close is not None:
+                handle.on_close()
+            if handle.active:
+                self.close(handle, restore_focus=restore_focus)
+        finally:
+            handle._suppress_restore = False
 
     def _containing_handle(self, element: DOMElement) -> LayerHandle | None:
         """Return the newest active layer whose element contains *element*."""
@@ -239,6 +283,59 @@ class LayerManager:
             "data-neony-layer-z": str(handle.z_index),
             "data-neony-layer-open": "true",
         }
+
+    @staticmethod
+    def _contains(ancestor: DOMElement, element: DOMElement) -> bool:
+        current: DOMElement | None = element
+        while current is not None:
+            if current is ancestor:
+                return True
+            current = current._parent
+        return False
+
+    @staticmethod
+    def _handle_contains(ancestor: LayerHandle, handle: LayerHandle) -> bool:
+        current: LayerHandle | None = handle
+        while current is not None:
+            if current is ancestor:
+                return True
+            current = current.parent
+        return False
+
+    def _capture_focus(self, handle: LayerHandle) -> None:
+        token = json.dumps(handle.focus_token)
+        script = (
+            "(() => { const active = document.activeElement; "
+            "if (!active || active === document.body || active === document.documentElement) return; "
+            "const focus = (window.__neonyLayerFocus = window.__neonyLayerFocus || {}); "
+            f"focus[{token}] = active; }})()"
+        )
+        self._schedule_js(handle.element, script)
+
+    def _restore_focus(self, handle: LayerHandle) -> None:
+        token = json.dumps(handle.focus_token)
+        script = (
+            "(() => { const focus = window.__neonyLayerFocus || {}; "
+            f"const target = focus[{token}]; delete focus[{token}]; "
+            "if (target && target.isConnected && typeof target.focus === 'function') { "
+            "try { target.focus({ preventScroll: true }); } catch (_error) { target.focus(); } } }})()"
+        )
+        self._schedule_js(handle.element, script)
+
+    def _schedule_js(self, element: DOMElement, script: str) -> None:
+        scope = element
+        while scope._parent is not None:
+            scope = scope._parent
+        request = scope._eval_js_request
+        if request is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        task = loop.create_task(request(script))
+        self._js_tasks.add(task)
+        task.add_done_callback(self._js_tasks.discard)
 
     @staticmethod
     def _clear(handle: LayerHandle) -> None:

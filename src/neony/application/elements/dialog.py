@@ -322,8 +322,11 @@ class Dialog(Component):
             # a panel-descendant key.
             if event.key == self._scrim.key and self._closable:
                 self.open = False
-        elif event_type == "keydown":
-            if event.value == "Escape":
+        elif event_type == "keydown" and event.value == "Escape":
+            # Escape belongs to the logical topmost layer.  A popup
+            # nested in this dialog gets to close first; otherwise the
+            # manager closes the dialog itself through on_close.
+            if not layer_manager(self._root).handle_escape(self._root):
                 self.open = False
         elif event_type == "outsideclick":
             self.open = False

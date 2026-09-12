@@ -128,6 +128,31 @@ def on_multi_change(_event: DomEvent) -> None:
 
 multi.on_change(on_multi_change)
 
+virtual_rows = [
+    {
+        "key": f"row-{index}",
+        "name": f"Item {index}",
+        "role": "service" if index % 2 else "worker",
+        "age": 18 + index % 60,
+        "score": 50 + index % 50,
+    }
+    for index in range(500)
+]
+virtual_table = DataTable(
+    columns=[
+        Column(tr.data.name, key="name", sortable=True, width="2fr"),
+        Column(tr.data.role, key="role"),
+        Column(tr.data.age, key="age", sortable=True, align="right", width="80px"),
+        Column(tr.data.score, key="score", sortable=True, align="right", width="70px", format=lambda v: f"{v}%"),
+    ],
+    rows=virtual_rows,
+    row_key=lambda row: row["key"],
+    virtualize=True,
+    row_height=36,
+    overscan=8,
+)
+virtual_note = Text(tr.data.virtual_note, role="secondary")
+
 datatable_panel = Section(
     tr.data.table_title,
     tr.data.table_blurb,
@@ -154,6 +179,9 @@ multi.on_change(...)  # e.value = toggled key; read multi.selected_keys""",
     Separator(),
     Div(styles=Styles(height="200px", display="flex", flex_direction="column"), container=[multi.build()]),
     multi_echo,
+    Separator(),
+    virtual_note,
+    Div(styles=Styles(height="220px", display="flex", flex_direction="column"), container=[virtual_table.build()]),
 )
 
 # ── tab: drag reorder ────────────────────────────────────────────

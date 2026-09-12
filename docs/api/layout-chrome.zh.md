@@ -180,6 +180,9 @@ people = DataTable(
     ],
     row_key=lambda r: r["name"],  # 默认：行索引
     active_key="Ada",
+    virtualize="auto",  # 可选：bool 或 "auto"
+    row_height=36,
+    overscan=8,
 )
 people.on_change(lambda e: print(e.value))  # 选中行 key
 people.sort_by = ("age", "desc")  # 表头点击同样排序
@@ -188,11 +191,13 @@ people.bind_selected(signal)  # 双向响应式选中
 
 列与行也可链式追加：`DataTable().column("Name").row({"name": "Ada"})`。
 
-**参数:** `DataTable(columns=None, rows=None, *, row_key=None, selection="single", active_key=None, selected_keys=None, edge_fade=True)`。
+**参数:** `DataTable(columns=None, rows=None, *, row_key=None, selection="single", active_key=None, selected_keys=None, virtualize="auto", row_height=36, overscan=8, edge_fade=True)`。
 
 `Column(title, key=None, width=None, sortable=False, align=None, format=None, sort_key=None)` — `key` 默认为小写标题；`width` 为 CSS 网格轨道（`"1fr"` / `"80px"`）；`align` 为 `left|center|right`；`format` 把单元格值映射为文本；`sort_key` 从行中提取自定义排序值。
 
 `row_key` 派生每行的身份（默认行索引）且必须唯一。`sortable=True` 的表头点击排序（asc → desc，换列从 asc 开始）；排序数字感知（或用 `sort_key`），保留选中，可通过 `sort_by` 观察。表头在滚动容器内 `position: sticky`，横向滚动时表头与行保持对齐。
+
+**虚拟化。** `virtualize="auto"`（默认）在 200 行以内保留完整 DOM，超过阈值后只挂载有界窗口；`virtualize=True` 始终虚拟化，`False` 始终挂载全部行。行使用固定 `row_height`，视口上下各保留 `overscan` 行。排序、选中、行 key 与键盘导航都作用于完整数据模型，包括当前窗口外的行。需要保留完整行 DOM 时传 `virtualize=False`；代价是更高的内存和更新开销。
 
 **选中。** `selection="single"`（默认）暴露 `selected_key`（编程式写入不触发回调）；`selection="multi"` 暴露 `selected_keys`（接受 `set`/`frozenset`/`list`/`None`），点击切换成员——`change` 携带被切换的 key，全量状态读 `selected_keys`。`bind_selected` 仅单选用（否则抛错）；错配模式的属性抛 `NotImplementedError`。
 

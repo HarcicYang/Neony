@@ -115,6 +115,7 @@ _ROOT = Styles(
 )
 
 _BODY = Styles(display="flex", flex_direction="column", gap="2px")
+_BODY_VIRTUAL = _BODY.model_copy(update={"gap": "0px"})
 
 _GLYPH = Styles(font_size="10px", color=stub.text_secondary, flex_shrink="0")
 _GLYPH_ACTIVE = _GLYPH.model_copy(update={"color": Color(var="--color-accent")})
@@ -194,6 +195,9 @@ class Column(BaseModel):
 
 
 class DataTable(Component):
+    #: ``virtualize="auto"`` follows List's bounded-window policy.
+    _VIRTUALIZE_THRESHOLD = 200
+
     #: Event types wired internally (via custom per-row handlers) —
     #: Component.on() must not wire these again.
     _bound_events: frozenset[str] = frozenset({"click", "keydown"})
@@ -207,10 +211,19 @@ class DataTable(Component):
         selection: Literal["single", "multi"] = "single",
         active_key: str | None = None,
         selected_keys: set[str] | None = None,
+        virtualize: bool | Literal["auto"] = "auto",
+        row_height: int | float = 36,
+        overscan: int = 8,
         edge_fade: bool = True,
     ) -> None:
         if selection not in ("single", "multi"):
             raise ValueError(f"DataTable: selection must be 'single' or 'multi', got {selection!r}")
+        if not isinstance(virtualize, bool) and virtualize != "auto":
+            raise ValueError(f"DataTable: virtualize must be bool or 'auto', got {virtualize!r}")
+        if row_height <= 0:
+            raise ValueError(f"DataTable: row_height must be positive, got {row_height!r}")
+        if overscan < 0:
+            raise ValueError(f"DataTable: overscan must be non-negative, got {overscan!r}")
         super().__init__()
         self._columns = list(columns) if columns else []
         self._selection = selection
@@ -218,16 +231,41 @@ class DataTable(Component):
         self._data: list[dict] = []
         self._display: list[dict] = []
         self._row_keys: list[str] = []
+        self._row_index: dict[str, int] = {}
+        self._row_data: dict[str, dict] = {}
         self._row_by_key: dict[str, Div] = {}
         self._sort: tuple[str, str] | None = None
         self._selected: set[str] = set()
         self._focus_key: str | None = None
         self._glyphs: dict[str, Span] = {}
         self._header_cells: dict[str, Div] = {}
+        self._virtualize: bool | Literal["auto"] = virtualize
+        self._row_height = float(row_height)
+        self._overscan = overscan
+        self._virtualized = False
+        self._virtual_start = 0
+        self._virtual_end = 0
+        self._viewport_height = self._row_height * 10
 
         self._grid = " ".join(c.width or "1fr" for c in self._columns) or "1fr"
         self._row_base = _ROW_BASE.model_copy(update={"grid_template_columns": self._grid})
         self._row_active = _ROW_ACTIVE.model_copy(update={"grid_template_columns": self._grid})
+        self._row_virtual = _ROW_BASE.model_copy(
+            update={
+                "grid_template_columns": self._grid,
+                "height": f"{self._row_height:g}px",
+                "min_height": f"{self._row_height:g}px",
+                "flex_shrink": "0",
+            }
+        )
+        self._row_virtual_active = _ROW_ACTIVE.model_copy(
+            update={
+                "grid_template_columns": self._grid,
+                "height": f"{self._row_height:g}px",
+                "min_height": f"{self._row_height:g}px",
+                "flex_shrink": "0",
+            }
+        )
 
         # Build header/body first, then construct the root WITH the
         # container — model_post_init wraps it in _Children (which sets
@@ -235,11 +273,14 @@ class DataTable(Component):
         # list would drop the parent links and break dirty propagation.
         self._header = self._build_header()
         self._body = Div(styles=_BODY)
+        self._top_spacer = Div(styles=Styles(height="0px", flex_shrink="0"))
+        self._bottom_spacer = Div(styles=Styles(height="0px", flex_shrink="0"))
         self._root = Div(
             styles=_ROOT,
             scroll_indicator=edge_fade,
             container=[self._header, self._body],
         )
+        self._root.on("scroll", self._handle_scroll)
 
         if rows is not None:
             self._data = list(rows)
@@ -256,6 +297,18 @@ class DataTable(Component):
         """The column configuration (read-only)."""
         return list(self._columns)
 
+    @property
+    def virtualize(self) -> bool | Literal["auto"]:
+        """The virtualization mode (``"auto"`` or a bool)."""
+        return self._virtualize
+
+    @virtualize.setter
+    def virtualize(self, value: bool | Literal["auto"]) -> None:
+        if not isinstance(value, bool) and value != "auto":
+            raise ValueError(f"DataTable.virtualize: expected bool or 'auto', got {value!r}")
+        self._virtualize = value
+        self._rebuild_rows()
+
     def column(self, column: Column | str) -> Self:
         """Append a column (chainable).  Strings are wrapped as
         :class:`Column`.  Adding a column rebuilds the header (grid
@@ -268,6 +321,8 @@ class DataTable(Component):
         self._grid = " ".join(c.width or "1fr" for c in self._columns)
         self._row_base = _ROW_BASE.model_copy(update={"grid_template_columns": self._grid})
         self._row_active = _ROW_ACTIVE.model_copy(update={"grid_template_columns": self._grid})
+        self._row_virtual = self._row_virtual.model_copy(update={"grid_template_columns": self._grid})
+        self._row_virtual_active = self._row_virtual_active.model_copy(update={"grid_template_columns": self._grid})
         self._header = self._build_header()
         # __setitem__ on the _Children proxy replaces the old header and
         # keeps the parent link in sync.
@@ -321,7 +376,7 @@ class DataTable(Component):
     def selected_key(self, value: str | None) -> None:
         if self._selection != "single":
             raise NotImplementedError("DataTable.selected_key: requires selection='single'; use selected_keys")
-        if value is not None and value not in self._row_by_key:
+        if value is not None and value not in self._row_index:
             raise ValueError(f"DataTable.selected_key: unknown row key {value!r}")
         previous = self._selected
         self._selected = {value} if value is not None else set()
@@ -341,7 +396,7 @@ class DataTable(Component):
             raise NotImplementedError("DataTable.selected_keys: requires selection='multi'; use selected_key")
         keys = set(value) if value is not None else set()
         for key in keys:
-            if key not in self._row_by_key:
+            if key not in self._row_index:
                 raise ValueError(f"DataTable.selected_keys: unknown row key {key!r}")
         previous = self._selected
         self._selected = keys
@@ -423,19 +478,100 @@ class DataTable(Component):
     def _rebuild_rows(self) -> None:
         self._display = self._sorted(self._data)
         self._row_keys = []
+        self._row_index = {}
+        self._row_data = {}
+        for row in self._row_by_key.values():
+            self._dispose_row(row)
         self._row_by_key = {}
-        self._body.container.clear()
         for index, row in enumerate(self._display):
             key = self._row_key(row, index)
-            if key in self._row_by_key:
+            if key in self._row_index:
                 raise ValueError(f"DataTable: duplicate row key {key!r}")
-            row_el = self._build_row(key, row)
-            self._body.container.append(row_el)
-            self._row_by_key[key] = row_el
+            self._row_index[key] = index
+            self._row_data[key] = row
             self._row_keys.append(key)
         # Drop selections whose rows no longer exist (rows replaced).
         self._selected &= set(self._row_keys)
+        if self._focus_key not in self._row_index:
+            self._focus_key = None
+        self._virtualized = self._should_virtualize(len(self._row_keys))
+        self._body.styles = _BODY_VIRTUAL if self._virtualized else _BODY
+        if self._virtualized:
+            self._refresh_window(0, self._viewport_height, force=True)
+        else:
+            self._body.container.clear()
+            for key in self._row_keys:
+                row_el = self._build_row(key, self._row_data[key])
+                self._body.container.append(row_el)
+                self._row_by_key[key] = row_el
         self._apply_selection(set(self._row_keys))
+
+    def _should_virtualize(self, count: int) -> bool:
+        if self._virtualize == "auto":
+            return count > self._VIRTUALIZE_THRESHOLD
+        return bool(self._virtualize)
+
+    def _row_style(self, active: bool) -> Styles:
+        if self._virtualized:
+            return self._row_virtual_active if active else self._row_virtual
+        return self._row_active if active else self._row_base
+
+    def _refresh_window(
+        self,
+        scroll_top: int = 0,
+        viewport_height: float | None = None,
+        *,
+        force: bool = False,
+    ) -> None:
+        """Materialize the bounded row window around *scroll_top*."""
+        if not self._virtualized:
+            return
+        height = max(self._row_height, viewport_height or self._viewport_height)
+        self._viewport_height = height
+        visible = max(1, int((height + self._row_height - 1) // self._row_height))
+        window_size = visible + self._overscan * 2
+        requested = max(0, int(scroll_top // self._row_height) - self._overscan)
+        start = min(requested, max(0, len(self._row_keys) - window_size))
+        end = min(len(self._row_keys), start + window_size)
+        if not force and start == self._virtual_start and end == self._virtual_end:
+            return
+
+        self._virtual_start, self._virtual_end = start, end
+        for row in self._row_by_key.values():
+            self._dispose_row(row)
+        rows = [self._build_row(key, self._row_data[key]) for key in self._row_keys[start:end]]
+        self._row_by_key = dict(zip(self._row_keys[start:end], rows, strict=True))
+        self._top_spacer.styles = Styles(
+            height=f"{start * self._row_height:g}px",
+            flex_shrink="0",
+        )
+        remaining = max(0, len(self._row_keys) - end)
+        self._bottom_spacer.styles = Styles(
+            height=f"{remaining * self._row_height:g}px",
+            flex_shrink="0",
+        )
+        self._body.container[:] = [self._top_spacer, *rows, self._bottom_spacer]
+
+    def _dispose_row(self, row: DOMElement) -> None:
+        row.unbind()
+        for child in row.container:
+            if isinstance(child, DOMElement):
+                self._dispose_row(child)
+
+    def _ensure_materialized(self, key: str) -> Div | None:
+        row = self._row_by_key.get(key)
+        if row is not None or not self._virtualized:
+            return row
+        index = self._row_index[key]
+        self._refresh_window(int(index * self._row_height), self._viewport_height, force=True)
+        return self._row_by_key.get(key)
+
+    def _handle_scroll(self, event: DomEvent) -> None:
+        if self._virtualized:
+            self._refresh_window(
+                event.scroll_top or 0,
+                event.client_height or self._viewport_height,
+            )
 
     def _row_key(self, row: dict, index: int) -> str:
         if self._row_key_fn is not None:
@@ -443,10 +579,14 @@ class DataTable(Component):
         return str(index)
 
     def _build_row(self, key: str, row: dict) -> Div:
+        active = key in self._selected
+        styles = self._row_style(active)
+        if key == self._focus_key:
+            styles = styles.model_copy(update={"box_shadow": "0 0 0 2px var(--color-accent)"})
         row_el = Div(
             container=[self._cell(col, row) for col in self._columns],
-            styles=self._row_base,
-            args={"role": "row", "tabindex": "0", "aria-selected": "false"},
+            styles=styles,
+            args={"role": "row", "tabindex": "0", "aria-selected": "true" if active else "false"},
             key=f"row:{key}",
         )
         # Clicks land on the cell divs — bubble them to this row.
@@ -503,7 +643,7 @@ class DataTable(Component):
             if row is None:
                 continue
             active = key in self._selected
-            row.styles = self._row_active if active else self._row_base
+            row.styles = self._row_style(active)
             row.args = {**row.args, "aria-selected": "true" if active else "false"}
             # Cell text follows the row fill — on_accent on the filled row,
             # the plain surface text otherwise.
@@ -517,7 +657,10 @@ class DataTable(Component):
             return
         self._clear_focus()
         self._focus_key = key
-        row = self._row_by_key.get(key)
+        if self._virtualized and key not in self._row_by_key:
+            top = self._row_index[key] * self._row_height
+            self._schedule_js(f"window.neony.scrollTo({self._root.key!r}, {top}, 'auto')")
+        row = self._ensure_materialized(key)
         if row is not None:
             row.styles = row.styles.model_copy(update={"box_shadow": "0 0 0 2px var(--color-accent)"})
 
@@ -529,7 +672,7 @@ class DataTable(Component):
             row.styles = row.styles.model_copy(update={"box_shadow": None})
         self._focus_key = None
 
-    def _toggle_select(self, key: str) -> None:
+    def _toggle_select(self, key: str, *, clear_focus: bool = True) -> None:
         previous = set(self._selected)
         if self._selection == "multi":
             if key in self._selected:
@@ -539,7 +682,8 @@ class DataTable(Component):
         else:
             self._selected = {key}
         self._apply_selection(previous ^ self._selected)
-        self._clear_focus()
+        if clear_focus:
+            self._clear_focus()
 
     def _make_click_handler(self, key: str):
         async def handler(event: DomEvent) -> None:
@@ -566,8 +710,10 @@ class DataTable(Component):
 
         return handler
 
-    async def _dispatch_change(self, key: str, event: DomEvent) -> None:
-        self._toggle_select(key)
+    async def _dispatch_change(self, key: str, event: DomEvent, *, focused: bool = False) -> None:
+        self._toggle_select(key, clear_focus=not focused)
+        if focused:
+            self._set_focus(key)
         event.value = key
         event.source = "user"
         await self._dispatch("change", event)
@@ -577,8 +723,8 @@ class DataTable(Component):
         (no wrap).  Single mode moves the selection (firing ``change``);
         multi mode moves only the focus ring."""
         try:
-            index = self._row_keys.index(from_key)
-        except ValueError:
+            index = self._row_index[from_key]
+        except KeyError:
             return
         target = index + step
         if target < 0 or target >= len(self._row_keys):
@@ -587,7 +733,7 @@ class DataTable(Component):
         if self._selection == "multi":
             self._set_focus(new_key)
             return
-        await self._dispatch_change(new_key, event)
+        await self._dispatch_change(new_key, event, focused=True)
 
     async def _move_to(self, target: int, event: DomEvent) -> None:
         if not self._row_keys:
@@ -596,4 +742,4 @@ class DataTable(Component):
         if self._selection == "multi":
             self._set_focus(new_key)
             return
-        await self._dispatch_change(new_key, event)
+        await self._dispatch_change(new_key, event, focused=True)

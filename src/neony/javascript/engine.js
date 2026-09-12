@@ -321,7 +321,13 @@ class NeonyEngine {
 
     _setText(op) {
         const el = this.registry.get(op.key);
-        if (el) {
+        if (!el) return;
+        // A textarea's live value is an IDL property, not derived from
+        // textContent after the user has edited it.  Programmatic Python
+        // writes must update the value without replacing the element.
+        if (el.tagName === "TEXTAREA") {
+            if (el.value !== op.text) el.value = op.text;
+        } else {
             el.textContent = op.text;
         }
     }

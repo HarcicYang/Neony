@@ -163,6 +163,7 @@ class Tooltip(Component):
                 group="tooltip",
                 exclusive=True,
                 on_close=self._hide,
+                restore_focus=False,
             )
             self._bubble.styles = self._bubble.styles.model_copy(update={"display": "block"})
         except asyncio.CancelledError:
