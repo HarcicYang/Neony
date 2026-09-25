@@ -8,6 +8,10 @@
 
 > 📖 **文档（最新发布）：** [简体中文](https://harcic.me/neony/zh) · [English](https://harcic.me/neony)
 >
+> 两个镜像，内容一致：
+> [harcic.me](https://harcic.me/neony)（Cloudflare Pages）·
+> [harcic.is-a.dev](https://harcic.is-a.dev/neony)（GitHub Pages）
+>
 > 托管文档指向 **最新tag**。需要 **最新 commit** 的文档（仓库内
 > `docs/`），见 [`docs/`](docs/) —
 > [`docs/README.zh.md`](docs/README.zh.md)、

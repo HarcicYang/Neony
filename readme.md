@@ -6,7 +6,11 @@ Reactive desktop UI framework for Python, built on [LumiView](https://github.com
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](#)
 [![Status: pre-beta](https://img.shields.io/badge/status-pre--beta-yellow.svg)](#)
 
-> 📖 **Docs (latest release):** https://harcic.me/neony · [中文](https://harcic.me/neony/zh)
+> 📖 **Docs (latest release):** [English](https://harcic.me/neony) · [中文](https://harcic.me/neony/zh)
+>
+> Two mirrors, same content:
+> [harcic.me](https://harcic.me/neony) (Cloudflare Pages) ·
+> [harcic.is-a.dev](https://harcic.is-a.dev/neony) (GitHub Pages)
 >
 > These hosted docs point to the **latest tag**. For the **latest commit**
 > (in-repo `docs/`), see [`docs/`](docs/) —

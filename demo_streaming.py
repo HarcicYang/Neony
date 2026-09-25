@@ -39,8 +39,10 @@ MARKDOWN_ANSWER = (
     "    bubble.append_text(token)\n"
     "```\n\n"
     "| path | ships |\n| --- | --- |\n| plain text | the chunk |\n| markdown | the source |\n\n"
-    "Links stay clickable: [Neony docs](https://harcic.me/neony) open in the "
-    "system browser.\n"
+    "Links stay clickable: open the [Neony docs](https://harcic.me/neony) in the "
+    "system browser.\n\n"
+    "The docs are mirrored on **harcic.me** (Cloudflare Pages) and "
+    "**harcic.is-a.dev** (GitHub Pages).\n"
 )
 
 
