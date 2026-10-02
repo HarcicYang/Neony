@@ -116,15 +116,19 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 
 | 组件                        | 说明                                                                                                                      |
 |-----------------------------|---------------------------------------------------------------------------------------------------------------------------|
-| `Button`                    | 主题按钮 — primary / ghost / danger 变体，悬停与按压反馈                                                                  |
-| `Checkbox`                  | 自定义复选框，含标签与 change 事件                                                                                        |
+| `Button`                    | 主题按钮 — 多变体、悬停/按压反馈、loading 与 `aria-busy`                                                                 |
+| `Checkbox`                  | 自定义复选框 — checked、半选/mixed 与 change 状态                                                                         |
 | `Radio` / `RadioGroup`      | 互斥单选组，组 change 携带选中值                                                                                          |
 | `Switch`                    | 轨道 + 滑块开关，基于原生 checkbox                                                                                        |
 | `Select`                    | 主题下拉框 — `str` 或 `(value, label)` 选项                                                                               |
 | `ComboBox`                  | 可编辑文本 + 主题化建议面板                                                                                               |
 | `Slider`                    | 动画填充滑块 — 有级或无级（`step="any"`）                                                                                 |
 | `Progress`                  | 动画填充进度条 — 确定值或滑动 `indeterminate`                                                                             |
-| `Input`                     | 单行输入框 — text / password / email / number…                                                                            |
+| `Input`                     | 文本框 — 前后缀、清除、密码显隐、Enter 提交与绑定                                                                         |
+| `SegmentedControl`          | 紧凑型单值分段选择器，支持键盘导航                                                                                       |
+| `Breadcrumb`                | 带当前页尾项的导航路径                                                                                                   |
+| `Pagination`                | 带前后页与省略号压缩的页码选择器                                                                                         |
+| `Stepper`                   | 持久化面板的步骤导航，可选线性推进                                                                                       |
 | `Textarea`                  | 多行输入框 — 双向值绑定、input / change 事件、原生尺寸调整                                                                |
 | `FormField`                 | 标签 + 帮助 / 错误包装 — required 检查、validator 回调与 invalid ARIA 状态                                                |
 | `Alert`                     | 语义化内联提示 — 操作区、dismiss / restore 生命周期、四种变体                                                             |

@@ -99,10 +99,8 @@ class PromptDialog(Dialog):
         # The panel children are [header, content, action_bar?]; append ours.
         self._panel.container.append(action_bar)
 
-        # Enter in the field submits; the keydown bubbles to the dialog root
-        # (Dialog sets bubble_events=True), but we bind the field directly so
-        # the intent is local and unambiguous.
-        self._field.on_keydown(self._on_field_keydown)
+        # Enter in the field submits through Input's IME-safe submit event.
+        self._field.on_submit(self._on_confirm)
         self._prompt: ReactiveText = prompt
 
     # ---- state ----
@@ -142,10 +140,6 @@ class PromptDialog(Dialog):
         btn = Button(label, variant=variant)  # type: ignore[arg-type]
         btn.on_click(handler)
         return btn
-
-    async def _on_field_keydown(self, event: DomEvent) -> None:
-        if event.value == "Enter":
-            await self._on_confirm(event)
 
     async def _on_confirm(self, _event: DomEvent) -> None:
         value = self._field.value

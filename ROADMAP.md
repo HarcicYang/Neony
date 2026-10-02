@@ -158,12 +158,12 @@ coverage, Gallery content, i18n and a runnable demo where appropriate.
 - No user-facing component is added in P0. This phase unlocks later
   overlays and input components without duplicating their foundations.
 
-### P1: Everyday UI quick wins
+### P1: Everyday UI quick wins (implemented)
 
-- Input v2: prefix/suffix, clear action, password reveal and Enter
+- [x] Input v2: prefix/suffix, clear action, password reveal and Enter
   submit.
-- Button loading/busy state and Checkbox indeterminate state.
-- `SegmentedControl`, `Breadcrumb`, `Pagination` and navigation
+- [x] Button loading/busy state and Checkbox indeterminate state.
+- [x] `SegmentedControl`, `Breadcrumb`, `Pagination` and navigation
   `Stepper`.
 - These components use ordinary layout, selection and value bindings;
   they do not require the portal.
@@ -326,6 +326,38 @@ email = FormField(
     validator=lambda value: None if "@" in value else "Invalid email",
 )
 email.validate()
+```
+
+### Implemented: P1 daily controls
+
+```python
+save = Button("Save", loading=busy)
+select_all = Checkbox("Select all", indeterminate=True)
+
+email = Input(
+    prefix=icons.email,
+    suffix=".com",
+    clearable=True,
+)
+email.on_submit(send)
+password = Input(type="password", reveal_password=True)
+
+view = SegmentedControl(
+    ChoiceItem("list", "List", icon=icons.list),
+    ChoiceItem("grid", "Grid", icon=icons.grid_view),
+)
+view.bind_value(view_mode)
+
+crumbs = Breadcrumb("Workspace", ("project", "Neony"), "Settings")
+pager = Pagination(value=1, page_count=20)
+pager.bind_value(page)
+
+steps = Stepper(
+    Step("Account", account_form, key="account"),
+    Step("Plan", plan_form, key="plan"),
+    linear=True,
+)
+steps.bind_selected(step_key)
 ```
 
 ### Planned: P1-P5

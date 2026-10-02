@@ -18,6 +18,7 @@ Button("Ghost", variant="ghost")  # 描边表面
 Button("Delete", variant="danger")  # 危险色
 Button("Glass", glass=True)  # 磨砂变体
 Button("Ok", disabled=True)  # 置灰
+Button("Save", loading=True)  # 忙碌态；阻止点击并设置 aria-busy
 button.on_click(handler)  # 点击事件
 ```
 
@@ -26,6 +27,7 @@ button.on_click(handler)  # 点击事件
 ```python
 cb = Checkbox("Pizza")
 cb.checked = True  # 编程设置 — 不触发回调
+cb.indeterminate = True  # 半选状态；用户点击后清除
 cb.on_change(lambda e: print(e.value))  # value = 是否勾选
 ```
 
@@ -34,7 +36,16 @@ cb.on_change(lambda e: print(e.value))  # value = 是否勾选
 ```python
 inp = Input(placeholder="你的名字…", type="text")  # text | password | email | number …
 inp.on_input(lambda e: print(e.value))  # 实时值
+search = Input(prefix=icons.search, clearable=True, placeholder="搜索…")
+pwd = Input(type="password", reveal_password=True)
+search.on_submit(lambda e: run_search(e.value))
 ```
+
+**参数:** `Input(..., prefix=None, suffix=None, clearable=False,
+reveal_password=False)`。prefix/suffix 接受文本、`Icon`、组件或
+DOM 元素。清除按钮属于用户操作，会同时派发 `input` 与 `change`；
+密码显隐只切换原生 input 类型。`on_submit(fn)` 在非 IME 组合状态的
+Enter 上触发，`event.value` 为当前文本。
 
 ### `Textarea`
 
@@ -207,6 +218,64 @@ Progress("扫描中…", indeterminate=True)  # 滑动扫掠动画
 （`indeterminate=True` 播放内置 `neony-indeterminate` 扫掠动画）。
 
 条上携带 ARIA `role="progressbar"` + `aria-valuenow/min/max`。
+
+## 导航
+
+### `SegmentedControl`
+
+```python
+view = SegmentedControl(
+    ChoiceItem("list", "列表"),
+    ChoiceItem("grid", "网格"),
+    ChoiceItem("board", "看板", disabled=True),
+    value="list",
+)
+view.bind_value(view_mode)
+view.on_change(lambda event: print(event.value))
+```
+
+紧凑的单值分段选择器。值、标签、图标与禁用状态复用统一的
+`ChoiceItem`。方向键循环切换可用项，Home/End 跳到首尾，`bind_value`
+使用标准 `change` 协议。
+
+### `Breadcrumb`
+
+```python
+crumbs = Breadcrumb("工作区", ("project", "Neony"), "设置")
+crumbs.on_change(lambda event: router.go(event.value))
+```
+
+最后一项标记为 `aria-current="page"` 且不派发事件；祖先项像链接一样
+通过 `on_change` 发出 value。`ChoiceItem` 可添加图标或禁用单项。
+
+### `Pagination`
+
+```python
+pager = Pagination(value=1, page_count=20, siblings=1, boundary=1)
+pager.bind_value(page)
+pager.on_change(lambda event: load_page(event.value))
+```
+
+前后页按钮与压缩页码共享一个整数、自动钳制范围。方向键移动一页，
+Home/End 跳到首尾。
+
+### `Stepper`
+
+```python
+steps = Stepper(
+    Step("账户", account_form, key="account"),
+    Step("方案", plan_form, key="plan"),
+    Step("确认", review_panel, key="review"),
+    linear=True,
+)
+steps.bind_selected(step_key)
+steps.next()
+steps.previous()
+```
+
+带持久化面板的步骤导航。`selected_key` / `bind_selected` 遵循标准选择
+协议；禁用步骤会被跳过。`linear=True` 时用户只能访问已到过的步骤和
+下一步；`next()` / `previous()` 保留显式导航能力。
 
 ## 文本与标签页
 

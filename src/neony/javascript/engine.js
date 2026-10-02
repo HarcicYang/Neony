@@ -239,6 +239,9 @@ class NeonyEngine {
             // can refire `input` in WebKitGTK.
             if (name === "checked" && (el.type === "checkbox" || el.type === "radio")) {
                 el.checked = true;
+            } else if (name === "data-neony-indeterminate" && el.tagName === "INPUT") {
+                el.indeterminate = true;
+                el.setAttribute(name, String(value));
             } else if (name === "value" && el.tagName === "INPUT") {
                 if (el.value !== value) el.value = value;
             } else if (el.getAttribute(name) !== String(value)) {
@@ -260,6 +263,9 @@ class NeonyEngine {
         for (const name of removeAttrs) {
             if (name === "checked" && (el.type === "checkbox" || el.type === "radio")) {
                 el.checked = false;
+            } else if (name === "data-neony-indeterminate" && el.tagName === "INPUT") {
+                el.indeterminate = false;
+                el.removeAttribute(name);
             } else if (name === "value" && el.tagName === "INPUT") {
                 el.value = "";
             } else {

@@ -160,7 +160,7 @@ class TestFormFieldValidation:
         assert field.validate() is False
         assert field.error == "Required"
         assert field.invalid is True
-        assert field.control.args["aria-invalid"] == "true"
+        assert field._control_target.args["aria-invalid"] == "true"
 
     def test_validator_receives_control_value_and_can_pass_or_fail(self):
         control = Input(value="ada@example.com")

@@ -620,7 +620,7 @@ class TestComponentEventWiring:
         inp.on_keydown(lambda e: received.append(e))
         _setup_entry(app, inp.build(), fake)
 
-        asyncio.run(_fire(app, inp._root.key, "keydown", "s", ctrl_key=True))
+        asyncio.run(_fire(app, inp._input.key, "keydown", "s", ctrl_key=True))
 
         assert len(received) == 1
         assert received[0].ctrl_key is True
@@ -637,7 +637,7 @@ class TestComponentEventWiring:
         inp.on_focus(lambda e: calls.append("focus"))
         _setup_entry(app, inp.build(), fake)
 
-        asyncio.run(_fire(app, inp._root.key, "focus"))
+        asyncio.run(_fire(app, inp._input.key, "focus"))
 
         assert calls == ["focus"]
 

@@ -4,6 +4,15 @@
 
 ### Added
 
+- **P1 daily controls** — `Button(loading=True)` exposes an accessible
+  busy state and blocks clicks while work is pending. `Checkbox` now
+  supports native-style `indeterminate` / mixed selection.
+- **Input v2** — prefix/suffix adornments, clear action, password reveal
+  and IME-safe Enter submit. Existing value, binding and event semantics
+  are unchanged.
+- **Navigation controls** — `SegmentedControl`, `Breadcrumb`,
+  `Pagination` and the guided navigation `Stepper` are now available.
+  SegmentedControl and Breadcrumb reuse the shared `ChoiceItem` model.
 - **Shared rich choice model** — `ChoiceItem` and `MenuSeparator` are now
   accepted by Menu, Dropdown, Select, ComboBox and CascadingDropdown.
   Rich menu rows support icons, display shortcuts, checked state, danger

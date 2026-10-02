@@ -130,7 +130,7 @@ class TestComponentState:
         inp = Input()
         inp.value = "hello"
         assert inp.value == "hello"
-        node = inp.build().to_node()
+        node = inp._input.to_node()
         assert node.attrs["value"] == "hello"
 
     def test_button_label_setter(self):

@@ -55,6 +55,19 @@ describe("buildNode", () => {
     expect(el.hasAttribute("disabled")).toBe(true);
   });
 
+  it("maps the indeterminate marker to the native checkbox property", () => {
+    const { buildNode } = rt;
+    const el = buildNode(
+      {
+        key: "check",
+        tag: "input",
+        attrs: { type: "checkbox", "data-neony-indeterminate": "true" },
+      },
+      new Map()
+    );
+    expect(el.indeterminate).toBe(true);
+  });
+
   it("sets text content when present", () => {
     const el = rt.buildNode({ key: "t", tag: "span", text: "hello" }, new Map());
     expect(el.textContent).toBe("hello");

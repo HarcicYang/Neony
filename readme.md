@@ -126,15 +126,19 @@ Import from `neony.application.elements`.
 
 | Component                 | Description                                                                    |
 | ------------------------- | ------------------------------------------------------------------------------ |
-| `Button`                  | Themed push button — primary / ghost / danger variants, hover & press feedback |
-| `Checkbox`                | Custom-styled checkbox with label and `change` event                           |
+| `Button`                  | Themed push button — variants, hover/press feedback, loading and `aria-busy`   |
+| `Checkbox`                | Custom-styled checkbox with checked, indeterminate/mixed and `change` state     |
 | `Radio` / `RadioGroup`    | Mutual-exclusion radio options with group `change` carrying the value          |
 | `Switch`                  | Track + thumb toggle built on a native checkbox                                |
 | `Select`                  | Themed dropdown — `str` or `(value, label)` options                            |
 | `ComboBox`                | Editable text with a themed suggestion popup                                   |
 | `Slider`                  | Slider with animated accent fill — stepped or stepless (`step="any"`)          |
 | `Progress`                | Progress bar with animated fill — determinate or sliding `indeterminate`      |
-| `Input`                   | Single-line text field — text / password / email / number…                     |
+| `Input`                   | Text field — adornments, clear, password reveal, Enter submit and bindings      |
+| `SegmentedControl`        | Compact single-value segmented selector with keyboard navigation               |
+| `Breadcrumb`              | Navigation ancestry with a current-page tail                                   |
+| `Pagination`              | Page selector with previous/next controls and compressed ellipses              |
+| `Stepper`                 | Guided navigation with persistent panels and optional linear progression       |
 | `Textarea`                | Multiline text field — value binding, input / change events, native resize      |
 | `FormField`               | Label + help / error wrapper — required checks, validator callback and invalid ARIA state |
 | `Alert`                   | Semantic inline message — actions, dismiss / restore lifecycle, four variants   |

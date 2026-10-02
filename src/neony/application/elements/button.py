@@ -5,11 +5,21 @@ from __future__ import annotations
 from typing import Literal
 
 from neony.application.theme import Theme, stub
-from neony.dom import BoxShadow, Color, DOMElement, DomEvent, Shadow, Span, Styles, Transition
+from neony.dom import Animation, BoxShadow, Color, DOMElement, DomEvent, Shadow, Span, Styles, Transition
 from neony.dom import Button as _ButtonElem
 
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
+
+_LOADING_SPINNER = Styles(
+    width="14px",
+    height="14px",
+    border="2px solid currentColor",
+    border_top_color="transparent",
+    border_radius="50%",
+    flex_shrink="0",
+    animation=Animation(name="neony-spin", duration="0.8s", timing="linear", iteration_count="infinite"),
+)
 
 
 class Button(Component):
@@ -35,11 +45,13 @@ class Button(Component):
         glass: bool = False,
         disabled: bool = False,
         icon: Icon | None = None,
+        loading: bool = False,
     ) -> None:
         super().__init__()
         self._label = label
         self._icon = icon
         self._disabled = disabled
+        self._loading = loading
         self._variant = variant
         self._glass = glass
         self._hover = False
@@ -60,6 +72,7 @@ class Button(Component):
         self._label_is_reactive = not isinstance(self._label, str)
         self._has_label_text = isinstance(self._label, str) and bool(self._label)
         self._icon_span: Span | None = icon.render("16px") if icon is not None else None
+        self._spinner_span = Span(container=[], styles=_LOADING_SPINNER)
         self._label_span = Span(container=[])
         _mount_text(self._label_span, label)
 
@@ -76,6 +89,8 @@ class Button(Component):
             args={"data-neony-event-scope": ""},
         )
         self._btn.bubble_events = True
+        self._btn.disabled = self._disabled or self._loading
+        self._sync_busy()
 
         self._root = self._btn
         self._bind(self._btn, "click")
@@ -96,11 +111,21 @@ class Button(Component):
 
     def _text_content(self) -> list[DOMElement | str]:
         parts: list[DOMElement | str] = []
-        if self._icon_span is not None:
+        if self._loading:
+            parts.append(self._spinner_span)
+        elif self._icon_span is not None:
             parts.append(self._icon_span)
         if self._has_label_text or self._label_is_reactive or self._icon_span is None:
             parts.append(self._label_span)
         return parts
+
+    def _sync_busy(self) -> None:
+        args = dict(self._btn.args)
+        if self._loading:
+            args["aria-busy"] = "true"
+        else:
+            args.pop("aria-busy", None)
+        self._btn.args = args
 
     @staticmethod
     def _variant_styles(variant: str, glass: bool = False) -> Styles:
@@ -192,7 +217,9 @@ class Button(Component):
             if layers:
                 update["box_shadow"] = BoxShadow(layers=layers)
                 styles = styles.model_copy(update=update)
-        if self._disabled:
+        if self._loading:
+            styles = styles.model_copy(update={"cursor": "wait"})
+        if self._disabled or self._loading:
             styles = styles.model_copy(update={"opacity": 0.5})
         self._btn.styles = styles
 
@@ -235,12 +262,26 @@ class Button(Component):
     @disabled.setter
     def disabled(self, value: bool) -> None:
         self._disabled = value
-        self._btn.disabled = value
+        self._btn.disabled = self._disabled or self._loading
+        self._apply_state()
+
+    @property
+    def loading(self) -> bool:
+        return self._loading
+
+    @loading.setter
+    def loading(self, value: bool) -> None:
+        self._loading = value
+        self._btn.disabled = self._disabled or self._loading
+        self._btn.container = self._text_content()
+        self._sync_busy()
         self._apply_state()
 
     # ---- events ----
 
     async def _on_event(self, event_type: str, event: DomEvent) -> None:
+        if event_type == "click" and self._loading:
+            return
         if event_type == "mouseover":
             self._hover = True
             self._apply_state()

@@ -10,6 +10,7 @@ from neony.application.elements.alert import Alert
 from neony.application.elements.avatar import Avatar
 from neony.application.elements.badge import Badge
 from neony.application.elements.base import Component
+from neony.application.elements.breadcrumb import Breadcrumb
 from neony.application.elements.button import Button
 from neony.application.elements.card import Card
 from neony.application.elements.cascading_dropdown import CascadingDropdown
@@ -31,15 +32,18 @@ from neony.application.elements.list import List, ListItem
 from neony.application.elements.markdown import Markdown
 from neony.application.elements.media import Audio, Video
 from neony.application.elements.menu import Menu, MenuBranch
+from neony.application.elements.pagination import Pagination
 from neony.application.elements.progress import Progress
 from neony.application.elements.prompt_dialog import PromptDialog
 from neony.application.elements.radio import Radio, RadioGroup
 from neony.application.elements.reorder import Reorder, ReorderContent, ReorderItem
 from neony.application.elements.rich_text import ImageSegment, RichText, TextSegment
 from neony.application.elements.scroll import ScrollArea, StickToBottom
+from neony.application.elements.segmented_control import SegmentedControl
 from neony.application.elements.select import Select
 from neony.application.elements.sidebar import Pane, Sidebar, SidebarGroup, SidebarItem
 from neony.application.elements.slider import Slider
+from neony.application.elements.stepper import Step, Stepper
 from neony.application.elements.switch import Switch
 from neony.application.elements.tabs import Tabs
 from neony.application.elements.text import Text
@@ -55,6 +59,7 @@ __all__ = [
     "Audio",
     "Avatar",
     "Badge",
+    "Breadcrumb",
     "Button",
     "Card",
     "CascadingDropdown",
@@ -87,6 +92,7 @@ __all__ = [
     "MenuSeparator",
     "MessageBubble",
     "NoticeBubble",
+    "Pagination",
     "Pane",
     "Progress",
     "PromptDialog",
@@ -97,6 +103,7 @@ __all__ = [
     "ReorderItem",
     "RichText",
     "ScrollArea",
+    "SegmentedControl",
     "Select",
     "Separator",
     "Sidebar",
@@ -106,6 +113,8 @@ __all__ = [
     "Slider",
     "Spacer",
     "Spinner",
+    "Step",
+    "Stepper",
     "StickToBottom",
     "Switch",
     "Tabs",

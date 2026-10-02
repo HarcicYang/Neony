@@ -96,28 +96,28 @@ class TestFormField:
             required=True,
         )
         node = field.build().to_node()
-        control = node.children[1].children[0]
+        native = next(candidate for candidate in _walk(node) if candidate.tag == "input")
 
         assert _contains_text(node, "Email")
         assert _contains_text(node, "Never shared.")
-        assert control.attrs["aria-labelledby"]
-        assert control.attrs["aria-describedby"]
-        assert control.attrs["aria-required"] == "true"
-        assert control.attrs["type"] == "email"
+        assert native.attrs["aria-labelledby"]
+        assert native.attrs["aria-describedby"]
+        assert native.attrs["aria-required"] == "true"
+        assert native.attrs["type"] == "email"
 
     def test_invalid_and_error_are_exposed(self):
         field = FormField("Email", Input(), invalid=True, error="Invalid email")
         node = field.build().to_node()
-        control = node.children[1].children[0]
+        native = next(candidate for candidate in _walk(node) if candidate.tag == "input")
 
         assert _contains_text(node, "Invalid email")
-        assert control.attrs["aria-invalid"] == "true"
+        assert native.attrs["aria-invalid"] == "true"
         assert node.children[1].styles["box-shadow"]
 
         field.invalid = False
         node = field._root.to_node()
-        control = node.children[1].children[0]
-        assert "aria-invalid" not in control.attrs
+        native = next(candidate for candidate in _walk(node) if candidate.tag == "input")
+        assert "aria-invalid" not in native.attrs
         assert "box-shadow" not in node.children[1].styles
 
     def test_required_star_can_toggle(self):
@@ -127,7 +127,7 @@ class TestFormField:
         field.required = True
 
         assert field._required_span.styles.display == "inline"
-        assert field.control.args["aria-required"] == "true"
+        assert field._control_target.args["aria-required"] == "true"
 
     def test_component_control_is_mounted_once(self):
         control = Input()

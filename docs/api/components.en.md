@@ -18,6 +18,7 @@ Button("Ghost", variant="ghost")  # bordered surface
 Button("Delete", variant="danger")  # danger color
 Button("Glass", glass=True)  # frosted variant
 Button("Ok", disabled=True)  # dimmed
+Button("Save", loading=True)  # busy; blocks clicks and sets aria-busy
 button.on_click(handler)  # click event
 ```
 
@@ -26,6 +27,7 @@ button.on_click(handler)  # click event
 ```python
 cb = Checkbox("Pizza")
 cb.checked = True  # programmatic — no callback
+cb.indeterminate = True  # mixed visual/state; user click clears it
 cb.on_change(lambda e: print(e.value))  # value = checked bool
 ```
 
@@ -34,7 +36,17 @@ cb.on_change(lambda e: print(e.value))  # value = checked bool
 ```python
 inp = Input(placeholder="Your name…", type="text")  # text | password | email | number …
 inp.on_input(lambda e: print(e.value))  # live value
+search = Input(prefix=icons.search, clearable=True, placeholder="Search…")
+pwd = Input(type="password", reveal_password=True)
+search.on_submit(lambda e: run_search(e.value))
 ```
+
+**Options:** `Input(..., prefix=None, suffix=None, clearable=False,
+reveal_password=False)`. Prefix/suffix accept text, `Icon`, a Component
+or a DOMElement. The clear action is user-driven and emits both `input`
+and `change`; password reveal only toggles the native input type.
+`on_submit(fn)` fires on Enter outside IME composition with
+`event.value` set to the current text.
 
 ### `Textarea`
 
@@ -225,6 +237,69 @@ A rounded track with an accent fill that transitions on value changes
 
 ARIA `role="progressbar"` + `aria-valuenow/min/max` are carried on the
 bar.
+
+## Navigation
+
+### `SegmentedControl`
+
+```python
+view = SegmentedControl(
+    ChoiceItem("list", "List"),
+    ChoiceItem("grid", "Grid"),
+    ChoiceItem("board", "Board", disabled=True),
+    value="list",
+)
+view.bind_value(view_mode)
+view.on_change(lambda event: print(event.value))
+```
+
+A compact single-value selector. Values, labels, icons and disabled
+state use the shared `ChoiceItem` model. ArrowLeft/ArrowRight cycle
+through enabled segments, Home/End jump to the ends, and `bind_value`
+uses the standard `change` protocol.
+
+### `Breadcrumb`
+
+```python
+crumbs = Breadcrumb("Workspace", ("project", "Neony"), "Settings")
+crumbs.on_change(lambda event: router.go(event.value))
+```
+
+The final item is marked `aria-current="page"` and does not dispatch.
+Ancestor items behave like links and emit their value through
+`on_change`. `ChoiceItem` can add icons or disable individual crumbs.
+
+### `Pagination`
+
+```python
+pager = Pagination(value=1, page_count=20, siblings=1, boundary=1)
+pager.bind_value(page)
+pager.on_change(lambda event: load_page(event.value))
+```
+
+Previous/next controls and compressed page buttons share one clamped
+integer value. ArrowLeft/ArrowRight move one page and Home/End jump to
+the boundaries.
+
+### `Stepper`
+
+```python
+steps = Stepper(
+    Step("Account", account_form, key="account"),
+    Step("Plan", plan_form, key="plan"),
+    Step("Review", review_panel, key="review"),
+    linear=True,
+)
+steps.bind_selected(step_key)
+steps.next()
+steps.previous()
+```
+
+A guided sequence with persistent panels. `selected_key` /
+`bind_selected` follow the standard selection protocol. Disabled steps
+are skipped; `linear=True` allows user movement to visited steps and
+the next step, while `next()` / `previous()` remain explicit
+navigation APIs.
 
 ## Text & tabs
 

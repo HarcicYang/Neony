@@ -66,6 +66,11 @@ class FormField(Component):
         else:
             self._control = control
         self._control_root = self._control
+        self._control_target = (
+            getattr(control, "control_element", self._control_root)
+            if isinstance(control, Component)
+            else self._control_root
+        )
         if self._control_root.id_ is None:
             self._control_root.id_ = self._control_root.key
 
@@ -208,7 +213,7 @@ class FormField(Component):
         has_error = self._resolve_message(self._error) is not None
         self._error_span.styles = _ERROR.model_copy(update={"display": "block" if has_error else "none"})
 
-        args = dict(self._control_root.args)
+        args = dict(self._control_target.args)
         args["aria-labelledby"] = self._label_el.key
         if self._required:
             args["aria-required"] = "true"
@@ -225,7 +230,7 @@ class FormField(Component):
             args["aria-invalid"] = "true"
         else:
             args.pop("aria-invalid", None)
-        self._control_root.args = args
+        self._control_target.args = args
 
         self._slot.styles = _SLOT.model_copy(
             update={"box_shadow": Theme.focus_glow("danger") if self._invalid else None}

@@ -298,6 +298,25 @@ describe("patch ops", () => {
     expect(engine.registry.get("cb").checked).toBe(false);
   });
 
+  it("update_attrs: mirrors the indeterminate marker to the IDL property", () => {
+    const engine = mountEngine(new rt.NeonyEngine(), 1, {
+      key: "root",
+      tag: "div",
+      children: [{ key: "cb", tag: "input", attrs: { type: "checkbox" } }],
+    });
+    const cb = engine.registry.get("cb");
+
+    engine.applyOps([
+      { op: "update_attrs", key: "cb", set: { "data-neony-indeterminate": "true" }, remove: [] },
+    ]);
+    expect(cb.indeterminate).toBe(true);
+
+    engine.applyOps([
+      { op: "update_attrs", key: "cb", set: {}, remove: ["data-neony-indeterminate"] },
+    ]);
+    expect(cb.indeterminate).toBe(false);
+  });
+
   it("update_attrs: sets input value via IDL property, skips identical writes", () => {
     const engine = mountEngine(new rt.NeonyEngine(), 1, {
       key: "root",

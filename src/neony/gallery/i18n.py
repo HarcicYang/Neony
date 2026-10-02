@@ -116,6 +116,8 @@ class Forms(BaseModel):
     name_placeholder: TrRef[None] = TrRef("Your name…")
     password_placeholder: TrRef[None] = TrRef("Password")
     email_placeholder: TrRef[None] = TrRef("Email")
+    search_placeholder: TrRef[None] = TrRef("Search…")
+    optional: TrRef[None] = TrRef("optional")
     hello_fmt: TrRef[dict[str, object]] = TrRef("Hello, {value}!")
     length_fmt: TrRef[dict[str, object]] = TrRef("Length: {value}")
     email_fmt: TrRef[dict[str, object]] = TrRef("Email: {value}")
@@ -162,6 +164,17 @@ class Forms(BaseModel):
     scanning: TrRef[None] = TrRef("Scanning…")
     advance: TrRef[None] = TrRef("+15%")
     shared_heat_fmt: TrRef[dict[str, object]] = TrRef("shared heat signal (from the Reactive tab): {n}%")
+    view_mode: TrRef[None] = TrRef("View")
+    view_list: TrRef[None] = TrRef("List")
+    view_grid: TrRef[None] = TrRef("Grid")
+    view_board: TrRef[None] = TrRef("Board")
+    workspace: TrRef[None] = TrRef("Workspace")
+    project_name: TrRef[None] = TrRef("Neony")
+    settings: TrRef[None] = TrRef("Settings")
+    page_fmt: TrRef[dict[str, object]] = TrRef("Page {value}")
+    step_account: TrRef[None] = TrRef("Account")
+    step_plan: TrRef[None] = TrRef("Plan")
+    step_review: TrRef[None] = TrRef("Review")
 
 
 class Feedback(BaseModel):
@@ -853,6 +866,8 @@ register_catalog(
             name_placeholder="你的名字…",
             password_placeholder="密码",
             email_placeholder="邮箱",
+            search_placeholder="搜索…",
+            optional="可选",
             hello_fmt="你好，{value}！",
             length_fmt="长度：{value}",
             email_fmt="邮箱：{value}",
@@ -894,6 +909,17 @@ register_catalog(
             scanning="扫描中…",
             advance="+15%",
             shared_heat_fmt="共享 heat 信号（来自响应式标签页）：{n}%",
+            view_mode="视图",
+            view_list="列表",
+            view_grid="网格",
+            view_board="看板",
+            workspace="工作区",
+            project_name="Neony",
+            settings="设置",
+            page_fmt="第 {value} 页",
+            step_account="账户",
+            step_plan="方案",
+            step_review="确认",
         ),
         feedback=Feedback(
             title="反馈与校验",

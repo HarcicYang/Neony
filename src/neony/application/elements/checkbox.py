@@ -52,6 +52,12 @@ _CHECK_SVG = (
     "<polyline points='20 6 9 17 4 12'/></svg>"
 )
 _CHECK_MARK = f'url("data:image/svg+xml,{urllib.parse.quote(_CHECK_SVG)}")'
+_DASH_SVG = (
+    "<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' "
+    "viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' "
+    "stroke-linecap='round'><line x1='6' y1='12' x2='18' y2='12'/></svg>"
+)
+_DASH_MARK = f'url("data:image/svg+xml,{urllib.parse.quote(_DASH_SVG)}")'
 
 _CHECKED = _BOX.model_copy(
     update={
@@ -83,11 +89,18 @@ class Checkbox(Component):
     """
 
     def __init__(
-        self, label: ReactiveText = "", *, checked: bool = False, glass: bool = False, disabled: bool = False
+        self,
+        label: ReactiveText = "",
+        *,
+        checked: bool = False,
+        indeterminate: bool = False,
+        glass: bool = False,
+        disabled: bool = False,
     ) -> None:
         super().__init__()
         self._label: ReactiveText = label
         self._checked = checked
+        self._indeterminate = indeterminate
         self._disabled = disabled
         self._glass = glass
         self._focused = False
@@ -97,6 +110,7 @@ class Checkbox(Component):
         _mount_text(self._label_span, label)
         self._root = _LabelElem(styles=_ROW, container=[self._input, self._label_span])
 
+        self._sync_native_state()
         self._apply_box_style()
         self._bind(self._input, "change")
         self._bind(self._input, "focus")
@@ -114,6 +128,26 @@ class Checkbox(Component):
         self._input.checked = value  # immediate write; no callback
         self._apply_box_style()
         self._mirror_value(value)
+
+    @property
+    def indeterminate(self) -> bool:
+        return self._indeterminate
+
+    @indeterminate.setter
+    def indeterminate(self, value: bool) -> None:
+        self._indeterminate = value
+        self._sync_native_state()
+        self._apply_box_style()
+
+    def _sync_native_state(self) -> None:
+        args = dict(self._input.args)
+        if self._indeterminate:
+            args["data-neony-indeterminate"] = "true"
+            args["aria-checked"] = "mixed"
+        else:
+            args.pop("data-neony-indeterminate", None)
+            args.pop("aria-checked", None)
+        self._input.args = args
 
     @property
     def label(self) -> str:
@@ -140,7 +174,18 @@ class Checkbox(Component):
 
     def _apply_box_style(self) -> None:
         """Sync the visible box style with the checked state."""
-        if self._checked:
+        if self._indeterminate:
+            base = _GLASS_BOX if self._glass else _BOX
+            styles = base.model_copy(
+                update={
+                    "background_color": (stub.accent_glass_bg if self._glass else stub.accent),
+                    "background_image": _DASH_MARK,
+                    "background_size": "12px 12px",
+                    "background_position": "center",
+                    "background_repeat": "no-repeat",
+                }
+            )
+        elif self._checked:
             base = _GLASS_BOX if self._glass else _BOX
             styles = base.model_copy(
                 update={
@@ -163,8 +208,10 @@ class Checkbox(Component):
 
     async def _on_event(self, event_type: str, event: DomEvent) -> None:
         if event_type == "change":
+            self._indeterminate = False
             self._checked = bool(event.value)
             self._input.checked = self._checked
+            self._sync_native_state()
             self._apply_box_style()
         elif event_type == "focus":
             self._focused = True

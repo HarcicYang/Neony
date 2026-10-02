@@ -2,17 +2,24 @@
 
 from __future__ import annotations
 
+from neony.application import icons
 from neony.application.elements import (
+    Breadcrumb,
     Button,
     Checkbox,
+    ChoiceItem,
     ComboBox,
     Input,
+    Pagination,
     Progress,
     Radio,
     RadioGroup,
+    SegmentedControl,
     Select,
     Separator,
     Slider,
+    Step,
+    Stepper,
     Switch,
     Text,
 )
@@ -29,7 +36,11 @@ text_value = Signal("")
 text_input.bind_value(text_value)
 text_echo.bind_text(text_value, fmt=lambda value: tr.forms.hello_fmt.format(value=value).get() if value else "")
 
-password_input = Input(placeholder=tr.forms.password_placeholder, type="password")
+password_input = Input(
+    placeholder=tr.forms.password_placeholder,
+    type="password",
+    reveal_password=True,
+)
 password_echo = Text("", role="secondary")
 password_value = Signal("")
 password_input.bind_value(password_value)
@@ -43,6 +54,13 @@ email_value = Signal("")
 email_input.bind_value(email_value)
 email_echo.bind_text(email_value, fmt=lambda value: tr.forms.email_fmt.format(value=value).get() if value else "")
 
+search_input = Input(
+    prefix=icons.search,
+    suffix=tr_now(tr.forms.optional),
+    clearable=True,
+    placeholder=tr.forms.search_placeholder,
+)
+
 inputs_panel = Section(
     tr.forms.inputs_title,
     tr.forms.inputs_blurb,
@@ -51,13 +69,18 @@ text_input.bind_value(name)
 text_echo.bind_text(name, fmt=lambda v: f"Hello, {v}!" if v else "")
 
 pwd = Input(placeholder="Password", type="password")   # email / number …
-pwd.bind_value(password)""",
+pwd.bind_value(password)
+
+search = Input(prefix=icons.search, suffix="optional",
+               clearable=True, placeholder="Search…")
+search.on_submit(lambda event: run_search(event.value))""",
     text_input,
     text_echo,
     password_input,
     password_echo,
     email_input,
     email_echo,
+    search_input,
 )
 
 # ── tab: checks ──────────────────────────────────────────────────
@@ -146,6 +169,33 @@ tag_combobox.bind_value(tag)
 tag_echo = Text("", role="secondary")
 tag_echo.bind_text(tag, fmt=lambda value: tr.forms.tag_fmt.format(value=value).get() if value else "")
 
+view_mode = Signal("list")
+view_control = SegmentedControl(
+    ChoiceItem("list", tr.forms.view_list, icon=icons.list),
+    ChoiceItem("grid", tr.forms.view_grid, icon=icons.grid_view),
+    ChoiceItem("board", tr.forms.view_board, icon=icons.dashboard),
+    value="list",
+)
+view_control.bind_value(view_mode)
+
+crumb = Breadcrumb(
+    tr_now(tr.forms.workspace),
+    ("project", tr_now(tr.forms.project_name)),
+    tr_now(tr.forms.settings),
+)
+
+page = Signal(1)
+pager = Pagination(value=1, page_count=8, siblings=1)
+pager.bind_value(page)
+page_status = Text("", role="secondary")
+page_status.bind_text(page, fmt=lambda value: tr.forms.page_fmt.format(value=value).get())
+
+stepper = Stepper(
+    Step(tr.forms.step_account, Text("Create your account.", role="secondary"), key="account"),
+    Step(tr.forms.step_plan, Text("Choose a plan.", role="secondary"), key="plan"),
+    Step(tr.forms.step_review, Text("Review and confirm.", role="secondary"), key="review"),
+)
+
 # One signal drives three widgets: slider, readout and progress bar.
 volume = Signal(40)
 volume_slider = Slider(tr.forms.volume_stepped, min=0, max=100, step=5, value=40)
@@ -208,6 +258,15 @@ Progress(indeterminate=True)  # sliding sweep animation""",
     Separator(),
     size_select,
     size_echo,
+    Separator(),
+    view_control,
+    Separator(),
+    crumb,
+    Separator(),
+    pager,
+    page_status,
+    Separator(),
+    stepper,
     Separator(),
     tag_combobox,
     tag_echo,

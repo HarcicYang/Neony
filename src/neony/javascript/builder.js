@@ -36,6 +36,9 @@ function buildNode(desc, registry) {
     for (const [name, value] of Object.entries(attrs)) {
         el.setAttribute(name, value);
     }
+    if (el.tagName === "INPUT" && attrs["data-neony-indeterminate"] !== undefined) {
+        el.indeterminate = true;
+    }
 
     // Managed media (neony Video/Audio components): the source travels
     // in data-neony-media-src and NEVER lands in the DOM src attribute —
