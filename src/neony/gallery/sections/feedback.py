@@ -18,7 +18,7 @@ from neony.application.elements import (
 from neony.dom import DomEvent, Signal
 
 from ..core import Section
-from ..i18n import tr
+from ..i18n import tr, tr_now
 
 notes = Textarea(tr.feedback.notes_placeholder, value="", rows=5, resize="vertical")
 notes_value = Signal("")
@@ -30,19 +30,28 @@ notes_echo.bind_text(
 )
 
 email_input = Input(placeholder=tr.feedback.email_placeholder, type="email")
+
+
+def validate_email(value) -> str | None:
+    text = str(value or "")
+    if not text:
+        return None
+    if "@" not in text or "." not in text.split("@")[-1]:
+        return tr_now(tr.feedback.email_error)
+    return None
+
+
 email_field = FormField(
     tr.feedback.email_label,
     email_input,
     help=tr.feedback.email_help,
     required=True,
+    validator=validate_email,
 )
 
 
 def on_email_input(event: DomEvent) -> None:
-    value = str(event.value or "")
-    invalid = bool(value) and ("@" not in value or "." not in value.split("@")[-1])
-    email_field.invalid = invalid
-    email_field.error = tr.feedback.email_error if invalid else None
+    email_field.validate()
 
 
 email_input.on_input(on_email_input)
@@ -96,9 +105,10 @@ notes.bind_value(notes_signal)
 notes.on_input(on_preview)
 
 email = FormField("Email", Input(type="email"),
-                  help="Never shared.", required=True)
-email.invalid = True
-email.error = "Enter a valid email address."
+                  help="Never shared.", required=True,
+                  validator=validate_email)
+email.on_input(lambda _event: email.validate())
+email.validate()
 
 alert = Alert("Saved", description="All changes synced.",
               variant="success", dismissible=True)

@@ -169,12 +169,14 @@ class Dialog(Component):
         glass: bool = True,
         closable: bool = True,
         actions: Sequence[DialogAction] = (),
+        initial_focus: Component | DOMElement | None = None,
     ) -> None:
         super().__init__()
         self._title: ReactiveText = title
         self._open = False
         self._closable = closable
         self._actions = list(actions)
+        self._initial_focus = initial_focus
         self._close_task: asyncio.Task | None = None
         self._layer_handle: LayerHandle | None = None
 
@@ -182,6 +184,7 @@ class Dialog(Component):
         # The title rides a child span so a reactive ``tr`` binding can
         # re-render on language switch.
         self._title_span = Span(container=[], styles=_TITLE)
+        self._title_span.id_ = self._title_span.key
         _mount_text(self._title_span, title)
         header = Div(styles=Styles(display="flex", align_items="center"), container=[self._title_span])
         panel_parts: list[DOMElement | str] = [header]
@@ -192,7 +195,11 @@ class Dialog(Component):
         panel_style = (_GLASS_PANEL if glass else _SOLID_PANEL).model_copy(update={"width": width})
         self._panel_restore = panel_style
         self._panel = Div(styles=panel_style, container=panel_parts)
-        self._root = Div(styles=_ROOT, container=[self._scrim, self._panel])
+        self._root = Div(
+            styles=_ROOT,
+            args={"role": "dialog", "aria-modal": "true", "aria-labelledby": self._title_span.key},
+            container=[self._scrim, self._panel],
+        )
         # Keydowns from anything focused inside the dialog bubble here.
         self._root.bubble_events = True
 
@@ -227,6 +234,10 @@ class Dialog(Component):
                 kind=Layer.MODAL,
                 group="modal",
                 on_close=self._close_from_layer,
+                focus_scope="trap",
+                initial_focus=(
+                    self._initial_focus.build() if isinstance(self._initial_focus, Component) else self._initial_focus
+                ),
             )
         else:
             if self._layer_handle is not None:
@@ -280,6 +291,14 @@ class Dialog(Component):
     def title(self, value: str) -> None:
         self._title = value
         self._title_span.container = [value]
+
+    @property
+    def initial_focus(self) -> Component | DOMElement | None:
+        return self._initial_focus
+
+    @initial_focus.setter
+    def initial_focus(self, value: Component | DOMElement | None) -> None:
+        self._initial_focus = value
 
     def on_open(self, fn) -> Self:
         """Register a callback fired when the dialog opens (called with

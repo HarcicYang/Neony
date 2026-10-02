@@ -15,11 +15,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from neony.application.theme import Theme, stub
-from neony.dom import Border, BoxShadow, Color, Div, DomEvent, Filter, Shadow, Span, Styles, Transition
+from neony.dom import Border, BoxShadow, Color, Div, DOMElement, DomEvent, Filter, Shadow, Span, Styles, Transition
 from neony.dom import Button as _ButtonElem
 
 from .. import motion
 from ..layers import Layer, LayerHandle, layer_manager
+from ._choices import ChoiceItem, ChoiceItemLike, MenuSeparator, choice_content, coerce_choice_item
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
@@ -111,6 +112,16 @@ _OPTION = Styles(
 _OPTION_ACTIVE = _OPTION.model_copy(update={"background_color": stub.accent_glass_bg})
 _OPTION_HOVER = _OPTION.model_copy(update={"background_color": stub.surface_glass_bg})
 _OPTION_DISABLED = _OPTION.model_copy(update={"color": stub.text_secondary, "cursor": "default"})
+_OPTION_DANGER = _OPTION.model_copy(update={"color": stub.danger})
+_OPTION_DANGER_ACTIVE = _OPTION_DANGER.model_copy(update={"background_color": stub.danger_glass_bg})
+_OPTION_DANGER_HOVER = _OPTION_DANGER.model_copy(update={"background_color": stub.danger_glass_bg})
+_SEPARATOR = Styles(
+    height="1px",
+    min_height="1px",
+    margin="4px 6px",
+    background_color=stub.border,
+    flex_shrink="0",
+)
 
 
 class Select(Component):
@@ -136,7 +147,7 @@ class Select(Component):
         self,
         label: ReactiveText = "",
         *,
-        options: Sequence[str | tuple[str, ReactiveText]] = (),
+        options: Sequence[ChoiceItemLike | MenuSeparator] = (),
         value: str | None = None,
         placeholder: str | None = None,
         glass: bool = False,
@@ -144,10 +155,12 @@ class Select(Component):
     ) -> None:
         super().__init__()
         self._label: ReactiveText = label
-        self._options: list[tuple[str, ReactiveText]] = []
+        self._options: list[ChoiceItem] = []
         self._label_by_value: dict[str, ReactiveText] = {}
-        self._rows: list[tuple[str | None, _ButtonElem]] = []
+        self._rows: list[tuple[str | None, Div | _ButtonElem]] = []
         self._row_by_key: dict[str, str | None] = {}
+        self._choice_by_index: list[ChoiceItem | MenuSeparator | None] = []
+        self._selectable: list[int] = []
         self._hovered: set[int] = set()
         self._active_index = -1
         self._value: str | None = None
@@ -235,33 +248,62 @@ class Select(Component):
 
     # ---- internals ----
 
-    def _add_option(self, entry: str | tuple[str, ReactiveText]) -> None:
-        if isinstance(entry, tuple):
-            value, label = entry
-        else:
-            value = label = entry
-        self._options.append((value, label))
-        self._label_by_value[value] = label
-        self._popup.container.append(self._make_option(value, label))
+    def _add_option(self, entry: ChoiceItemLike | MenuSeparator) -> None:
+        if isinstance(entry, MenuSeparator):
+            row = Div(styles=_SEPARATOR, args={"role": "separator"})
+            self._rows.append((None, row))
+            self._row_by_key[row.key] = None
+            self._choice_by_index.append(entry)
+            self._popup.container.append(row)
+            return
+        item = coerce_choice_item(entry)
+        self._options.append(item)
+        self._label_by_value[item.value] = item.label
+        self._popup.container.append(self._make_option(item))
 
-    def _make_option(self, value: str | None, label: ReactiveText, *, placeholder: bool = False) -> _ButtonElem:
-        # The label rides a child span so a reactive ``tr`` binding can
-        # re-render on language switch.
-        label_span = Span(container=[])
-        _mount_text(label_span, label)
+    def _make_option(
+        self,
+        item: ChoiceItem | None,
+        *,
+        label: ReactiveText = "",
+        placeholder: bool = False,
+    ) -> _ButtonElem:
+        if item is None:
+            value = None
+            label_span = Span(container=[])
+            _mount_text(label_span, label)
+            content: list[DOMElement | str] = [label_span]
+            item_disabled = True
+        else:
+            value = item.value
+            content, _label_span = choice_content(item)
+            item_disabled = item.disabled
+
         row = _ButtonElem(
             type="button",
-            container=[label_span],
-            styles=_OPTION_DISABLED if placeholder else _OPTION,
+            container=content,
+            styles=self._option_style(item, placeholder=placeholder),
+            disabled=item_disabled,
             args={"role": "option"} if not placeholder else {"role": "option", "disabled": ""},
         )
         row.bubble_events = True  # label-span clicks/hovers reach the row
         self._rows.append((value, row))
         self._row_by_key[row.key] = value
-        if not placeholder:
+        self._choice_by_index.append(item)
+        if item is not None and not item.disabled:
+            self._selectable.append(len(self._rows) - 1)
+        if not placeholder and item is not None and not item.disabled:
             for event_type in ("click", "mouseover", "mouseout"):
                 row.on(event_type, self._make_row_handler(event_type, row.key))
         return row
+
+    @staticmethod
+    def _option_style(item: ChoiceItem | None, *, placeholder: bool = False) -> Styles:
+        if placeholder or (item is not None and item.disabled):
+            return _OPTION_DISABLED
+        if item is not None and item.danger:
+            return _OPTION_DANGER
+        return _OPTION
 
     def _make_row_handler(self, event_type: str, row_key: str):
         """Per-row handler: the label rides a child span, so a click on
@@ -280,7 +322,7 @@ class Select(Component):
         build it before any options are added)."""
         if self._placeholder is None:
             return
-        row = self._make_option(None, self._placeholder, placeholder=True)
+        row = self._make_option(None, label=self._placeholder, placeholder=True)
         self._popup.container.insert(0, row)
 
     def _index_of(self, value: str | None) -> int:
@@ -299,8 +341,20 @@ class Select(Component):
 
     def _apply_option_styles(self, index: int) -> None:
         value, row = self._rows[index]
-        if value is None:
+        item = self._choice_by_index[index]
+        if value is None or isinstance(item, MenuSeparator):
             return  # the placeholder stays disabled
+        if item is not None and item.disabled:
+            row.styles = _OPTION_DISABLED
+            return
+        if item is not None and item.danger:
+            if index == self._active_index:
+                row.styles = _OPTION_DANGER_ACTIVE
+            elif index in self._hovered:
+                row.styles = _OPTION_DANGER_HOVER
+            else:
+                row.styles = _OPTION_DANGER
+            return
         if index == self._active_index:
             row.styles = _OPTION_ACTIVE
         elif index in self._hovered:
@@ -339,14 +393,13 @@ class Select(Component):
     def _move_active(self, delta: int) -> None:
         """Move the highlight by *delta*, clamped at the ends — no
         wrap-around (ArrowUp must always return to the first option)."""
-        selectable = [i for i, (opt_value, _row) in enumerate(self._rows) if opt_value is not None]
-        if not selectable:
+        if not self._selectable:
             return
-        if self._active_index not in selectable:
-            self._active_index = selectable[0] if delta > 0 else selectable[-1]
+        if self._active_index not in self._selectable:
+            self._active_index = self._selectable[0] if delta > 0 else self._selectable[-1]
         else:
-            pos = selectable.index(self._active_index)
-            self._active_index = selectable[max(0, min(len(selectable) - 1, pos + delta))]
+            pos = self._selectable.index(self._active_index)
+            self._active_index = self._selectable[max(0, min(len(self._selectable) - 1, pos + delta))]
         for i in range(len(self._rows)):
             self._apply_option_styles(i)
 
@@ -364,7 +417,11 @@ class Select(Component):
     async def _on_event(self, event_type: str, event: DomEvent) -> None:
         if event_type == "click":
             if event.key in self._row_by_key:
-                await self._select(self._row_by_key[event.key], event)
+                index = self._index_of_row(event.key)
+                item = self._choice_by_index[index] if index >= 0 else None
+                value = self._row_by_key[event.key]
+                if value is not None and (not isinstance(item, ChoiceItem) or not item.disabled):
+                    await self._select(value, event)
             else:
                 # The trigger's selected span bubbles clicks with the span's
                 # key (not the trigger's) — anything that isn't an option
@@ -376,6 +433,9 @@ class Select(Component):
         elif event_type == "mouseover":
             index = self._index_of_row(event.key)
             if index >= 0:
+                item = self._choice_by_index[index]
+                if isinstance(item, ChoiceItem) and item.disabled:
+                    return
                 self._hovered.add(index)
                 self._apply_option_styles(index)
         elif event_type == "mouseout":
@@ -418,15 +478,14 @@ class Select(Component):
             self._move_active(-1)
         elif key in ("PageDown", "PageUp"):
             self._open_popup()
-            selectable = [i for i, (opt_value, _row) in enumerate(self._rows) if opt_value is not None]
-            if selectable:
-                self._active_index = selectable[-1] if key == "PageDown" else selectable[0]
+            if self._selectable:
+                self._active_index = self._selectable[-1] if key == "PageDown" else self._selectable[0]
                 for i in range(len(self._rows)):
                     self._apply_option_styles(i)
         elif key in ("Escape", "Tab"):
             self._close()
 
     async def _select_active(self, event: DomEvent) -> None:
-        if 0 <= self._active_index < len(self._rows):
+        if self._active_index in self._selectable:
             value, _row = self._rows[self._active_index]
             await self._select(value, event)

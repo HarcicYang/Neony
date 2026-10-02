@@ -1834,6 +1834,96 @@
         }
     }
 
+    // Focus scopes are manager-owned metadata on global layers. Only the
+    // topmost open trap receives Tab routing; ordinary popups inherit the
+    // enclosing scope without registering one of their own.
+    function focusableElements(scope) {
+        var selector =
+            'a[href],button:not([disabled]),input:not([disabled]),' +
+            'select:not([disabled]),textarea:not([disabled]),' +
+            '[tabindex]:not([tabindex="-1"]),[contenteditable="true"]';
+        return Array.prototype.filter.call(scope.querySelectorAll(selector), function (el) {
+            if (el.hidden || el.getAttribute("aria-hidden") === "true") return false;
+            if (!document.documentElement.contains(el)) return false;
+            var style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+            return !style || (style.display !== "none" && style.visibility !== "hidden");
+        });
+    }
+
+    function focusElement(el) {
+        if (!el || !el.isConnected || typeof el.focus !== "function") return false;
+        if (!el.hasAttribute("tabindex") && el.tagName !== "BUTTON" && el.tagName !== "INPUT" &&
+            el.tagName !== "SELECT" && el.tagName !== "TEXTAREA" && el.tagName !== "A") {
+            el.setAttribute("tabindex", "-1");
+        }
+        try {
+            el.focus({ preventScroll: true });
+        } catch (_) {
+            el.focus();
+        }
+        return true;
+    }
+
+    window.__neonyFocusFirst = function (scope) {
+        if (!scope) return false;
+        var items = focusableElements(scope);
+        return focusElement(items.length > 0 ? items[0] : scope);
+    };
+
+    window.__neonyFocusInitial = function (key, scope) {
+        if (!key) return false;
+        var target =
+            window.neony && window.neony.engine && window.neony.engine.registry
+                ? window.neony.engine.registry.get(key)
+                : null;
+        if (!target || (scope && !scope.contains(target))) return false;
+        return focusElement(target);
+    };
+
+    function topFocusScope() {
+        var scopes = document.querySelectorAll('[data-neony-focus-scope="trap"][data-neony-layer-open="true"]');
+        var topmost = null;
+        var topmostOrder = -Infinity;
+        for (var i = 0; i < scopes.length; i++) {
+            var order = parseFloat(scopes[i].getAttribute("data-neony-layer-order"));
+            if (!Number.isFinite(order)) order = 0;
+            if (order >= topmostOrder) {
+                topmost = scopes[i];
+                topmostOrder = order;
+            }
+        }
+        return topmost;
+    }
+
+    function trapFocus(event) {
+        if (event.key !== "Tab") return;
+        var scope = topFocusScope();
+        if (!scope) return;
+
+        var items = focusableElements(scope);
+        if (items.length === 0) {
+            event.preventDefault();
+            focusElement(scope);
+            return;
+        }
+
+        var active = document.activeElement;
+        var first = items[0];
+        var last = items[items.length - 1];
+        if (!scope.contains(active)) {
+            event.preventDefault();
+            focusElement(event.shiftKey ? last : first);
+        } else if (active === first && event.shiftKey) {
+            event.preventDefault();
+            focusElement(last);
+        } else if (active === last && !event.shiftKey) {
+            event.preventDefault();
+            focusElement(first);
+        }
+    }
+
+    document.addEventListener("keydown", trapFocus, true);
+
     document.addEventListener("click", dispatchOutsideClick, true);
 
     // ---- Scroll indicator (data-neony-scroll) ----

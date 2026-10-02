@@ -136,16 +136,17 @@ Import from `neony.application.elements`.
 | `Progress`                | Progress bar with animated fill — determinate or sliding `indeterminate`      |
 | `Input`                   | Single-line text field — text / password / email / number…                     |
 | `Textarea`                | Multiline text field — value binding, input / change events, native resize      |
-| `FormField`               | Label + help / error wrapper for any control — required and invalid ARIA state |
+| `FormField`               | Label + help / error wrapper — required checks, validator callback and invalid ARIA state |
 | `Alert`                   | Semantic inline message — actions, dismiss / restore lifecycle, four variants   |
 | `Spinner`                 | Animated activity ring with live label and semantic role                        |
 | `Skeleton`                | Animated or static loading placeholder — text / rect / circle                   |
 | `EmptyState`              | Centered zero-content message with icon and actions                             |
-| `Dialog`                  | Fixed scrim + centered glass panel — scrim / Escape / ✕ / click-away close    |
+| `Dialog`                  | Fixed scrim + centered glass panel — focus trap / initial focus, scrim / Escape / click-away close |
 | `PromptDialog`            | Single-field text prompt on top of `Dialog` — confirm / cancel, Enter / Escape |
 | `Tooltip`                 | Hover bubble wrapped around an anchor, placement offsets, hover delay        |
 | `Dropdown`                | Themed popup under a trigger — full keyboard nav + click-away close          |
-| `Menu` / `MenuBranch`     | Fixed popup at the cursor (`open_at(x, y)` from contextmenu) with cascading branches |
+| `Menu` / `MenuBranch`     | Cursor-positioned menu with cascading branches, icons, shortcuts, checks, danger rows, separators |
+| `ChoiceItem` / `MenuSeparator` | Shared rich option model for Menu, Dropdown, Select, ComboBox and CascadingDropdown |
 | `CascadingDropdown`       | Multi-level trigger dropdown — nested branches open beside their parent item |
 | `Toast`                   | Transient notifications at a screen edge — 6 placements, success/info/error, placement-tied directional animations |
 | `Heading`                 | Themed heading (h1–h6) with automatic sizing                                   |

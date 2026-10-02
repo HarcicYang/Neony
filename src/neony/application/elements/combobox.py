@@ -23,6 +23,7 @@ from neony.dom import Input as _InputElem
 
 from .. import motion
 from ..layers import Layer, LayerHandle, layer_manager
+from ._choices import ChoiceItem, ChoiceItemLike, choice_content, coerce_choice_item
 from .base import Component, ReactiveText, _mount_text
 
 _ROW = Styles(
@@ -97,6 +98,10 @@ _OPTION = Styles(
 )
 _OPTION_ACTIVE = _OPTION.model_copy(update={"background_color": stub.accent_glass_bg})
 _OPTION_HOVER = _OPTION.model_copy(update={"background_color": stub.surface_glass_bg})
+_OPTION_DISABLED = _OPTION.model_copy(update={"color": stub.text_secondary, "cursor": "default"})
+_OPTION_DANGER = _OPTION.model_copy(update={"color": stub.danger})
+_OPTION_DANGER_ACTIVE = _OPTION_DANGER.model_copy(update={"background_color": stub.danger_glass_bg})
+_OPTION_DANGER_HOVER = _OPTION_DANGER.model_copy(update={"background_color": stub.danger_glass_bg})
 
 
 class ComboBox(Component):
@@ -124,7 +129,7 @@ class ComboBox(Component):
         self,
         label: ReactiveText = "",
         *,
-        options: Sequence[str] = (),
+        options: Sequence[ChoiceItemLike] = (),
         value: str = "",
         placeholder: ReactiveText = "",
         glass: bool = False,
@@ -132,13 +137,14 @@ class ComboBox(Component):
     ) -> None:
         super().__init__()
         self._label: ReactiveText = label
-        self._options = list(options)
-        self._value = value
+        self._options = [coerce_choice_item(item) for item in options]
+        self._value = ""
         self._disabled = disabled
         self._active_index = -1
         self._hovered: set[int] = set()
         self._rows: list[_ButtonElem] = []
-        self._row_by_key: dict[str, str] = {}
+        self._row_by_key: dict[str, ChoiceItem] = {}
+        self._selectable: list[int] = []
         self._open = False
         self._layer_handle: LayerHandle | None = None
         self._label_span = Span(container=[])
@@ -162,6 +168,7 @@ class ComboBox(Component):
         # Keydowns from the input bubble up here.
         self._wrapper.bubble_events = True
         self._root = Div(styles=_ROW, container=[self._wrapper, self._label_span])
+        self.value = value
 
         self._bind(self._input, "input")
         self._bind(self._input, "change")
@@ -179,16 +186,20 @@ class ComboBox(Component):
     @value.setter
     def value(self, value: str) -> None:
         self._value = value
-        self._input.value = value  # immediate write; no callback
+        label = next(
+            (item.label for item in self._options if item.value == value and isinstance(item.label, str)),
+            value,
+        )
+        self._input.value = label  # immediate write; no callback
         self._mirror_value(value)
 
     @property
-    def options(self) -> list[str]:
+    def options(self) -> list[ChoiceItem]:
         return list(self._options)
 
     @options.setter
-    def options(self, options: Sequence[str]) -> None:
-        self._options = list(options)
+    def options(self, options: Sequence[ChoiceItemLike]) -> None:
+        self._options = [coerce_choice_item(item) for item in options]
         if self._open:
             self._rebuild_rows()
 
@@ -206,9 +217,16 @@ class ComboBox(Component):
 
     # ---- internals ----
 
-    def _matches(self) -> list[str]:
+    def _matches(self) -> list[ChoiceItem]:
         query = self._value.strip().lower()
-        return [o for o in self._options if o.lower().startswith(query)] if query else list(self._options)
+        if not query:
+            return list(self._options)
+
+        def matches(item: ChoiceItem) -> bool:
+            label = item.label if isinstance(item.label, str) else item.value
+            return any(part.lower().startswith(query) for part in (item.value, label, *item.keywords))
+
+        return [item for item in self._options if matches(item)]
 
     def _rebuild_rows(self) -> None:
         """Filter options by the current text and rebuild the popup.
@@ -220,23 +238,51 @@ class ComboBox(Component):
         self._rows.clear()
         self._row_by_key.clear()
         self._hovered.clear()
-        for opt in self._matches():
-            row = _ButtonElem(type="button", container=[opt], styles=_OPTION, args={"role": "option"})
+        self._selectable.clear()
+        for item in self._matches():
+            content, _label_span = choice_content(item)
+            row = _ButtonElem(
+                type="button",
+                container=content,
+                styles=self._option_style(item),
+                disabled=item.disabled,
+                args={"role": "option"},
+            )
             self._rows.append(row)
-            self._row_by_key[row.key] = opt
-            self._bind(row, "click")
-            self._bind(row, "mouseover")
-            self._bind(row, "mouseout")
+            self._row_by_key[row.key] = item
+            if not item.disabled:
+                self._selectable.append(len(self._rows) - 1)
+                self._bind(row, "click")
+                self._bind(row, "mouseover")
+                self._bind(row, "mouseout")
             self._popup.container.append(row)
-        if not self._rows:
+        if not self._selectable:
             self._active_index = -1
-        elif self._active_index >= len(self._rows):
-            self._active_index = len(self._rows) - 1
-        elif self._active_index < 0:
+        elif self._active_index not in self._selectable:
             # The first match is the "accept this suggestion" default.
-            self._active_index = 0
+            self._active_index = self._selectable[0]
+
+    @staticmethod
+    def _option_style(item: ChoiceItem) -> Styles:
+        if item.disabled:
+            return _OPTION_DISABLED
+        if item.danger:
+            return _OPTION_DANGER
+        return _OPTION
 
     def _apply_option_styles(self, index: int) -> None:
+        item = self._row_by_key[self._rows[index].key]
+        if item.disabled:
+            self._rows[index].styles = _OPTION_DISABLED
+            return
+        if item.danger:
+            if index == self._active_index:
+                self._rows[index].styles = _OPTION_DANGER_ACTIVE
+            elif index in self._hovered:
+                self._rows[index].styles = _OPTION_DANGER_HOVER
+            else:
+                self._rows[index].styles = _OPTION_DANGER
+            return
         if index == self._active_index:
             self._rows[index].styles = _OPTION_ACTIVE
         elif index in self._hovered:
@@ -245,7 +291,7 @@ class ComboBox(Component):
             self._rows[index].styles = _OPTION
 
     def _open_popup(self) -> None:
-        if self._open or self._disabled or not self._rows:
+        if self._open or self._disabled or not self._selectable:
             return
         self._open = True
         self._layer_handle = layer_manager(self._wrapper).open(
@@ -272,17 +318,21 @@ class ComboBox(Component):
         """Move the highlight by *delta*, clamped at the ends — no
         wrap-around (wrapping an auto-complete list loses your place;
         ArrowUp must always be able to return to the first item)."""
-        if not self._rows:
+        if not self._selectable:
             return
-        self._active_index = max(0, min(len(self._rows) - 1, self._active_index + delta))
+        if self._active_index not in self._selectable:
+            self._active_index = self._selectable[0] if delta > 0 else self._selectable[-1]
+        else:
+            position = self._selectable.index(self._active_index)
+            self._active_index = self._selectable[max(0, min(len(self._selectable) - 1, position + delta))]
         for i in range(len(self._rows)):
             self._apply_option_styles(i)
 
-    async def _pick(self, value: str, event: DomEvent | None) -> None:
-        self.value = value
+    async def _pick(self, item: ChoiceItem, event: DomEvent | None) -> None:
+        self.value = item.value
         self._close()
         if event is not None:
-            event.value = value
+            event.value = item.value
             await self._dispatch("change", event)
 
     # ---- events ----
@@ -316,7 +366,9 @@ class ComboBox(Component):
             return  # stale or not — never fall through to the trailing dispatch
         elif event_type == "click":
             if event.key in self._row_by_key:
-                await self._pick(self._row_by_key[event.key], event)
+                item = self._row_by_key[event.key]
+                if not item.disabled:
+                    await self._pick(item, event)
         elif event_type == "mouseover":
             index = self._index_of_row(event.key)
             if index >= 0:
@@ -361,8 +413,9 @@ class ComboBox(Component):
             # Page keys pick the first/last suggestion in one keypress —
             # PageUp commits the first item without touching the arrows.
             self._rebuild_rows()
-            if self._rows:
-                target = self._rows[-1] if key == "PageDown" else self._rows[0]
+            if self._selectable:
+                target_index = self._selectable[-1] if key == "PageDown" else self._selectable[0]
+                target = self._rows[target_index]
                 await self._pick(self._row_by_key[target.key], event)
         elif key in ("Enter", "Tab"):
             # Auto-complete: Tab or Enter accepts the highlighted
@@ -371,6 +424,8 @@ class ComboBox(Component):
             # the completion always follows what was typed.
             self._rebuild_rows()
             if 0 <= self._active_index < len(self._rows):
-                await self._pick(self._row_by_key[self._rows[self._active_index].key], event)
+                item = self._row_by_key[self._rows[self._active_index].key]
+                if not item.disabled:
+                    await self._pick(item, event)
         elif key == "Escape":
             self._close()

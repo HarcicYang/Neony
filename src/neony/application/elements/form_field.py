@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from neony.application.theme import Theme, stub
 from neony.dom import Div, DOMElement, Label, Span, Styles, Transition
 
@@ -25,6 +28,7 @@ _SLOT = Styles(
 )
 _MESSAGE = Styles(font_size="12px", color=stub.text_secondary, line_height="1.4")
 _ERROR = _MESSAGE.model_copy(update={"color": stub.danger, "display": "none"})
+_UNSET = object()
 
 
 class FormField(Component):
@@ -45,6 +49,7 @@ class FormField(Component):
         required: bool = False,
         invalid: bool = False,
         error: ReactiveText | None = None,
+        validator: Callable[[Any], str | None] | None = None,
     ) -> None:
         super().__init__()
         self._label: ReactiveText = label
@@ -52,6 +57,8 @@ class FormField(Component):
         self._error: ReactiveText | None = error
         self._required = required
         self._invalid = invalid
+        self._validator = validator
+        self._control_component = control if isinstance(control, Component) else None
 
         if isinstance(control, Component):
             self._track_component(control)
@@ -137,6 +144,48 @@ class FormField(Component):
     def invalid(self, value: bool) -> None:
         self._invalid = value
         self._apply_state()
+
+    @property
+    def validator(self) -> Callable[[Any], str | None] | None:
+        return self._validator
+
+    @validator.setter
+    def validator(self, value: Callable[[Any], str | None] | None) -> None:
+        self._validator = value
+
+    def validate(self, value: Any = _UNSET) -> bool:
+        """Validate the current value and update ``invalid`` / ``error``.
+
+        Returns ``True`` when valid. Programmatic validation never fires a
+        user callback. If *value* is omitted, the field reads ``value`` or
+        ``checked`` from its component/control when available.
+        """
+        resolved = self._read_value() if value is _UNSET else value
+        if self._required and resolved in (None, "", [], (), set(), frozenset()):
+            self.error = "Required"
+            self.invalid = True
+            return False
+        if self._validator is not None:
+            message = self._validator(resolved)
+            if message:
+                self.error = message
+                self.invalid = True
+                return False
+        self.error = None
+        self.invalid = False
+        return True
+
+    def _read_value(self) -> Any:
+        if self._control_component is not None:
+            if hasattr(self._control_component, "value"):
+                return self._control_component.value
+            if hasattr(self._control_component, "checked"):
+                return self._control_component.checked
+        if hasattr(self._control_root, "value"):
+            return self._control_root.value
+        if hasattr(self._control_root, "checked"):
+            return self._control_root.checked
+        return None
 
     @staticmethod
     def _resolve_message(value: ReactiveText | None) -> str | None:

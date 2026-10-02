@@ -115,76 +115,101 @@ application developer's point of view.
   scrolling, transparent-window blur on Wayland, and an app name shown
   in the taskbar.
 
-## Component expansion plan
+## Component capability expansion plan v2
 
-The component work is staged so every release can ship independently.
-Each new component is a self-contained change set with implementation,
-exports, tests, bilingual API docs, README coverage, Gallery content,
-i18n and a runnable demo where appropriate.
+This plan records the next component work from an application
+developer's point of view. It separates capabilities already delivered
+from the remaining gaps, and replaces the older P2-P4/Deferred queue.
+Each phase can ship independently and includes implementation, exports,
+Python and JavaScript tests where applicable, bilingual API docs, README
+coverage, Gallery content, i18n and a runnable demo where appropriate.
 
-### P0: Foundation (implemented)
+### Delivered baseline
 
-- [x] Extend `DataTable` virtualization using the fixed-row-height,
-  threshold and overscan approach already proven by `List`:
-  `DataTable(..., virtualize="auto", row_height=36, overscan=8)`.
-- [x] Harden the existing layer contract: focus restoration, topmost
-  Escape routing, owner close cascades, nested outside-click behavior
-  and regression coverage for combinations of Dialog, Menu, popup and
-  Toast.
-- [x] Decide the OverlayHost/portal design before implementing new global
-  overlay components. Keep `Layer` internal until that design is stable.
+- DataTable and List bounded-window virtualization.
+- Floating-layer ordering, owner cascades, nested outside-click routing,
+  focus capture/restore and regression coverage across Dialog, Menu,
+  popup and Toast combinations.
+- `Textarea`, `FormField`, `Alert`, `Spinner`, `Skeleton`, `EmptyState`.
 
-### P1: Feedback and forms (implemented)
+### Capability status matrix
 
-- [x] `Textarea`
-- [x] `FormField`
-- [x] `Alert`
-- [x] `Spinner`
-- [x] `Skeleton`
-- [x] `EmptyState`
+| Area | Already implemented | Already planned | Missing before v2 |
+| --- | --- | --- | --- |
+| Menu and choices | string/tuple items, branches | richer keyboard navigation | disabled, separator, icon, shortcut, checked, danger, shared choice model |
+| Form interaction | Input, Textarea, FormField, required/invalid presentation | Form orchestration later | adornments, clear, password reveal, Enter submit, validation contract |
+| Collection data | sort, single/multi selection, virtualization | advanced DataGrid review | filtering, search, column visibility, expandable rows, inline editing, pagination integration |
+| Tree navigation | static hierarchy, expansion, leaf selection | deeper integration | tri-state checkboxes, lazy loading, search, virtualization, node actions |
+| List navigation | single-select virtualization | richer item layouts | groups, multi-select, subtitles, trailing actions, loading/empty slots |
+| Overlays | Dialog, Tooltip, Dropdown, Menu, Toast | Popover, Drawer, CommandPalette | OverlayHost, focus trap, initial focus |
+| Workflow input | select, combobox, slider, progress | TagInput, DatePicker/Calendar | MultiSelect, file upload, NumberInput, OTP, DateRange, TimePicker |
+| Layout tools | Flex, GridView, ScrollArea, SplitView deferred | SplitView review | resizable split panes |
+| Advanced content | Markdown, RichText, media | none | ColorPicker, Rating, Timeline, Descriptions |
 
-This batch does not depend on a portal and is the first delivery wave
-after the P0 layer checks.
+### P0: Shared contracts (implemented)
 
-### P2: Navigation and data
+- [x] Add `ChoiceItem` and `MenuSeparator`; preserve all string, tuple and
+  `MenuBranch` call sites while moving Menu, Dropdown, Select, ComboBox
+  and CascadingDropdown onto one normalized choice model.
+- [x] Add `focus_scope="trap"` and `initial_focus` to the internal layer
+  contract, integrate them with Dialog and cover Tab/Shift+Tab routing.
+- [x] Add the FormField validation contract (`validator` and
+  `validate()`), leaving Form-level orchestration to a later phase.
+- No user-facing component is added in P0. This phase unlocks later
+  overlays and input components without duplicating their foundations.
 
-- [ ] `SegmentedControl`
-- [ ] `Breadcrumb`
-- [ ] `Pagination`
-- [ ] `Stepper`
+### P1: Everyday UI quick wins
 
-These components primarily use ordinary layout, selection and value
-bindings; they do not introduce a new global-overlay lifecycle.
+- Input v2: prefix/suffix, clear action, password reveal and Enter
+  submit.
+- Button loading/busy state and Checkbox indeterminate state.
+- `SegmentedControl`, `Breadcrumb`, `Pagination` and navigation
+  `Stepper`.
+- These components use ordinary layout, selection and value bindings;
+  they do not require the portal.
 
-### P3: Animated overlays
+### P2: Overlay and productivity
 
-- [ ] Add the framework-internal OverlayHost/portal for global overlays.
-- [ ] `Popover`
-- [ ] `Drawer`
+- Add the framework-internal OverlayHost/portal for global overlays.
+- Add `Popover` and `Drawer`; both must use LayerManager and declare
+  their owner when opened from another overlay.
+- Add `CommandPalette`, reusing Dialog lifecycle, Input filtering, the
+  List keyboard model and LayerManager.
 
-`Drawer` is the roadmap's built-in animated container. `Popover` must
-use the shared layer manager and declare its owner when opened from an
-existing overlay.
+### P3: Data and collection depth
 
-### P4: Desktop workflow
+- DataTable filtering/search, column visibility, expandable rows,
+  inline editing and external Pagination integration.
+- Tree tri-state selection, lazy loading, search, node actions and
+  virtualization.
+- List groups, multi-select, subtitles, trailing actions, loading and
+  empty-state slots.
 
-- [ ] `CommandPalette`, reusing Dialog lifecycle, Input filtering, the
-  List keyboard model and the LayerManager.
+### P4: Form and input depth
 
-### Deferred
+- Form-level validation, submit orchestration and cross-field rules.
+- `MultiSelect`, `TagInput`, `FileUpload`/`DropZone`, `NumberInput` and
+  `OTP`.
+- These build on the P0 choice and validation contracts plus the P2
+  OverlayHost.
 
-These require a separate API and architecture review:
+### P5: Advanced desktop controls
 
-- `AppShell`
-- `DatePicker` / `Calendar`
-- `SplitView`
-- `TagInput`
-- advanced DataGrid features such as column pinning, resizing and
-  grouping
+- `DatePicker`, `Calendar`, `DateRange` and `TimePicker`.
+- `SplitView`, `ColorPicker`, `Rating`, `Timeline` and `Descriptions`.
+- `AppShell` remains a separate architecture review.
+
+### Delivery contract
+
+- Every phase lands as an independently verifiable change set with
+  Python tests, bilingual docs and Gallery coverage.
+- Any change under `src/neony/javascript/*` requires Vitest coverage.
+- Display-dependent acceptance runs under `xvfb-run`.
+- No new runtime dependency is added without a separate design review.
 
 ## Component API examples
 
-### Implemented: P0 and P1
+### Delivered baseline
 
 ```python
 from neony.application import icons
@@ -215,9 +240,14 @@ notes.bind_value(draft)
 notes.on_input(on_preview)
 notes.on_change(on_save)
 
-email = FormField("Email", Input(type="email"), help="Never shared.", required=True)
-email.invalid = True
-email.error = "Invalid email"
+email = FormField(
+    "Email",
+    Input(type="email"),
+    help="Never shared.",
+    required=True,
+    validator=lambda value: None if "@" in value else "Invalid email",
+)
+email.validate()
 
 undo = Button("Undo")
 alert = Alert(
@@ -251,7 +281,54 @@ empty = EmptyState(
 )
 ```
 
-### Planned: P2-P4
+### Implemented: P0 shared contracts
+
+```python
+from neony.application import icons
+from neony.application.elements import (
+    ChoiceItem,
+    Dialog,
+    DialogAction,
+    FormField,
+    Input,
+    Menu,
+    MenuSeparator,
+    Select,
+)
+
+menu = Menu(
+    ChoiceItem("rename", "Rename", icon=icons.edit, shortcut="F2"),
+    MenuSeparator(),
+    ChoiceItem("delete", "Delete", danger=True),
+)
+
+plan = Select(
+    "Plan",
+    options=[
+        ChoiceItem("free", "Free"),
+        ChoiceItem("pro", "Pro"),
+        ChoiceItem("legacy", "Legacy", disabled=True),
+    ],
+)
+
+confirm = Input(placeholder="Type CONFIRM")
+dialog = Dialog(
+    title="Delete project",
+    content=confirm,
+    initial_focus=confirm,
+    actions=[DialogAction("Delete", variant="danger")],
+)
+
+email = FormField(
+    "Email",
+    Input(type="email"),
+    required=True,
+    validator=lambda value: None if "@" in value else "Invalid email",
+)
+email.validate()
+```
+
+### Planned: P1-P5
 
 These examples describe planned public shapes. They follow the existing
 `Component`, `bind_value` / `bind_selected`, theme-token and

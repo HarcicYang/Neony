@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Self
+from typing import Any, Self, cast
 
 from neony.application.theme import stub
 from neony.dom import Button as _ButtonElem
@@ -12,8 +12,9 @@ from neony.dom.css import Border, BoxShadow, Shadow
 
 from .. import motion
 from ..layers import LocalLayer
+from ._choices import ChoiceItemLike, MenuSeparator, choice_content, coerce_choice_item
 from .base import ReactiveText, _mount_text
-from .dropdown import _PANEL, _PANEL_OPEN, Dropdown
+from .dropdown import _PANEL, _PANEL_OPEN, _SEPARATOR, Dropdown
 from .icon import Icon
 from .menu import MenuBranch, MenuItem
 
@@ -109,21 +110,34 @@ class CascadingDropdown(Dropdown):
                 self._add_leaf(item, parent)
 
     def _add_leaf(self, item: MenuItem, parent: Div) -> None:
-        if isinstance(item, tuple):
-            value, label = item
-        elif isinstance(item, str):
-            value = label = item
-        else:  # pragma: no cover - _add_items narrows this
-            raise TypeError("CascadingDropdown leaf must be a string or (value, label) tuple")
-        label_span = Span(container=[])
-        _mount_text(label_span, label)
-        row = _ButtonElem(type="button", container=[label_span], styles=_OPTION, args={"role": "menuitem"})
+        if isinstance(item, MenuSeparator):
+            row = Div(styles=_SEPARATOR, args={"role": "separator"})
+            self._rows.append((None, row))
+            self._row_by_key[row.key] = None
+            self._choice_by_index.append(item)
+            parent.container.append(row)
+            return
+
+        if isinstance(item, MenuBranch):
+            raise TypeError("CascadingDropdown branch must be handled by _add_branch")
+        choice = coerce_choice_item(cast(ChoiceItemLike, item))
+        content, _label_span = choice_content(choice)
+        row = _ButtonElem(
+            type="button",
+            container=content,
+            styles=self._option_style(choice),
+            disabled=choice.disabled,
+            args={"role": "menuitem"},
+        )
         row.bubble_events = True
-        self._rows.append((value, row))
-        self._row_by_key[row.key] = value
-        self._label_by_value[value] = label
-        for event_type in ("click", "mouseover", "mouseout"):
-            row.on(event_type, self._make_row_handler(event_type, row.key))
+        self._rows.append((choice.value, row))
+        self._row_by_key[row.key] = choice.value
+        self._choice_by_index.append(choice)
+        self._label_by_value[choice.value] = choice.label
+        if not choice.disabled:
+            self._selectable.append(len(self._rows) - 1)
+            for event_type in ("click", "mouseover", "mouseout"):
+                row.on(event_type, self._make_row_handler(event_type, row.key))
         parent.container.append(row)
 
     def _add_branch(self, branch: MenuBranch, parent: Div, parent_branch: str | None) -> None:
@@ -203,7 +217,9 @@ class CascadingDropdown(Dropdown):
             # treats every non-leaf key as a trigger toggle, which would make
             # opening a branch also close/reset the outer popup.
             if event.key in self._row_by_key:
-                await self._select(self._row_by_key[event.key], event)
+                value = self._row_by_key[event.key]
+                if value is not None:
+                    await self._select(value, event)
             return
         if event.key in self._branch_rows and event_type == "mouseover":
             return

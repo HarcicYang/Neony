@@ -59,22 +59,24 @@ email = FormField(
     Input(type="email"),
     help="不会公开。",
     required=True,
+    validator=lambda value: None if "@" in value else "邮箱格式无效",
 )
-email.invalid = True
-email.error = "邮箱格式无效"
+email.validate()  # 更新 invalid / error 并返回 bool
 ```
 
 **参数:** `FormField(label, control, *, help=None, required=False,
-invalid=False, error=None)`。
+invalid=False, error=None, validator=None)`。
 
 `FormField` 可包装任意组件或 DOM 节点，用 `aria-labelledby` 连接可见
 标签，用 `aria-describedby` 连接帮助与错误文本，并把 `required` /
 `invalid` 同步到 `aria-required` / `aria-invalid`。根节点是 `div`，
 因此包含按钮的复合控件不会被标签隐式激活。
 
-`required` 与 `invalid` 只负责视觉和辅助功能状态：`FormField` 不会
-验证输入，也不会判断何时显示 `error`。这些逻辑由调用方负责，并应在
-控件状态变化时更新对应属性。
+`validator(value)` 返回 `None` 表示通过，返回字符串表示错误。
+`validate(value=...)` 会检查 `required`、执行 validator，并更新
+`invalid` / `error`;省略 `value` 时从包装组件读取 `value` 或
+`checked`。验证是程序化操作,不会触发用户回调。Form 级编排和跨字段
+规则仍由调用方负责。
 
 ### `Radio` & `RadioGroup`
 
@@ -149,6 +151,35 @@ box.on_change(on_tag_change)  # event.value 是提交后的文本
 高亮、**Tab 或 Enter 自动补全**高亮建议、**PageUp/PageDown 一键选中
 首/尾建议**、Escape / 点击外部关闭。值语义与 `Input` 一致：
 `on_input` 只记录状态，`on_change` 在选中建议或失焦时触发。
+
+### `ChoiceItem`
+
+```python
+from neony.application.elements import ChoiceItem, MenuSeparator
+
+menu = Menu(
+    ChoiceItem("rename", "重命名", icon=icons.edit, shortcut="F2"),
+    MenuSeparator(),
+    ChoiceItem("delete", "删除", danger=True),
+)
+
+select = Select(
+    "方案",
+    options=[
+        ChoiceItem("free", "免费"),
+        ChoiceItem("pro", "专业版"),
+        ChoiceItem("legacy", "旧版", disabled=True),
+    ],
+)
+```
+
+`ChoiceItem(value, label=None, *, icon=None, disabled=False,
+danger=False, shortcut=None, checked=None, keywords=())` 是 Menu、
+Dropdown、Select、ComboBox 与 CascadingDropdown 共用的富选项模型。
+原有 `str` 与 `(value, label)` 写法继续有效。disabled 选项会被键盘
+导航跳过，也不会派发 `change`；`MenuSeparator()` 渲染不可选择的
+分隔线。Menu 在 `checked` 非 `None` 时显示勾选槽位。`shortcut` 与 `keywords`
+是展示或过滤元数据，不会自动注册全局快捷键。
 
 ### `Slider`
 
@@ -322,6 +353,7 @@ dlg = Dialog(
     title="确认",
     content=Text("..."),
     width="380px",
+    initial_focus=confirm_button,
     actions=[
         DialogAction("确认", on_click=confirm_handler),  # 执行后关闭
         DialogAction("取消", variant="ghost"),
@@ -335,7 +367,9 @@ dlg.on_close(lambda d: print("closed"))  # 回调接收对话框自身
 固定全屏 scrim 层（`--color-bg-overlay`，跟随主题）+ 居中面板。
 
 关闭途径：scrim 点击、Escape（焦点在对话框内时）、点击外部。
-`closable=False` 仅禁用 scrim。`actions` 渲染为
+`closable=False` 仅禁用 scrim。`initial_focus` 可传入已挂载组件或
+DOM 元素；省略时聚焦第一个可聚焦子元素。Dialog 会把 Tab / Shift+Tab
+限制在面板内部。`actions` 渲染为
 底部一排主题按钮 —— `DialogAction` 接受标签（位置参数）、
 `variant`（`primary`/`ghost`/`danger`）、`on_click` 回调（收对话框
 自身，同步或异步）与 `close_on_click`（默认 True）。注意：任何

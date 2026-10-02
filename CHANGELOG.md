@@ -4,6 +4,18 @@
 
 ### Added
 
+- **Shared rich choice model** — `ChoiceItem` and `MenuSeparator` are now
+  accepted by Menu, Dropdown, Select, ComboBox and CascadingDropdown.
+  Rich menu rows support icons, display shortcuts, checked state, danger
+  styling, disabled rows and separators while all string / tuple item
+  forms remain compatible.
+- **Dialog focus management** — Dialog now traps Tab / Shift+Tab inside
+  the modal and accepts `initial_focus=` for an explicit first target.
+  LayerManager exposes the same internal focus-scope contract to future
+  Popover / Drawer implementations.
+- **FormField validation contract** — `FormField(validator=...)` and
+  `FormField.validate()` provide required checks, validator error text
+  and coordinated `invalid` / ARIA updates without firing user events.
 - **Global floating-layer management** — overlays no longer compete with
   component-specific `z-index` constants. A per-window `LayerManager`
   assigns semantic layer bands, brings reopened layers to the front,

@@ -59,13 +59,13 @@ email = FormField(
     Input(type="email"),
     help="Never shared.",
     required=True,
+    validator=lambda value: None if "@" in value else "Invalid email",
 )
-email.invalid = True
-email.error = "Invalid email"
+email.validate()  # updates invalid / error and returns bool
 ```
 
 **Options:** `FormField(label, control, *, help=None, required=False,
-invalid=False, error=None)`.
+invalid=False, error=None, validator=None)`.
 
 `FormField` accepts any component or DOM node, connects the visible
 label with `aria-labelledby`, connects visible help/error text with
@@ -73,10 +73,12 @@ label with `aria-labelledby`, connects visible help/error text with
 `aria-required` / `aria-invalid`. The root is a `div`, so a compound
 control containing buttons is never implicitly activated by a label.
 
-`required` and `invalid` are presentation and accessibility state only:
-`FormField` does not validate input or decide when `error` should appear.
-The caller owns that logic and should update these properties as the
-control changes.
+`validator(value)` returns `None` for valid input or an error string.
+`validate(value=...)` checks `required`, runs the validator and updates
+`invalid` / `error`; when `value` is omitted it reads `value` or
+`checked` from the wrapped component. Validation is programmatic and
+never fires user callbacks. Form-level orchestration and cross-field
+rules remain the caller's responsibility.
 
 ### `Radio` & `RadioGroup`
 
@@ -158,6 +160,37 @@ highlighted suggestion, **PageUp/PageDown pick the first/last
 suggestion in one keypress**, Escape / click-away closes. Value
 semantics match `Input`: `on_input` records state only, `on_change`
 fires on a pick or blur.
+
+### `ChoiceItem`
+
+```python
+from neony.application.elements import ChoiceItem, MenuSeparator
+
+menu = Menu(
+    ChoiceItem("rename", "Rename", icon=icons.edit, shortcut="F2"),
+    MenuSeparator(),
+    ChoiceItem("delete", "Delete", danger=True),
+)
+
+select = Select(
+    "Plan",
+    options=[
+        ChoiceItem("free", "Free"),
+        ChoiceItem("pro", "Pro"),
+        ChoiceItem("legacy", "Legacy", disabled=True),
+    ],
+)
+```
+
+`ChoiceItem(value, label=None, *, icon=None, disabled=False,
+danger=False, shortcut=None, checked=None, keywords=())` is the rich
+option model shared by Menu, Dropdown, Select, ComboBox and
+CascadingDropdown. Legacy `str` and `(value, label)` entries remain
+valid. Disabled choices are skipped by keyboard navigation and never
+dispatch `change`; `MenuSeparator()` renders a non-selectable divider.
+Menu renders a check slot when `checked` is not `None`. `shortcut` and
+`keywords` are display/filter metadata; they do not register global
+keyboard shortcuts.
 
 ### `Slider`
 
@@ -369,6 +402,7 @@ dlg = Dialog(
     title="Confirm",
     content=Text("..."),
     width="380px",
+    initial_focus=confirm_button,
     actions=[
         DialogAction("确认", on_click=confirm_handler),  # runs, then closes
         DialogAction("取消", variant="ghost"),
@@ -382,7 +416,9 @@ dlg.on_close(lambda d: print("closed"))  # called with the dialog
 A fixed full-page scrim (`--color-bg-overlay`, theme-following) with a
 centered panel. Close paths: scrim click, Escape (while focus is
 inside), or click-away. `closable=False` disables only
-the scrim. `actions` render as a row of themed buttons — `DialogAction`
+the scrim. `initial_focus` accepts a mounted component or DOM element;
+when omitted, the first focusable child receives focus. Dialog traps
+Tab / Shift+Tab inside the panel. `actions` render as a row of themed buttons — `DialogAction`
 takes a label (positional), a `variant` (`primary`/`ghost`/`danger`),
 an `on_click` callback (called with the dialog, sync or async) and
 `close_on_click` (default True). NOTE: any `backdrop-filter` /

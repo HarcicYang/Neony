@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import cast
 
 from neony.application.theme import stub
 from neony.dom import (
@@ -24,6 +25,7 @@ from neony.dom import Button as _ButtonElem
 
 from .. import motion
 from ..layers import Layer, LayerHandle, LocalLayer, layer_manager
+from ._choices import ChoiceItem, ChoiceItemLike, MenuSeparator, choice_content, coerce_choice_item
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
@@ -36,7 +38,7 @@ class MenuBranch:
         self.items = tuple(items)
 
 
-MenuItem = ReactiveText | tuple[str, ReactiveText] | MenuBranch
+MenuItem = ChoiceItemLike | MenuSeparator | MenuBranch
 
 _PANEL = Styles(
     position="fixed",
@@ -92,6 +94,17 @@ _OPTION = Styles(
 )
 _OPTION_ACTIVE = _OPTION.model_copy(update={"background_color": stub.accent_glass_bg})
 _OPTION_HOVER = _OPTION.model_copy(update={"background_color": stub.surface_glass_bg})
+_OPTION_DISABLED = _OPTION.model_copy(update={"color": stub.text_secondary, "cursor": "default"})
+_OPTION_DANGER = _OPTION.model_copy(update={"color": stub.danger})
+_OPTION_DANGER_ACTIVE = _OPTION_DANGER.model_copy(update={"background_color": stub.danger_glass_bg})
+_OPTION_DANGER_HOVER = _OPTION_DANGER.model_copy(update={"background_color": stub.danger_glass_bg})
+_SEPARATOR = Styles(
+    height="1px",
+    min_height="1px",
+    margin="4px 6px",
+    background_color=stub.border,
+    flex_shrink="0",
+)
 _ROW_WRAP = Styles(position="relative", display="flex", width="100%")
 _BRANCH_CHEVRON = Styles(
     margin_left="auto",
@@ -117,8 +130,10 @@ class Menu(Component):
     def __init__(self, *items: MenuItem, _parent: Menu | None = None) -> None:
         super().__init__()
         self._parent = _parent
-        self._rows: list[tuple[str, _ButtonElem]] = []
-        self._row_by_key: dict[str, str] = {}
+        self._rows: list[tuple[str | None, DOMElement]] = []
+        self._row_by_key: dict[str, str | None] = {}
+        self._choice_by_index: list[ChoiceItem | MenuSeparator | None] = []
+        self._selectable: list[int] = []
         self._branches: dict[str, Menu] = {}
         self._branch_chevrons: dict[str, Span] = {}
         self._hovered: set[int] = set()
@@ -147,9 +162,9 @@ class Menu(Component):
             self._open_submenu()
             return
         owner_el = owner._root if isinstance(owner, Component) else owner
-        if self._active_index < 0 and self._rows:
-            self._active_index = 0
-            self._apply_option_styles(0)
+        if self._active_index not in self._selectable and self._selectable:
+            self._active_index = self._selectable[0]
+            self._apply_option_styles(self._active_index)
         self._root.styles = _PANEL_OPEN.model_copy(
             update={
                 "left": px(round(x)),
@@ -213,27 +228,47 @@ class Menu(Component):
                 branch.close()
 
     def _add_option(self, entry: MenuItem) -> None:
-        branch = entry if isinstance(entry, MenuBranch) else None
-        if branch is not None:
-            value, label = "", branch.label
-        elif isinstance(entry, tuple):
-            value, label = entry
-        else:
-            if not isinstance(entry, str):
-                raise ValueError("Menu: a reactive item label needs a (value, label) tuple")
-            value = label = entry
+        if isinstance(entry, MenuSeparator):
+            row = Div(styles=_SEPARATOR, args={"role": "separator"})
+            self._rows.append((None, row))
+            self._row_by_key[row.key] = None
+            self._choice_by_index.append(entry)
+            self._root.container.append(row)
+            return
 
-        label_span = Span(container=[])
-        _mount_text(label_span, label)
-        children = [label_span]
+        branch = entry if isinstance(entry, MenuBranch) else None
+        children: list[DOMElement | str] = []
+        label: ReactiveText = ""
+        if branch is not None:
+            value: str | None = ""
+            label = branch.label
+            item = None
+        else:
+            item = coerce_choice_item(cast(ChoiceItemLike, entry))
+            value = item.value
+            children, _label_span = choice_content(item, show_shortcut=True, show_checked=True)
+
+        if item is None:
+            label_span = Span(container=[])
+            _mount_text(label_span, label)
+            children = [label_span]
         branch_chevron: Span | None = None
         if branch is not None:
             branch_chevron = Span(container=[Icon._font("chevron_right").render("14px")], styles=_BRANCH_CHEVRON)
             children.append(branch_chevron)
-        row = _ButtonElem(type="button", container=children, styles=_OPTION, args={"role": "menuitem"})
+        row = _ButtonElem(
+            type="button",
+            container=children,
+            styles=self._leaf_style(item) if item is not None else _OPTION,
+            disabled=item.disabled if item is not None else False,
+            args={"role": "menuitem"},
+        )
         row.bubble_events = True
         self._rows.append((value, row))
         self._row_by_key[row.key] = value
+        self._choice_by_index.append(item)
+        if item is None or not item.disabled:
+            self._selectable.append(len(self._rows) - 1)
         for event_type in ("click", "mouseover", "mouseout"):
             row.on(event_type, self._make_row_handler(event_type, row.key))
 
@@ -250,6 +285,14 @@ class Menu(Component):
         else:
             self._root.container.append(row)
 
+    @staticmethod
+    def _leaf_style(item: ChoiceItem) -> Styles:
+        if item.disabled:
+            return _OPTION_DISABLED
+        if item.danger:
+            return _OPTION_DANGER
+        return _OPTION
+
     def _make_row_handler(self, event_type: str, row_key: str):
         async def handler(event: DomEvent) -> None:
             event.key = row_key
@@ -260,6 +303,20 @@ class Menu(Component):
 
     def _apply_option_styles(self, index: int) -> None:
         _value, row = self._rows[index]
+        item = self._choice_by_index[index]
+        if isinstance(item, MenuSeparator):
+            return
+        if item is not None and item.disabled:
+            row.styles = _OPTION_DISABLED
+            return
+        if item is not None and item.danger:
+            if index == self._active_index:
+                row.styles = _OPTION_DANGER_ACTIVE
+            elif index in self._hovered:
+                row.styles = _OPTION_DANGER_HOVER
+            else:
+                row.styles = _OPTION_DANGER
+            return
         if index == self._active_index:
             row.styles = _OPTION_ACTIVE
         elif index in self._hovered:
@@ -268,9 +325,13 @@ class Menu(Component):
             row.styles = _OPTION
 
     def _move_active(self, delta: int) -> None:
-        if not self._rows:
+        if not self._selectable:
             return
-        self._active_index = max(0, min(len(self._rows) - 1, self._active_index + delta))
+        if self._active_index not in self._selectable:
+            self._active_index = self._selectable[0] if delta > 0 else self._selectable[-1]
+        else:
+            position = self._selectable.index(self._active_index)
+            self._active_index = self._selectable[max(0, min(len(self._selectable) - 1, position + delta))]
         for i in range(len(self._rows)):
             self._apply_option_styles(i)
 
@@ -288,10 +349,17 @@ class Menu(Component):
             if event.key in self._branches:
                 self._branches[event.key]._open_submenu()
             elif event.key in self._row_by_key:
-                await self._select(self._row_by_key[event.key], event)
+                index = self._index_of_row(event.key)
+                item = self._choice_by_index[index] if index >= 0 else None
+                value = self._row_by_key[event.key]
+                if value is not None and (not isinstance(item, ChoiceItem) or not item.disabled):
+                    await self._select(value, event)
         elif event_type == "mouseover":
             index = self._index_of_row(event.key)
             if index >= 0:
+                item = self._choice_by_index[index]
+                if isinstance(item, ChoiceItem) and item.disabled:
+                    return
                 self._hovered.add(index)
                 self._apply_option_styles(index)
                 if event.key in self._branches:
@@ -333,8 +401,8 @@ class Menu(Component):
         elif key == "ArrowUp":
             self._move_active(-1)
         elif key in ("PageDown", "PageUp"):
-            if self._rows:
-                self._active_index = len(self._rows) - 1 if key == "PageDown" else 0
+            if self._selectable:
+                self._active_index = self._selectable[-1] if key == "PageDown" else self._selectable[0]
                 for i in range(len(self._rows)):
                     self._apply_option_styles(i)
         elif key in ("Escape", "Tab"):
@@ -348,7 +416,9 @@ class Menu(Component):
                     self.close()
 
     async def _select_active(self, event: DomEvent) -> None:
-        if 0 <= self._active_index < len(self._rows):
+        if self._active_index in self._selectable:
             row_key = self._rows[self._active_index][1].key
             if row_key not in self._branches:
-                await self._select(self._row_by_key[row_key], event)
+                value = self._row_by_key[row_key]
+                if value is not None:
+                    await self._select(value, event)

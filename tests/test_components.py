@@ -502,7 +502,7 @@ class TestComboBoxEvents:
         assert cb._input.value == ""
         # prefix filter opened the popup with the matching suggestion
         assert cb._open is True
-        assert [str(row.container[0]) for row in cb._rows] == ["work"]
+        assert [getattr(row.container[0], "container", None) for row in cb._rows] == [["work"]]
 
     def test_programmatic_set_still_writes_dom(self):
         cb = ComboBox()

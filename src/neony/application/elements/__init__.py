@@ -4,6 +4,7 @@ All components share the fluent API (``.on_click(fn)`` chaining),
 own their state, and are theme-aware via CSS custom properties.
 """
 
+from neony.application.elements._choices import ChoiceItem, MenuSeparator
 from neony.application.elements.accordion import Accordion, Collapsible
 from neony.application.elements.alert import Alert
 from neony.application.elements.avatar import Avatar
@@ -58,6 +59,7 @@ __all__ = [
     "Card",
     "CascadingDropdown",
     "Checkbox",
+    "ChoiceItem",
     "Collapsible",
     "Column",
     "ComboBox",
@@ -82,6 +84,7 @@ __all__ = [
     "Markdown",
     "Menu",
     "MenuBranch",
+    "MenuSeparator",
     "MessageBubble",
     "NoticeBubble",
     "Pane",

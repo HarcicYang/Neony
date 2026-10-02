@@ -17,6 +17,7 @@ import json
 import weakref
 from collections.abc import Callable
 from enum import IntEnum
+from typing import Literal
 
 from neony.dom import DOMElement
 
@@ -66,8 +67,10 @@ class LayerHandle:
         "_manager",
         "_suppress_restore",
         "active",
+        "focus_scope",
         "focus_token",
         "group",
+        "initial_focus_key",
         "kind",
         "on_close",
         "order",
@@ -88,6 +91,8 @@ class LayerHandle:
         parent: LayerHandle | None,
         on_close: Callable[[], None] | None,
         restore_focus: bool,
+        focus_scope: Literal["none", "trap"],
+        initial_focus: DOMElement | None,
     ) -> None:
         self._manager = manager
         self._element_ref = weakref.ref(element)
@@ -100,6 +105,8 @@ class LayerHandle:
         self.on_close = on_close
         self.restore_focus = restore_focus
         self.focus_token = element.key
+        self.focus_scope = focus_scope
+        self.initial_focus_key = initial_focus.key if initial_focus is not None else None
         self.active = True
 
     @property
@@ -138,6 +145,8 @@ class LayerManager:
         owner: DOMElement | None = None,
         on_close: Callable[[], None] | None = None,
         restore_focus: bool = True,
+        focus_scope: Literal["none", "trap"] = "none",
+        initial_focus: DOMElement | None = None,
     ) -> LayerHandle:
         """Register *element* as open and return its managed handle.
 
@@ -146,11 +155,19 @@ class LayerManager:
         member of *group* through its ``on_close`` callback so component
         state and DOM visibility stay in sync with the layer stack.
         """
+        if focus_scope not in ("none", "trap"):
+            raise ValueError(f"LayerManager.open: invalid focus_scope {focus_scope!r}")
+
         for handle in tuple(self._handles):
             if handle.active and handle.element is element:
                 if on_close is not None:
                     handle.on_close = on_close
                 handle.restore_focus = restore_focus
+                handle.focus_scope = focus_scope
+                handle.initial_focus_key = initial_focus.key if initial_focus is not None else None
+                self._apply(handle)
+                if focus_scope == "trap":
+                    self._focus_initial(handle)
                 return self.bring_to_front(handle)
 
         if kind == Layer.MODAL:
@@ -174,11 +191,15 @@ class LayerManager:
             parent=parent,
             on_close=on_close,
             restore_focus=restore_focus,
+            focus_scope=focus_scope,
+            initial_focus=initial_focus,
         )
         self._handles.append(handle)
         self._apply(handle)
         if restore_focus:
             self._capture_focus(handle)
+        if focus_scope == "trap":
+            self._focus_initial(handle)
         return handle
 
     def bring_to_front(self, handle: LayerHandle) -> LayerHandle:
@@ -277,12 +298,20 @@ class LayerManager:
         element = handle.element
         element.styles = element.styles.model_copy(update={"z_index": handle.z_index})
         element.args = {
-            **element.args,
+            **{
+                key: value
+                for key, value in element.args.items()
+                if key not in {"data-neony-focus-scope", "data-neony-initial-focus"}
+            },
             "data-neony-layer": handle.kind.name.lower(),
             "data-neony-layer-order": str(handle.stack_order),
             "data-neony-layer-z": str(handle.z_index),
             "data-neony-layer-open": "true",
         }
+        if handle.focus_scope == "trap":
+            element.args["data-neony-focus-scope"] = "trap"
+            if handle.initial_focus_key:
+                element.args["data-neony-initial-focus"] = handle.initial_focus_key
 
     @staticmethod
     def _contains(ancestor: DOMElement, element: DOMElement) -> bool:
@@ -322,6 +351,19 @@ class LayerManager:
         )
         self._schedule_js(handle.element, script)
 
+    def _focus_initial(self, handle: LayerHandle) -> None:
+        token = json.dumps(handle.initial_focus_key) if handle.initial_focus_key else "null"
+        scope = json.dumps(handle.element.key)
+        script = (
+            "(() => { "
+            f"const scope = window.neony && window.neony.engine && "
+            f"window.neony.engine.registry.get({scope}); "
+            f"const explicit = window.__neonyFocusInitial({token}, scope); "
+            "if (!explicit && scope && window.__neonyFocusFirst) window.__neonyFocusFirst(scope); "
+            "})()"
+        )
+        self._schedule_js(handle.element, script)
+
     def _schedule_js(self, element: DOMElement, script: str) -> None:
         scope = element
         while scope._parent is not None:
@@ -350,6 +392,8 @@ class LayerManager:
                 "data-neony-layer-order",
                 "data-neony-layer-z",
                 "data-neony-layer-open",
+                "data-neony-focus-scope",
+                "data-neony-initial-focus",
             }
         }
 

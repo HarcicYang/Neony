@@ -44,7 +44,7 @@ from .badge import Badge
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 from .markdown import Markdown
-from .menu import Menu
+from .menu import Menu, MenuItem
 
 _ROW = Styles(display="flex", align_items="flex-end", gap="10px", width="100%")
 
@@ -206,7 +206,7 @@ class MessageBubble(Component):
         content: Component | DOMElement | None = None,
         markdown: bool = False,
         actions: Sequence[ReactiveText | tuple[str, ReactiveText] | Icon] = (),
-        menu_items: Sequence[ReactiveText | tuple[str, ReactiveText]] | None = None,
+        menu_items: Sequence[MenuItem] | None = None,
         actions_placement: Literal["below", "beside"] = "below",
         action_size: str = "24px",
         name_badge: Badge | None = None,

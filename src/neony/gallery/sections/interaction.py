@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from neony.application.elements import (
     Button,
+    ChoiceItem,
     ComboBox,
     Dialog,
     DialogAction,
@@ -20,6 +21,7 @@ from neony.application.elements import (
     HStack,
     Input,
     Menu,
+    MenuSeparator,
     PromptDialog,
     Select,
     Separator,
@@ -599,9 +601,10 @@ dd_echo.bind_text(theme_choice, fmt=lambda value: tr.interaction.dropdown_fmt.fo
 # Menu: fixed at the cursor — right-click the button.  Also mounted at
 # the page root so no ancestor transform can hijack `position: fixed`.
 ctx_menu = Menu(
-    ("rename", tr.interaction.rename),
+    ChoiceItem("rename", tr.interaction.rename, shortcut="F2"),
     ("duplicate", tr.interaction.duplicate),
-    ("delete", tr.interaction.delete),
+    MenuSeparator(),
+    ChoiceItem("delete", tr.interaction.delete, danger=True),
 )
 menu_echo = Text("", role="secondary")
 menu_value = Signal("")
@@ -670,7 +673,11 @@ tip = Tooltip("hint", anchor=Button("Hover"), placement="top", delay=0.4)
 dd = Dropdown("Theme", items=[("dark", "Dark"), ("light", "Light")])
 dd.on_change(lambda e: print(e.value))    # selected value
 
-menu = Menu(("rename", "Rename"), ("delete", "Delete"))
+menu = Menu(
+    ChoiceItem("rename", "Rename", shortcut="F2"),
+    MenuSeparator(),
+    ChoiceItem("delete", "Delete", danger=True),
+)
 btn.on_contextmenu(lambda e: menu.open_at(e.x, e.y))  # cursor position
 menu.on_change(lambda e: print(e.value))
 

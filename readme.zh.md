@@ -126,16 +126,17 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `Progress`                  | 动画填充进度条 — 确定值或滑动 `indeterminate`                                                                             |
 | `Input`                     | 单行输入框 — text / password / email / number…                                                                            |
 | `Textarea`                  | 多行输入框 — 双向值绑定、input / change 事件、原生尺寸调整                                                                |
-| `FormField`                 | 任意控件的标签 + 帮助 / 错误包装 — required 与 invalid ARIA 状态                                                          |
+| `FormField`                 | 标签 + 帮助 / 错误包装 — required 检查、validator 回调与 invalid ARIA 状态                                                |
 | `Alert`                     | 语义化内联提示 — 操作区、dismiss / restore 生命周期、四种变体                                                             |
 | `Spinner`                   | 动态加载环，带实时标签与语义角色                                                                                          |
 | `Skeleton`                  | 动画或静态加载占位 — text / rect / circle                                                                                 |
 | `EmptyState`                | 居中的空内容提示，可带图标与操作                                                                                          |
-| `Dialog`                    | 固定 scrim + 居中玻璃面板 — scrim / Escape / ✕ / 点击外部关闭                                                            |
+| `Dialog`                    | 固定 scrim + 居中玻璃面板 — 焦点陷阱 / 初始焦点，scrim / Escape / 点击外部关闭                                           |
 | `PromptDialog`              | 基于 `Dialog` 的单行文本提示 — 确认 / 取消，Enter / Escape                                                                |
 | `Tooltip`                   | 包裹 anchor 的悬停气泡，placement 偏移 + 悬停延迟                                                                         |
 | `Dropdown`                  | trigger 下的主题化弹出面板 — 完整键盘导航 + 点击外部关闭                                                                  |
-| `Menu` / `MenuBranch`       | 光标定位的固定弹出菜单（`open_at(x, y)` 来自 contextmenu），支持级联分支                                                  |
+| `Menu` / `MenuBranch`       | 光标定位菜单与级联分支，支持图标、快捷键、勾选、危险操作和分隔线                                                         |
+| `ChoiceItem` / `MenuSeparator` | Menu、Dropdown、Select、ComboBox、CascadingDropdown 共用的富选项模型                                                     |
 | `CascadingDropdown`         | 多级触发式下拉 — 嵌套分支在父项旁展开                                                                                     |
 | `Toast`                     | 屏幕边缘的瞬时通知 — 6 方位、success/info/error、与方位绑定的方向性动画                                                   |
 | `Heading`                   | 主题标题(h1–h6)，自动字号                                                                                                 |

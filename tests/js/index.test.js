@@ -791,6 +791,104 @@ describe("narrow overlay coordination", () => {
   });
 });
 
+describe("modal focus scope", () => {
+  beforeEach(() => {
+    window.neony = neony;
+    window.lumiview = { listen, invoke: vi.fn(() => Promise.resolve()), window: {} };
+  });
+
+  function mountScope(key, order, childKeys) {
+    mountTree({
+      key,
+      tag: "div",
+      attrs: {
+        "data-neony-focus-scope": "trap",
+        "data-neony-layer-open": "true",
+        "data-neony-layer-order": String(order),
+      },
+      children: childKeys.map((childKey) => ({ key: childKey, tag: "button", text: childKey })),
+    });
+    return document.querySelector(`[data-neony-key='${key}']`);
+  }
+
+  it("focuses the first control and wraps Tab forward and backward", () => {
+    const scope = mountScope("focus-dialog", 1, ["first", "middle", "last"]);
+    const first = document.querySelector("[data-neony-key='first']");
+    const last = document.querySelector("[data-neony-key='last']");
+
+    expect(window.__neonyFocusFirst(scope)).toBe(true);
+    expect(document.activeElement).toBe(first);
+
+    last.focus();
+    last.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    expect(document.activeElement).toBe(first);
+
+    first.dispatchEvent(
+      new window.KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true })
+    );
+    expect(document.activeElement).toBe(last);
+  });
+
+  it("routes Tab to the topmost nested scope", () => {
+    mountTree({
+      key: "outer-scope",
+      tag: "div",
+      attrs: {
+        "data-neony-focus-scope": "trap",
+        "data-neony-layer-open": "true",
+        "data-neony-layer-order": "1",
+      },
+      children: [
+        { key: "outer-first", tag: "button", text: "outer-first" },
+        {
+          key: "inner-scope",
+          tag: "div",
+          attrs: {
+            "data-neony-focus-scope": "trap",
+            "data-neony-layer-open": "true",
+            "data-neony-layer-order": "2",
+          },
+          children: [
+            { key: "inner-first", tag: "button", text: "inner-first" },
+            { key: "inner-last", tag: "button", text: "inner-last" },
+          ],
+        },
+      ],
+    });
+    const innerLast = document.querySelector("[data-neony-key='inner-last']");
+    const innerFirst = document.querySelector("[data-neony-key='inner-first']");
+
+    innerLast.focus();
+    innerLast.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    expect(document.activeElement).toBe(innerFirst);
+  });
+
+  it("prefers an explicit initial-focus key", () => {
+    const scope = mountScope("explicit-scope", 1, ["first", "target"]);
+    const target = document.querySelector("[data-neony-key='target']");
+
+    expect(window.__neonyFocusInitial("target", scope)).toBe(true);
+    expect(document.activeElement).toBe(target);
+    expect(window.__neonyFocusInitial("missing", scope)).toBe(false);
+  });
+
+  it("focuses the scope itself when it has no focusable children", () => {
+    mountTree({
+      key: "empty-scope",
+      tag: "div",
+      attrs: {
+        "data-neony-focus-scope": "trap",
+        "data-neony-layer-open": "true",
+        "data-neony-layer-order": "1",
+      },
+    });
+    const scope = document.querySelector("[data-neony-key='empty-scope']");
+
+    document.body.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    expect(document.activeElement).toBe(scope);
+  });
+});
+
 describe("rich event payload", () => {
   let invoke;
   let win;
