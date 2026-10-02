@@ -13,9 +13,10 @@ Pull Request 都非常欢迎。本文档说明项目约定与贡献方式。
 
 ### 1. 纯 Python API
 
-用户永远不需要接触 HTML、JavaScript 或 CSS 字符串。布局、样式、事件、
-窗口控制全部以 Python 对象暴露。不要在公开 API 中暴露原始的 JS/HTML
-机制;内部实现(如 `data-window-action`、浏览器侧管道)保持内部。
+公开 API 应保持 Pythonic。用户不应被迫编写原始 HTML、注入 JavaScript
+或手写 CSS 样式表。布局、样式、事件与窗口控制通过类型化 Python 模型表达；
+`"16px"` 这类 CSS 值仍可以是字符串，但公开 API 不应暴露原始标记或脚本入口。
+内部实现(如 `data-window-action`、浏览器侧管道)保持内部。
 
 ### 2. 状态在组件内部管理
 
@@ -56,7 +57,7 @@ Pull Request 都非常欢迎。本文档说明项目约定与贡献方式。
 
 可运行示例是根目录的 `demo_*.py` 文件(如 `demo_custom_window.py`)。
 组件画廊是例外——它位于 `neony.gallery` 包中(`uv run gallery`)。
-新组件应附带示例，并把示例加入 `.zed/tasks.json`。
+新组件应附带示例。
 
 ### 6. 截图素材
 
@@ -68,14 +69,16 @@ xvfb-run --auto-servernum --server-args="-screen 0 2200x1400x24" \
   bash scripts/capture_screenshots.sh
 ```
 
-脚本需要 `xdotool`、ImageMagick 和项目虚拟环境，会直接更新
+截图需要 `xvfb-run`；脚本本身还要求 `xdotool`、ImageMagick 7
+(`import` 与 `magick`)以及项目虚拟环境。素材会直接更新到
 `docs/assets/screenshots/`。
 
 ---
 
 ## 开发环境
 
-项目使用 [uv](https://docs.astral.sh/uv/) 管理环境与命令。
+项目使用 [uv](https://docs.astral.sh/uv/) 管理 Python 环境，JavaScript
+测试套件需要 Node.js 20.19+ 与 npm。
 
 ```bash
 uv sync --group dev     # 安装依赖(含开发工具)
@@ -83,11 +86,15 @@ uv sync --group dev     # 安装依赖(含开发工具)
 
 ### 系统依赖
 
-Linux 上需要 WebKitGTK 技术栈:
+请按[安装与平台指南](docs/guides/installation-platforms.zh.md)安装平台
+所需的 WebView 依赖。Debian/Ubuntu 的开发环境命令为:
 
 ```bash
 sudo apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 ```
+
+依赖显示环境的冒烟测试需要 `xvfb-run`；截图还需要 `xdotool` 与
+ImageMagick 7。这些工具不由 `uv sync` 安装。
 
 ---
 
@@ -110,21 +117,25 @@ vitest）。干净 checkout 不包含被 Git 跟踪的 `node_modules/`；目录�
 
 ## 提交前
 
-1. **运行全部检查** — 一条命令跑完整套件：
+1. **运行检查** — 一条命令运行测试套件：
    `uv run python scripts/check_all.py`（ruff check + format、pyrefly、
-   pytest 与 JS 的 vitest）。任何一项失败脚本都以非零退出码结束——
-   这正是 CI 的 `test` job 所运行的命令，本地跑绿即 CI 跑绿。
-   `--fix` 会先应用 ruff 的自动修复；`--smoke` 额外运行需要显示环境
-   的冒烟测试（Linux 上需要 `xvfb-run`）。
+   pytest 与 JS 的 vitest）。它对应 CI `test` job 在当前 Python 解释器上
+   的运行；CI 还会在 Python 3.11 与 3.12 上分别运行，并在独立 job 中运行
+   smoke demos。`--fix` 会先应用 ruff 的自动修复；存在 `xvfb-run` 时，
+   `--smoke` 会额外运行需要显示环境的冒烟测试。发布相关修改前应检查两个
+   Python 版本与 smoke 套件。
 2. **补充测试** — bug 修复需要回归测试;新组件需要覆盖构建/状态/
-   事件(参见 `tests/test_components.py` 中的模式)。
+   事件(参见 `tests/test_components.py` 中的模式)。测试应聚焦公开契约、
+   状态转换、边界条件和真实回归;避免断言私有 DOM 结构、写死样式常量,
+   也不要为每个 HTML 属性机械增加一条测试,除非该细节本身就是兼容性契约。
 3. **更新文档** — 行为有可见变化时更新 README（两种语言）；API 变化更新
    成对的 `docs/api/*.en.md` / `docs/api/*.zh.md` 章节；章节列表变化时
    同步更新 `docs/api/README.*`；新增的 demo 也要加入根 README 的 demos 表。
 4. **遵循 Conventional Commits** — 提交信息加类型与可选 scope 前缀:
    `feat(scope):`、`fix(scope):`、`perf(scope):`、`refactor(scope):`、
-   `docs:`、`chore:`、……。Changelog(`CHANGELOG.md`)由人工维护;
-   GitHub release 描述由 GitHub 根据提交列表自动生成。
+   `docs:`、`chore:`、……。用户可见变化需记录到 `CHANGELOG.md`;
+   changelog 由人工维护。Release notes 由维护者在发布时整理，仓库工作流
+   不会自动生成。
 
 ## Pull Request 流程
 
@@ -140,7 +151,7 @@ vitest）。干净 checkout 不包含被 Git 跟踪的 `node_modules/`；目录�
 体验打磨。
 
 **先讨论(开 issue):** 大规模 API 变更、架构变更(窗口桥接、渲染内部机制、
-主题)、许可证变更、新增运行时依赖。
+主题)、许可证变更(维护者/法律决策)、新增运行时依赖。
 
 **平台说明:** 路线图目前将 Windows/WebView2 和 Linux Wayland 标记为已验证目标。
 macOS/WKWebView 与 HiDPI/mixed-DPI 行为仍需要单独验证。CI 会通过 Xvfb 使用
