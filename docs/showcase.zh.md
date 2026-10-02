@@ -16,9 +16,10 @@ uv run gallery
 
 ![组件画廊中的模态对话框](assets/screenshots/gallery-overlays.png)
 
-Cyberangel Dark。Dialog、Menu、Dropdown、Tooltip 与 Toast 共用当前窗口的
-层级管理器。从已有浮层中打开的浮层会获得自己的逻辑栈位置，因此 Escape 与
-点击外部事件会送达正确的组件。
+Cyberangel Dark。Dialog、Popover、Drawer、CommandPalette、Menu、
+Dropdown、Tooltip 与 Toast 会进入 Page 自有的 `OverlayHost`，并共用当前
+窗口的层级管理器。从已有浮层中打开的浮层会获得自己的逻辑栈位置，因此
+Escape 与点击外部事件会送达正确的组件。
 
 ## 反馈与表单
 

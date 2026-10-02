@@ -201,7 +201,8 @@ Pydantic 配置模型。`WindowConfig` 负责几何与外观
 
 ## `Page`
 
-顶层弹性列容器。两层结构：全屏背景层 + 限宽居中的内容列。
+顶层弹性列容器。页面包含全局浮层时通常有三层：全屏背景、限宽居中的
+内容列，以及内部覆盖层宿主。
 
 ```python
 Page(gap="16px", padding="24px", max_width="720px")
@@ -213,6 +214,12 @@ Page(fill=True, radius="12px")  # 装饰性布局
 `radius`
 
 `fill=True` 撑满窗口高度。`radius` 圆角窗口边框（用于透明无边框窗口）。
+
+`build()` 时，Page 会把带 portal 标记的浮层根节点移入内容列之后的内部
+`OverlayHost`。这样 `Dialog`、`Popover`、`Drawer`、`CommandPalette`、
+`Menu` 与 `Toast` 不再受 transform、filter 或 overflow 裁剪祖先影响，
+同时无需改变应用侧的挂载方式。宿主与 portal 标记均为框架内部实现，
+不暴露公开 portal API。
 
 **方法：** `add(child)`（链式）、`on_close(fn)`（链式 —— 见
 [生命周期](#生命周期)）、`on_focus(fn)` / `on_blur(fn)`（链式）、

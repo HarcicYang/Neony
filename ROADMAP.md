@@ -45,8 +45,9 @@ application developer's point of view.
 
 - Form controls: Button, Input, Textarea, FormField, Checkbox,
   Radio / RadioGroup, Switch, Select, ComboBox, Slider, Progress.
-- Overlays: Dialog, Tooltip, Dropdown, Menu / MenuBranch,
-  CascadingDropdown, Toast, NoticeBubble.
+- Overlays: Dialog, PromptDialog, Popover, Drawer, CommandPalette,
+  Tooltip, Dropdown, Menu / MenuBranch, CascadingDropdown, Toast,
+  NoticeBubble.
 - Feedback: Alert, Spinner, Skeleton, EmptyState.
 - Data views: DataTable, List, Tree.
 - Content: Text, Heading, Card, Avatar, Badge, Image.
@@ -75,14 +76,14 @@ application developer's point of view.
   but opened from inside another overlay.
 - JavaScript scroll indicators, drag ghosts and background layers use
   the same CSS variables generated from the Python layer definitions.
-- Known gap: there is no OverlayHost/portal yet. A global overlay can
-  still inherit a containing block or clipping boundary from a
-  `transform`, `backdrop-filter` or `overflow` ancestor.
-- Decision: P3 will add a framework-internal OverlayHost mounted at the
-  page root. Overlay components keep their Python API and continue to
-  register with `LayerManager`; the host prevents ancestor transforms,
-  filters and clipping from changing their containing block. `Layer`
-  stays internal and no raw portal/host API is exposed.
+- Each Page owns an internal `OverlayHost` placed after the content
+  column. Portal-marked global overlay roots move into that host during
+  `Page.build()`, so transformed, filtered or overflow-clipped content
+  ancestors cannot become their containing block.
+- Dialog, PromptDialog, Popover's panel, Drawer, CommandPalette, Menu
+  and Toast use the portal path automatically. Overlay components keep
+  their Python API and continue to register with `LayerManager`; no raw
+  portal or host API is exposed.
 
 ### Animation and styling
 
@@ -134,17 +135,17 @@ coverage, Gallery content, i18n and a runnable demo where appropriate.
 
 ### Capability status matrix
 
-| Area | Already implemented | Already planned | Missing before v2 |
-| --- | --- | --- | --- |
-| Menu and choices | string/tuple items, branches | richer keyboard navigation | disabled, separator, icon, shortcut, checked, danger, shared choice model |
-| Form interaction | Input, Textarea, FormField, required/invalid presentation | Form orchestration later | adornments, clear, password reveal, Enter submit, validation contract |
-| Collection data | sort, single/multi selection, virtualization | advanced DataGrid review | filtering, search, column visibility, expandable rows, inline editing, pagination integration |
-| Tree navigation | static hierarchy, expansion, leaf selection | deeper integration | tri-state checkboxes, lazy loading, search, virtualization, node actions |
-| List navigation | single-select virtualization | richer item layouts | groups, multi-select, subtitles, trailing actions, loading/empty slots |
-| Overlays | Dialog, Tooltip, Dropdown, Menu, Toast | Popover, Drawer, CommandPalette | OverlayHost, focus trap, initial focus |
-| Workflow input | select, combobox, slider, progress | TagInput, DatePicker/Calendar | MultiSelect, file upload, NumberInput, OTP, DateRange, TimePicker |
-| Layout tools | Flex, GridView, ScrollArea, SplitView deferred | SplitView review | resizable split panes |
-| Advanced content | Markdown, RichText, media | none | ColorPicker, Rating, Timeline, Descriptions |
+| Area | Implemented for v2 | Remaining |
+| --- | --- | --- |
+| Menu and choices | shared rich `ChoiceItem` model across Menu, Dropdown, Select, ComboBox and CascadingDropdown | further menu composition only when needed |
+| Form interaction | Input v2, validation contract, loading Button and indeterminate Checkbox | Form-level orchestration |
+| Collection data | sorting, single / multi selection and bounded virtualization | filtering, search, visibility, expandable rows, editing and pagination integration |
+| Tree navigation | static hierarchy, expansion and leaf selection | tri-state checkboxes, lazy loading, search, node actions and virtualization |
+| List navigation | single-select virtualization | groups, multi-select, subtitles, trailing actions and loading / empty slots |
+| Overlays | OverlayHost, focus contracts, Dialog, Popover, Drawer, CommandPalette, Menu and Toast | none required for v2 |
+| Workflow input | select, combobox, slider and progress | MultiSelect, TagInput, file upload, NumberInput and OTP |
+| Layout tools | Flex, GridView, ScrollArea and SplitView review | resizable split panes |
+| Advanced content | Markdown, RichText and media | ColorPicker, Rating, Timeline and Descriptions |
 
 ### P0: Shared contracts (implemented)
 
@@ -168,13 +169,19 @@ coverage, Gallery content, i18n and a runnable demo where appropriate.
 - These components use ordinary layout, selection and value bindings;
   they do not require the portal.
 
-### P2: Overlay and productivity
+### P2: Overlay and productivity (implemented)
 
-- Add the framework-internal OverlayHost/portal for global overlays.
-- Add `Popover` and `Drawer`; both must use LayerManager and declare
-  their owner when opened from another overlay.
-- Add `CommandPalette`, reusing Dialog lifecycle, Input filtering, the
-  List keyboard model and LayerManager.
+- [x] Add the Page-owned OverlayHost/portal for global overlays and move
+  Dialog, PromptDialog, Menu, Toast, Drawer, CommandPalette and the
+  Popover panel into it automatically.
+- [x] Add `Popover` with viewport-aware placement, flip / clamp behavior,
+  scroll and resize repositioning, owner-aware nesting and optional
+  focus trapping.
+- [x] Add `Drawer` with four sides, configurable thickness, scrim
+  close control, directional animation and the shared modal focus trap.
+- [x] Add `CommandPalette` and `Command`, with local filtering, disabled
+  rows, keyboard selection, duplicate guards, selection events and
+  Page-collected hotkeys.
 
 ### P3: Data and collection depth
 
@@ -360,95 +367,29 @@ steps = Stepper(
 steps.bind_selected(step_key)
 ```
 
-### Planned: P1-P5
-
-These examples describe planned public shapes. They follow the existing
-`Component`, `bind_value` / `bind_selected`, theme-token and
-popup-lifecycle conventions.
+### Implemented: P2 overlay productivity
 
 ```python
-from neony.application import icons
-from neony.application.elements import (
-    Breadcrumb,
-    BreadcrumbItem,
-    Button,
-    Command,
-    CommandPalette,
-    Drawer,
-    Pagination,
-    Popover,
-    Segment,
-    SegmentedControl,
-    Step,
-    Stepper,
-)
+filters = Popover(Button("Filters"), filter_panel, placement="bottom")
+filters.open = True
 
-view = SegmentedControl(Segment("list", "List"), Segment("grid", "Grid"), value="list")
-view.value = "grid"
-view.bind_value(view_mode)
-view.on_change(on_view_change)
-
-crumbs = Breadcrumb(
-    BreadcrumbItem("Workspace", key="workspace"),
-    BreadcrumbItem("Neony", key="neony"),
-    BreadcrumbItem("Settings", key="settings", disabled=True),
-)
-crumbs.on_change(lambda event: router.go(event.value))
-
-pager = Pagination(value=1, page_count=20, siblings=1)
-pager.value = 4
-pager.page_count = 24
-pager.bind_value(page_signal)
-pager.on_change(on_page_change)
-
-steps = Stepper(
-    Step("Account", account_form, key="account"),
-    Step("Plan", plan_form, key="plan"),
-    Step("Review", review_panel, key="review"),
-    active_key="account",
-)
-steps.selected_key = "plan"
-steps.bind_selected(step_signal)
-steps.on_change(on_step_change)
-
-popover = Popover(
-    anchor=Button("Filters"),
-    content=filter_panel,
-    placement="bottom",
-    align="start",
-)
-popover.open = True
-popover.toggle()
-popover.on_open(on_opened)
-popover.on_close(on_closed)
-
-drawer = Drawer(
-    notification_panel,
-    title="Notifications",
-    side="right",
-    width="360px",
-    closable=True,
-)
+drawer = Drawer(notification_panel, side="right", title="Notifications")
 drawer.open = True
-drawer.on_open(on_opened)
-drawer.on_close(on_closed)
 
 palette = CommandPalette(
-    Command("open", "Open file", keywords=("file",), shortcut="Ctrl+O", icon=icons.star),
-    hotkey={"default": "Ctrl+K", "darwin": "Meta+K"},
+    Command("open", "Open file", keywords=("document",), shortcut="Ctrl+O"),
+    Command("theme", "Change theme"),
+    hotkey={"darwin": "Meta+Shift+P", "default": "Ctrl+Shift+P"},
 )
-palette.open = True
-palette.query = "open"
-palette.add_command(Command("theme", "Change theme"))
 palette.on_change(run_command)
 ```
 
-Planned item models:
+### Remaining: P3-P5
 
-- `Segment(value, label, icon=None, disabled=False)`
-- `BreadcrumbItem(label, key=None, icon=None, disabled=False)`
-- `Step(title, content, key=None, description=None, icon=None)`
-- `Command(value, label, description="", keywords=(), shortcut=None, icon=None, disabled=False)`
+The phase lists above are the source of truth for work not yet
+implemented. The P0-P2 public shapes are documented in the component API
+reference and the Gallery; future APIs remain non-binding until their
+phase lands.
 
 ## Delivery contract
 

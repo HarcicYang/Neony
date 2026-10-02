@@ -44,6 +44,7 @@ It builds on [LumiView](https://lumiview.dev), which uses the same Rust
 `tao`/`wry` webview stack as [Tauri](https://tauri.app).
 
 - **Pure Python API** — components, layouts and events; no HTML or JavaScript in application code
+- **Portal-backed overlays** — a Page-owned overlay host keeps dialogs, popovers, drawers, menus and toasts outside transformed or clipped content
 - **Fine-grained reactivity** — `Signal` / `Computed` / `Effect` primitives with declarative bindings
 - **Same stack as Tauri** — Rust `tao`/`wry` webviews via LumiView
 - **8 theme presets** — Nightglow / Planet Plaza / Ember Zone / Cyberangel
@@ -147,6 +148,9 @@ Import from `neony.application.elements`.
 | `EmptyState`              | Centered zero-content message with icon and actions                             |
 | `Dialog`                  | Fixed scrim + centered glass panel — focus trap / initial focus, scrim / Escape / click-away close |
 | `PromptDialog`            | Single-field text prompt on top of `Dialog` — confirm / cancel, Enter / Escape |
+| `Popover`                 | Anchored portal surface with viewport-aware placement and repositioning       |
+| `Drawer`                  | Modal edge panel with directional animation and trapped focus                  |
+| `CommandPalette` / `Command` | Searchable, keyboard-first command surface with optional hotkey            |
 | `Tooltip`                 | Hover bubble wrapped around an anchor, placement offsets, hover delay        |
 | `Dropdown`                | Themed popup under a trigger — full keyboard nav + click-away close          |
 | `Menu` / `MenuBranch`     | Cursor-positioned menu with cascading branches, icons, shortcuts, checks, danger rows, separators |
@@ -184,6 +188,29 @@ Import from `neony.application.elements`.
 | `RichText`                | Inline contenteditable editor — text + images, caret/selection API, insert at caret, `content()` segments, IME-safe, paste image files |
 | `ScrollArea`              | Scrollable vertical region with `scroll_to_bottom()` / `scroll_to_top()` / `scroll_to()` |
 | `StickToBottom`           | Chat-stream scroll container — auto-pins near the bottom; pauses on scroll-up, resumes near the bottom |
+
+### Portal-backed overlay surfaces
+
+```python
+anchor = Button("Filters")
+filters = Popover(anchor, filter_panel, placement="bottom")
+anchor.on_click(lambda _event: filters.toggle())
+
+drawer = Drawer(settings_panel, title="Settings", side="right")
+drawer.open = True
+
+palette = CommandPalette(
+    Command("open", "Open file", keywords=("document",), shortcut="Ctrl+O"),
+    hotkey={"darwin": "Meta+Shift+P", "default": "Ctrl+Shift+P"},
+)
+palette.on_change(run_command)
+
+page.add(filters, drawer, palette)
+```
+
+During `Page.build()`, each overlay root (or the `Popover` panel) moves
+into the internal `OverlayHost`. Callers still mount components normally;
+portals are an implementation detail of the framework.
 
 All components share a fluent, chainable API — see the
 [API index](docs/api/README.en.md) for usage.

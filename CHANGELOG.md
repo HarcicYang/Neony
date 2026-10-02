@@ -1,9 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-10-02
 
 ### Added
 
+- **OverlayHost and portal-backed global layers** — each Page now owns an
+  internal overlay host outside transformed or clipped content. Dialog,
+  PromptDialog, Menu and Toast move into it automatically; LayerManager
+  ownership, focus restoration, outsideclick and Escape routing remain
+  unchanged.
+- **Popover and Drawer** — Popover adds an anchored, viewport-aware
+  portal surface with placement flipping and scroll/resize
+  repositioning. Drawer adds a modal edge panel with directional
+  entrance/exit animation and the shared focus-trap contract.
+- **CommandPalette** — a searchable, keyboard-first command surface with
+  local filtering, disabled commands, selection events and Page-collected
+  hotkeys.
 - **P1 daily controls** — `Button(loading=True)` exposes an accessible
   busy state and blocks clicks while work is pending. `Checkbox` now
   supports native-style `indeterminate` / mixed selection.

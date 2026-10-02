@@ -26,6 +26,7 @@ from neony.dom import Button as _ButtonElem
 from .. import motion
 from ..layers import Layer, LayerHandle, LocalLayer, layer_manager
 from ._choices import ChoiceItem, ChoiceItemLike, MenuSeparator, choice_content, coerce_choice_item
+from ._overlay import mark_portal
 from .base import Component, ReactiveText, _mount_text
 from .icon import Icon
 
@@ -143,6 +144,8 @@ class Menu(Component):
         self._layer_handle: LayerHandle | None = None
 
         self._root = Div(styles=_SUBMENU if self._submenu else _PANEL, container=[])
+        if not self._submenu:
+            mark_portal(self._root)
         self._root.bubble_events = True
         self._bind(self._root, "keydown")
         self._bind(self._root, "outsideclick")

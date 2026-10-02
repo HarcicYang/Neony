@@ -17,8 +17,10 @@ from neony.application.elements.cascading_dropdown import CascadingDropdown
 from neony.application.elements.chat import MessageBubble, NoticeBubble
 from neony.application.elements.checkbox import Checkbox
 from neony.application.elements.combobox import ComboBox
+from neony.application.elements.command_palette import Command, CommandPalette
 from neony.application.elements.datatable import Column, DataTable
 from neony.application.elements.dialog import Dialog, DialogAction
+from neony.application.elements.drawer import Drawer
 from neony.application.elements.dropdown import Dropdown
 from neony.application.elements.feedback import EmptyState, Skeleton, Spinner
 from neony.application.elements.form_field import FormField
@@ -33,6 +35,7 @@ from neony.application.elements.markdown import Markdown
 from neony.application.elements.media import Audio, Video
 from neony.application.elements.menu import Menu, MenuBranch
 from neony.application.elements.pagination import Pagination
+from neony.application.elements.popover import Popover
 from neony.application.elements.progress import Progress
 from neony.application.elements.prompt_dialog import PromptDialog
 from neony.application.elements.radio import Radio, RadioGroup
@@ -68,10 +71,13 @@ __all__ = [
     "Collapsible",
     "Column",
     "ComboBox",
+    "Command",
+    "CommandPalette",
     "Component",
     "DataTable",
     "Dialog",
     "DialogAction",
+    "Drawer",
     "Dropdown",
     "EmptyState",
     "Flex",
@@ -94,6 +100,7 @@ __all__ = [
     "NoticeBubble",
     "Pagination",
     "Pane",
+    "Popover",
     "Progress",
     "PromptDialog",
     "Radio",

@@ -1874,6 +1874,117 @@ describe("outsideclick", () => {
   });
 });
 
+describe("popover positioning and anchor outsideclick", () => {
+  beforeEach(() => {
+    window.neony = neony;
+    window.lumiview = { listen, invoke: vi.fn(() => Promise.resolve()), window: {} };
+  });
+
+  function rect(left, top, width, height) {
+    return { left, top, right: left + width, bottom: top + height, width, height };
+  }
+
+  it("positions below the anchor and clamps to the viewport", () => {
+    mountTree({
+      key: "pop-anchor",
+      tag: "button",
+      text: "Open",
+    });
+    neony.engine.applyOps([
+      {
+        op: "create",
+        key: "pop-panel",
+        parent: "pop-anchor",
+        index: null,
+        node: {
+          key: "pop-panel",
+          tag: "div",
+          attrs: {
+            "data-neony-popover-anchor": "pop-anchor",
+            "data-neony-popover-placement": "bottom",
+            "data-neony-popover-align": "start",
+          },
+        },
+      },
+    ]);
+    const anchor = neony.engine.registry.get("pop-anchor");
+    const panel = neony.engine.registry.get("pop-panel");
+    anchor.getBoundingClientRect = () => rect(100, 100, 80, 30);
+    panel.getBoundingClientRect = () => rect(0, 0, 180, 120);
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 320 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 260 });
+
+    expect(window.__neonyPopoverPosition("pop-panel")).toBe(true);
+    expect(panel.style.left).toBe("100px");
+    expect(panel.style.top).toBe("132px");
+  });
+
+  it("flips above when there is no room below", () => {
+    mountTree({ key: "pop-anchor", tag: "button" });
+    neony.engine.applyOps([
+      {
+        op: "create",
+        key: "pop-panel",
+        parent: "pop-anchor",
+        index: null,
+        node: {
+          key: "pop-panel",
+          tag: "div",
+          attrs: {
+            "data-neony-popover-anchor": "pop-anchor",
+            "data-neony-popover-placement": "bottom",
+          },
+        },
+      },
+    ]);
+    const anchor = neony.engine.registry.get("pop-anchor");
+    const panel = neony.engine.registry.get("pop-panel");
+    anchor.getBoundingClientRect = () => rect(20, 160, 80, 30);
+    panel.getBoundingClientRect = () => rect(0, 0, 160, 100);
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 220 });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 320 });
+
+    window.__neonyPopoverPosition("pop-panel");
+    expect(panel.style.top).toBe("54px");
+  });
+
+  it("treats the anchor as inside for outsideclick routing", () => {
+    mountTree({
+      key: "pop-root",
+      tag: "div",
+      children: [
+        { key: "pop-anchor", tag: "button", text: "Anchor" },
+        {
+          key: "pop-panel",
+          tag: "div",
+          attrs: {
+            "data-neony-outside": "true",
+            "data-neony-outside-anchor": "pop-anchor",
+            "data-neony-layer-order": "1",
+          },
+        },
+      ],
+    });
+    const anchor = document.querySelector("[data-neony-key='pop-anchor']");
+    const outside = document.createElement("button");
+    outside.setAttribute("data-neony-key", "outside");
+    document.body.appendChild(outside);
+
+    anchor.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    expect(
+      window.lumiview.invoke.mock.calls.filter(
+        ([name, payload]) => name === "neony.event" && payload.event_type === "outsideclick"
+      )
+    ).toHaveLength(0);
+
+    outside.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    expect(window.lumiview.invoke).toHaveBeenCalledWith(
+      "neony.event",
+      expect.objectContaining({ key: "pop-panel", event_type: "outsideclick" })
+    );
+  });
+});
+
 describe("wheel-x (vertical wheel → horizontal scroll)", () => {
   let invoke;
   let rafSpy;

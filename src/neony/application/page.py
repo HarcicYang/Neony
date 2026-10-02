@@ -11,6 +11,7 @@ from neony.dom import Div, DOMElement, DomEvent, Styles
 
 from . import shortcuts
 from .elements import Component, VStack
+from .elements._overlay import OverlayHost, extract_portals
 
 _Direction = Literal["row", "row-reverse", "column", "column-reverse"]
 _Align = Literal["stretch", "center", "flex-start", "flex-end", "baseline"]
@@ -288,7 +289,12 @@ class Page:
         # Preserve VStack's min-height:0 shrink contract while retaining Page's
         # width, spacing and advanced direction/alignment compatibility.
         content.styles = inner.model_copy(update={"min_height": "0"})
-        root = Div(styles=outer, container=[content])
+        overlay_host = OverlayHost()
+        extract_portals(content, overlay_host)
+        root_container: list[DOMElement | str] = [content]
+        if overlay_host.root.container:
+            root_container.append(overlay_host.root)
+        root = Div(styles=outer, container=root_container)
         if self._shortcut_handlers or self._keydown_handlers or self._keyup_handlers:
             # Window-level keys must fire while typing in any input, so
             # keydown/keyup anywhere in the tree bubbles to the root

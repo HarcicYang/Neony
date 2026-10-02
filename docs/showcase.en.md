@@ -17,10 +17,11 @@ uv run gallery
 
 ![Modal dialog over the component gallery](assets/screenshots/gallery-overlays.png)
 
-Cyberangel Dark. Dialogs, menus, dropdowns, tooltips, and toasts share the
-window's layer manager. An overlay opened from another overlay gets its own
-logical stack position, so Escape and outside-click actions reach the correct
-component.
+Cyberangel Dark. Dialogs, popovers, drawers, command palettes, menus,
+dropdowns, tooltips, and toasts are moved into the Page-owned `OverlayHost`
+and share the window's layer manager. An overlay opened from another overlay
+gets its own logical stack position, so Escape and outside-click actions reach
+the correct component.
 
 ## Feedback and forms
 

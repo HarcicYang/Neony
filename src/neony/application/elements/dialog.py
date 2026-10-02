@@ -30,6 +30,7 @@ from neony.application.theme import stub
 from neony.dom import Animation, Border, BoxShadow, Div, DOMElement, DomEvent, Filter, Shadow, Span, Styles, Transition
 
 from ..layers import Layer, LayerHandle, LocalLayer, layer_manager
+from ._overlay import mark_portal
 from .base import Component, ReactiveText, _mount_text
 from .button import Button
 
@@ -200,6 +201,7 @@ class Dialog(Component):
             args={"role": "dialog", "aria-modal": "true", "aria-labelledby": self._title_span.key},
             container=[self._scrim, self._panel],
         )
+        mark_portal(self._root)
         # Keydowns from anything focused inside the dialog bubble here.
         self._root.bubble_events = True
 

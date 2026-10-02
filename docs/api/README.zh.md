@@ -11,9 +11,10 @@
 - [核心](core.zh.md) — `NeonApplication`、`launch`、`Config` /
   `WindowConfig` / `WebViewConfig`、`Page`、生命周期、多窗口、导航策略、
   `Tray`。
-- [组件](components.zh.md) — 表单控件、文本与标签页、浮层与反馈、
-  内容组件、`Menu` / `MenuBranch` / `CascadingDropdown` 级联菜单，
-  以及 `Reorder` 拖拽重排组件。
+- [组件](components.zh.md) — 表单控件、文本与标签页、Portal 浮层
+  （`Dialog`、`Popover`、`Drawer`、`CommandPalette`、`Menu`、
+  `Toast`）、反馈、内容组件、`Menu` / `MenuBranch` /
+  `CascadingDropdown` 级联菜单，以及 `Reorder` 拖拽重排组件。
 - [布局与窗口装饰](layout-chrome.zh.md) — `VStack` / `HStack` / `Flex` /
   `Separator` / `GlassPanel` / `GridView`、`TitleBar`、`Sidebar` / `Pane` /
   `SidebarGroup`、`Tree`、`List`、`DataTable`、`Icon`。

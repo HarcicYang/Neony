@@ -6,6 +6,7 @@ __pycache__/
 *.egg-info/
 *.egg
 build/
+rust/target/
 __main__.build/
 __main__.dist/
 __main__.onefile-build/

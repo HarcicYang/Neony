@@ -41,6 +41,7 @@ from neony.dom import (
 from neony.dom import Button as _ButtonElem
 
 from ..layers import Layer
+from ._overlay import mark_portal
 from .base import Component
 from .icon import Icon
 
@@ -176,6 +177,7 @@ class Toast(Component):
             container=[],
             args={"aria-live": "polite"},
         )
+        mark_portal(self._root)
 
     # ---- state ----
 

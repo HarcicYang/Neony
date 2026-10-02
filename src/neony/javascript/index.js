@@ -1824,7 +1824,13 @@
                 topmostOrder = order;
             }
         }
-        if (topmost && !topmost.contains(event.target)) {
+        var anchorKey = topmost && topmost.getAttribute("data-neony-outside-anchor");
+        var anchorEl =
+            anchorKey && window.neony && window.neony.engine
+                ? window.neony.engine.registry.get(anchorKey)
+                : null;
+        var inside = topmost && (topmost.contains(event.target) || (anchorEl && anchorEl.contains(event.target)));
+        if (topmost && !inside) {
             var topKey = topmost.getAttribute("data-neony-key");
             window.lumiview
                 .invoke("neony.event", { key: topKey, event_type: "outsideclick", value: null })
@@ -1925,6 +1931,70 @@
     document.addEventListener("keydown", trapFocus, true);
 
     document.addEventListener("click", dispatchOutsideClick, true);
+
+    function popoverPosition(panel) {
+        var anchorKey = panel.getAttribute("data-neony-popover-anchor");
+        var anchor =
+            anchorKey && window.neony && window.neony.engine
+                ? window.neony.engine.registry.get(anchorKey)
+                : null;
+        if (!anchor) return false;
+        var placement = panel.getAttribute("data-neony-popover-placement") || "bottom";
+        var align = panel.getAttribute("data-neony-popover-align") || "start";
+        var gap = 6;
+        var margin = 8;
+        var ar = anchor.getBoundingClientRect();
+        var pr = panel.getBoundingClientRect();
+        var vw = window.innerWidth || document.documentElement.clientWidth;
+        var vh = window.innerHeight || document.documentElement.clientHeight;
+
+        var can = {
+            top: ar.top >= pr.height + gap + margin,
+            bottom: vh - ar.bottom >= pr.height + gap + margin,
+            left: ar.left >= pr.width + gap + margin,
+            right: vw - ar.right >= pr.width + gap + margin,
+        };
+        var opposite = { top: "bottom", bottom: "top", left: "right", right: "left" };
+        if (!can[placement] && can[opposite[placement]]) placement = opposite[placement];
+
+        var left = ar.left;
+        var top = ar.bottom + gap;
+        if (placement === "top") top = ar.top - pr.height - gap;
+        else if (placement === "left") {
+            left = ar.left - pr.width - gap;
+            top = ar.top;
+        } else if (placement === "right") {
+            left = ar.right + gap;
+            top = ar.top;
+        }
+
+        if (placement === "top" || placement === "bottom") {
+            if (align === "center") left = ar.left + (ar.width - pr.width) / 2;
+            else if (align === "end") left = ar.right - pr.width;
+        } else {
+            if (align === "center") top = ar.top + (ar.height - pr.height) / 2;
+            else if (align === "end") top = ar.bottom - pr.height;
+        }
+
+        left = Math.max(margin, Math.min(left, vw - pr.width - margin));
+        top = Math.max(margin, Math.min(top, vh - pr.height - margin));
+        panel.style.left = left + "px";
+        panel.style.top = top + "px";
+        return true;
+    }
+
+    window.__neonyPopoverPosition = function (key) {
+        if (!window.neony || !window.neony.engine) return false;
+        var panel = window.neony.engine.registry.get(key);
+        return panel ? popoverPosition(panel) : false;
+    };
+
+    function repositionPopovers() {
+        document.querySelectorAll("[data-neony-popover-anchor]").forEach(popoverPosition);
+    }
+
+    document.addEventListener("scroll", repositionPopovers, true);
+    window.addEventListener("resize", repositionPopovers);
 
     // ---- Scroll indicator (data-neony-scroll) ----
     //

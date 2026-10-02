@@ -141,6 +141,20 @@ _BUILTIN_KEYFRAMES += [
     for pos, (dx, dy) in _TOAST_ENTRY_OFFSETS.items()
 ]
 
+# Drawer entrance keyframes — the panel enters from the edge it occupies.
+_DRAWER_ENTRY_OFFSETS: dict[str, tuple[str, str]] = {
+    "left": ("-100%", "0"),
+    "right": ("100%", "0"),
+    "top": ("0", "-100%"),
+    "bottom": ("0", "100%"),
+}
+_BUILTIN_KEYFRAMES += [
+    KeyFrame(f"neony-drawer-in-{side}")
+    .set("0%", Props(opacity=0, transform=Transform.translate(x=dx, y=dy)))
+    .set("100%", Props(opacity=1, transform=Transform.translate(x=0, y=0)))
+    for side, (dx, dy) in _DRAWER_ENTRY_OFFSETS.items()
+]
+
 # Streaming-effect keyframes: the blinking caret that trails growing
 # text, the fade-in for each appended chunk, and the soft glow pulsing
 # on a streaming message bubble.  The matching rules (what carries

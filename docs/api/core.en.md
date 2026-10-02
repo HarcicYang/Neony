@@ -212,8 +212,9 @@ the platform default menu.
 
 ## `Page`
 
-Top-level flex-column container. Two layers: a full-viewport backdrop
-and a width-constrained, centered content column.
+Top-level flex-column container. Normally three layers: a full-viewport
+backdrop, a width-constrained centered content column, and an internal
+overlay host when the page contains global floating layers.
 
 ```python
 Page(gap="16px", padding="24px", max_width="720px")
@@ -226,6 +227,13 @@ Page(fill=True, radius="12px")  # chrome layouts
 
 `fill=True` stretches to the full window height. `radius` rounds the
 window frame (for transparent frameless windows).
+
+At `build()` time, Page moves portal-marked overlay roots into an
+internal `OverlayHost` placed after the content column. This keeps
+`Dialog`, `Popover`, `Drawer`, `CommandPalette`, `Menu` and `Toast`
+outside transformed, filtered or overflow-clipped ancestors without
+changing how applications mount them. The host and portal marker are
+framework internals; no public portal API is required.
 
 **Methods:** `add(child)` (chainable), `on_close(fn)` (chainable — see
 [Lifecycle](#lifecycle)), `on_focus(fn)` / `on_blur(fn)` (chainable),

@@ -352,6 +352,12 @@ accordion.expanded_keys  # list[str]，当前展开的分组
 
 ## 浮层与反馈
 
+每个 `Page` 都会在内容列之后构建内部 `OverlayHost`。`Page.build()` 时，
+带 portal 标记的全局浮层根节点会移入该宿主，避免 `position: fixed`
+继承 transform、filter 或裁剪祖先形成的 containing block。Dialog、
+PromptDialog、Menu、Toast、Drawer、CommandPalette 与 Popover 面板均走
+这条路径；宿主属于内部实现，应用侧仍通过 `page.add(...)` 正常挂载。
+
 ### `Alert`
 
 ```python
@@ -442,13 +448,102 @@ DOM 元素；省略时聚焦第一个可聚焦子元素。Dialog 会把 Tab / Sh
 底部一排主题按钮 —— `DialogAction` 接受标签（位置参数）、
 `variant`（`primary`/`ghost`/`danger`）、`on_click` 回调（收对话框
 自身，同步或异步）与 `close_on_click`（默认 True）。注意：任何
-`backdrop-filter` / `transform` 祖先会成为 `position: fixed` 的
-containing block —— Dialog 应挂页面根或非过滤容器。
+`backdrop-filter` / `transform` 祖先在组件脱离 Page 使用时才会成为
+`position: fixed` 的 containing block；Page 会自动把 Dialog 移入内部
+OverlayHost。
 
 Dialog 内容可以继续包含 Dropdown、Select、ComboBox、Tooltip 等拥有
 浮层的组件。子浮层打开后会进入同一窗口的逻辑层栈：它在数值上仍属于
 popup 层带，但会排在模态层之后；点击对话框内部、子浮层外部的区域只
 关闭子浮层，不会误关 Dialog。Gallery 的 Overlays 页面包含可运行示例。
+
+### `Popover`
+
+```python
+anchor = Button("筛选")
+filters = Popover(
+    anchor,
+    filter_panel,
+    placement="bottom",
+    align="start",
+)
+anchor.on_click(lambda _event: filters.toggle())
+
+filters.on_open(on_opened)
+filters.on_close(on_closed)
+filters.open = True
+```
+
+**参数：** `Popover(anchor, content, *, placement="bottom",
+align="start", open=False, owner=None, focus_scope="none",
+initial_focus=None)`。
+
+`anchor` 接受组件、DOMElement 或字符串；`content` 接受组件或
+DOMElement。`placement` 支持 `top`、`right`、`bottom`、`left`；
+`align` 在交叉轴支持 `start`、`center`、`end`。浏览器运行时会测量锚点，
+指定方向空间不足时翻转到反方向，并把面板限制在视口内；面板打开期间会
+随滚动和缩放重新定位。
+
+`open` 可写，`toggle()` 可切换。编程式写入同样会派发通过
+`on_open()` / `on_close()` 注册的 `open` / `close` 伪事件。打开
+Popover 会关闭上一个 Popover，把面板注册到 popover 层；Escape 与点击
+外部会关闭，锚点点击被视为内部事件。从其他浮层中打开时传入 `owner=`，
+让 Popover 跟随该层并在父层关闭时一并关闭。`focus_scope="trap"` 与
+`initial_focus=` 可启用共享模态焦点契约；默认
+`focus_scope="none"` 只建立层级与点击外部契约。
+
+### `Drawer`
+
+```python
+drawer = Drawer(
+    notification_panel,
+    title="通知",
+    side="right",
+    width="360px",
+    closable=True,
+)
+drawer.open = True
+drawer.on_open(on_opened)
+drawer.on_close(on_closed)
+```
+
+**参数：** `Drawer(content, *, title="", side="right",
+width="360px", open=False, closable=True)`。
+
+带全窗口遮罩、方向入场 / 出场动画和 Dialog 同款焦点陷阱的模态边缘面板。
+`side` 支持 `left`、`right`、`top`、`bottom`；`width` 设置所有方向的面板
+厚度。`title` 接受文本或响应式文本源；传入时会连接到面板的辅助功能标签。
+
+`open` 可写，并派发 `open` / `close` 伪事件。只有 `closable=True` 时点击
+遮罩才会关闭；Escape 与父层联级关闭仍然有效。Drawer 属于模态层，打开时
+会关闭较低层的临时浮层，并通过共享层级管理器捕获 / 恢复焦点。
+
+### `CommandPalette`
+
+```python
+palette = CommandPalette(
+    Command("open", "打开文件", keywords=("document",), shortcut="Ctrl+O"),
+    Command("theme", "切换主题", description="循环当前主题"),
+    hotkey={"darwin": "Meta+Shift+P", "default": "Ctrl+Shift+P"},
+)
+palette.on_change(run_command)
+```
+
+**参数：** `CommandPalette(*commands, hotkey=None,
+placeholder="Search commands…", open=False)`。
+
+`Command(value, label=None, *, description="", keywords=(), shortcut=None,
+icon=None, disabled=False)` 描述一行命令。过滤在本地执行，不区分大小写，
+覆盖 `value`、`label`、`description` 与 `keywords`。上下键会在可用行中
+钳制移动，Home/End 跳到首 / 尾可用项，Enter 选中当前项；禁用命令永远
+不会被选中，也不会派发 `change`。
+
+`query` 可写并立即触发过滤；`commands` 返回只读快照。用
+`add_command(*commands)` 追加命令；重复 value 会抛出 `ValueError`。
+打开面板会重置 query 并聚焦搜索框。选中命令后面板关闭，并通过
+`change` 派发其 `value`；Escape 与遮罩也可关闭。Command 的 `shortcut`
+仅是展示元数据；构造参数 `hotkey` 才是真正打开面板的 Page 级快捷键，
+面板挂载到 Page 后会自动收集。
 
 ### `PromptDialog`
 
@@ -470,8 +565,8 @@ ask.on_close(lambda d: print("closed"))  # 继承自 Dialog
 取消（ghost 按钮、`Escape`、scrim 点击或点击外部）只关闭、不触发。
 
 `value` 是输入框文字 —— 打开前设置可预填，提交后读取。`prompt`、
-`confirm_label`、`cancel_label`、`placeholder` 均可配置。与 `Dialog`
-相同的 `position: fixed` 注意点 —— 挂页面根。
+`confirm_label`、`cancel_label`、`placeholder` 均可配置。Page 会自动
+把 PromptDialog 移入内部 OverlayHost。
 
 ### `Tooltip`
 
@@ -585,8 +680,8 @@ toast.clear()  # 全部移除
 下方升起、角位对角滑入），出场反向重放同一 keyframe 滑向该方位
 角/边。宿主是 `position: fixed` 全视口层，由框架的全局层级管理器
 固定为通知层、
-`pointer-events: none`（点击穿透到页面）——挂载在页根，避开
-`backdrop-filter` / `transform` 祖先。
+`pointer-events: none`（点击穿透到页面）。脱离 Page 使用时挂载在页根，
+Page 会自动移入内部 OverlayHost。
 
 ## 内容
 

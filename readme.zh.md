@@ -39,6 +39,7 @@ HTML 或 JavaScript。
 使用相同的 Rust `tao`/`wry` WebView 技术栈。
 
 - **纯 Python API** — 组件、布局、事件；应用代码不必写 HTML 或 JavaScript
+- **Portal 浮层** — Page 自有的覆盖层宿主让对话框、浮出层、抽屉、菜单与通知脱离 transform / 裁剪祖先
 - **细粒度响应式** — `Signal` / `Computed` / `Effect` 原语 + 声明式绑定
 - **与 Tauri 同源** — Rust `tao`/`wry` WebView (经 LumiView)
 - **八套主题预设** — Nightglow / Planet Plaza / Ember Zone / Cyberangel 四个视觉族，每族 light / dark 成对
@@ -137,6 +138,9 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `EmptyState`                | 居中的空内容提示，可带图标与操作                                                                                          |
 | `Dialog`                    | 固定 scrim + 居中玻璃面板 — 焦点陷阱 / 初始焦点，scrim / Escape / 点击外部关闭                                           |
 | `PromptDialog`              | 基于 `Dialog` 的单行文本提示 — 确认 / 取消，Enter / Escape                                                                |
+| `Popover`                   | 锚定 portal 浮层，视口感知 placement 与滚动/缩放重定位                                                                    |
+| `Drawer`                    | 带方向动画和焦点陷阱的模态边缘面板                                                                                       |
+| `CommandPalette` / `Command` | 可搜索、键盘优先的命令面板，支持可选 hotkey                                                                             |
 | `Tooltip`                   | 包裹 anchor 的悬停气泡，placement 偏移 + 悬停延迟                                                                         |
 | `Dropdown`                  | trigger 下的主题化弹出面板 — 完整键盘导航 + 点击外部关闭                                                                  |
 | `Menu` / `MenuBranch`       | 光标定位菜单与级联分支，支持图标、快捷键、勾选、危险操作和分隔线                                                         |
@@ -174,6 +178,28 @@ launch(page, title="My App", width=480, height=360, devtools=True)
 | `RichText`                  | 行内 contenteditable 编辑器 — 文字 + 图片、光标/选区 API、光标处插入、`content()` 分段、IME 安全、粘贴图片文件            |
 | `ScrollArea`                | 可滚动垂直区域，带 `scroll_to_bottom()` / `scroll_to_top()` / `scroll_to()`                                               |
 | `StickToBottom`             | 聊天流滚动容器 — 接近底部自动贴底；上滚暂停，回到底部附近恢复                                                             |
+
+### Portal 浮层
+
+```python
+anchor = Button("筛选")
+filters = Popover(anchor, filter_panel, placement="bottom")
+anchor.on_click(lambda _event: filters.toggle())
+
+drawer = Drawer(settings_panel, title="设置", side="right")
+drawer.open = True
+
+palette = CommandPalette(
+    Command("open", "打开文件", keywords=("document",), shortcut="Ctrl+O"),
+    hotkey={"darwin": "Meta+Shift+P", "default": "Ctrl+Shift+P"},
+)
+palette.on_change(run_command)
+
+page.add(filters, drawer, palette)
+```
+
+`Page.build()` 会把每个浮层根节点（或 `Popover` 面板）移入内部
+`OverlayHost`。调用方仍按普通组件方式挂载，portal 是框架内部实现。
 
 所有组件共享链式 API，用法见 [API 索引](docs/api/README.zh.md)。
 

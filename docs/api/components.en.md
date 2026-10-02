@@ -405,6 +405,14 @@ selection protocol.
 
 ## Overlays & feedback
 
+Each `Page` builds an internal `OverlayHost` after its content column.
+Global overlay roots marked as portals are moved into that host during
+`Page.build()`, so `position: fixed` surfaces do not inherit a transformed,
+filtered or clipped containing block. Dialog, PromptDialog, Menu, Toast,
+Drawer, CommandPalette, and the Popover panel all use this path; the host is
+internal and applications continue to mount components normally with
+`page.add(...)`.
+
 ### `Alert`
 
 ```python
@@ -497,9 +505,9 @@ Tab / Shift+Tab inside the panel. `actions` render as a row of themed buttons �
 takes a label (positional), a `variant` (`primary`/`ghost`/`danger`),
 an `on_click` callback (called with the dialog, sync or async) and
 `close_on_click` (default True). NOTE: any `backdrop-filter` /
-`transform` ancestor becomes the containing block for
-`position: fixed` — mount the dialog at the page root or in a
-non-filtered container.
+`transform` ancestor becomes the containing block for `position: fixed`
+when the component is used outside a Page. Page automatically moves
+Dialog into its internal OverlayHost.
 
 Dialog content may contain components with their own popups, such as
 Dropdown, Select, ComboBox and Tooltip. An opened child joins the same
@@ -507,6 +515,102 @@ window-level logical layer stack: its numeric band remains `popup`, but
 its stack order follows the modal. A click inside the dialog but outside
 the child popup closes only the child, not the Dialog. The Gallery's
 Overlays page contains a runnable example.
+
+### `Popover`
+
+```python
+anchor = Button("Filters")
+filters = Popover(
+    anchor,
+    filter_panel,
+    placement="bottom",
+    align="start",
+)
+anchor.on_click(lambda _event: filters.toggle())
+
+filters.on_open(on_opened)
+filters.on_close(on_closed)
+filters.open = True
+```
+
+**Options:** `Popover(anchor, content, *, placement="bottom",
+align="start", open=False, owner=None, focus_scope="none",
+initial_focus=None)`.
+
+`anchor` accepts a Component, DOMElement or string; `content` accepts a
+Component or DOMElement. `placement` is `top`, `right`, `bottom` or
+`left`; `align` is `start`, `center` or `end` on the cross axis. The
+browser runtime measures the anchor, flips to the opposite side when the
+requested side has insufficient room, and clamps the panel to the viewport.
+An open panel repositions on scroll and resize.
+
+`open` is settable, and `toggle()` flips it. Programmatic writes dispatch the
+`open` / `close` pseudo-events registered with `on_open()` / `on_close()`.
+Opening a Popover closes the previously open Popover, registers the panel at
+the popover layer, closes on Escape or an outside click, and treats the anchor
+as inside for routing. Pass `owner=` when opening from another overlay so the
+Popover follows that layer and closes with it. `focus_scope="trap"` and
+`initial_focus=` opt into the shared modal focus contract; the default
+`focus_scope="none"` only establishes the layer and outside-click contract.
+
+### `Drawer`
+
+```python
+drawer = Drawer(
+    notification_panel,
+    title="Notifications",
+    side="right",
+    width="360px",
+    closable=True,
+)
+drawer.open = True
+drawer.on_open(on_opened)
+drawer.on_close(on_closed)
+```
+
+**Options:** `Drawer(content, *, title="", side="right",
+width="360px", open=False, closable=True)`.
+
+A modal edge panel with a full-window scrim, directional entrance / exit
+animation and the same focus trap as Dialog. `side` is `left`, `right`,
+`top` or `bottom`; `width` sets the panel thickness for every side. `title`
+accepts text or a reactive text source and, when provided, is wired to the
+panel's accessible label.
+
+`open` is settable and dispatches the `open` / `close` pseudo-events. The
+scrim closes the drawer only when `closable=True`; Escape and parent-layer
+cascades still apply. Drawer is modal, so opening it closes lower transient
+layers and captures / restores focus through the shared layer manager.
+
+### `CommandPalette`
+
+```python
+palette = CommandPalette(
+    Command("open", "Open file", keywords=("document",), shortcut="Ctrl+O"),
+    Command("theme", "Change theme", description="Cycle the active theme"),
+    hotkey={"darwin": "Meta+Shift+P", "default": "Ctrl+Shift+P"},
+)
+palette.on_change(run_command)
+```
+
+**Options:** `CommandPalette(*commands, hotkey=None,
+placeholder="Search commands…", open=False)`.
+
+`Command(value, label=None, *, description="", keywords=(), shortcut=None,
+icon=None, disabled=False)` describes one row. Filtering is local and
+case-insensitive across `value`, `label`, `description` and `keywords`.
+ArrowUp/Down clamp through the enabled rows, Home/End jump to the first or
+last enabled row, and Enter selects the active row. Disabled commands are
+never selected and do not dispatch `change`.
+
+`query` is settable and filters immediately; `commands` returns a read-only
+snapshot. Use `add_command(*commands)` to append entries; duplicate values
+raise `ValueError`. Opening resets the query and focuses the search field.
+Selecting a command closes the palette and dispatches `change` with its
+`value`; Escape and the scrim also close it. `shortcut` on a Command is only
+display metadata. The constructor's `hotkey` is the real Page-level shortcut
+that opens the palette and is collected automatically when the palette is
+mounted in a Page.
 
 ### `PromptDialog`
 
@@ -530,8 +634,8 @@ focus) fires `on_submit` with the field's current value, then closes;
 cancelling (the ghost button, `Escape`, scrim click, or click-away)
 closes without firing it. `value` is the field's text — set it before
 opening to pre-fill, read it after submit. `prompt`, `confirm_label`,
-`cancel_label`, and `placeholder` are configurable. Same `position:
-fixed` caveat as `Dialog` — mount at the page root.
+`cancel_label`, and `placeholder` are configurable. Page automatically
+moves the PromptDialog into its internal OverlayHost.
 
 ### `Tooltip`
 
@@ -657,7 +761,8 @@ replaying the same keyframe reversed toward that edge. The host is a
 full-viewport `position: fixed` layer in the framework-managed
 notification band with
 `pointer-events: none` (clicks pass through to the page) — mount it at
-the page root, away from `backdrop-filter` / `transform` ancestors.
+the page root when used outside a Page; Page moves it into the internal
+OverlayHost automatically.
 
 ## Content
 

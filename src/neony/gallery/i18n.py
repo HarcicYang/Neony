@@ -401,6 +401,20 @@ class Interaction(BaseModel):
         "in the popup band. Clicking inside the dialog but outside the open "
         "popup dismisses only the popup."
     )
+    popover_label: TrRef[None] = TrRef("Popover")
+    popover_open_btn: TrRef[None] = TrRef("Open Popover")
+    popover_body: TrRef[None] = TrRef("Anchored content rendered through the overlay host.")
+    drawer_label: TrRef[None] = TrRef("Drawer")
+    drawer_open_btn: TrRef[None] = TrRef("Open Drawer")
+    drawer_title: TrRef[None] = TrRef("Notifications")
+    drawer_body: TrRef[None] = TrRef("A modal edge panel with trapped focus.")
+    palette_label: TrRef[None] = TrRef("Command Palette")
+    palette_open_btn: TrRef[None] = TrRef("Open Command Palette")
+    palette_placeholder: TrRef[None] = TrRef("Type a command…")
+    palette_open_file: TrRef[None] = TrRef("Open file")
+    palette_open_file_desc: TrRef[None] = TrRef("Open a local file")
+    palette_theme: TrRef[None] = TrRef("Change theme")
+    palette_theme_desc: TrRef[None] = TrRef("Cycle the active color theme")
     nested_theme_label: TrRef[None] = TrRef("Nested theme")
     nested_size_label: TrRef[None] = TrRef("Nested size")
     nested_tag_label: TrRef[None] = TrRef("Nested tag")
@@ -1114,6 +1128,20 @@ register_catalog(
                 "但 z-index 仍停留在 popup 层带。点击对话框内部但在已打开弹出层之外时，只会关闭"
                 "该弹出层，不会关闭对话框。"
             ),
+            popover_label="浮出层",
+            popover_open_btn="打开 Popover",
+            popover_body="通过 OverlayHost 渲染的锚定内容。",
+            drawer_label="抽屉",
+            drawer_open_btn="打开抽屉",
+            drawer_title="通知",
+            drawer_body="带焦点陷阱的模态边缘面板。",
+            palette_label="命令面板",
+            palette_open_btn="打开命令面板",
+            palette_placeholder="输入命令…",
+            palette_open_file="打开文件",
+            palette_open_file_desc="打开本地文件",
+            palette_theme="切换主题",
+            palette_theme_desc="循环切换当前配色主题",
             nested_theme_label="嵌套主题",
             nested_size_label="嵌套尺寸",
             nested_tag_label="嵌套标签",

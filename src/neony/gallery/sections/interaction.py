@@ -15,13 +15,17 @@ from neony.application.elements import (
     Button,
     ChoiceItem,
     ComboBox,
+    Command,
+    CommandPalette,
     Dialog,
     DialogAction,
+    Drawer,
     Dropdown,
     HStack,
     Input,
     Menu,
     MenuSeparator,
+    Popover,
     PromptDialog,
     Select,
     Separator,
@@ -479,6 +483,49 @@ def on_dialog_closed(_dialog: Dialog) -> None:
 dialog.on_open(on_dialog_opened)
 dialog.on_close(on_dialog_closed)
 
+popover_anchor = Button(tr.interaction.popover_open_btn, variant="ghost")
+popover = Popover(
+    popover_anchor,
+    Text(tr.interaction.popover_body),
+    placement="bottom",
+    align="start",
+)
+popover_anchor.on_click(lambda _event: popover.toggle())
+
+drawer = Drawer(
+    Text(tr.interaction.drawer_body),
+    title=tr.interaction.drawer_title,
+    side="right",
+    width="360px",
+)
+drawer_open_btn = Button(tr.interaction.drawer_open_btn, variant="ghost")
+
+
+async def on_drawer_open(_event: DomEvent) -> None:
+    drawer.open = True
+
+
+drawer_open_btn.on_click(on_drawer_open)
+
+palette = CommandPalette(
+    Command(
+        "open",
+        tr_now(tr.interaction.palette_open_file),
+        description=tr_now(tr.interaction.palette_open_file_desc),
+        shortcut="Ctrl+O",
+        keywords=("file", "document"),
+    ),
+    Command(
+        "theme",
+        tr_now(tr.interaction.palette_theme),
+        description=tr_now(tr.interaction.palette_theme_desc),
+    ),
+    hotkey={"darwin": "Meta+Shift+P", "default": "Ctrl+Shift+P"},
+    placeholder=tr_now(tr.interaction.palette_placeholder),
+)
+palette_open_btn = Button(tr.interaction.palette_open_btn, variant="ghost")
+palette_open_btn.on_click(lambda _event: setattr(palette, "open", True))
+
 # Nested overlays: components with their own floating panels live inside
 # a modal's content. The global layer manager gives each newly opened
 # child a later logical stack order, even though its numeric band is
@@ -700,6 +747,12 @@ nested.open = True""",
     HStack(Text(tr.interaction.dialog_label, weight="600"), Spacer(), dialog_open_btn, gap="8px"),
     dialog_status,
     Separator(),
+    HStack(Text(tr.interaction.popover_label, weight="600"), Spacer(), popover, gap="8px"),
+    Separator(),
+    HStack(Text(tr.interaction.drawer_label, weight="600"), Spacer(), drawer_open_btn, gap="8px"),
+    Separator(),
+    HStack(Text(tr.interaction.palette_label, weight="600"), Spacer(), palette_open_btn, gap="8px"),
+    Separator(),
     HStack(Text(tr.interaction.nested_dialog_label, weight="600"), Spacer(), nested_dialog_open_btn, gap="8px"),
     nested_dialog_status,
     Separator(),
@@ -747,7 +800,7 @@ def _wire_shortcuts(page: Page) -> None:
 def _wire_overlays(page: Page) -> None:
     # Dialog / nested Dialog / Menu / Prompt mount at the page root — a
     # transform or backdrop-filter ancestor would hijack `position: fixed`.
-    page.add(dialog, nested_dialog, ctx_menu, nested_menu, prompt)
+    page.add(dialog, nested_dialog, ctx_menu, nested_menu, prompt, drawer, palette)
 
 
 PAGE_HOOKS: list[Callable[[Page], None]] = [_wire_modifier_keys, _wire_shortcuts, _wire_overlays]
